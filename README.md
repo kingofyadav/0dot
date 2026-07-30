@@ -1,3 +1,9 @@
+# 0dot.in
+
+**One Identity. One Profile. Infinite Possibilities.**
+
+0dot.in is a digital identity platform — see the full [Product Roadmap](docs/ROADMAP.md) for the phased vision (identity & profiles, feed, communities, business, creator monetization, developer platform, AI, enterprise, and more).
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started

@@ -1,0 +1,163 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id              String    @id @default(uuid())
+  email           String    @unique
+  emailVerifiedAt DateTime?
+  passwordHash    String
+  status          String    @default("active") // active | suspended | deactivated | deleted
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  username Username?
+  profile  Profile?
+  sessions Session[]
+
+  emailVerificationTokens EmailVerificationToken[]
+  posts                   Post[]
+  postLikes               PostLike[]
+  bookmarks               Bookmark[]
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+}
+
+model EmailVerificationToken {
+  id        String    @id @default(uuid())
+  token     String    @unique
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+  expiresAt DateTime
+  usedAt    DateTime?
+}
+
+model Username {
+  id         String    @id @default(uuid())
+  userId     String    @unique
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  handle     String    @unique // stored lowercase; case-insensitive uniqueness enforced at the app layer
+  claimedAt  DateTime  @default(now())
+  releasedAt DateTime?
+}
+
+model Profile {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  displayName String
+  bio         String   @default("")
+  avatarUrl   String?
+  coverUrl    String?
+  themePreset String   @default("default") // key into a fixed, curated preset list — never raw CSS
+  isVerified  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  links       Link[]
+  socialLinks SocialLink[]
+}
+
+model SocialLink {
+  id        String   @id @default(uuid())
+  profileId String
+  profile   Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  platform  String // key into a fixed allowlist, validated at the app layer
+  url       String
+  position  Int
+  createdAt DateTime @default(now())
+}
+
+model Link {
+  id          String    @id @default(uuid())
+  profileId   String
+  profile     Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  label       String
+  url         String
+  position    Int
+  isFeatured  Boolean   @default(false)
+  startsAt    DateTime?
+  endsAt      DateTime?
+  clickCount  Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  clicks LinkClick[]
+}
+
+model LinkClick {
+  id            String   @id @default(uuid())
+  linkId        String
+  link          Link     @relation(fields: [linkId], references: [id], onDelete: Cascade)
+  occurredAt    DateTime @default(now())
+  referrerHost  String? // no raw IP/UA stored — see phase-1 spec §4.3 privacy rule
+
+  @@index([linkId])
+}
+
+model Post {
+  id          String    @id @default(uuid())
+  authorId    String
+  author      User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  body        String
+  likeCount   Int       @default(0)
+  replyCount  Int       @default(0)
+  repostCount Int       @default(0)
+  createdAt   DateTime  @default(now())
+  deletedAt   DateTime?
+
+  // Posts are soft-deleted (deletedAt) only, never hard-deleted, so these
+  // self-relations use NoAction rather than Cascade — a reply thread or
+  // repost must never disappear because its target row was removed under
+  // the hood; the app layer always tombstones instead.
+  replyToId String?
+  replyTo   Post?   @relation("PostReplies", fields: [replyToId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  replies   Post[]  @relation("PostReplies")
+
+  repostOfId String?
+  repostOf   Post?   @relation("PostReposts", fields: [repostOfId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  reposts    Post[]  @relation("PostReposts")
+
+  likes     PostLike[]
+  bookmarks Bookmark[]
+
+  @@index([createdAt])
+  @@index([replyToId])
+  @@index([repostOfId])
+}
+
+model PostLike {
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([postId, userId])
+}
+
+model Bookmark {
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([postId, userId])
+}
