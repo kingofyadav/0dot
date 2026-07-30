@@ -7,6 +7,7 @@ import { getCurrentUser } from "@/lib/session";
 import { validateUsernameFormat } from "@/lib/reserved-usernames";
 import { isValidThemePreset, SOCIAL_PLATFORMS, type SocialPlatform } from "@/lib/theme-presets";
 import { saveUploadedImage } from "@/lib/uploads";
+import { checkRateLimit } from "@/lib/rate-limit";
 import type { ActionState } from "@/app/actions/auth";
 
 function isSafeUrl(raw: string): boolean {
@@ -130,6 +131,14 @@ export async function createLink(
   formData: FormData
 ): Promise<ActionState> {
   const user = await requireOwnProfile();
+
+  // Higher budget than post creation — someone setting up a fresh profile
+  // legitimately adds a burst of links in one sitting. Still bounded to
+  // stop scripted abuse of the 100-link cap check below — see phase-1
+  // spec §7.2.
+  if (!checkRateLimit(`link:create:user:${user.id}`, { max: 20, windowMs: 10 * 60 * 1000 })) {
+    return { error: "You're adding links too fast. Please slow down." };
+  }
 
   const label = String(formData.get("label") ?? "").trim();
   const url = String(formData.get("url") ?? "").trim();

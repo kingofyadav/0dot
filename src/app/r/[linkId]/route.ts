@@ -21,7 +21,13 @@ export async function GET(
   const { linkId } = await params;
 
   const link = await db.link.findUnique({ where: { id: linkId } });
-  if (!link) {
+  const now = new Date();
+  const outsideWindow =
+    link && ((link.startsAt && link.startsAt > now) || (link.endsAt && link.endsAt < now));
+  if (!link || outsideWindow) {
+    // Same response as a nonexistent link — a scheduled-but-not-yet-live or
+    // expired link shouldn't redirect just because someone has the URL
+    // (bookmarked, cached, indexed) from outside its visibility window.
     return NextResponse.redirect(new URL("/", request.url));
   }
 

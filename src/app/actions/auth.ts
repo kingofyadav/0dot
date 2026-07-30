@@ -6,11 +6,13 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { createSession, destroySession } from "@/lib/session";
 import { validateUsernameFormat } from "@/lib/reserved-usernames";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 export type ActionState = { error?: string } | undefined;
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000; // 24h
+const RATE_LIMIT_ERROR = "Too many attempts. Please try again in a few minutes.";
 
 export async function signup(
   _prevState: ActionState,
@@ -20,6 +22,17 @@ export async function signup(
   const handle = String(formData.get("username") ?? "").trim().toLowerCase();
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
+
+  // Mass account creation is primarily an IP-scoped abuse pattern; a
+  // per-email limit also catches repeated retries against one address
+  // (e.g. hammering past "email already exists"). Checked before any DB
+  // work — see phase-1 spec §7.2.
+  const ip = await getClientIp();
+  const ipOk = checkRateLimit(`signup:ip:${ip}`, { max: 5, windowMs: 15 * 60 * 1000 });
+  const emailOk = checkRateLimit(`signup:email:${email}`, { max: 3, windowMs: 15 * 60 * 1000 });
+  if (!ipOk || !emailOk) {
+    return { error: RATE_LIMIT_ERROR };
+  }
 
   if (displayName.length < 1 || displayName.length > 50) {
     return { error: "Name must be 1-50 characters." };
@@ -88,6 +101,16 @@ export async function login(
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
 
+  // Per-IP catches distributed credential stuffing; per-email catches a
+  // brute force targeted at one account from anywhere. Checked before the
+  // DB lookup/bcrypt work — see phase-1 spec §7.2.
+  const ip = await getClientIp();
+  const ipOk = checkRateLimit(`login:ip:${ip}`, { max: 10, windowMs: 5 * 60 * 1000 });
+  const emailOk = checkRateLimit(`login:email:${email}`, { max: 5, windowMs: 5 * 60 * 1000 });
+  if (!ipOk || !emailOk) {
+    return { error: RATE_LIMIT_ERROR };
+  }
+
   const user = await db.user.findUnique({
     where: { email },
     include: { username: true },
@@ -95,6 +118,12 @@ export async function login(
 
   if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
     return { error: "Incorrect email or password." };
+  }
+
+  if (user.status !== "active") {
+    // Deliberately generic — doesn't distinguish suspended/deactivated/deleted
+    // to a caller who already has the right password for this email.
+    return { error: "This account is no longer active." };
   }
 
   await createSession(user.id);

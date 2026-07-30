@@ -5,10 +5,21 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { saveUploadedImage } from "@/lib/uploads";
+import { checkRateLimit } from "@/lib/rate-limit";
 import type { ActionState } from "@/app/actions/auth";
 
 const MAX_MEDIA_PER_POST = 4;
 const MAX_MEDIA_BYTES = 8 * 1024 * 1024;
+const RATE_LIMIT_ERROR = "You're posting too fast. Please slow down.";
+
+// Shared by createPost and createQuoteRepost — both create a Post row, and
+// a per-action limit alone would let someone bypass createPost's budget by
+// spamming quotes instead. Keyed by user (not IP): these actions already
+// require an authenticated, verified user, so the account is the
+// meaningful identity to throttle — see phase-1 spec §7.2.
+function checkPostRateLimit(userId: string): boolean {
+  return checkRateLimit(`post:create:user:${userId}`, { max: 10, windowMs: 5 * 60 * 1000 });
+}
 
 async function requireVerifiedUser() {
   const user = await getCurrentUser();
@@ -22,6 +33,10 @@ export async function createPost(
   formData: FormData
 ): Promise<ActionState> {
   const user = await requireVerifiedUser();
+
+  if (!checkPostRateLimit(user.id)) {
+    return { error: RATE_LIMIT_ERROR };
+  }
 
   const body = String(formData.get("body") ?? "").trim();
   const replyToId = String(formData.get("replyToId") ?? "").trim() || null;
@@ -155,6 +170,11 @@ export async function createQuoteRepost(
   formData: FormData
 ): Promise<ActionState> {
   const user = await requireVerifiedUser();
+
+  if (!checkPostRateLimit(user.id)) {
+    return { error: RATE_LIMIT_ERROR };
+  }
+
   const postId = String(formData.get("postId") ?? "");
   const body = String(formData.get("body") ?? "").trim();
 

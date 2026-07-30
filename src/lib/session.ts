@@ -52,5 +52,13 @@ export async function getCurrentUser() {
     return null;
   }
 
+  if (session.user.status !== "active") {
+    // Status can change after a session already exists (suspension, deletion,
+    // etc.) — checking only at login time would let an existing session keep
+    // working indefinitely after the account is no longer active.
+    await db.session.delete({ where: { token } });
+    return null;
+  }
+
   return session.user;
 }
