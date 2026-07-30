@@ -15,6 +15,10 @@
   --accent-green-soft: rgba(19, 136, 8, 0.14);
   --accent-navy: #0b1f66;
   --shadow: 0 1px 2px rgba(23, 23, 23, 0.04), 0 8px 24px rgba(23, 23, 23, 0.06);
+  /* Layout constant (not a themed color, so no dark-mode override needed):
+     shared by .desktopTopHeader's height and .desktopSidebar's sticky
+     offset so the two never overlap. */
+  --desktop-header-h: 72px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -64,12 +68,15 @@
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 8px 24px rgba(0, 0, 0, 0.35);
 }
 
+/* overflow-x: hidden lives on html only, not body — setting it on both
+   makes the UA compute overflow-y: auto on both per the CSS overflow spec
+   ("if overflow-x is not visible and overflow-y is visible, overflow-y
+   computes to auto"), which creates two competing scroll containers. html
+   ends up as the one that actually scrolls, but position: sticky on
+   Sidebar/mobileHeader (children of body) was resolving against body — an
+   ancestor that never scrolls — so they detached instead of staying put. */
 html {
   height: 100%;
-}
-
-html,
-body {
   max-width: 100vw;
   overflow-x: hidden;
 }
@@ -266,24 +273,113 @@ html[data-theme="dark"] {
 
 .profileCard {
   width: 100%;
-  max-width: 560px;
+  max-width: 640px;
   margin: 2rem auto;
   padding: 0 1rem;
 }
 
+/* Cover band + avatar overlap: the cover's negative margin-bottom pulls the
+   header row up by half the avatar's height, so the avatar (flex-end
+   aligned, taller than the row's text) visually straddles the boundary —
+   top half over the cover, bottom half over the page background. Rendered
+   unconditionally (gradient placeholder when there's no coverUrl) so the
+   overlap math and empty state both stay intentional-looking. */
+.profileCover {
+  position: relative;
+  width: 100%;
+  height: 200px;
+  border-radius: 20px;
+  overflow: hidden;
+  margin-bottom: -48px;
+}
+
+.profileCoverImg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profileCoverPlaceholder {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, var(--accent-soft), var(--accent-green-soft));
+}
+
 .profileHeaderRow {
+  position: relative;
+  z-index: 1;
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 1.1rem;
+  padding: 0 0.25rem;
 }
 
 .profileAvatar {
   border-radius: 50%;
   flex-shrink: 0;
   border: 3px solid transparent;
+  box-shadow: 0 0 0 4px var(--surface);
   background:
     linear-gradient(var(--surface), var(--surface)) padding-box,
     linear-gradient(135deg, var(--accent), var(--accent-green)) border-box;
+}
+
+.verifiedBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-left: 0.35rem;
+  border-radius: 50%;
+  background: var(--accent-navy);
+  color: #fff;
+  font-size: 0.65rem;
+  line-height: 1;
+  vertical-align: middle;
+}
+
+.profileBio {
+  margin-top: 1.25rem;
+  line-height: 1.5;
+  max-width: 52ch;
+}
+
+.profileMeta {
+  display: flex;
+  gap: 0.9rem;
+  margin-top: 0.35rem;
+  font-size: 0.85rem;
+  opacity: 0.7;
+}
+
+.socialLinksRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.sectionHeading {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.55;
+  margin-bottom: 0.85rem;
+}
+
+.linksSection {
+  margin-top: 1.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.postsSection {
+  margin-top: 2rem;
 }
 
 .profileLinkItem {
@@ -293,13 +389,13 @@ html[data-theme="dark"] {
   border: 1px solid var(--border);
   background: var(--surface);
   border-radius: 12px;
-  padding: 0.75rem 1rem;
+  padding: 0.85rem 1.1rem;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .profileLinkItem:hover {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
+  box-shadow: 0 0 0 3px var(--accent-soft), var(--shadow);
 }
 
 .profileEditToggle summary {
@@ -321,16 +417,56 @@ html[data-theme="dark"] {
   content: "− ";
 }
 
+/* Featured link (phase-1 spec §4.2): larger card, accent-tinted border,
+   rendered first among a profile's links. */
+.featuredLink {
+  padding: 1rem 1.25rem;
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* Post media grid: fixed aspect-ratio cells rather than measuring each
+   image's real dimensions (no image-processing dependency needed) — same
+   approach Twitter/Instagram grids use. */
+.postMediaGrid {
+  display: grid;
+  gap: 4px;
+  border-radius: 12px;
+  overflow: hidden;
+  margin-top: 0.25rem;
+}
+
+.postMediaItem {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+}
+
+.loadMoreLink {
+  display: block;
+  width: fit-content;
+  margin: 1.25rem auto 0;
+}
+
 /* App shell: mobile-first. Base (unqualified, <1024px / --bp-lg) renders the
    sticky top mobileHeader (brand + hamburger); the desktopSidebar is hidden.
    At --bp-lg the two swap: sidebar visible, top header gone entirely. Both
    are always in the DOM (SiteHeader.tsx renders them as siblings) — CSS
    alone decides visibility, since SSR has no viewport to branch on. */
 
+/* display:flex here (not just flex:1 1 auto on the item side) is what lets
+   a direct child like .authWrap use flex:1 to fill the remaining viewport
+   height — without it, .authWrap's flex:1 was a no-op (its parent wasn't a
+   flex container), so the login page's background glow only ever covered
+   the auth card's own content box, not the full screen. */
 .appMain {
   flex: 1 1 auto;
   min-width: 0;
+  min-height: 0;
   width: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .siteHeaderBrand {
@@ -344,7 +480,12 @@ html[data-theme="dark"] {
   width: 100%;
 }
 
-/* Desktop sidebar */
+/* Desktop top header (>=1024px only — see .desktopTopHeader inside the
+   @media block below) and desktop sidebar */
+
+.desktopTopHeader {
+  display: none;
+}
 
 .desktopSidebar {
   display: none;
@@ -366,8 +507,11 @@ html[data-theme="dark"] {
 }
 
 /* A restrained nod to the tricolor brand palette: a thin gradient bar
-   under the header, present on every page. */
-.mobileHeader::after {
+   under the header, present on every page — shared by both header surfaces
+   (mobile top strip, desktop top header) rather than duplicated per
+   NAVIGATION.md rule 3 ("persistent brand element... same visual system"). */
+.mobileHeader::after,
+.desktopTopHeader::after {
   content: "";
   position: absolute;
   left: 0;
@@ -398,11 +542,50 @@ html[data-theme="dark"] {
   justify-content: center;
   width: 44px;
   height: 44px;
-  font-size: 1.2rem;
   border-radius: 10px;
-  border: 1px solid var(--border);
+  border: none;
+  background: none;
   cursor: pointer;
   list-style: none;
+  transition: background-color 0.15s ease;
+}
+
+.mobileNavToggle:hover {
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+}
+
+.mobileNavMenu[open] .mobileNavToggle {
+  background: var(--accent-soft);
+}
+
+/* Tricolor hamburger bars — saffron / neutral / green, the same restrained
+   accent system as the header's gradient underline and the avatar ring
+   (DESIGN_SYSTEM.md), applied here since this button only exists on mobile. */
+.hamburgerIcon {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  width: 20px;
+}
+
+.hamburgerIcon span {
+  display: block;
+  height: 2.5px;
+  border-radius: 2px;
+}
+
+.hamburgerIcon span:nth-child(1) {
+  background: var(--accent);
+}
+
+.hamburgerIcon span:nth-child(2) {
+  background: var(--foreground);
+  opacity: 0.55;
+}
+
+.hamburgerIcon span:nth-child(3) {
+  background: var(--accent-green);
 }
 
 .mobileNavToggle::-webkit-details-marker {
@@ -430,22 +613,65 @@ html[data-theme="dark"] {
 }
 
 @media (min-width: 1024px) {
+  /* Two-row, two-column shell: a full-width top header above a
+     sidebar+main row. Grid (not flex) because it's the only way to let one
+     sibling (header) span the full width while two other siblings
+     (sidebar, main) share a row beneath it, without adding a wrapper
+     element around Sidebar/main in layout.tsx. */
   body {
-    flex-direction: row;
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    grid-template-rows: var(--desktop-header-h) 1fr;
+    grid-template-areas:
+      "header header"
+      "sidebar main";
     align-items: stretch;
+    min-height: 100vh;
+  }
+
+  .desktopTopHeader {
+    grid-area: header;
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    align-items: center;
+    gap: 1rem;
+    padding: 0 1.5rem;
+    position: sticky;
+    top: 0;
+    z-index: 11;
+    background: color-mix(in srgb, var(--background) 85%, transparent);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .desktopTopHeaderSearchWrap {
+    display: flex;
+    justify-content: center;
+  }
+
+  .desktopTopHeaderSearchWrap .siteHeaderSearch {
+    width: 100%;
+    max-width: 440px;
   }
 
   .desktopSidebar {
+    grid-area: sidebar;
     display: flex;
     flex-direction: column;
     gap: 1.5rem;
     position: sticky;
-    top: 0;
-    height: 100vh;
-    width: 240px;
-    flex-shrink: 0;
+    top: var(--desktop-header-h);
+    height: calc(100vh - var(--desktop-header-h));
     padding: 1.5rem 1.25rem;
     border-right: 1px solid var(--border);
+  }
+
+  /* The sidebar's own copy of the search form (rendered via the shared
+     NavLinks) is redundant now that .desktopTopHeader owns search at this
+     breakpoint — suppressed here, not in NavLinks itself, so mobile (which
+     reuses the same component inside the hamburger panel) is unaffected. */
+  .desktopSidebar .siteHeaderSearch {
+    display: none;
   }
 
   .sidebarNav {
@@ -456,6 +682,10 @@ html[data-theme="dark"] {
 
   .sidebarSpacer {
     flex: 1;
+  }
+
+  .appMain {
+    grid-area: main;
   }
 
   .mobileHeader {

@@ -1,8 +1,15 @@
 import Link from "next/link";
+import { SearchForm } from "./SearchForm";
 
 // Shared between Sidebar (desktop) and the mobile hamburger dropdown — same
 // destinations, same markup, just rendered inside a different container.
-export function NavLinks({ showBookmarks }: { showBookmarks: boolean }) {
+export function NavLinks({
+  showBookmarks,
+  profileHandle,
+}: {
+  showBookmarks: boolean;
+  profileHandle: string | null;
+}) {
   return (
     <>
       <Link href="/feed" style={{ fontWeight: 600, opacity: 0.85 }}>
@@ -13,17 +20,12 @@ export function NavLinks({ showBookmarks }: { showBookmarks: boolean }) {
           Bookmarks
         </Link>
       )}
-      {/* Native GET form — works without JS, per NAVIGATION.md's "top
-          search belongs in the persistent header." */}
-      <form action="/search" method="GET" role="search" className="siteHeaderSearch">
-        <input
-          type="search"
-          name="q"
-          placeholder="Search…"
-          aria-label="Search"
-          className="textInput"
-        />
-      </form>
+      {profileHandle && (
+        <Link href={`/${profileHandle}`} style={{ fontWeight: 600, opacity: 0.85 }}>
+          Profile
+        </Link>
+      )}
+      <SearchForm />
     </>
   );
 }

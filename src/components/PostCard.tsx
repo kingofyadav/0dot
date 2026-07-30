@@ -2,6 +2,7 @@ import Link from "next/link";
 import { toggleLike, toggleBookmark, toggleRepost, deletePost } from "@/app/actions/posts";
 import { linkifyPostBody } from "@/lib/linkify";
 import { ReplyForm } from "@/app/feed/ReplyForm";
+import { QuoteRepostForm } from "@/app/feed/QuoteRepostForm";
 
 function relativeTime(date: Date): string {
   const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
@@ -20,6 +21,8 @@ type AuthorInfo = {
   username: { handle: string } | null;
 };
 
+type MediaItem = { id: string; url: string };
+
 type BasicPost = {
   id: string;
   authorId: string;
@@ -27,6 +30,7 @@ type BasicPost = {
   likeCount: number;
   createdAt: Date;
   author: AuthorInfo;
+  media: MediaItem[];
 };
 
 export type FeedPost = BasicPost & {
@@ -56,9 +60,24 @@ function AuthorLine({ author, createdAt }: { author: AuthorInfo; createdAt: Date
   );
 }
 
+function PostMediaGrid({ media }: { media: MediaItem[] }) {
+  if (media.length === 0) return null;
+  const columns = media.length === 1 ? 1 : 2;
+  return (
+    <div className="postMediaGrid" style={{ gridTemplateColumns: `repeat(${columns}, 1fr)` }}>
+      {media.map((item) => (
+        // eslint-disable-next-line @next/next/no-img-element -- user-uploaded content, not an optimizable static asset
+        <img key={item.id} src={item.url} alt="" className="postMediaItem" />
+      ))}
+    </div>
+  );
+}
+
 // Read-only inline rendering for a reply or a reposted original — no
 // nested reply/repost/bookmark actions one level deep, per phase-1 spec
-// §5.3 ("flattens to reply to the original post's thread").
+// §5.3 ("flattens to reply to the original post's thread"). Media is
+// summarized as a count rather than a full grid, to avoid a media grid
+// nested inside another card.
 function MiniPostCard({
   post,
   currentUserId,
@@ -90,7 +109,12 @@ function MiniPostCard({
           </form>
         )}
       </div>
-      <p style={{ whiteSpace: "pre-wrap" }}>{linkifyPostBody(post.body)}</p>
+      <p style={{ whiteSpace: "pre-wrap" }}>
+        {linkifyPostBody(post.body)}
+        {post.media.length > 0 && (
+          <span className="mutedText"> 📷 {post.media.length} photo{post.media.length === 1 ? "" : "s"}</span>
+        )}
+      </p>
     </div>
   );
 }
@@ -108,20 +132,19 @@ export function PostCard({
   isOwner: boolean;
   currentUserId?: string | null;
 }) {
-  // toggleRepost (src/app/actions/posts.ts) only ever creates empty-body
-  // reposts — quote-repost-with-text is schema-supported (spec §5.3) but
-  // has no compose UI yet, so repostOfId set implies an empty body here.
   const isRepost = post.repostOfId !== null;
+  const isQuoteRepost = isRepost && post.body.trim().length > 0;
+  const isPureRepost = isRepost && !isQuoteRepost;
 
   return (
     <div className="profileLinkItem" style={{ flexDirection: "column", alignItems: "stretch", gap: "0.5rem" }}>
-      {isRepost && (
+      {isPureRepost && (
         <p className="mutedText" style={{ fontSize: "0.85rem" }}>
           ↻ {post.author.profile?.displayName ?? "Someone"} reposted
         </p>
       )}
 
-      {!isRepost && (
+      {!isPureRepost && (
         <>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
             <AuthorLine author={post.author} createdAt={post.createdAt} />
@@ -135,6 +158,7 @@ export function PostCard({
             )}
           </div>
           <p style={{ whiteSpace: "pre-wrap" }}>{linkifyPostBody(post.body)}</p>
+          <PostMediaGrid media={post.media} />
         </>
       )}
 
@@ -145,7 +169,7 @@ export function PostCard({
           <p className="mutedText">This post was deleted.</p>
         ))}
 
-      {!isRepost && (
+      {!isPureRepost && (
         <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
           <form action={toggleLike}>
             <input type="hidden" name="postId" value={post.id} />
@@ -183,6 +207,17 @@ export function PostCard({
               {isBookmarked ? "🔖" : "📑"}
             </button>
           </form>
+
+          <details className="profileEditToggle" style={{ flex: "1 1 100%", minWidth: 0 }}>
+            <summary className="button buttonSecondary iconButton" style={{ display: "inline-block" }}>
+              Quote
+            </summary>
+            <QuoteRepostForm
+              postId={post.id}
+              authorName={post.author.profile?.displayName ?? "Unknown"}
+              bodyPreview={post.body.slice(0, 80)}
+            />
+          </details>
 
           <details className="profileEditToggle" style={{ flex: "1 1 100%", minWidth: 0 }}>
             <summary className="button buttonSecondary iconButton" style={{ display: "inline-block" }}>

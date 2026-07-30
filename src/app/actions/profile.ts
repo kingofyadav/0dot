@@ -1,13 +1,12 @@
 "use server";
 
-import { randomBytes } from "crypto";
-import { mkdir, writeFile } from "fs/promises";
-import path from "path";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
+import { validateUsernameFormat } from "@/lib/reserved-usernames";
 import { isValidThemePreset, SOCIAL_PLATFORMS, type SocialPlatform } from "@/lib/theme-presets";
+import { saveUploadedImage } from "@/lib/uploads";
 import type { ActionState } from "@/app/actions/auth";
 
 function isSafeUrl(raw: string): boolean {
@@ -22,37 +21,56 @@ function isSafeUrl(raw: string): boolean {
   }
 }
 
-const ALLOWED_IMAGE_EXTENSIONS: Record<string, string> = {
-  "image/png": "png",
-  "image/jpeg": "jpg",
-  "image/webp": "webp",
-  "image/gif": "gif",
-};
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
-
-async function saveUploadedImage(file: File): Promise<{ url: string } | { error: string }> {
-  const ext = ALLOWED_IMAGE_EXTENSIONS[file.type];
-  if (!ext) {
-    return { error: "Images must be PNG, JPEG, WEBP, or GIF." };
-  }
-  if (file.size > MAX_IMAGE_BYTES) {
-    return { error: "Images must be 5MB or smaller." };
-  }
-
-  const uploadsDir = path.join(process.cwd(), "public", "uploads");
-  await mkdir(uploadsDir, { recursive: true });
-  const filename = `${randomBytes(16).toString("hex")}.${ext}`;
-  const buffer = Buffer.from(await file.arrayBuffer());
-  await writeFile(path.join(uploadsDir, filename), buffer);
-
-  return { url: `/uploads/${filename}` };
-}
-
 async function requireOwnProfile() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   if (!user.profile) redirect("/claim-username");
   return user;
+}
+
+// Today, every signup creates a Username + Profile atomically (see
+// src/app/actions/auth.ts), so a verified user without a profile can't
+// actually happen yet — but requireOwnProfile() above has redirected to
+// this flow since it was written, anticipating a future OAuth-only signup
+// path (phase-1 spec §3.3) that authenticates a User before a handle is
+// chosen. This makes that redirect target real instead of a 404.
+export async function claimUsername(
+  _prevState: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+  if (user.profile) redirect(`/${user.username!.handle}`);
+  if (!user.emailVerifiedAt) redirect("/verify/sent");
+
+  const displayName = String(formData.get("displayName") ?? "").trim();
+  const handle = String(formData.get("username") ?? "").trim().toLowerCase();
+
+  if (displayName.length < 1 || displayName.length > 50) {
+    return { error: "Name must be 1-50 characters." };
+  }
+
+  const usernameError = validateUsernameFormat(handle);
+  if (usernameError === "invalid_format") {
+    return {
+      error: "Username must be 3-30 characters: letters, numbers, underscore only.",
+    };
+  }
+  if (usernameError === "reserved") {
+    return { error: "That username is reserved." };
+  }
+
+  const existingHandle = await db.username.findUnique({ where: { handle } });
+  if (existingHandle) {
+    return { error: "That username is already taken." };
+  }
+
+  await db.$transaction([
+    db.username.create({ data: { handle, userId: user.id } }),
+    db.profile.create({ data: { userId: user.id, displayName } }),
+  ]);
+
+  redirect(`/${handle}`);
 }
 
 export async function updateProfile(
@@ -183,6 +201,36 @@ export async function moveLink(formData: FormData): Promise<void> {
       data: { position: current.position },
     }),
   ]);
+
+  revalidatePath(`/${user.username!.handle}`);
+}
+
+const MAX_FEATURED_LINKS = 3;
+
+export async function toggleFeatured(formData: FormData): Promise<void> {
+  const user = await requireOwnProfile();
+  const linkId = String(formData.get("linkId") ?? "");
+
+  const link = await db.link.findFirst({
+    where: { id: linkId, profileId: user.profile!.id },
+  });
+  if (!link) return;
+
+  if (!link.isFeatured) {
+    // Cap enforced server-side (phase-1 spec §4.2). No error-surfacing UI
+    // exists for this void action (mirrors moveLink's quiet no-op on an
+    // invalid move) — turning on a 4th featured link is silently ignored
+    // rather than introducing a one-off error path just for this control.
+    const featuredCount = await db.link.count({
+      where: { profileId: user.profile!.id, isFeatured: true },
+    });
+    if (featuredCount >= MAX_FEATURED_LINKS) return;
+  }
+
+  await db.link.update({
+    where: { id: linkId },
+    data: { isFeatured: !link.isFeatured },
+  });
 
   revalidatePath(`/${user.username!.handle}`);
 }

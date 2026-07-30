@@ -6,10 +6,12 @@ import { Sidebar } from "./Sidebar";
 import { MobileNavMenu } from "./MobileNavMenu";
 import { NavLinks } from "./NavLinks";
 import { NavAction } from "./NavAction";
+import { SearchForm } from "./SearchForm";
 
 export async function SiteHeader() {
   const user = await getCurrentUser();
   const greeting = user?.profile ? user.profile.displayName : "Welcome";
+  const profileHandle = user?.username?.handle ?? null;
 
   // An anonymous visitor landing on someone's public profile (a common
   // discovery entry point, e.g. via a shared link) is a good moment for a
@@ -27,10 +29,20 @@ export async function SiteHeader() {
 
   return (
     <>
-      {/* Desktop (>=1024px) and mobile render simultaneously — CSS decides
+      {/* Desktop (>=1024px), and mobile render simultaneously — CSS decides
           which is visible, since SSR has no viewport to branch on. See
-          .desktopSidebar / .mobileHeader in globals.css. */}
-      <Sidebar greeting={greeting} hasProfile={hasProfile} showJoinCta={showJoinCta} />
+          .desktopTopHeader / .desktopSidebar / .mobileHeader in globals.css. */}
+      <header className="desktopTopHeader">
+        <div className="siteHeaderBrand">
+          <ThemeToggleLogo />
+          <span style={{ fontWeight: 600 }}>{greeting}</span>
+        </div>
+        <div className="desktopTopHeaderSearchWrap">
+          <SearchForm />
+        </div>
+      </header>
+
+      <Sidebar hasProfile={hasProfile} showJoinCta={showJoinCta} profileHandle={profileHandle} />
 
       <header className="mobileHeader">
         <div className="siteHeaderBrand">
@@ -38,7 +50,7 @@ export async function SiteHeader() {
           <span style={{ fontWeight: 600 }}>{greeting}</span>
         </div>
         <MobileNavMenu>
-          <NavLinks showBookmarks={hasProfile} />
+          <NavLinks showBookmarks={hasProfile} profileHandle={profileHandle} />
           <NavAction hasProfile={hasProfile} showJoinCta={showJoinCta} />
         </MobileNavMenu>
       </header>

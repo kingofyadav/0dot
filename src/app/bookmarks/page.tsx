@@ -1,33 +1,62 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
+import { parseCursor, paginate, POST_PAGE_SIZE } from "@/lib/pagination";
 import { PostCard } from "@/components/PostCard";
 
 const authorInclude = { profile: true, username: true } as const;
+const mediaInclude = { orderBy: { position: "asc" as const } };
 
-export default async function BookmarksPage() {
+export default async function BookmarksPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ cursor?: string }>;
+}) {
   const currentUser = await getCurrentUser();
   if (!currentUser) redirect("/login");
 
-  const bookmarks = await db.bookmark.findMany({
-    where: { userId: currentUser.id, post: { deletedAt: null } },
-    orderBy: { createdAt: "desc" },
+  const { cursor: rawCursor } = await searchParams;
+  const cursor = parseCursor(rawCursor);
+
+  // Bookmark has no single `id` (its key is [postId, userId]) so it can't
+  // reuse cursorWhere() as-is — same (createdAt, tiebreaker) composite
+  // pattern, just written against postId as the tiebreaker instead.
+  const bookmarkRows = await db.bookmark.findMany({
+    where: {
+      userId: currentUser.id,
+      post: { deletedAt: null },
+      ...(cursor
+        ? {
+            OR: [
+              { createdAt: { lt: cursor.createdAt } },
+              { createdAt: cursor.createdAt, postId: { lt: cursor.id } },
+            ],
+          }
+        : {}),
+    },
+    orderBy: [{ createdAt: "desc" }, { postId: "desc" }],
+    take: POST_PAGE_SIZE + 1,
     include: {
       post: {
         include: {
           author: { include: authorInclude },
-          repostOf: { include: { author: { include: authorInclude } } },
+          media: mediaInclude,
+          repostOf: { include: { author: { include: authorInclude }, media: mediaInclude } },
           replies: {
             where: { deletedAt: null },
             orderBy: { createdAt: "asc" },
-            include: { author: { include: authorInclude } },
+            include: { author: { include: authorInclude }, media: mediaInclude },
           },
         },
       },
     },
   });
 
-  const posts = bookmarks.map((b) => b.post);
+  // paginate() only needs {createdAt, id} to trim/detect a next page —
+  // postId stands in for id here.
+  const { items, nextCursor } = paginate(bookmarkRows.map((b) => ({ ...b, id: b.postId })));
+  const posts = items.map((b) => b.post);
   const postIds = posts.map((p) => p.id);
   const likedPostIds = new Set(
     (
@@ -54,6 +83,14 @@ export default async function BookmarksPage() {
           />
         ))}
       </div>
+      {nextCursor && (
+        <Link
+          href={`/bookmarks?cursor=${encodeURIComponent(nextCursor)}`}
+          className="button buttonSecondary loadMoreLink"
+        >
+          Load more
+        </Link>
+      )}
     </div>
   );
 }

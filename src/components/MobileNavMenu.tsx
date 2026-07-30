@@ -22,7 +22,11 @@ export function MobileNavMenu({ children }: { children: ReactNode }) {
   return (
     <details ref={detailsRef} className="mobileNavMenu">
       <summary className="mobileNavToggle" aria-label="Open menu">
-        <span aria-hidden="true">☰</span>
+        <span className="hamburgerIcon" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+        </span>
       </summary>
       <div className="mobileNavPanel">{children}</div>
     </details>

@@ -29,6 +29,7 @@ export const RESERVED_USERNAMES = new Set([
   "bookmarks",
   "r",
   "uploads",
+  "qr",
   "0dot",
 ]);
 
