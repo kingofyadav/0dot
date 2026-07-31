@@ -6,11 +6,12 @@ Found by code review + live testing (logging in/out repeatedly in Chrome) on
 `src/components/SiteHeader.tsx`, `src/components/Sidebar.tsx`,
 `src/components/MobileNavMenu.tsx`.
 
-Not yet fixed — this is the findings list only.
+Items #1 and #3 were fixed in `aa3ca32` ("Fix scheduled-link enforcement,
+account-status check, and rate limiting"). #2, #4, #5 remain open.
 
 ---
 
-## 1. Login doesn't check account status
+## 1. Login doesn't check account status — FIXED (aa3ca32)
 
 **File:** `src/app/actions/auth.ts:84-110` (`login`)
 **Severity:** High (security / trust & safety)
@@ -30,9 +31,12 @@ A suspended, deactivated, or (soft-)deleted account can still log in and get a
 fully valid session as long as the password is correct. The field exists
 specifically to gate this and currently does nothing.
 
-**Suggested fix:** after the password check succeeds, reject (or branch to an
-account-specific message) when `user.status !== "active"`, before calling
-`createSession`.
+**Fix applied:** `login()` now rejects with a generic "This account is no
+longer active." error when `user.status !== "active"`, checked after the
+password check (so a wrong-password guess still can't distinguish account
+state) and before `createSession`. `getCurrentUser()` (`src/lib/session.ts`)
+was also updated to reject non-active status, so an already-issued session
+for a since-suspended account stops working too.
 
 ---
 
@@ -57,7 +61,7 @@ approximately the same time.
 
 ---
 
-## 3. No rate limiting on login
+## 3. No rate limiting on login — FIXED (aa3ca32)
 
 **File:** `src/app/actions/auth.ts:84` (`login`)
 **Severity:** Medium (security)
@@ -67,9 +71,11 @@ Also called out as a pre-launch requirement in `docs/specs/phase-1-foundation.md
 §7.2, alongside signup, post creation, and link creation (none of which are
 rate-limited either).
 
-**Suggested fix:** needs a rate-limit strategy decision (per-IP, per-email, or
-both; in-memory vs. a store that survives restarts) before implementing —
-flagging as a scope decision, not a one-line fix.
+**Fix applied:** `src/lib/rate-limit.ts` adds an in-memory per-IP and
+per-email rate limiter, applied to `login` (10/5min per IP, 5/5min per
+email), checked before the DB lookup. Also applied to signup, post creation
+(incl. quote-repost), and link creation in the same commit, closing the rest
+of the §7.2 requirement.
 
 ---
 
@@ -125,3 +131,284 @@ render sites reconciled either way.
 - `proxy.ts`'s `x-pathname` injection and the reserved-username-based
   `isProfilePage` check in `SiteHeader.tsx` correctly suppress the "Join for
   free" CTA on `/login` itself.
+
+---
+
+# Bug report: full 4-phase review (Phases 1–4)
+
+Found by a 4-way parallel code review (one agent per phase, cross-checked
+against each phase's spec) on 2026-07-31, with the top findings independently
+re-verified by reading the actual code afterward. Scope: the entire app —
+foundation/auth, social platform, communities, business platform. All items
+below are open (none fixed yet); a fix plan for all 13 exists at
+`/home/amit/.claude/plans/buzzing-fluttering-newt.md` (Groups A–K) and is
+saved for a future session to execute. One additional spec gap
+(`Link.businessId` / business links, Phase 4 §3.2) was found but deliberately
+excluded from the fix plan — it's an unimplemented feature that was never in
+the Phase 4 build plan's actual scope, not a regression.
+
+Items #1–#3 share one root cause (`getFeedPosts`/`getTrendingPosts`/
+`getCommunityFeedPosts` build their `where` clause with no visibility
+filtering at all) and are fixed together as "Group A" in the plan.
+
+---
+
+## 1. Pending/unapproved businesses can broadcast their identity platform-wide
+
+**File:** `src/lib/businesses.ts:82-96` (`resolveBusinessAuthorContext`), `:119-125`
+(`getPostableBusinesses`); `src/lib/feed-query.ts:75`
+**Severity:** High (security / trust & safety — defeats a launch-blocking gate)
+
+Neither `resolveBusinessAuthorContext` (called from `createPost`) nor
+`getPostableBusinesses` (populates the "Post as" picker) checks
+`Business.status`. `getFeedPosts` unconditionally includes `businessAuthor`
+regardless of status.
+
+**Repro:** create a business named after a real brand with no matching
+website domain and no verified profile → lands `status: "pending"` (its own
+page 404s, unsearchable, per §3.3's claim gate). As owner, the "Post as
+[Business]" option is still offered in the composer. Post — it immediately
+appears on every visitor's `/feed` and `/explore` with the business's name
+and logo as the visible author, fully bypassing the claim/verification gate
+before any admin review. Rejecting the business later only `SetNull`s
+`businessAuthorId` going forward; it doesn't undo the exposure that already
+happened.
+
+**Suggested fix:** see plan Group A.
+
+---
+
+## 2. Private community posts leak into Home/Explore/Trending
+
+**File:** `src/lib/feed-query.ts:61-84`, `src/lib/trending.ts:198-215`
+**Severity:** High (privacy)
+
+`getFeedPosts`/`getTrendingPosts` apply zero community-visibility filtering,
+while the community's own page (`src/app/c/[slug]/page.tsx`) correctly gates
+private content behind `canViewContent` — that gate is bypassed entirely by
+the two global feed surfaces.
+
+**Repro:** post inside a `visibility: "private"` community. The post appears
+on `/explore` for a logged-out visitor and on `/feed` for anyone following
+the author, community name attached, despite the viewer never being a
+member.
+
+**Suggested fix:** see plan Group A.
+
+---
+
+## 3. Blocked users' posts still show on Explore/Trending
+
+**File:** `src/lib/feed-query.ts:61-84`, `src/lib/trending.ts:198-215`
+**Severity:** High (privacy / safety)
+
+`getFeedPosts`/`getTrendingPosts` never call `isBlocked`/`isBlockedEitherWay`
+(`src/lib/blocks.ts`), unlike `src/lib/messaging.ts`'s
+`getMessagesForConversation`, which explicitly filters blocked senders.
+Blocking's post-suppression only works on Home, and only as a side effect of
+the `Follow` row being deleted on block — it does nothing for the two global
+surfaces.
+
+**Repro:** A blocks B. B's posts and replies still appear in A's `/explore`
+and `/trending` feeds.
+
+**Suggested fix:** see plan Group A.
+
+---
+
+## 4. Voice room join has no community-membership or ban check
+
+**File:** `src/app/actions/voice-rooms.ts:122-140` (`joinVoiceRoom`)
+**Severity:** High (authorization bypass)
+
+`joinVoiceRoom` only checks `room.status === "live"` and whether the caller
+is already a participant — it never calls `getCommunityMember`, unlike
+sibling actions (`createVoiceRoom`, `sendChatMessage`) which do check
+membership first.
+
+**Repro:** a user who was never a member of a private community — or who was
+explicitly banned from it — calls `joinVoiceRoom` directly on a live room
+there (bypassing the UI's Join button, which only hides for non-members but
+doesn't stop the server action itself). They become a `listener`
+participant, which then passes the participant-only gates on
+`sendVoiceSignal` and the SSE stream route, letting them receive live audio
+from a private room they were never allowed into — bypassing their own ban
+in the process.
+
+**Suggested fix:** see plan Group B — mirror `createVoiceRoom`'s existing
+membership check.
+
+---
+
+## 5. `toggleRepost` race condition duplicates reposts and inflates the count
+
+**File:** `src/app/actions/posts.ts:193-219`
+**Severity:** Medium (correctness)
+
+The existing-repost lookup runs outside any transaction, and there's no
+unique DB constraint on `(authorId, repostOfId, body="")` to catch a race —
+unlike `PostLike`/`Bookmark`/`PollVote`, which all use compound `@@id`
+primary keys that make the equivalent race safe.
+
+**Repro:** double-click the repost button quickly (or race two concurrent
+requests). Both reads see "not reposted yet" before either write commits, so
+both insert a repost row and increment `repostCount` — two duplicate repost
+posts, count inflated by 2 for one logical action.
+
+**Suggested fix:** see plan Group C — wrap read+write in one `db.$transaction`,
+same pattern already used in `reviews.ts`/`appointments.ts`.
+
+---
+
+## 6. Per-IP rate limits are spoofable via `X-Forwarded-For`
+
+**File:** `src/lib/rate-limit.ts:46-51` (`getClientIp`)
+**Severity:** Medium (security, deployment-dependent)
+
+`getClientIp()` trusts the client-supplied `X-Forwarded-For` header with no
+validation that the request passed through a trusted proxy, and takes the
+**first** (client-controlled) hop rather than the last (proxy-appended) one.
+
+**Repro:** script login/signup requests with a unique `X-Forwarded-For` value
+per request — each lands in a fresh bucket, so the per-IP
+credential-stuffing/signup-spam protection never engages (only the
+per-email bucket still limits attempts against one specific address).
+
+**Suggested fix:** see plan Group D — take the last hop instead of the
+first. Deployment-dependent mitigation (assumes exactly one trusted reverse
+proxy in front); not a complete fix on its own.
+
+---
+
+## 7. Public profile page never renders the user's posts
+
+**File:** `src/app/[username]/page.tsx` (full file)
+**Severity:** Medium (spec deviation)
+
+No `Post` query and no `PostCard` usage anywhere on the page — contradicts
+spec §3.4's stated section order and the Phase 1 build sequence's explicit
+"public profile post list" deliverable.
+
+**Repro:** visit a user's profile who has published posts — identity/bio/links
+render correctly, zero posts appear anywhere.
+
+**Suggested fix:** see plan Group E (depends on Group A's shared visibility
+helper).
+
+---
+
+## 8. Unhandled race on concurrent username claims
+
+**File:** `src/app/actions/auth.ts:58-77` (`signup`), `src/app/actions/profile.ts`
+(`claimUsername`)
+**Severity:** Low-Medium (robustness)
+
+Check-then-act (`findUnique` then a separate `create`) with no catch around
+the resulting Prisma `P2002` unique-constraint violation.
+
+**Repro:** two concurrent signups (or a signup racing a `claimUsername` call)
+for the same handle both pass the availability check before either insert
+commits — the loser's `create` throws an uncaught `P2002`, surfacing as an
+unhandled 500 instead of "That username is already taken."
+
+**Suggested fix:** see plan Group F — catch `P2002` around the create,
+return the existing friendly error.
+
+---
+
+## 9. Business staff can review their own business
+
+**File:** `src/app/actions/reviews.ts:37-79` (`createOrUpdateReview`)
+**Severity:** Low (correctness / integrity)
+
+No check that the reviewer isn't a `BusinessMember` of the target business —
+undercuts the "review integrity" rationale in spec §11.1.
+
+**Repro:** an owner/admin/editor submits a 5-star review of their own
+business, inflating the denormalized `averageRating`/`reviewCount` used as a
+search-ranking tie-break.
+
+**Suggested fix:** see plan Group I.
+
+---
+
+## 10. Login timing side-channel enables email enumeration (Phase 4 re-confirmation)
+
+**File:** `src/app/actions/auth.ts:119`
+**Severity:** Low
+
+Same underlying issue as item #2 above, independently re-found by the
+4-phase review's Phase 1 agent and verified again directly. Kept as its own
+entry here since the fix (Group G in the plan) is the concrete one to apply;
+item #2's original "Suggested fix" text describes the same dummy-hash
+approach.
+
+---
+
+## 11. Declining a message request also hides it from the sender's own inbox
+
+**File:** `src/lib/messaging.ts:194-219` (`listInboxConversations`)
+**Severity:** Low (UX / spec fidelity)
+
+Once `declineMessageRequest` flips `status` to `"declined"`, no branch in
+`listInboxConversations`'s `OR` clause matches for *either* participant —
+spec §5.2/§5.8 only asks for hiding from the recipient, not the sender.
+
+**Repro:** X messages a stranger Y, Y declines. X's inbox entry for that
+conversation silently disappears with no explanation.
+
+**Suggested fix:** see plan Group J — add a branch keeping it visible to the
+`initiatedBy` user.
+
+---
+
+## 12. Stale "speaker" role never cleared when the voice-room floor times out
+
+**File:** `src/app/actions/voice-rooms.ts:213-240` (`startSpeaking`)
+**Severity:** Low
+
+When a speaker exceeds `MAX_FLOOR_HOLD_MS` without calling `stopSpeaking`,
+the next queued user can take the floor via `startSpeaking`, but only the
+*new* speaker's `VoiceRoomParticipant.role` gets updated — the previous
+speaker's row stays stuck at `"speaker"` forever.
+
+**Repro:** a speaker's tab crashes mid-hold. Timeout lets someone else take
+the floor. The original speaker's later `stopSpeaking` becomes a silent
+no-op, and their "Request to speak" button never reappears until they leave
+and rejoin the room.
+
+**Suggested fix:** see plan Group K — reset the previous speaker's role in
+the same transaction, mirroring `stopSpeaking`/`forceStopSpeaker`'s existing
+pattern.
+
+---
+
+## 13. No brand-name collision check on business auto-approval
+
+**File:** `src/lib/businesses.ts:60-72` (`computeInitialBusinessStatus`)
+**Severity:** Low-Medium (spec gap)
+
+Only email/website domain match or `Profile.isVerified` gate auto-approval —
+the business name itself is never checked, even though spec §3.3 explicitly
+calls this out ("a name-collision/likely-impersonation heuristic... the
+decision to gate is being made now, not deferred").
+
+**Repro:** any `Profile.isVerified` user (verified as a real person, unrelated
+to any company) creates a business named e.g. "Google" — goes straight to
+`active`/searchable with zero check against the claimed name.
+
+**Suggested fix:** see plan Group H — fuzzy-match against existing active
+platform businesses (scoped fix; a full "well-known external brands" check
+would need a third-party data source that doesn't exist in this codebase).
+
+---
+
+## Known gap, deliberately not in the fix plan
+
+**`Link.businessId` (business links) — Phase 4 spec §3.2/§16, never
+implemented.** `Link` has no `businessId` column and no XOR constraint
+against `profileId`; no business-links UI exists anywhere under `/b/[slug]`.
+This wasn't listed as a step in `docs/specs/phase-4-build-plan.md`'s actual
+execution plan, so it's a scope reduction made when the plan was written, not
+a defect introduced during implementation. Flagging here for visibility, not
+scheduled in the current fix plan.

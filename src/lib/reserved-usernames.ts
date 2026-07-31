@@ -8,6 +8,7 @@ export const RESERVED_USERNAMES = new Set([
   "www",
   "help",
   "settings",
+  "s",
   "about",
   "feed",
   "explore",
@@ -27,13 +28,14 @@ export const RESERVED_USERNAMES = new Set([
   "claim-username",
   "search",
   "bookmarks",
+  "notifications",
   "r",
   "uploads",
   "qr",
   "0dot",
 ]);
 
-const USERNAME_PATTERN = /^[a-z0-9_]{3,30}$/;
+import { validateSlugFormat } from "./slug-validation";
 
 export type UsernameValidationError =
   | "invalid_format"
@@ -42,8 +44,9 @@ export type UsernameValidationError =
   | null;
 
 export function validateUsernameFormat(raw: string): UsernameValidationError {
-  const handle = raw.toLowerCase();
-  if (!USERNAME_PATTERN.test(handle)) return "invalid_format";
-  if (RESERVED_USERNAMES.has(handle) || /^\d+$/.test(handle)) return "reserved";
-  return null;
+  return validateSlugFormat(raw, {
+    minLength: 3,
+    maxLength: 30,
+    reservedWords: RESERVED_USERNAMES,
+  });
 }

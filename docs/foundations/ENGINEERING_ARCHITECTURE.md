@@ -19,8 +19,8 @@ Status: Foundational document (Priority 13). Documents the current architecture 
 ## Database
 
 - **Prisma 7.9.1 + SQLite**, `provider = "prisma-client"` generator, custom output (`src/generated/prisma`), **required** driver adapter (`@prisma/adapter-better-sqlite3`, `PrismaBetterSqlite3` class) — Prisma 7 no longer accepts a bare `DATABASE_URL` string.
-- **Models today:** `User`, `Session`, `EmailVerificationToken`, `Username`, `Profile`, `Link`, `Post`, `PostLike`.
-- **Known scaling ceiling: SQLite is single-node.** This is fine through Phase 1–2 and probably further, but it's a real architectural decision point, not a detail — Messaging (Phase 2) and any feature needing concurrent writes at scale should trigger an explicit Postgres migration decision *before* it becomes a production incident, not after. Flagging this now so it's a planned migration, not a fire drill.
+- **Models today:** `User`, `Session`, `EmailVerificationToken`, `Username`, `Profile`, `Link`, `Post`, `PostLike`, plus the rest of Phase 2 (`Follow`, `Block`, `Notification`) and Messaging (`Conversation`, `ConversationParticipant`, `Message`, `MessageRequestState`) — this list had drifted behind the schema even before messaging landed; treat `prisma/schema.prisma` as the source of truth, not this bullet.
+- **Known scaling ceiling: SQLite is single-node — conscious decision, not a silent gap.** This bullet used to flag Messaging as the trigger point for a SQLite→Postgres migration decision. That decision has now been made explicitly: messaging shipped on SQLite/better-sqlite3, matching every other model, since this is still a solo-dev/pre-launch project with no concurrent-write traffic to justify the migration cost yet (new datasource, connection pooling, `Decimal` support returning for `Post.trendingScore`, a real deployment/hosting decision). Revisit when there's an actual concurrent-write problem, not preemptively.
 - **No migration-rollback story documented yet.** Prisma migrations are applied forward only so far; worth a written rollback procedure before this matters in production.
 
 ## APIs
