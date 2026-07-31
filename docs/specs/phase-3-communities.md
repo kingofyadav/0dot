@@ -76,13 +76,20 @@ a user is `/@design`), since they live under different path prefixes.
 
 ### 3.3 Acceptance criteria
 
-- [ ] Slug uniqueness and reserved-word checks are case-insensitive and shared
-      with the routing layer, identical in spirit to Phase 1 §3.2.
+- [x] Slug uniqueness and reserved-word checks are case-insensitive and shared
+      with the routing layer, identical in spirit to Phase 1 §3.2 — see
+      `src/lib/reserved-community-slugs.ts`.
 - [ ] `private` communities never leak post/member content to non-members via
       any API response, including error messages that might otherwise reveal
-      "this post exists but you can't see it" vs. "not found."
-- [ ] `restricted` communities queue join requests for moderator approval and
-      do not grant membership until approved.
+      "this post exists but you can't see it" vs. "not found." — **N/A until
+      community content exists** (posts/wiki/chat are later build-sequence
+      steps); nothing to leak yet.
+- [x] `restricted` communities queue join requests for moderator approval and
+      do not grant membership until approved — verified live; `private`
+      communities get the same treatment (see step 1's build notes — the
+      spec doesn't pin this down for `private` explicitly, treated the same
+      as `restricted` since ungated joining would defeat a private
+      community's purpose).
 
 ## 4. Membership & roles
 
@@ -115,12 +122,16 @@ CommunityMember
 ### 4.2 Acceptance criteria
 
 - [ ] A banned member cannot rejoin by leaving and re-requesting (banned status
-      persists independent of a leave action).
+      persists independent of a leave action). — **N/A until moderation
+      (step 2)**: no `banned` status exists yet in step 1.
 - [ ] Muted members can still read but any write action (post, comment, chat
       message, poll vote) is rejected server-side, not just hidden in the UI.
-- [ ] Removing the last moderator/owner from a community is prevented, or the
+      — **N/A until moderation/content (steps 2-3+)**.
+- [x] Removing the last moderator/owner from a community is prevented, or the
       community is left in an explicitly-handled ownerless state — this must
       be a deliberate decision, not an accident of role-removal logic.
+      Resolved: `leaveCommunity` (`src/app/actions/communities.ts`) rejects
+      for the owner, deliberately, until ownership transfer is built.
 
 ## 5. Rules
 
