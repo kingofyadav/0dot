@@ -25,8 +25,11 @@ dependency of shipping messaging safely (see §5.6).
 - A user can send a DM to anyone who follows them, or anyone they follow, without
   it landing in spam; a DM from a stranger lands in a clearly separate requests
   inbox, never the primary inbox.
-- A user is notified (in-app) of a like, comment, mention, new follower, or new
-  message within seconds of it happening, without needing to refresh.
+- [x] A user is notified (in-app) of a like, comment, mention, new follower, or
+  new message within seconds of it happening, without needing to refresh —
+  all five producers publish to the same per-user SSE bus messaging already
+  used (`src/lib/message-events.ts`, `src/lib/notifications.ts`); no separate
+  transport per notification type.
 - No message content is ever readable by another user who isn't a participant in
   that conversation, enforced at the query layer, not just the UI.
 
@@ -59,8 +62,10 @@ pattern as Phase 1's post engagement counts.
 Phase 1 already has `Profile.is_verified` (manually granted, no self-serve flow).
 Phase 2 doesn't change how verification is granted — it just adds surface area
 that reads the flag:
-- A verified badge renders in follow lists, search results, and notifications.
-- Verified accounts get a ranking boost in Suggested Users (§3.3) and Search
+- [x] A verified badge renders in follow lists, search results, and
+  notifications — all three now covered (`UserListItem`, `/search`'s users
+  and posts tabs, `/notifications` and `ContextualRail`'s preview).
+- [x] Verified accounts get a ranking boost in Suggested Users (§3.3) and Search
   (per Phase 1 §6.3, which already specifies `is_verified` as a tie-break).
 
 No new entity needed here — flagging this section mainly to confirm no separate
@@ -94,13 +99,16 @@ to take over, rather than investing in a bespoke scoring model now.
 
 ### 3.5 Acceptance criteria
 
-- [ ] Following/unfollowing is idempotent (double-follow is a no-op, not an
+- [x] Following/unfollowing is idempotent (double-follow is a no-op, not an
       error) and updates counts immediately for the acting user.
-- [ ] A user cannot follow themself (enforced at the DB constraint level, not
-      just client-side).
-- [ ] Suggested users never include accounts already followed, the viewer, or
+- [~] A user cannot follow themself — enforced at the **app layer**
+      (`followUser`, `src/app/actions/follow.ts`), not a DB constraint;
+      documented as a deliberate deviation in `schema.prisma`'s `Follow`
+      model comment (SQLite/Prisma has no `@@check` in this setup). Not
+      bypassable by any client, but not literally what this line asks for.
+- [x] Suggested users never include accounts already followed, the viewer, or
       any account in a blocking relationship with the viewer.
-- [ ] Follower/following lists paginate without duplicate or skipped entries.
+- [x] Follower/following lists paginate without duplicate or skipped entries.
 
 ## 4. Notifications
 
@@ -167,14 +175,18 @@ volume benefits from grouping.
 
 ### 4.5 Acceptance criteria
 
-- [ ] Liking a post the recipient's already been notified about (by someone
+- [x] Liking a post the recipient's already been notified about (by someone
       else) within the aggregation window updates the existing grouped item
-      rather than creating a visually separate one.
-- [ ] Unread count reflects reality after mark-read actions without requiring a
+      rather than creating a visually separate one — including when another,
+      different notification (e.g. a new follower) arrives in between;
+      `groupRows` (`src/app/notifications/page.tsx`) tracks the open group
+      per `type:subjectId`, not just "does this row match the immediately
+      preceding one."
+- [x] Unread count reflects reality after mark-read actions without requiring a
       full page reload.
-- [ ] A blocked user's actions (like, follow, mention) never generate a
+- [x] A blocked user's actions (like, follow, mention) never generate a
       notification for the person who blocked them (ties to §5.6).
-- [ ] `community_update` never appears in Phase 2 — verified by the absence of
+- [x] `community_update` never appears in Phase 2 — verified by the absence of
       any producer, not by hiding it in the UI.
 
 ## 5. Messaging
@@ -204,7 +216,11 @@ Message
   body            text, nullable  -- nullable if attachment-only
   attachment      jsonb, nullable  -- {type: file|voice_note, url, size_bytes, duration_s?, mime_type}
   created_at      timestamp
-  deleted_at      timestamp, nullable  -- soft delete, sender-only "delete for me/everyone" TBD (see open questions)
+  deleted_at      timestamp, nullable  -- [x] soft delete, sender-only, content cleared
+                                        -- immediately rather than deferring to a retention
+                                        -- window (sidesteps the §7 open question rather
+                                        -- than guessing at an answer) — src/app/actions/
+                                        -- messages.ts's deleteMessage
 
 MessageRequestState
   conversation_id  uuid, fk -> Conversation, unique
@@ -289,12 +305,16 @@ appeals, or automated detection alongside it.
 
 ### 5.7 Security & privacy
 
-- Message content encrypted at rest at minimum (column/table-level encryption);
-  full end-to-end encryption is an explicit **non-goal** for Phase 2 — flagging
-  this clearly since "secure by design" is a stated core principle and silence
-  here could be read as an oversight rather than a scoping decision. E2E
-  encryption, if wanted, is a substantial separate effort (key management,
-  multi-device) that deserves its own spec, not a bullet point here.
+- [x] Message content encrypted at rest at minimum (column/table-level
+  encryption) — implemented: `src/lib/message-crypto.ts`, AES-256-GCM,
+  app-managed key (`MESSAGE_ENCRYPTION_KEY` env var). Covers `Message.body`
+  and `Conversation.lastMessagePreview` (a literal copy of message content,
+  so it needs the same treatment). Full end-to-end encryption remains an
+  explicit **non-goal** for Phase 2 — flagging this clearly since "secure by
+  design" is a stated core principle and silence here could be read as an
+  oversight rather than a scoping decision. E2E encryption, if wanted, is a
+  substantial separate effort (key management, multi-device) that deserves
+  its own spec, not a bullet point here.
 - Query-layer enforcement: every message/conversation read must verify the
   requesting user is a current `ConversationParticipant` — this is a data-layer
   check, not just a UI-level hide, since it's the actual privacy guarantee in
@@ -308,18 +328,24 @@ appeals, or automated detection alongside it.
 
 ### 5.8 Acceptance criteria
 
-- [ ] A DM from a non-mutual, non-followed sender lands in the recipient's
+- [x] A DM from a non-mutual, non-followed sender lands in the recipient's
       requests list, not their primary inbox.
-- [ ] Declining a request hides it from the recipient without notifying the
+- [x] Declining a request hides it from the recipient without notifying the
       sender.
-- [ ] A user cannot read messages in a conversation they are not a participant
+- [x] A user cannot read messages in a conversation they are not a participant
       in, even with a guessed/enumerated conversation ID.
-- [ ] Blocking a user immediately prevents new messages, removes any existing
+- [x] Blocking a user immediately prevents new messages, removes any existing
       follow relationship in both directions, and hides (not deletes) shared
-      conversation history from the blocker.
-- [ ] Group chat admin-only actions (remove member, rename) are rejected for
+      direct-conversation history from the blocker. Group chats are handled
+      differently by design (§5.6 only defined this for direct conversations):
+      blocking never removes anyone from a shared group or breaks it for
+      other members — a blocked member's messages are simply filtered out of
+      the blocker's own view (`getMessagesForConversation`,
+      `src/lib/messaging.ts`), matching how Slack/Discord/Telegram treat a
+      1:1 block inside a multi-party space.
+- [x] Group chat admin-only actions (remove member, rename) are rejected for
       non-admin members at the API layer, not just hidden in the UI.
-- [ ] Marking a conversation read updates the unread badge without requiring a
+- [x] Marking a conversation read updates the unread badge without requiring a
       full inbox reload.
 
 ## 6. Interactions with Phase 1
@@ -370,6 +396,15 @@ function/recompute interval is a tuning detail, not fixed here; the
 requirement is that `Trending` is a real, separately-ranked feed, not a
 renamed view of `Explore`.
 
+- [x] Recompute is a real background job, not a per-request computation:
+  `instrumentation.ts` (project root) starts an in-process scheduler
+  (`startTrendingScheduler`, `src/lib/trending.ts`) once at server startup,
+  which calls `recomputeTrendingScores` on the `RECOMPUTE_INTERVAL_MS`
+  cadence. `trending/page.tsx`'s `ensureTrendingScoresFresh()` call remains
+  as a defense-in-depth staleness check, not the primary trigger — with the
+  scheduler running it almost always short-circuits instantly rather than
+  doing synchronous work inside a request.
+
 ### 6.3 No changes required to Phase 1 schema
 
 Follow, Notification, and Messaging are additive tables; no Phase 1 table
@@ -383,8 +418,11 @@ goal (see Phase 1 spec §7.1) and holds here.
   (pulling slightly more Phase 12 scope forward)?
 - Group chat size cap (250 suggested) and file/voice-note size/duration caps —
   need infra/product confirmation, not architecturally load-bearing either way.
-- "Delete for everyone" on messages: offered at all in Phase 2, or deferred?
-  If offered, what's the retention window before it's unrecoverable?
+- "Delete for everyone" on messages: **resolved pragmatically, not by
+  product sign-off** — offered (sender-only), with content cleared
+  immediately on delete rather than after a retention window, sidestepping
+  the "what window" question rather than answering it. Revisit if product
+  wants an undo/grace-period instead.
 - Should follower/following lists be hideable per-account in this phase, or is
   that acceptable to defer to Phase 12 privacy work?
 - Push/email notification delivery: confirmed out of scope for Phase 2, or does

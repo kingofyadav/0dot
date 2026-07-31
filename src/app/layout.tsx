@@ -1,8 +1,12 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { SiteHeader } from "@/components/SiteHeader";
+import { ContextualRail } from "@/components/ContextualRail";
+import { MessagingProvider } from "@/components/MessagingProvider";
 import { getCurrentUser } from "@/lib/session";
+import { showsContextualRail } from "@/lib/route-context";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -34,11 +38,20 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Same x-pathname mechanism SiteHeader already reads (see proxy.ts) —
+  // the contextual rail is opt-in per route (docs/foundations/NAVIGATION.md:
+  // "optional per page, not a fixed global element"), so RootLayout needs
+  // to know the current route too, not just SiteHeader.
+  const headersList = await headers();
+  const pathname = headersList.get("x-pathname") ?? "";
+  const showRail = showsContextualRail(pathname);
+  const currentUser = await getCurrentUser();
+
   return (
     <html
       lang="en"
@@ -54,9 +67,14 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body>
-        <SiteHeader />
-        <main className="appMain">{children}</main>
+      <body className={showRail ? "hasRail" : undefined}>
+        <MessagingProvider userId={currentUser?.id ?? null}>
+          <SiteHeader />
+          <main className="appMain">{children}</main>
+          {/* Sibling of .appMain, not nested inside it — grid-area only
+              applies to direct children of the body grid container. */}
+          {showRail && <ContextualRail />}
+        </MessagingProvider>
       </body>
     </html>
   );

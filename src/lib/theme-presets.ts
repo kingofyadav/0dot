@@ -76,5 +76,33 @@ export const SOCIAL_PLATFORMS = [
   "tiktok",
   "facebook",
   "website",
+  "reddit",
+  "threads",
+  "snapchat",
+  "telegram",
 ] as const;
 export type SocialPlatform = (typeof SOCIAL_PLATFORMS)[number];
+
+// Display label per platform — a plain capitalized key ("twitter" ->
+// "Twitter") is wrong for the one platform that rebranded to a name that
+// doesn't derive from its stored key ("twitter" -> "X"), so every platform
+// gets an explicit label rather than mixing a derived-label rule with a
+// one-off exception.
+const SOCIAL_PLATFORM_LABELS: Record<SocialPlatform, string> = {
+  twitter: "X",
+  instagram: "Instagram",
+  github: "GitHub",
+  linkedin: "LinkedIn",
+  youtube: "YouTube",
+  tiktok: "TikTok",
+  facebook: "Facebook",
+  website: "Website",
+  reddit: "Reddit",
+  threads: "Threads",
+  snapchat: "Snapchat",
+  telegram: "Telegram",
+};
+
+export function getSocialPlatformLabel(platform: string): string {
+  return SOCIAL_PLATFORM_LABELS[platform as SocialPlatform] ?? platform;
+}

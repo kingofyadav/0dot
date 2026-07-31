@@ -15,6 +15,23 @@ export function NavLinks({
       <Link href="/feed" style={{ fontWeight: 600, opacity: 0.85 }}>
         Feed
       </Link>
+      <Link href="/explore" style={{ fontWeight: 600, opacity: 0.85 }}>
+        Explore
+      </Link>
+      <Link href="/trending" style={{ fontWeight: 600, opacity: 0.85 }}>
+        Trending
+      </Link>
+      <Link href="/c" style={{ fontWeight: 600, opacity: 0.85 }}>
+        Communities
+      </Link>
+      <Link href="/b" style={{ fontWeight: 600, opacity: 0.85 }}>
+        Businesses
+      </Link>
+      {showBookmarks && (
+        <Link href="/messages" style={{ fontWeight: 600, opacity: 0.85 }}>
+          Messages
+        </Link>
+      )}
       {showBookmarks && (
         <Link href="/bookmarks" style={{ fontWeight: 600, opacity: 0.85 }}>
           Bookmarks

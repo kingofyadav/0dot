@@ -5,7 +5,21 @@ import { createPost } from "@/app/actions/posts";
 
 const MAX_MEDIA = 4;
 
-export function ComposeBox() {
+export function ComposeBox({
+  communityId,
+  flairs,
+  postableBusinesses,
+}: {
+  communityId?: string;
+  // phase-3 spec §6: only ever passed alongside communityId — /feed and
+  // /explore's plain compose box never has a flair set to offer.
+  flairs?: { id: string; label: string }[];
+  // phase-4 spec §5: businesses this user can post as (owner|admin|editor
+  // tier), offered as a "Post as" picker. Only ever passed on the global
+  // /feed and /explore compose boxes — a business isn't a CommunityMember,
+  // so there's no "post as this business into this community" case to wire.
+  postableBusinesses?: { id: string; name: string }[];
+} = {}) {
   const [state, formAction, pending] = useActionState(createPost, undefined);
   const formRef = useRef<HTMLFormElement>(null);
   const [files, setFiles] = useState<File[]>([]);
@@ -40,6 +54,27 @@ export function ComposeBox() {
       className="authCard"
       style={{ maxWidth: "none", marginBottom: "1.5rem" }}
     >
+      {communityId && <input type="hidden" name="communityId" value={communityId} />}
+      {!communityId && postableBusinesses && postableBusinesses.length > 0 && (
+        <select name="businessId" defaultValue="" className="textInput" style={{ marginBottom: "0.5rem" }}>
+          <option value="">Post as myself</option>
+          {postableBusinesses.map((b) => (
+            <option key={b.id} value={b.id}>
+              Post as {b.name}
+            </option>
+          ))}
+        </select>
+      )}
+      {communityId && flairs && flairs.length > 0 && (
+        <select name="flairId" defaultValue="" className="textInput" style={{ marginBottom: "0.5rem" }}>
+          <option value="">No flair</option>
+          {flairs.map((f) => (
+            <option key={f.id} value={f.id}>
+              {f.label}
+            </option>
+          ))}
+        </select>
+      )}
       <textarea
         name="body"
         placeholder="What's happening?"
@@ -81,27 +116,32 @@ export function ComposeBox() {
       {state?.error && <p className="errorText">{state.error}</p>}
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <label
-          className="button buttonSecondary iconButton"
-          style={{
-            cursor: files.length >= MAX_MEDIA ? "not-allowed" : "pointer",
-            opacity: files.length >= MAX_MEDIA ? 0.5 : 1,
-          }}
-          aria-label="Attach images"
-        >
-          📷
-          <input
-            type="file"
-            accept="image/png,image/jpeg,image/webp,image/gif"
-            multiple
-            disabled={files.length >= MAX_MEDIA}
-            onChange={(e) => {
-              addFiles(e.target.files);
-              e.target.value = "";
+        <span style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+          <label
+            className="button buttonSecondary iconButton"
+            style={{
+              cursor: files.length >= MAX_MEDIA ? "not-allowed" : "pointer",
+              opacity: files.length >= MAX_MEDIA ? 0.5 : 1,
             }}
-            style={{ display: "none" }}
-          />
-        </label>
+            aria-label="Attach images"
+          >
+            📷
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              multiple
+              disabled={files.length >= MAX_MEDIA}
+              onChange={(e) => {
+                addFiles(e.target.files);
+                e.target.value = "";
+              }}
+              style={{ display: "none" }}
+            />
+          </label>
+          <label className="mutedText" style={{ fontSize: "0.8rem", display: "inline-flex", alignItems: "center", gap: "0.3rem" }}>
+            <input type="checkbox" name="postType" value="question" />❓ Question
+          </label>
+        </span>
         <button type="submit" className="button" disabled={pending}>
           {pending ? "Posting…" : "Post"}
         </button>

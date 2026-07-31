@@ -4,28 +4,25 @@ import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
-import { deleteLink, deleteSocialLink, moveLink, toggleFeatured } from "@/app/actions/profile";
-import { getLinkStats } from "@/lib/link-stats";
-import { getThemePreset } from "@/lib/theme-presets";
-import { parseCursor, cursorWhere, paginate, POST_PAGE_SIZE } from "@/lib/pagination";
-import { EditProfileForm } from "./EditProfileForm";
-import { AddLinkForm } from "./AddLinkForm";
-import { SocialLinksForm } from "./SocialLinksForm";
+import { followUser, unfollowUser } from "@/app/actions/follow";
+import { blockUser, unblockUser } from "@/app/actions/block";
+import { isBlocked } from "@/lib/blocks";
+import { getThemePreset, getSocialPlatformLabel, type SocialPlatform } from "@/lib/theme-presets";
 import { Logo } from "@/components/Logo";
-import { PostCard } from "@/components/PostCard";
+import { SocialIcon } from "@/components/SocialIcon";
 import { CopyLinkButton } from "@/components/CopyLinkButton";
 
+// Public, read-only profile — identity, links, follow counts. No posts, no
+// editing UI: those are what /s/[username] (owner-only settings) is for.
+// Think of this page as the "API endpoint" view of an identity — anyone can
+// look, only the owner can change anything, and that's done somewhere else.
 export default async function ProfilePage({
   params,
-  searchParams,
 }: {
   params: Promise<{ username: string }>;
-  searchParams: Promise<{ postsCursor?: string }>;
 }) {
   const { username: rawParam } = await params;
   const handle = decodeURIComponent(rawParam).toLowerCase();
-  const { postsCursor: rawPostsCursor } = await searchParams;
-  const postsCursor = parseCursor(rawPostsCursor);
 
   const username = await db.username.findUnique({
     where: { handle },
@@ -51,48 +48,26 @@ export default async function ProfilePage({
   const currentUser = await getCurrentUser();
   const isOwner = currentUser?.id === username.userId;
 
-  const authorInclude = { profile: true, username: true } as const;
-  const mediaInclude = { orderBy: { position: "asc" as const } };
-  const postRows = await db.post.findMany({
-    where: {
-      authorId: username.userId,
-      deletedAt: null,
-      replyToId: null,
-      ...cursorWhere(postsCursor),
-    },
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    take: POST_PAGE_SIZE + 1,
-    include: {
-      author: { include: authorInclude },
-      media: mediaInclude,
-      repostOf: { include: { author: { include: authorInclude }, media: mediaInclude } },
-      replies: {
-        where: { deletedAt: null },
-        orderBy: { createdAt: "asc" },
-        include: { author: { include: authorInclude }, media: mediaInclude },
-      },
-    },
-  });
-  const { items: posts, nextCursor: nextPostsCursor } = paginate(postRows);
-  const postIds = posts.map((p) => p.id);
-  const postCount = await db.post.count({
-    where: { authorId: username.userId, deletedAt: null, replyToId: null },
-  });
-  const [likedPostIds, bookmarkedPostIds] = currentUser
-    ? await Promise.all([
-        db.postLike
-          .findMany({ where: { userId: currentUser.id, postId: { in: postIds } }, select: { postId: true } })
-          .then((rows) => new Set(rows.map((r) => r.postId))),
-        db.bookmark
-          .findMany({ where: { userId: currentUser.id, postId: { in: postIds } }, select: { postId: true } })
-          .then((rows) => new Set(rows.map((r) => r.postId))),
-      ])
-    : [new Set<string>(), new Set<string>()];
+  const [isFollowing, blockedByViewer, viewerBlockedByOwner] =
+    currentUser && !isOwner
+      ? await Promise.all([
+          db.follow
+            .findUnique({
+              where: { followerId_followeeId: { followerId: currentUser.id, followeeId: username.userId } },
+            })
+            .then((row) => row !== null),
+          isBlocked(currentUser.id, username.userId),
+          isBlocked(username.userId, currentUser.id),
+        ])
+      : [false, false, false];
+  // If the owner has blocked the viewer, no Follow/Block controls render at
+  // all — quietly, matching how most platforms don't advertise block state.
+  const showViewerControls = currentUser && !isOwner && !viewerBlockedByOwner;
 
   const now = new Date();
   const visibleLinks = profile.links
     .filter((link) => {
-      if (isOwner) return true; // owners see scheduled links too, marked below
+      if (isOwner) return true; // owners see scheduled links too, managed at /s/{handle}
       if (link.startsAt && link.startsAt > now) return false;
       if (link.endsAt && link.endsAt < now) return false;
       return true;
@@ -102,12 +77,6 @@ export default async function ProfilePage({
     // .sort() is stable per the ECMAScript spec, so a same-featured-state
     // comparison of 0 preserves the incoming position-ascending order.
     .sort((a, b) => Number(b.isFeatured) - Number(a.isFeatured));
-
-  // Analytics are a real query per link — only paid for on the owner's own
-  // view, never for visitors just browsing the profile.
-  const linkStats = isOwner
-    ? await Promise.all(visibleLinks.map((link) => getLinkStats(link.id)))
-    : null;
 
   const theme = getThemePreset(profile.themePreset);
 
@@ -153,80 +122,139 @@ export default async function ProfilePage({
             <Logo size={96} />
           </span>
         )}
-        <div>
-          <h1 style={{ fontSize: "1.6rem", fontWeight: 700 }}>
-            {profile.displayName}
-            {profile.isVerified && (
-              <span className="verifiedBadge" title="Verified" aria-label="Verified">
-                ✓
-              </span>
+        <div className="profileHeaderInfo">
+          {/* Name and primary actions (Follow/Message for a visitor, Edit
+              profile for the owner) share one row — the two things
+              competing hardest for attention here, so they're grouped and
+              given a deliberate gap rather than the name/buttons crowding
+              together with whatever space was left over. Wraps to its own
+              line, still left-aligned under the name, once both can't fit. */}
+          <div className="profileIdentityRow">
+            <h1 className="profileName">
+              {profile.displayName}
+              {profile.isVerified && (
+                <span className="verifiedBadge" title="Verified" aria-label="Verified">
+                  ✓
+                </span>
+              )}
+            </h1>
+            {(isOwner || showViewerControls) && (
+              <div className="profileActions">
+                {isOwner && (
+                  <Link href={`/s/${username.handle}`} className="button buttonSecondary">
+                    Edit profile
+                  </Link>
+                )}
+                {showViewerControls && (
+                  <>
+                    <form action={isFollowing ? unfollowUser : followUser}>
+                      <input type="hidden" name="followeeId" value={username.userId} />
+                      <button
+                        type="submit"
+                        className={`button${isFollowing ? " buttonSecondary" : ""}`}
+                        aria-pressed={isFollowing}
+                      >
+                        {isFollowing ? "Following" : "Follow"}
+                      </button>
+                    </form>
+                    {/* Reachable regardless of follow state — this is the
+                        entry point for phase-2 spec §5.2's "message
+                        request" path (a DM to someone who doesn't follow
+                        you back), since there's no global user search yet
+                        to reach a non-followed account any other way.
+                        Hidden only when the viewer has blocked this account
+                        (blockedByViewer) — sending would just be rejected
+                        server-side, per the same check in sendMessage. */}
+                    {!blockedByViewer && (
+                      <Link href={`/messages/new?to=${username.userId}`} className="button buttonSecondary">
+                        Message
+                      </Link>
+                    )}
+                  </>
+                )}
+              </div>
             )}
-          </h1>
+          </div>
           <div className="profileMeta">
             <span>{visibleLinks.length} link{visibleLinks.length === 1 ? "" : "s"}</span>
-            <span>{postCount} post{postCount === 1 ? "" : "s"}</span>
+            <Link href={`/${username.handle}/followers`}>
+              {profile.followerCount} follower{profile.followerCount === 1 ? "" : "s"}
+            </Link>
+            <Link href={`/${username.handle}/following`}>
+              {profile.followingCount} following
+            </Link>
           </div>
         </div>
       </div>
 
-      {/* Not shown by default (spec §3.4: "togglable via a share sheet") */}
-      <details className="profileEditToggle" style={{ marginTop: "0.75rem" }}>
-        <summary>Share</summary>
-        <div style={{ marginTop: "0.85rem", display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
-          {/* eslint-disable-next-line @next/next/no-img-element -- server-generated SVG route, not a static asset */}
-          <img src={`/qr/${username.handle}`} alt={`QR code for ${profileUrl}`} width={120} height={120} style={{ borderRadius: "12px", background: "#fff" }} />
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-            <span className="mutedText">{profileUrl}</span>
-            <CopyLinkButton url={profileUrl} />
-          </div>
-        </div>
-      </details>
-
       {profile.bio && <p className="profileBio">{profile.bio}</p>}
 
-      {(profile.socialLinks.length > 0 || isOwner) && (
-        <div className="socialLinksRow">
-          {profile.socialLinks.length === 0 && !isOwner && (
-            <p className="mutedText">No social links yet.</p>
-          )}
-          {profile.socialLinks.map((social) => (
-            <span key={social.id} style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}>
-              <a
-                href={social.url}
-                target="_blank"
-                rel="noopener noreferrer nofollow"
-                className="button buttonSecondary"
-                style={{ padding: "0.4rem 0.7rem", fontSize: "0.85rem" }}
-              >
-                {social.platform[0].toUpperCase() + social.platform.slice(1)}
-              </a>
-              {isOwner && (
-                <form action={deleteSocialLink}>
-                  <input type="hidden" name="socialLinkId" value={social.id} />
-                  <button type="submit" className="button buttonSecondary iconButton" aria-label={`Remove ${social.platform} link`}>
-                    ✕
-                  </button>
-                </form>
-              )}
-            </span>
-          ))}
-        </div>
-      )}
-
-      {isOwner && (
-        <details className="profileEditToggle" style={{ marginTop: "1.1rem" }}>
-          <summary>Edit profile</summary>
-          <div style={{ marginTop: "0.85rem", display: "flex", flexDirection: "column", gap: "1.25rem" }}>
-            <EditProfileForm
-              displayName={profile.displayName}
-              bio={profile.bio}
-              avatarUrl={profile.avatarUrl}
-              coverUrl={profile.coverUrl}
-              themePreset={profile.themePreset}
-            />
-            <SocialLinksForm />
+      {/* Share and Block are real but secondary (spec §3.4 calls Share
+          "togglable via a share sheet", not a primary action) — grouped
+          into one row below the bio instead of competing with the
+          Follow/Message/Edit actions up in the header. */}
+      <div className="profileUtilityRow">
+        <details className="profileEditToggle">
+          <summary className="mutedText" style={{ fontSize: "0.85rem" }}>
+            Share
+          </summary>
+          <div style={{ marginTop: "0.85rem", display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
+            {/* eslint-disable-next-line @next/next/no-img-element -- server-generated SVG route, not a static asset */}
+            <img src={`/qr/${username.handle}`} alt={`QR code for ${profileUrl}`} width={120} height={120} style={{ borderRadius: "12px", background: "#fff" }} />
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+              <span className="mutedText">{profileUrl}</span>
+              <CopyLinkButton url={profileUrl} />
+            </div>
           </div>
         </details>
+
+        {showViewerControls && (
+          blockedByViewer ? (
+            <form action={unblockUser}>
+              <input type="hidden" name="blockedId" value={username.userId} />
+              <button type="submit" className="button buttonSecondary buttonSmall">
+                Unblock @{username.handle}
+              </button>
+            </form>
+          ) : (
+            <details className="profileEditToggle">
+              <summary className="mutedText" style={{ fontSize: "0.85rem" }}>
+                Block @{username.handle}
+              </summary>
+              <div style={{ marginTop: "0.6rem", display: "flex", flexDirection: "column", gap: "0.6rem", maxWidth: "32ch" }}>
+                <p className="mutedText" style={{ fontSize: "0.85rem" }}>
+                  Removes any follow between you, hides their notifications
+                  from you going forward, and stops suggesting them to
+                  you. You can unblock them later.
+                </p>
+                <form action={blockUser}>
+                  <input type="hidden" name="blockedId" value={username.userId} />
+                  <button type="submit" className="button buttonDanger buttonSmall">
+                    Yes, block @{username.handle}
+                  </button>
+                </form>
+              </div>
+            </details>
+          )
+        )}
+      </div>
+
+      {profile.socialLinks.length > 0 && (
+        <div className="socialLinksRow">
+          {profile.socialLinks.map((social) => (
+            <a
+              key={social.id}
+              href={social.url}
+              target="_blank"
+              rel="noopener noreferrer nofollow"
+              className="button buttonSecondary buttonSmall"
+              style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem" }}
+            >
+              <SocialIcon platform={social.platform as SocialPlatform} />
+              {getSocialPlatformLabel(social.platform)}
+            </a>
+          ))}
+        </div>
       )}
 
       <div className="linksSection">
@@ -234,135 +262,21 @@ export default async function ProfilePage({
         {visibleLinks.length === 0 && (
           <p className="mutedText">No links yet.</p>
         )}
-        {visibleLinks.map((link, index) => {
-          const isScheduledHidden =
-            isOwner &&
-            ((link.startsAt && link.startsAt > now) ||
-              (link.endsAt && link.endsAt < now));
-          const stats = linkStats?.[index];
-          return (
-            <div
-              key={link.id}
-              className={`profileLinkItem${link.isFeatured ? " featuredLink" : ""}`}
-              style={{
-                opacity: isScheduledHidden ? 0.5 : 1,
-                flexDirection: "column",
-                alignItems: "stretch",
-                gap: "0.35rem",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                <a
-                  href={`/r/${link.id}`}
-                  target="_blank"
-                  rel="noopener noreferrer nofollow"
-                  style={{ flex: 1, fontWeight: 600 }}
-                >
-                  {link.label}
-                  {isScheduledHidden && (
-                    <span className="mutedText"> (scheduled)</span>
-                  )}
-                </a>
-                {isOwner && (
-                  <div style={{ display: "flex", gap: "0.35rem" }}>
-                    <form action={toggleFeatured}>
-                      <input type="hidden" name="linkId" value={link.id} />
-                      <button
-                        type="submit"
-                        className="button buttonSecondary iconButton"
-                        aria-label={link.isFeatured ? "Unfeature" : "Feature"}
-                        aria-pressed={link.isFeatured}
-                        style={link.isFeatured ? { borderColor: "var(--accent)", color: "var(--accent)" } : undefined}
-                      >
-                        {link.isFeatured ? "★" : "☆"}
-                      </button>
-                    </form>
-                    <form action={moveLink}>
-                      <input type="hidden" name="linkId" value={link.id} />
-                      <input type="hidden" name="direction" value="up" />
-                      <button
-                        type="submit"
-                        className="button buttonSecondary iconButton"
-                        disabled={index === 0}
-                        aria-label="Move up"
-                      >
-                        ↑
-                      </button>
-                    </form>
-                    <form action={moveLink}>
-                      <input type="hidden" name="linkId" value={link.id} />
-                      <input type="hidden" name="direction" value="down" />
-                      <button
-                        type="submit"
-                        className="button buttonSecondary iconButton"
-                        disabled={index === visibleLinks.length - 1}
-                        aria-label="Move down"
-                      >
-                        ↓
-                      </button>
-                    </form>
-                    <form action={deleteLink}>
-                      <input type="hidden" name="linkId" value={link.id} />
-                      <button type="submit" className="button buttonSecondary iconButton" aria-label="Delete">
-                        ✕
-                      </button>
-                    </form>
-                  </div>
-                )}
-              </div>
-
-              {isOwner && stats && (
-                <details className="profileEditToggle">
-                  <summary className="mutedText" style={{ fontSize: "0.85rem" }}>
-                    {stats.total} click{stats.total === 1 ? "" : "s"}
-                  </summary>
-                  <div className="mutedText" style={{ fontSize: "0.85rem", marginTop: "0.4rem" }}>
-                    <p>{stats.last7d} in last 7 days · {stats.last30d} in last 30 days</p>
-                    {stats.topReferrers.length > 0 ? (
-                      <p>
-                        Top referrers:{" "}
-                        {stats.topReferrers.map((r) => `${r.host} (${r.count})`).join(", ")}
-                      </p>
-                    ) : (
-                      <p>No referrer data yet.</p>
-                    )}
-                  </div>
-                </details>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {isOwner && (
-        <div style={{ marginTop: "1.5rem" }}>
-          <AddLinkForm />
-        </div>
-      )}
-
-      <div className="postsSection">
-        <p className="sectionHeading">Posts</p>
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-          {posts.length === 0 && <p className="mutedText">No posts yet.</p>}
-          {posts.map((post) => (
-            <PostCard
-              key={post.id}
-              post={post}
-              isLiked={likedPostIds.has(post.id)}
-              isBookmarked={bookmarkedPostIds.has(post.id)}
-              isOwner={currentUser?.id === post.authorId}
-              currentUserId={currentUser?.id}
-            />
-          ))}
-        </div>
-        {nextPostsCursor && (
-          <Link
-            href={`/${username.handle}?postsCursor=${encodeURIComponent(nextPostsCursor)}`}
-            className="button buttonSecondary loadMoreLink"
+        {visibleLinks.map((link) => (
+          <div
+            key={link.id}
+            className={`profileLinkItem${link.isFeatured ? " featuredLink" : ""}`}
           >
-            Load more
-          </Link>
-        )}
+            <a
+              href={`/r/${link.id}`}
+              target="_blank"
+              rel="noopener noreferrer nofollow"
+              style={{ flex: 1, fontWeight: 600 }}
+            >
+              {link.label}
+            </a>
+          </div>
+        ))}
       </div>
     </div>
   );

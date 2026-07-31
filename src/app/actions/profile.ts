@@ -8,7 +8,17 @@ import { validateUsernameFormat } from "@/lib/reserved-usernames";
 import { isValidThemePreset, SOCIAL_PLATFORMS, type SocialPlatform } from "@/lib/theme-presets";
 import { saveUploadedImage } from "@/lib/uploads";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { requireOwnProfile } from "@/lib/auth-guards";
 import type { ActionState } from "@/app/actions/auth";
+
+// Every mutation here affects both surfaces: the settings page itself
+// (/s/{handle}) needs to show the edit that was just made, and the public
+// profile (/{handle}) needs to reflect it too (e.g. a newly added link)
+// without requiring a manual reload.
+function revalidateProfilePaths(handle: string): void {
+  revalidatePath(`/s/${handle}`);
+  revalidatePath(`/${handle}`);
+}
 
 function isSafeUrl(raw: string): boolean {
   try {
@@ -20,13 +30,6 @@ function isSafeUrl(raw: string): boolean {
   } catch {
     return false;
   }
-}
-
-async function requireOwnProfile() {
-  const user = await getCurrentUser();
-  if (!user) redirect("/login");
-  if (!user.profile) redirect("/claim-username");
-  return user;
 }
 
 // Today, every signup creates a Username + Profile atomically (see
@@ -71,7 +74,9 @@ export async function claimUsername(
     db.profile.create({ data: { userId: user.id, displayName } }),
   ]);
 
-  redirect(`/${handle}`);
+  // Straight to settings, not the (still-empty) public profile — the
+  // natural next step right after claiming a handle is filling in bio/links.
+  redirect(`/s/${handle}`);
 }
 
 export async function updateProfile(
@@ -122,8 +127,8 @@ export async function updateProfile(
     data,
   });
 
-  revalidatePath(`/${user.username!.handle}`);
-  redirect(`/${user.username!.handle}`);
+  revalidateProfilePaths(user.username!.handle);
+  redirect(`/s/${user.username!.handle}`);
 }
 
 export async function createLink(
@@ -166,7 +171,7 @@ export async function createLink(
     },
   });
 
-  revalidatePath(`/${user.username!.handle}`);
+  revalidateProfilePaths(user.username!.handle);
   return undefined;
 }
 
@@ -178,7 +183,7 @@ export async function deleteLink(formData: FormData): Promise<void> {
     where: { id: linkId, profileId: user.profile!.id },
   });
 
-  revalidatePath(`/${user.username!.handle}`);
+  revalidateProfilePaths(user.username!.handle);
 }
 
 export async function moveLink(formData: FormData): Promise<void> {
@@ -211,7 +216,7 @@ export async function moveLink(formData: FormData): Promise<void> {
     }),
   ]);
 
-  revalidatePath(`/${user.username!.handle}`);
+  revalidateProfilePaths(user.username!.handle);
 }
 
 const MAX_FEATURED_LINKS = 3;
@@ -241,7 +246,7 @@ export async function toggleFeatured(formData: FormData): Promise<void> {
     data: { isFeatured: !link.isFeatured },
   });
 
-  revalidatePath(`/${user.username!.handle}`);
+  revalidateProfilePaths(user.username!.handle);
 }
 
 export async function addSocialLink(
@@ -269,7 +274,7 @@ export async function addSocialLink(
     data: { profileId: user.profile!.id, platform, url, position: count },
   });
 
-  revalidatePath(`/${user.username!.handle}`);
+  revalidateProfilePaths(user.username!.handle);
   return undefined;
 }
 
@@ -281,5 +286,5 @@ export async function deleteSocialLink(formData: FormData): Promise<void> {
     where: { id: socialLinkId, profileId: user.profile!.id },
   });
 
-  revalidatePath(`/${user.username!.handle}`);
+  revalidateProfilePaths(user.username!.handle);
 }

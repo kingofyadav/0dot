@@ -6,6 +6,26 @@ import type { ReactNode } from "react";
 // link optimistically to /handle without checking the account exists; a
 // stale mention just 404s, which is an acceptable gap for this iteration.
 const TOKEN_PATTERN = /([#@][a-zA-Z0-9_]{1,30})/g;
+const MENTION_PATTERN = /@([a-zA-Z0-9_]{1,30})/g;
+const MAX_MENTIONS_PER_POST = 10;
+
+// Server-side extraction for notification producers (createPost,
+// createQuoteRepost) — same parsing concern as TOKEN_PATTERN above, kept
+// in this one file so the two regexes can't drift apart. Deliberately not
+// persisted as a Mention table (Phase 1 chose not to build one and nothing
+// here needs it queryable later, just resolved once at write time).
+// Deduped, lowercased, capped — same defensive-cap posture as
+// MAX_MEDIA_PER_POST, guards against mentioning hundreds of handles to
+// spam notifications. Does not verify the handle actually resolves to a
+// real user — that's the caller's job (resolving against Username).
+export function extractMentionedHandles(body: string): string[] {
+  const handles = new Set<string>();
+  for (const match of body.matchAll(MENTION_PATTERN)) {
+    handles.add(match[1].toLowerCase());
+    if (handles.size >= MAX_MENTIONS_PER_POST) break;
+  }
+  return [...handles];
+}
 
 export function linkifyPostBody(body: string): ReactNode[] {
   const parts = body.split(TOKEN_PATTERN);

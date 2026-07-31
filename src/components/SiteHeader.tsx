@@ -1,12 +1,14 @@
 import { headers } from "next/headers";
 import { getCurrentUser } from "@/lib/session";
-import { validateUsernameFormat } from "@/lib/reserved-usernames";
+import { isProfilePagePath } from "@/lib/route-context";
 import { ThemeToggleLogo } from "./ThemeToggleLogo";
 import { Sidebar } from "./Sidebar";
 import { MobileNavMenu } from "./MobileNavMenu";
 import { NavLinks } from "./NavLinks";
 import { NavAction } from "./NavAction";
 import { SearchForm } from "./SearchForm";
+import { NotificationBell } from "./NotificationBell";
+import { MessagesBadge } from "./MessagesBadge";
 
 export async function SiteHeader() {
   const user = await getCurrentUser();
@@ -20,9 +22,7 @@ export async function SiteHeader() {
   // has its own sign-up form front and center, so no extra CTA is added there.
   const headersList = await headers();
   const pathname = headersList.get("x-pathname") ?? "";
-  const firstSegment = pathname.split("/")[1] ?? "";
-  const isProfilePage =
-    firstSegment.length > 0 && validateUsernameFormat(firstSegment) === null;
+  const isProfilePage = isProfilePagePath(pathname);
 
   const hasProfile = Boolean(user?.profile);
   const showJoinCta = !hasProfile && isProfilePage;
@@ -39,6 +39,8 @@ export async function SiteHeader() {
         </div>
         <div className="desktopTopHeaderSearchWrap">
           <SearchForm />
+          <MessagesBadge />
+          <NotificationBell />
         </div>
       </header>
 
@@ -49,10 +51,14 @@ export async function SiteHeader() {
           <ThemeToggleLogo />
           <span style={{ fontWeight: 600 }}>{greeting}</span>
         </div>
-        <MobileNavMenu>
-          <NavLinks showBookmarks={hasProfile} profileHandle={profileHandle} />
-          <NavAction hasProfile={hasProfile} showJoinCta={showJoinCta} />
-        </MobileNavMenu>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+          <MessagesBadge />
+          <NotificationBell />
+          <MobileNavMenu>
+            <NavLinks showBookmarks={hasProfile} profileHandle={profileHandle} />
+            <NavAction hasProfile={hasProfile} showJoinCta={showJoinCta} />
+          </MobileNavMenu>
+        </div>
       </header>
     </>
   );

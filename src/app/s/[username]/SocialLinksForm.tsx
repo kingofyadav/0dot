@@ -2,7 +2,7 @@
 
 import { useActionState, useRef } from "react";
 import { addSocialLink } from "@/app/actions/profile";
-import { SOCIAL_PLATFORMS } from "@/lib/theme-presets";
+import { SOCIAL_PLATFORMS, getSocialPlatformLabel } from "@/lib/theme-presets";
 
 export function SocialLinksForm() {
   const [state, formAction, pending] = useActionState(addSocialLink, undefined);
@@ -27,7 +27,7 @@ export function SocialLinksForm() {
         >
           {SOCIAL_PLATFORMS.map((platform) => (
             <option key={platform} value={platform}>
-              {platform[0].toUpperCase() + platform.slice(1)}
+              {getSocialPlatformLabel(platform)}
             </option>
           ))}
         </select>

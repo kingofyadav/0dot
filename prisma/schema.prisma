@@ -16,6 +16,11 @@ model User {
   emailVerifiedAt DateTime?
   passwordHash    String
   status          String    @default("active") // active | suspended | deactivated | deleted
+  // phase-4 build plan decision #1: manually granted via direct DB access,
+  // same "no self-serve flow" posture as Profile.isVerified. Gates
+  // /admin/businesses, the review queue for businesses that don't clear the
+  // weak-signal auto-approval in businesses.ts.
+  isPlatformAdmin Boolean   @default(false)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -27,6 +32,46 @@ model User {
   posts                   Post[]
   postLikes               PostLike[]
   bookmarks               Bookmark[]
+  pollVotes               PollVote[]
+
+  // Follow rows where this user is the follower ("who I follow") vs. the
+  // followee ("who follows me") — named relations since both sides of the
+  // edge point back to User.
+  following  Follow[] @relation("Follower")
+  followedBy Follow[] @relation("Followee")
+
+  blocksMade     Block[] @relation("Blocker")
+  blocksReceived Block[] @relation("Blocked")
+
+  notifications       Notification[] @relation("NotificationRecipient")
+  notificationsCaused Notification[] @relation("NotificationActor")
+
+  createdConversations       Conversation[]
+  conversationParticipations ConversationParticipant[]
+  sentMessages               Message[]
+  initiatedMessageRequests   MessageRequestState[]
+
+  createdCommunities         Community[]
+  communityMemberships       CommunityMember[]
+  modActionsTaken            ModAction[]
+  wikiRevisions              WikiRevision[]
+  communityChatMessages      CommunityChatMessage[]
+  communityMembershipEvents  CommunityMembershipEvent[]
+  createdVoiceRooms          VoiceRoom[]                @relation("VoiceRoomCreator")
+  currentSpeakerInVoiceRooms VoiceRoom[]                @relation("VoiceRoomCurrentSpeaker")
+  voiceRoomParticipations    VoiceRoomParticipant[]
+
+  createdBusinesses    Business[]
+  businessMemberships  BusinessMember[]
+  sentContactMessages  ContactMessage[]
+  reviews              Review[]
+  reviewResponses      ReviewResponse[]
+  jobApplications      JobApplication[]
+
+  availabilityRulesAsStaff AvailabilityRule[] @relation("AvailabilityRuleStaff")
+  appointmentsAsCustomer   Appointment[]      @relation("AppointmentCustomer")
+  appointmentsAsStaff      Appointment[]      @relation("AppointmentStaff")
+  uploadedBusinessDocuments BusinessDocument[]
 }
 
 model Session {
@@ -70,8 +115,68 @@ model Profile {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  // Denormalized, updated transactionally alongside the Follow row write
+  // (phase-2 spec §3.1) — same pattern as Post's like/reply/repost counts.
+  followerCount  Int @default(0)
+  followingCount Int @default(0)
+
   links       Link[]
   socialLinks SocialLink[]
+}
+
+model Follow {
+  followerId String
+  follower   User     @relation("Follower", fields: [followerId], references: [id], onDelete: Cascade)
+  followeeId String
+  followee   User     @relation("Followee", fields: [followeeId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  // followerId != followeeId is enforced at the app layer (followUser in
+  // src/app/actions/follow.ts) — this schema has no other DB-level CHECK
+  // constraints, so this doesn't introduce a new pattern.
+  @@id([followerId, followeeId])
+  @@index([followeeId, createdAt]) // "who follows this user" list, most-recent-first
+  @@index([followerId, createdAt]) // "who this user follows" list, most-recent-first
+}
+
+// Minimal block primitive, pulled forward from Phase 12 Trust & Safety
+// (phase-2 spec §5.6) — needed now so a blocked user's actions can be
+// suppressed from generating notifications. Full T&S tooling (reports,
+// appeals, automated detection) is not in scope here.
+model Block {
+  blockerId String
+  blocker   User     @relation("Blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blockedId String
+  blocked   User     @relation("Blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([blockerId, blockedId])
+  @@index([blockedId]) // "has X blocked me" reverse-direction lookup
+}
+
+// phase-2 spec §4, extended by phase-3 §15. actorId is nullable for future
+// system notifications (none produced yet). type/subjectType are plain
+// strings, not Prisma enums, per this schema's existing SQLite-string-enum
+// convention (see User.status, PostMedia.type). `community_update` has
+// producers now (new-follower-style single-recipient events only — see
+// src/app/actions/community-rules.ts's comment on why rule/wiki edits
+// don't fan out to every member yet); `community_invite` remains
+// forward-compat only — no invite action exists to produce it.
+model Notification {
+  id          String    @id @default(uuid())
+  recipientId String
+  recipient   User      @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  actorId     String?
+  actor       User?     @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
+  type        String // like | comment | mention | new_follower | message | community_update | community_invite | business_review | job_application | application_status | appointment_request | appointment_confirmed | appointment_cancelled
+  subjectType String // post | message | user | community | business
+  subjectId   String
+  readAt      DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([recipientId, createdAt]) // list query, cursor-paginated
+  @@index([recipientId, readAt]) // unread-count query
+  @@index([recipientId, subjectId, type]) // dedup check + read-time aggregation grouping
 }
 
 model SocialLink {
@@ -85,42 +190,82 @@ model SocialLink {
 }
 
 model Link {
-  id          String    @id @default(uuid())
-  profileId   String
-  profile     Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  label       String
-  url         String
-  position    Int
-  isFeatured  Boolean   @default(false)
-  startsAt    DateTime?
-  endsAt      DateTime?
-  clickCount  Int       @default(0)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id         String    @id @default(uuid())
+  profileId  String
+  profile    Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  label      String
+  url        String
+  position   Int
+  isFeatured Boolean   @default(false)
+  startsAt   DateTime?
+  endsAt     DateTime?
+  clickCount Int       @default(0)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   clicks LinkClick[]
 }
 
 model LinkClick {
-  id            String   @id @default(uuid())
-  linkId        String
-  link          Link     @relation(fields: [linkId], references: [id], onDelete: Cascade)
-  occurredAt    DateTime @default(now())
-  referrerHost  String? // no raw IP/UA stored — see phase-1 spec §4.3 privacy rule
+  id           String   @id @default(uuid())
+  linkId       String
+  link         Link     @relation(fields: [linkId], references: [id], onDelete: Cascade)
+  occurredAt   DateTime @default(now())
+  referrerHost String? // no raw IP/UA stored — see phase-1 spec §4.3 privacy rule
 
   @@index([linkId])
 }
 
 model Post {
-  id          String    @id @default(uuid())
-  authorId    String
-  author      User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  body        String
-  likeCount   Int       @default(0)
-  replyCount  Int       @default(0)
-  repostCount Int       @default(0)
-  createdAt   DateTime  @default(now())
-  deletedAt   DateTime?
+  id            String    @id @default(uuid())
+  authorId      String
+  author        User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  body          String
+  likeCount     Int       @default(0)
+  replyCount    Int       @default(0)
+  repostCount   Int       @default(0)
+  // Denormalized, periodically recomputed by src/lib/trending.ts from a
+  // windowed/time-decayed function of recent likes/replies/reposts — never
+  // written synchronously on a like/reply/repost mutation (phase-2 spec
+  // §6.2). Float, not Decimal: Prisma's SQLite connector doesn't support
+  // the Decimal scalar (Postgres/MySQL only) and this only needs relative
+  // ordering, not exact arithmetic — a deliberate deviation from the
+  // spec's literal "decimal" pseudocode, not an oversight.
+  trendingScore Float     @default(0)
+  createdAt     DateTime  @default(now())
+  deletedAt     DateTime?
+
+  // phase-3 spec §7.1: a community post is still authored by a User
+  // (authorId unchanged) and simply scoped to a community — likes/replies/
+  // reposts/bookmarks/hashtags/mentions all work for free, no separate
+  // content system. onDelete: Cascade is deliberate here (unlike the
+  // NoAction self-relations below): deleteCommunity is already an
+  // irreversible hard delete, so its posts going with it is consistent,
+  // not a new data-loss risk.
+  communityId String?
+  community   Community? @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  // Community-scoped meaning only (spec §7.2) — never read outside a
+  // community-feed query, so it has zero effect on Home/Explore ordering
+  // by construction, not by a filter that could be forgotten.
+  pinnedAt    DateTime?
+
+  // phase-3 spec §6: moderator-curated per-community label, distinct from
+  // the global user-generated Hashtag. onDelete: SetNull — deleting a
+  // flair clears it from posts that used it, never touches the posts.
+  flairId String?
+  flair   CommunityPostFlair? @relation(fields: [flairId], references: [id], onDelete: SetNull)
+
+  // phase-4 build plan step 2 / spec §5: resolves the authorship question
+  // Phase 1 §7.1 and Phase 3 §7.1 both deferred. Deliberately NOT a
+  // polymorphic author_type + author_id pair — one additive, nullable
+  // column keeps every existing Post.authorId query correct by default.
+  // authorId (the acting User) is always still set even when this is —
+  // the human stays attributable for audit purposes even though the UI
+  // shows the business as the visible author. onDelete: SetNull, same
+  // reasoning as flairId above: losing the business shouldn't take the
+  // post with it.
+  businessAuthorId String?
+  businessAuthor    Business? @relation(fields: [businessAuthorId], references: [id], onDelete: SetNull)
 
   // Posts are soft-deleted (deletedAt) only, never hard-deleted, so these
   // self-relations use NoAction rather than Cascade — a reply thread or
@@ -134,13 +279,34 @@ model Post {
   repostOf   Post?   @relation("PostReposts", fields: [repostOfId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   reposts    Post[]  @relation("PostReposts")
 
+  // phase-3 spec §9: modeled as a Post variant, same reasoning as polls —
+  // any reply (replyToId referencing this post) is a candidate answer; the
+  // question's author or a moderator marks one as accepted. onDelete:
+  // SetNull (not the NoAction the reply/repost self-relations use above):
+  // this is a plain reference to an existing reply, not itself the thing
+  // that must survive a delete — if that reply row were ever hard-deleted
+  // (never happens today outside account-deletion cascade, but the schema
+  // shouldn't assume that stays true), the question just loses its
+  // accepted-answer pointer rather than the write failing.
+  postType          String  @default("standard") // standard | question
+  acceptedAnswerId  String?
+  acceptedAnswer    Post?   @relation("AcceptedAnswer", fields: [acceptedAnswerId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  acceptedAnswerFor Post[]  @relation("AcceptedAnswer")
+
   likes     PostLike[]
   bookmarks Bookmark[]
   media     PostMedia[]
+  // phase-3 spec §8.1: "a poll is an attachment to exactly one post" — not
+  // community-exclusive, this Post-level attachment is what makes it work
+  // in any feed for free, same reasoning as the rest of §7.1.
+  poll      Poll?
 
   @@index([createdAt])
   @@index([replyToId])
   @@index([repostOfId])
+  @@index([trendingScore])
+  @@index([communityId, createdAt])
+  @@index([communityId, flairId])
 }
 
 model PostMedia {
@@ -153,6 +319,46 @@ model PostMedia {
   createdAt DateTime @default(now())
 
   @@index([postId])
+}
+
+// phase-3 spec §8.1: a poll is an attachment to exactly one post — not
+// community-exclusive (a side effect of building it this way rather than
+// community-specific, called out in the spec as intentional reuse, not
+// scope creep).
+model Poll {
+  id                   String   @id @default(uuid())
+  postId               String   @unique
+  post                 Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  closesAt             DateTime
+  allowsMultipleChoice Boolean  @default(false)
+
+  options PollOption[]
+}
+
+model PollOption {
+  id       String @id @default(uuid())
+  pollId   String
+  poll     Poll   @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  label    String
+  position Int
+
+  votes PollVote[]
+
+  @@index([pollId])
+}
+
+// Single-choice: the app layer removes any prior vote on the poll's other
+// options before inserting a new one (spec §8.1's literal described
+// behavior) — not a DB constraint, since multi-choice polls legitimately
+// need more than one row per (poll, user).
+model PollVote {
+  pollOptionId String
+  pollOption   PollOption @relation(fields: [pollOptionId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@id([pollOptionId, userId])
 }
 
 model PostLike {
@@ -173,4 +379,660 @@ model Bookmark {
   createdAt DateTime @default(now())
 
   @@id([postId, userId])
+}
+
+// phase-2 spec §5. Direct conversations always have exactly 2 participants,
+// enforced at the app layer (src/lib/messaging.ts), not a DB constraint —
+// group size limits are also application-level policy, same reasoning the
+// spec itself gives for not constraining this in the schema.
+model Conversation {
+  id        String   @id @default(uuid())
+  kind      String   @default("direct") // direct | group
+  title     String? // group only; direct conversations have no title
+  createdBy String
+  creator   User     @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  // Denormalized so the inbox list (most-recent-activity-first, spec §5.5)
+  // and the unread-badge check (spec §5.5: "count of conversations with
+  // unread messages") never need a per-row subquery/join against Message —
+  // same posture as Post's like/reply/repost counts.
+  lastMessageAt       DateTime @default(now())
+  lastMessageSenderId String?
+  lastMessagePreview  String? // truncated body, or an attachment-type label
+
+  participants ConversationParticipant[]
+  messages     Message[]
+  requestState MessageRequestState?
+
+  @@index([lastMessageAt])
+}
+
+model ConversationParticipant {
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           String       @default("member") // member | admin — admin meaningful for group only
+  joinedAt       DateTime     @default(now())
+
+  // Derived-unread design (spec §5.5): one row update per "mark read," not
+  // one row per message per recipient. A real FK (not a bare string), per
+  // the spec's literal modeling — lets the unread check join straight to
+  // the read message's createdAt instead of a second round-trip.
+  lastReadMessageId String?
+  lastReadMessage   Message? @relation("LastReadMessage", fields: [lastReadMessageId], references: [id], onDelete: SetNull)
+
+  // Set when the *blocker* blocks a participant they share a direct
+  // conversation with (phase-2 spec §5.6: "hidden from the blocker's inbox,
+  // not deleted") — per-participant, not a conversation-wide delete.
+  hiddenAt DateTime?
+
+  @@id([conversationId, userId])
+  @@index([userId, hiddenAt]) // "my conversation list" query
+}
+
+model Message {
+  id             String       @id @default(uuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId       String
+  sender         User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  body           String? // nullable if attachment-only
+
+  // Discrete columns, not a jsonb blob — SQLite has no jsonb, and this
+  // matches the existing PostMedia convention (type/url as real columns)
+  // rather than introducing a new modeling style for this one feature.
+  attachmentType      String? // file | voice_note
+  attachmentUrl       String?
+  attachmentMimeType  String?
+  attachmentSizeBytes Int?
+  attachmentDurationS Int? // voice_note only
+
+  createdAt DateTime  @default(now())
+  // Sender-only soft delete (spec §5.1). Deleting clears body/attachment*
+  // columns immediately rather than just flagging the row — a true
+  // tombstone, so there's no separate retention-window question to answer
+  // (spec §7 flags retention policy as open; this sidesteps it rather than
+  // guessing at a window) and no read-path filtering can ever leak content
+  // that no longer exists in the DB.
+  deletedAt DateTime?
+
+  readByParticipants ConversationParticipant[] @relation("LastReadMessage")
+
+  @@index([conversationId, createdAt])
+}
+
+// phase-2 spec §5.2. A DM from someone the recipient doesn't follow (and
+// isn't followed by) starts pending, visible to the recipient in a separate
+// requests list, not the primary inbox. No row at all for group
+// conversations (spec: mutual/one-directional-follow conversations skip
+// this state entirely and start accepted — same treatment as a group).
+model MessageRequestState {
+  conversationId String       @id
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  status         String       @default("pending") // pending | accepted | declined
+  initiatedBy    String
+  initiator      User         @relation(fields: [initiatedBy], references: [id], onDelete: Cascade)
+}
+
+// phase-3 spec §3.1. Slugs are a separate namespace from usernames
+// (src/lib/reserved-community-slugs.ts, not reserved-usernames.ts) since
+// they live under /c/ rather than the root path.
+model Community {
+  id          String  @id @default(uuid())
+  slug        String  @unique
+  name        String
+  description String  @default("")
+  avatarUrl   String?
+  coverUrl    String?
+  visibility  String  @default("public") // public | restricted | private — see §3.1
+  createdBy   String
+  creator     User    @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+
+  // Denormalized, updated transactionally alongside CommunityMember writes
+  // — same pattern as Profile.followerCount (phase-2 spec §3.1).
+  memberCount Int @default(1)
+
+  // phase-3 spec §10.1: "moderators only" (default, vandalism-resistant
+  // before a community has established norms) or "members" (any active
+  // member may edit).
+  wikiEditPolicy String @default("moderators")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members          CommunityMember[]
+  modActions       ModAction[]
+  posts            Post[]
+  rules            CommunityRule[]
+  tags             CommunityTag[]
+  flairs           CommunityPostFlair[]
+  wikiPages        WikiPage[]
+  chatMessages     CommunityChatMessage[]
+  membershipEvents CommunityMembershipEvent[]
+  voiceRooms       VoiceRoom[]
+}
+
+// phase-3 spec §12.2, built as a deliberately narrower "walkie-talkie" mode
+// (product decision, not the original spec's multi-speaker Spaces vision):
+// exactly one participant holds the floor at a time (currentSpeakerId),
+// everyone else listens, and a FIFO queue (VoiceRoomParticipant.
+// requestedToSpeakAt) governs whose turn is next. This is what makes a
+// plain client-side WebRTC mesh (src/lib/voice-signal-events.ts) viable
+// without a real SFU media server: never more than one outbound audio
+// stream active at once. See src/app/actions/voice-rooms.ts for the full
+// state machine.
+model VoiceRoom {
+  id          String    @id @default(uuid())
+  communityId String
+  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  title       String
+  status      String    @default("scheduled") // scheduled | live | ended
+  startsAt    DateTime
+  endedAt     DateTime?
+  createdBy   String
+  creator     User      @relation("VoiceRoomCreator", fields: [createdBy], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+
+  // Who holds the floor right now; null = free. currentSpeakerSince backs
+  // the self-healing "stale floor" check (isFloorFree in voice-rooms.ts) —
+  // a lazy staleness check on read, same posture as trending.ts's
+  // recompute guard, not a background job.
+  currentSpeakerId    String?
+  currentSpeaker      User?     @relation("VoiceRoomCurrentSpeaker", fields: [currentSpeakerId], references: [id], onDelete: SetNull)
+  currentSpeakerSince DateTime?
+
+  participants VoiceRoomParticipant[]
+}
+
+// No recording/playback (spec §12.2: a voice room's audio is live-only and
+// not retained) — nothing here models storing audio at all, by design.
+model VoiceRoomParticipant {
+  voiceRoomId        String
+  voiceRoom          VoiceRoom @relation(fields: [voiceRoomId], references: [id], onDelete: Cascade)
+  userId             String
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role               String // speaker | listener | requesting_to_speak — "speaker" means holds the floor right now, not a persistent tier
+  joinedAt           DateTime  @default(now())
+  // FIFO queue order for the speak-request line; null = not queued. Only
+  // ever set while role = requesting_to_speak.
+  requestedToSpeakAt DateTime?
+
+  @@id([voiceRoomId, userId])
+}
+
+// phase-3 spec §14: member growth (joins/leaves per day) is the one
+// analytics metric that can't be derived from current state —
+// leaveCommunity/banMember hard-delete the CommunityMember row, so
+// historical leave dates aren't reconstructable without a log. The other
+// three required metrics (post/comment volume, active member count, top
+// posts) are direct queries over Post/CommunityChatMessage and don't need
+// a table of their own — this is the one new table this step needs, not a
+// general-purpose event log for everything.
+model CommunityMembershipEvent {
+  id          String    @id @default(uuid())
+  communityId String
+  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type        String // join | leave
+  createdAt   DateTime  @default(now())
+
+  @@index([communityId, createdAt])
+}
+
+// phase-3 spec §11.1: a new model, not reused Phase 2 Messaging —
+// Conversation/Message is built around small participant sets with
+// per-participant read cursors, wrong shape for a single broadcast channel
+// with potentially thousands of members. No per-user read receipts/unread
+// counts (impractical at chat volume, not how live chat behaves — it's a
+// stream, not an inbox). deletedAt: moderator removal, tombstoned not
+// hard-deleted for modlog accountability (ModAction remove_chat_message).
+model CommunityChatMessage {
+  id          String    @id @default(uuid())
+  communityId String
+  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  senderId    String
+  sender      User      @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  body        String
+  createdAt   DateTime  @default(now())
+  deletedAt   DateTime?
+
+  @@index([communityId, createdAt])
+}
+
+// phase-3 spec §6: discovery tags attached to the community itself (search/
+// browse filtering), from a shared curated taxonomy (src/lib/
+// community-tags.ts), not free text — keeps discovery browsable rather
+// than fragmented across one-off tags. Capped at a handful per community,
+// enforced in setCommunityTags (src/app/actions/community-tags.ts), not
+// here — SQLite has no clean way to express "max N rows per FK" at the
+// schema level.
+model CommunityTag {
+  communityId String
+  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  tag         String
+
+  @@id([communityId, tag])
+}
+
+// phase-3 spec §6: per-community, moderator-curated post label — distinct
+// from CommunityTag (community-level, discovery) and from Phase 1's global
+// Hashtag (user-generated, cross-community). color is a key into a fixed
+// palette (src/lib/flair-colors.ts), never free-form CSS — same reasoning
+// as Phase 1 theme presets (§3.6): customization without an XSS/contrast
+// surface.
+model CommunityPostFlair {
+  id          String    @id @default(uuid())
+  communityId String
+  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  label       String
+  color       String
+
+  posts Post[]
+
+  @@index([communityId])
+}
+
+// phase-3 spec §4.1. Full role/status set (moderator role, banned/muted
+// statuses — step 2's moderation tooling) is in active use, not just
+// modeled ahead of time.
+model CommunityMember {
+  communityId String
+  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role        String    @default("member") // owner | moderator | member
+  status      String    @default("active") // active | pending | banned | muted
+  joinedAt    DateTime  @default(now())
+
+  @@id([communityId, userId])
+  @@index([userId, status]) // "communities I'm an active member of" (§7's future "Your Communities" feed, and /c index)
+}
+
+// phase-3 spec §5. Simple ordered list, editable by moderators/owner only.
+// No per-user acceptance tracking (spec explicitly defers that to a
+// possible Phase 12 addition, not built speculatively here).
+model CommunityRule {
+  id          String    @id @default(uuid())
+  communityId String
+  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  position    Int
+  title       String
+  body        String    @default("")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([communityId, position])
+}
+
+// phase-3 spec §10.1. currentRevisionId is nullable only to resolve the
+// chicken-and-egg of creating a page's first revision (WikiRevision.
+// wikiPageId needs the page to already exist) — never observably null to a
+// reader: page + first revision are created together, currentRevisionId
+// set in the same request before any read can see the gap
+// (src/app/actions/wiki.ts's createWikiPage).
+model WikiPage {
+  id                String        @id @default(uuid())
+  communityId       String
+  community         Community     @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  slug              String
+  title             String
+  currentRevisionId String?       @unique
+  currentRevision   WikiRevision? @relation("CurrentRevision", fields: [currentRevisionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  revisions WikiRevision[] @relation("PageRevisions")
+
+  @@unique([communityId, slug])
+}
+
+// Full revision history retained — every edit creates a new row,
+// currentRevisionId repointed, never an in-place overwrite (spec §10.2's
+// literal acceptance criterion). Two relations to WikiPage (PageRevisions:
+// every revision that ever existed for a page; CurrentRevision: the one
+// currently live) since a single "which page" FK can't also express "and
+// is this the live one" without a redundant boolean.
+model WikiRevision {
+  id         String   @id @default(uuid())
+  wikiPageId String
+  wikiPage   WikiPage @relation("PageRevisions", fields: [wikiPageId], references: [id], onDelete: Cascade)
+  body       String
+  editedBy   String
+  editor     User     @relation(fields: [editedBy], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  currentFor WikiPage? @relation("CurrentRevision")
+
+  @@index([wikiPageId, createdAt])
+}
+
+// phase-3 spec §13, step 2's "minimal ModAction log" — the community-scoped
+// audit trail every moderator action (existing and new) writes through
+// (src/lib/communities.ts's logModAction). `action` extends spec §13's
+// literal enum (remove_post/remove_comment/remove_chat_message/mute_member/
+// ban_member/pin_post/edit_rule/edit_wiki — several of which have no
+// producer yet, since their underlying features aren't built) with the
+// governance actions that already exist today and have real accountability
+// value but weren't listed: appoint_moderator | remove_moderator |
+// unmute_member | unban_member | transfer_ownership | end_voice_room |
+// force_stop_speaker. Deliberately NOT written for
+// approveJoinRequest/declineJoinRequest (routine intake, not a punitive
+// action) or deleteCommunity (the log's own subject disappears with it,
+// via Cascade below).
+model ModAction {
+  id          String    @id @default(uuid())
+  communityId String
+  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  moderatorId String
+  moderator   User      @relation(fields: [moderatorId], references: [id], onDelete: Cascade)
+  action      String // see model comment for the full value set
+  targetType  String // post | chat_message | user | rule | wiki_page
+  targetId    String
+  reason      String?
+  createdAt   DateTime  @default(now())
+
+  @@index([communityId, createdAt])
+}
+
+// phase-4 build plan step 1 / spec §3.1. `status` isn't in the spec's own
+// field list — it's the build plan's decision #1 answer to §3.3's
+// launch-blocking claim gate: `pending` until a weak signal (creator's
+// email domain matches the business's own website) or platform-admin
+// approval promotes it to `active`. Only `active` businesses are
+// public/searchable (enforced in the read paths, not here). No citext (this
+// codebase is SQLite, see Community.slug) — case-insensitivity is handled
+// by lowercasing at write time, same as every other slug namespace.
+model Business {
+  id          String   @id @default(uuid())
+  slug        String   @unique
+  name        String
+  tagline     String   @default("")
+  description String   @default("")
+  logoUrl     String?
+  coverUrl    String?
+  category    String
+  foundedYear Int?
+  sizeRange   String? // solo | 2_10 | 11_50 | 51_200 | 201_1000 | 1000_plus
+  isVerified  Boolean  @default(false) // stronger, manually-granted checkmark — separate from `status` (§3.3)
+  status      String   @default("pending") // pending | active — see model comment
+  createdBy   String
+  creator     User     @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // spec §11.1: denormalized off Review, recomputed transactionally on every
+  // review create/update/delete (src/app/actions/reviews.ts) — same
+  // denormalization pattern as Profile.followerCount/Community.memberCount.
+  averageRating Float @default(0)
+  reviewCount   Int   @default(0)
+
+  members         BusinessMember[]
+  locations       BusinessLocation[]
+  contactInfo     ContactInfo?
+  posts           Post[]
+  contactMessages ContactMessage[]
+  offerings       Offering[]
+  reviews         Review[]
+  jobs            Job[]
+  availabilityRules AvailabilityRule[]
+  appointments      Appointment[]
+  documents         BusinessDocument[]
+
+  @@index([status])
+}
+
+// spec §3.1: hoursJson is a deliberate, scoped exception to this codebase's
+// "discrete columns, not jsonb" convention — business hours are a genuinely
+// variable nested structure (multiple ranges per day for lunch-break
+// splits) that doesn't decompose into fixed columns. Parsed/validated at
+// the app layer, not the DB.
+model BusinessLocation {
+  id         String   @id @default(uuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  label      String
+  address    String
+  latitude   Float?
+  longitude  Float?
+  hoursJson  String? // {day: [{opens, closes}]}; empty/null = not listed, not "closed"
+
+  @@index([businessId])
+}
+
+model ContactInfo {
+  businessId String   @id
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  email      String?
+  phone      String?
+  website    String?
+}
+
+// phase-4 build plan step 3 / spec §6.1: a simple inbound queue, status
+// transitions only — no reply-in-app (replies happen over the email the
+// sender provided; building in-app back-and-forth would duplicate Phase 2
+// Messaging for a use case that doesn't need it). senderUserId nullable:
+// null means a logged-out visitor submitted via name/email instead
+// (senderName/senderEmail required at the app layer in that case, per
+// spec §6.2's literal acceptance criterion).
+model ContactMessage {
+  id           String   @id @default(uuid())
+  businessId   String
+  business     Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  senderUserId String?
+  senderUser   User?    @relation(fields: [senderUserId], references: [id], onDelete: SetNull)
+  senderName   String?
+  senderEmail  String?
+  body         String
+  status       String   @default("new") // new | read | archived
+  createdAt    DateTime @default(now())
+
+  @@index([businessId, status, createdAt])
+}
+
+// phase-4 build plan step 4 / spec §7.1: products and services share one
+// table (name/description/images/price/category) rather than two
+// near-duplicate ones — kind picks between product-only fields (sku,
+// stockStatus) and service-only fields (isBookable, durationMinutes), left
+// null for the kind that doesn't use them, validated at the app layer
+// (§7.2's two acceptance criteria), not enforced by the schema itself.
+// imagesJson follows BusinessLocation.hoursJson's exact reasoning: a JSON
+// array of up to 8 image URLs, same media-attachment shape as Phase 1 post
+// media, without needing a second attachment table. price: Float, not
+// Decimal — Prisma's SQLite connector doesn't support Decimal (same
+// deviation Post.trendingScore already documents).
+model Offering {
+  id              String   @id @default(uuid())
+  businessId      String
+  business        Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  kind            String // product | service
+  name            String
+  description     String   @default("")
+  imagesJson      String? // JSON array of up to 8 image URLs; null/empty = none
+  price           Float? // nullable = "contact for pricing"
+  currency        String? // required iff price is set (§7.2)
+  paymentLinkUrl  String? // build plan step 5: external checkout link; only meaningful when price is set, falls back to the contact form when absent
+  status          String   @default("draft") // draft | active | archived
+  // product-only, null for kind = service
+  sku             String?
+  stockStatus     String? // in_stock | out_of_stock | made_to_order
+  // service-only, null for kind = product
+  isBookable      Boolean?
+  durationMinutes Int? // required when isBookable = true (§7.2)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  appointments Appointment[]
+
+  @@index([businessId, status])
+}
+
+// spec §4.1. `role` gates write permissions (owner > admin > editor > member,
+// see src/lib/businesses.ts); `isPublic` is a fully independent concern —
+// whether this row shows on the public Team tab. A `member`-role row can be
+// `isPublic: true` and still have zero write permissions.
+model BusinessMember {
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role       String   @default("member") // owner | admin | editor | member
+  title      String?
+  isPublic   Boolean  @default(false)
+  joinedAt   DateTime @default(now())
+
+  @@id([businessId, userId])
+  @@index([userId])
+}
+
+// build plan step 6 / spec §11.1: one review per (businessId, authorId) —
+// editable, not stackable, enforced by the unique constraint below (also
+// the upsert target for createOrUpdateReview). author_id is public
+// (reviews are attributed, not anonymous) per spec §15.2.
+model Review {
+  id         String   @id @default(uuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  authorId   String
+  author     User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  rating     Int
+  body       String   @default("")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  response ReviewResponse?
+
+  @@unique([businessId, authorId])
+  @@index([businessId])
+}
+
+// One official response per review — the unique PK on reviewId (not a
+// separate id) is what enforces that, same shape as ContactInfo's
+// businessId @id. responderId must be admin+ (src/lib/businesses.ts's
+// isBusinessStaff), checked in the action, not the schema.
+model ReviewResponse {
+  reviewId    String   @id
+  review      Review   @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  responderId String
+  responder   User     @relation(fields: [responderId], references: [id], onDelete: Cascade)
+  body        String
+  createdAt   DateTime @default(now())
+}
+
+// build plan step 7 / spec §9.1, §9.3: intentionally generic (no
+// business-specific fields beyond businessId) so a future cross-business
+// job board could query across every business's Job rows without a
+// migration — no such board is built in Phase 4 itself.
+model Job {
+  id             String    @id @default(uuid())
+  businessId     String
+  business       Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  title          String
+  description    String
+  location       String?
+  isRemote       Boolean   @default(false)
+  employmentType String // full_time | part_time | contract | internship
+  salaryMin      Float?
+  salaryMax      Float?
+  status         String    @default("open") // open | closed
+  postedAt       DateTime  @default(now())
+  closesAt       DateTime?
+
+  applications JobApplication[]
+
+  @@index([businessId, status])
+}
+
+// spec §15.2: resumeUrl/coverNote are visible only to admin+ team members
+// and the applicant themself — enforced in the read path (jobs.ts query
+// shape), not just hidden in the UI.
+model JobApplication {
+  id          String   @id @default(uuid())
+  jobId       String
+  job         Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  applicantId String
+  applicant   User     @relation(fields: [applicantId], references: [id], onDelete: Cascade)
+  coverNote   String   @default("")
+  resumeUrl   String?
+  status      String   @default("submitted") // submitted | reviewed | rejected | hired
+  createdAt   DateTime @default(now())
+
+  @@index([jobId])
+  @@index([applicantId])
+}
+
+// build plan step 8 / spec §10.2: MVP scope only — business-level
+// availability (teamMemberId null throughout the booking flow this phase
+// builds), no per-staff selection. The field exists so a future per-staff
+// scheduling flow can use it without a migration, same "shape it generic,
+// don't build the bigger thing" posture as Job/JobApplication in step 7.
+// startsAtLocal/endsAtLocal are "HH:MM" strings, not a Time scalar — same
+// deviation-for-SQLite-support reasoning as Post.trendingScore (Float, not
+// Decimal). timezone is stored but not converted against — this codebase
+// has no timezone-conversion infrastructure anywhere yet (BusinessLocation
+// .hoursJson is display-only for the same reason); every date/time here is
+// treated as wall-clock, a deliberate MVP simplification per §10.1's scope
+// warning ("timezone handling... treat as signals to revisit scope").
+model AvailabilityRule {
+  id            String   @id @default(uuid())
+  businessId    String
+  business      Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  teamMemberId  String?
+  teamMember    User?    @relation("AvailabilityRuleStaff", fields: [teamMemberId], references: [id], onDelete: Cascade)
+  dayOfWeek     Int // 0 (Sunday) - 6
+  startsAtLocal String // "HH:MM", 24h
+  endsAtLocal   String // "HH:MM", 24h
+  timezone      String // IANA tz name, stored not converted (see model comment)
+
+  @@index([businessId, teamMemberId, dayOfWeek])
+}
+
+// spec §10.2/§10.3. build plan decision #3: a `requested` appointment DOES
+// tentatively hold the slot — the overlap check below runs against every
+// non-cancelled status, not just confirmed, so two customers can't both
+// hold the same slot while it's pending.
+model Appointment {
+  id           String    @id @default(uuid())
+  businessId   String
+  business     Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  offeringId   String?
+  offering     Offering? @relation(fields: [offeringId], references: [id], onDelete: SetNull)
+  customerId   String
+  customer     User      @relation("AppointmentCustomer", fields: [customerId], references: [id], onDelete: Cascade)
+  teamMemberId String?
+  teamMember   User?     @relation("AppointmentStaff", fields: [teamMemberId], references: [id], onDelete: SetNull)
+  startsAt     DateTime
+  endsAt       DateTime // always derived from offering.durationMinutes at booking time — never client-supplied (§10.3)
+  status       String    @default("requested") // requested | confirmed | cancelled | completed | no_show
+  notes        String?
+  createdAt    DateTime  @default(now())
+
+  // spec §10.3's literal acceptance criterion: two non-cancelled
+  // appointments for the same (businessId, teamMemberId) pair cannot
+  // overlap, enforced transactionally in requestAppointment, not just in
+  // the UI. This index backs that check.
+  @@index([businessId, teamMemberId, startsAt])
+}
+
+// build plan step 9 / spec §12.1: a simple file library, no versioning
+// (unlike Phase 3's wiki, which needed revision history for collaborative
+// editing — these are typically business-controlled static assets; a
+// re-upload is just a new row, the old one deletable). fileUrl reuses
+// saveMessageAttachment's upload pipeline (src/lib/uploads.ts), not a
+// third one. team_only visibility is enforced in the read path (§12.2's
+// literal acceptance criterion), not just hidden in the UI.
+model BusinessDocument {
+  id         String   @id @default(uuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  title      String
+  fileUrl    String
+  visibility String // public | team_only
+  uploadedBy String
+  uploader   User     @relation(fields: [uploadedBy], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@index([businessId, visibility])
 }
