@@ -30,7 +30,7 @@ export default async function FeedPage({
     authorId: { in: [currentUser.id, ...followedIds.map((f) => f.followeeId)] },
   };
 
-  const { items: posts, nextCursor } = await getFeedPosts({ authorFilter, cursor });
+  const { items: posts, nextCursor } = await getFeedPosts({ authorFilter, cursor, viewerId: currentUser.id });
 
   const postIds = posts.map((p) => p.id);
   const [likedPostIds, bookmarkedPostIds] = await Promise.all([

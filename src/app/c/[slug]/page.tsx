@@ -218,7 +218,12 @@ async function CommunityFeedContent({
     pinned,
     items: posts,
     nextCursor,
-  } = await getCommunityFeedPosts({ communityId: community.id, cursor, flairId: validFlairId });
+  } = await getCommunityFeedPosts({
+    communityId: community.id,
+    cursor,
+    flairId: validFlairId,
+    viewerId: currentUser?.id ?? null,
+  });
 
   const postIds = [...pinned, ...posts].map((p) => p.id);
   const [likedPostIds, bookmarkedPostIds] = currentUser

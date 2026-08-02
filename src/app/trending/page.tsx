@@ -18,7 +18,7 @@ export default async function TrendingPage({
   const { cursor: rawCursor } = await searchParams;
   const cursor = parseTrendingCursor(rawCursor);
 
-  const { items: posts, nextCursor } = await getTrendingPosts({ cursor });
+  const { items: posts, nextCursor } = await getTrendingPosts({ cursor, viewerId: currentUser?.id ?? null });
 
   const postIds = posts.map((p) => p.id);
   const [likedPostIds, bookmarkedPostIds] = currentUser

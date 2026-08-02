@@ -127,6 +127,9 @@ export async function joinVoiceRoom(formData: FormData): Promise<void> {
   const room = await requireRoom(roomId);
   if (!room || room.status !== "live") return;
 
+  const membership = await getCommunityMember(room.communityId, user.id);
+  if (!membership || membership.status !== "active") return;
+
   const existing = await requireParticipant(roomId, user.id);
   if (existing) return; // idempotent
 
@@ -234,6 +237,18 @@ export async function startSpeaking(formData: FormData): Promise<void> {
       where: { voiceRoomId_userId: { voiceRoomId: roomId, userId: user.id } },
       data: { role: "speaker", requestedToSpeakAt: null },
     }),
+    // A speaker who lost the floor to MAX_FLOOR_HOLD_MS timing out (rather
+    // than calling stopSpeaking themselves) would otherwise stay stuck at
+    // role "speaker" forever — their own later stopSpeaking becomes a
+    // silent no-op since room.currentSpeakerId no longer points at them.
+    ...(room.currentSpeakerId && room.currentSpeakerId !== user.id
+      ? [
+          db.voiceRoomParticipant.update({
+            where: { voiceRoomId_userId: { voiceRoomId: roomId, userId: room.currentSpeakerId } },
+            data: { role: "listener" },
+          }),
+        ]
+      : []),
   ]);
 
   broadcastRoomUpdate(roomId);

@@ -107,10 +107,11 @@ export async function createBusiness(
     coverUrl = result.url;
   }
 
-  const status = computeInitialBusinessStatus({
+  const status = await computeInitialBusinessStatus({
     creatorEmail: user.email,
     creatorIsVerified: user.profile?.isVerified ?? false,
     website,
+    name,
   });
 
   // Nested create: Business + its owner BusinessMember row + ContactInfo in

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { Prisma } from "@/generated/prisma/client";
 import { requireVerifiedUser } from "@/lib/auth-guards";
-import { isBusinessStaff } from "@/lib/businesses";
+import { getBusinessMember, isBusinessStaff } from "@/lib/businesses";
 import { notifyBusinessReview } from "@/lib/notifications";
 import { checkRateLimit } from "@/lib/rate-limit";
 import type { ActionState } from "@/app/actions/auth";
@@ -41,6 +41,13 @@ export async function createOrUpdateReview(_prevState: ActionState, formData: Fo
 
   const business = await db.business.findUnique({ where: { id: businessId }, select: { id: true, slug: true } });
   if (!business) return { error: "Business not found." };
+
+  // spec §11.1's review-integrity rationale falls apart if staff can review
+  // their own business — an owner/admin/editor's rating would inflate the
+  // denormalized averageRating used as a search-ranking tie-break.
+  if (await getBusinessMember(business.id, user.id)) {
+    return { error: "You can't review your own business." };
+  }
 
   if (!checkReviewRateLimit(user.id)) {
     return { error: "You're submitting reviews too fast. Please slow down." };

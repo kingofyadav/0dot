@@ -3,6 +3,7 @@
 import { randomBytes } from "crypto";
 import bcrypt from "bcryptjs";
 import { redirect } from "next/navigation";
+import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { createSession, destroySession } from "@/lib/session";
 import { validateUsernameFormat } from "@/lib/reserved-usernames";
@@ -13,6 +14,12 @@ export type ActionState = { error?: string } | undefined;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000; // 24h
 const RATE_LIMIT_ERROR = "Too many attempts. Please try again in a few minutes.";
+// Precomputed bcrypt hash of an arbitrary fixed string, compared against
+// on a login attempt for an email that doesn't exist — so bcrypt.compare
+// always runs one way or another, and response time can't be used to
+// enumerate registered emails (a missing user used to short-circuit
+// straight past the ~100ms+ hash compare).
+const DUMMY_HASH = "$2b$12$7j5EHBqwhwNexnu5VeCDiuAkZZX8k8BFFqGnK9R./JTiJFcltTVOK";
 
 export async function signup(
   _prevState: ActionState,
@@ -67,14 +74,26 @@ export async function signup(
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
-  const user = await db.user.create({
-    data: {
-      email,
-      passwordHash,
-      username: { create: { handle } },
-      profile: { create: { displayName } },
-    },
-  });
+  let user;
+  try {
+    user = await db.user.create({
+      data: {
+        email,
+        passwordHash,
+        username: { create: { handle } },
+        profile: { create: { displayName } },
+      },
+    });
+  } catch (err) {
+    // The findUnique checks above are check-then-act, not atomic — two
+    // concurrent signups for the same email/handle can both pass them
+    // before either insert commits. Catch the resulting unique-constraint
+    // violation here rather than letting it surface as an unhandled 500.
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      return { error: "That email or username is already taken." };
+    }
+    throw err;
+  }
 
   const token = randomBytes(24).toString("hex");
   await db.emailVerificationToken.create({
@@ -116,7 +135,12 @@ export async function login(
     include: { username: true },
   });
 
-  if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
+  // Always run bcrypt.compare, even when no user matched — comparing
+  // against DUMMY_HASH keeps a nonexistent-email response taking
+  // approximately as long as a wrong-password one, closing the timing
+  // side-channel a short-circuited `!user ||` would otherwise leave open.
+  const passwordValid = await bcrypt.compare(password, user?.passwordHash ?? DUMMY_HASH);
+  if (!user || !passwordValid) {
     return { error: "Incorrect email or password." };
   }
 

@@ -36,7 +36,7 @@ function applyTheme(theme: Theme) {
   syncFavicon(theme);
 }
 
-export function ThemeToggleLogo({ size = 32 }: { size?: number }) {
+export function ThemeToggleLogo({ size = 32, priority = true }: { size?: number; priority?: boolean }) {
   useEffect(() => {
     // Keep the favicon in sync with whatever theme is actually in effect
     // on mount (OS preference, or a stored manual choice the inline head
@@ -65,7 +65,7 @@ export function ThemeToggleLogo({ size = 32 }: { size?: number }) {
         width={size}
         height={size}
         className="themeLogoLight"
-        priority
+        priority={priority}
       />
       <Image
         src="/0dot.png"
@@ -73,7 +73,7 @@ export function ThemeToggleLogo({ size = 32 }: { size?: number }) {
         width={size}
         height={size}
         className="themeLogoDark"
-        priority
+        priority={priority}
       />
     </button>
   );

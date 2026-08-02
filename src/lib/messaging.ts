@@ -205,6 +205,10 @@ export async function listInboxConversations(userId: string, cursor: Conversatio
             { requestState: { is: null } },
             { requestState: { status: "accepted" } },
             { requestState: { status: "pending", initiatedBy: userId } },
+            // spec §5.2/§5.8 only asks for hiding a declined request from
+            // the recipient who declined it — the initiator should still
+            // see it in their own inbox, not have it silently vanish.
+            { requestState: { status: "declined", initiatedBy: userId } },
           ],
         },
         conversationCursorWhere(cursor),

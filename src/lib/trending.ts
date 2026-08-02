@@ -1,6 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { POST_PAGE_SIZE } from "@/lib/pagination";
+import { getBlockedEitherWayUserIds, getPostVisibilityConditions } from "@/lib/post-visibility";
 
 // phase-2 spec §6.2: velocity, not lifetime popularity or plain recency —
 // an old post with many likes accumulated slowly must not outrank a new
@@ -195,13 +196,22 @@ const mediaInclude = { orderBy: { position: "asc" as const } };
 // business appearing in "trending," and without this filter pagination
 // would eventually drift into an arbitrary, meaningless tie-break order
 // across the entire zero-score long tail.
-export async function getTrendingPosts({ cursor }: { cursor: TrendingCursor | null }) {
+export async function getTrendingPosts({
+  cursor,
+  viewerId,
+}: {
+  cursor: TrendingCursor | null;
+  viewerId: string | null;
+}) {
+  const blockedIds = viewerId ? await getBlockedEitherWayUserIds(viewerId) : [];
+  const visibilityConditions = await getPostVisibilityConditions(viewerId, blockedIds);
+
   const rows = await db.post.findMany({
     where: {
       deletedAt: null,
       replyToId: null,
       trendingScore: { gt: 0 },
-      ...trendingCursorWhere(cursor),
+      AND: [...visibilityConditions, trendingCursorWhere(cursor)],
     },
     orderBy: [{ trendingScore: "desc" }, { id: "desc" }],
     take: POST_PAGE_SIZE + 1,
@@ -210,7 +220,7 @@ export async function getTrendingPosts({ cursor }: { cursor: TrendingCursor | nu
       media: mediaInclude,
       repostOf: { include: { author: { include: authorInclude }, media: mediaInclude } },
       replies: {
-        where: { deletedAt: null },
+        where: { deletedAt: null, authorId: { notIn: blockedIds } },
         orderBy: { createdAt: "asc" },
         include: { author: { include: authorInclude }, media: mediaInclude },
       },

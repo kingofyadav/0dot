@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { validateUsernameFormat } from "@/lib/reserved-usernames";
@@ -69,10 +70,21 @@ export async function claimUsername(
     return { error: "That username is already taken." };
   }
 
-  await db.$transaction([
-    db.username.create({ data: { handle, userId: user.id } }),
-    db.profile.create({ data: { userId: user.id, displayName } }),
-  ]);
+  try {
+    await db.$transaction([
+      db.username.create({ data: { handle, userId: user.id } }),
+      db.profile.create({ data: { userId: user.id, displayName } }),
+    ]);
+  } catch (err) {
+    // The findUnique check above is check-then-act, not atomic — two
+    // concurrent claims for the same handle can both pass it before either
+    // insert commits. Catch the resulting unique-constraint violation
+    // rather than letting it surface as an unhandled 500.
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      return { error: "That username is already taken." };
+    }
+    throw err;
+  }
 
   // Straight to settings, not the (still-empty) public profile — the
   // natural next step right after claiming a handle is filling in bio/links.

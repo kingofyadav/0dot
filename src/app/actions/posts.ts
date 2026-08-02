@@ -202,21 +202,23 @@ export async function toggleRepost(formData: FormData): Promise<void> {
   // body:"" specifically so this never touches a quote-repost the same
   // user may also have made of the same post — those are independent,
   // deliberate posts (see createQuoteRepost), not toggle state.
-  const existing = await db.post.findFirst({
-    where: { authorId: user.id, repostOfId: postId, body: "", deletedAt: null },
-  });
+  //
+  // Read + write in one transaction (not just the write) — two concurrent
+  // calls could otherwise both read "not reposted yet" before either write
+  // commits, inserting two repost rows for one logical toggle.
+  await db.$transaction(async (tx) => {
+    const existing = await tx.post.findFirst({
+      where: { authorId: user.id, repostOfId: postId, body: "", deletedAt: null },
+    });
 
-  if (existing) {
-    await db.$transaction([
-      db.post.update({ where: { id: existing.id }, data: { deletedAt: new Date() } }),
-      db.post.update({ where: { id: postId }, data: { repostCount: { decrement: 1 } } }),
-    ]);
-  } else {
-    await db.$transaction([
-      db.post.create({ data: { authorId: user.id, body: "", repostOfId: postId } }),
-      db.post.update({ where: { id: postId }, data: { repostCount: { increment: 1 } } }),
-    ]);
-  }
+    if (existing) {
+      await tx.post.update({ where: { id: existing.id }, data: { deletedAt: new Date() } });
+      await tx.post.update({ where: { id: postId }, data: { repostCount: { decrement: 1 } } });
+    } else {
+      await tx.post.create({ data: { authorId: user.id, body: "", repostOfId: postId } });
+      await tx.post.update({ where: { id: postId }, data: { repostCount: { increment: 1 } } });
+    }
+  });
 
   revalidatePath("/feed");
   revalidatePath("/explore");

@@ -14,6 +14,10 @@ export function AuthTabs() {
     login,
     undefined
   );
+  // Controlled, unlike the login password field below — a failed submit
+  // shouldn't force retyping the email too, only the password that was
+  // actually wrong.
+  const [loginEmail, setLoginEmail] = useState("");
 
   return (
     <div className="authCard">
@@ -127,6 +131,8 @@ export function AuthTabs() {
                 type="email"
                 autoComplete="email"
                 required
+                value={loginEmail}
+                onChange={(e) => setLoginEmail(e.target.value)}
               />
             </div>
 

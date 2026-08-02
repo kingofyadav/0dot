@@ -8,18 +8,22 @@ import { followUser, unfollowUser } from "@/app/actions/follow";
 import { blockUser, unblockUser } from "@/app/actions/block";
 import { isBlocked } from "@/lib/blocks";
 import { getThemePreset, getSocialPlatformLabel, type SocialPlatform } from "@/lib/theme-presets";
+import { getFeedPosts, getVotedPollOptionIds } from "@/lib/feed-query";
+import { parseCursor } from "@/lib/pagination";
 import { Logo } from "@/components/Logo";
 import { SocialIcon } from "@/components/SocialIcon";
 import { CopyLinkButton } from "@/components/CopyLinkButton";
+import { PostCard } from "@/components/PostCard";
 
-// Public, read-only profile — identity, links, follow counts. No posts, no
-// editing UI: those are what /s/[username] (owner-only settings) is for.
-// Think of this page as the "API endpoint" view of an identity — anyone can
-// look, only the owner can change anything, and that's done somewhere else.
+// Public, read-only profile — identity, links, follow counts, and (spec
+// §3.4) the user's own post list. No editing UI here: that's what
+// /s/[username] (owner-only settings) is for.
 export default async function ProfilePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ username: string }>;
+  searchParams: Promise<{ cursor?: string }>;
 }) {
   const { username: rawParam } = await params;
   const handle = decodeURIComponent(rawParam).toLowerCase();
@@ -63,6 +67,31 @@ export default async function ProfilePage({
   // If the owner has blocked the viewer, no Follow/Block controls render at
   // all — quietly, matching how most platforms don't advertise block state.
   const showViewerControls = currentUser && !isOwner && !viewerBlockedByOwner;
+
+  const { cursor: rawCursor } = await searchParams;
+  const cursor = parseCursor(rawCursor);
+  // Reuses getFeedPosts (src/lib/feed-query.ts) scoped to this one author —
+  // same block/private-community/pending-business visibility filtering as
+  // Home/Explore/Trending, since this is just as much a public-facing post
+  // list as those surfaces are.
+  const { items: posts, nextCursor } = await getFeedPosts({
+    authorFilter: { authorId: { in: [username.userId] } },
+    cursor,
+    viewerId: currentUser?.id ?? null,
+  });
+
+  const postIds = posts.map((p) => p.id);
+  const [likedPostIds, bookmarkedPostIds] = currentUser
+    ? await Promise.all([
+        db.postLike
+          .findMany({ where: { userId: currentUser.id, postId: { in: postIds } }, select: { postId: true } })
+          .then((rows) => new Set(rows.map((r) => r.postId))),
+        db.bookmark
+          .findMany({ where: { userId: currentUser.id, postId: { in: postIds } }, select: { postId: true } })
+          .then((rows) => new Set(rows.map((r) => r.postId))),
+      ])
+    : [new Set<string>(), new Set<string>()];
+  const votedOptionIds = await getVotedPollOptionIds(currentUser?.id, posts);
 
   const now = new Date();
   const visibleLinks = profile.links
@@ -277,6 +306,32 @@ export default async function ProfilePage({
             </a>
           </div>
         ))}
+      </div>
+
+      <div className="linksSection">
+        <p className="sectionHeading">Posts</p>
+        {posts.length === 0 && <p className="mutedText">No posts yet.</p>}
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+          {posts.map((post) => (
+            <PostCard
+              key={post.id}
+              post={post}
+              isLiked={likedPostIds.has(post.id)}
+              isBookmarked={bookmarkedPostIds.has(post.id)}
+              isOwner={currentUser?.id === post.authorId}
+              currentUserId={currentUser?.id}
+              votedOptionIds={votedOptionIds}
+            />
+          ))}
+        </div>
+        {nextCursor && (
+          <Link
+            href={`/${username.handle}?cursor=${encodeURIComponent(nextCursor)}`}
+            className="button buttonSecondary loadMoreLink"
+          >
+            Load more
+          </Link>
+        )}
       </div>
     </div>
   );

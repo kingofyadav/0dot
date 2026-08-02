@@ -48,7 +48,11 @@ export async function SiteHeader() {
 
       <header className="mobileHeader">
         <div className="siteHeaderBrand">
-          <ThemeToggleLogo />
+          {/* Desktop and mobile headers both render unconditionally (CSS
+              picks which is visible, see the comment above) — only one of
+              the two logo mounts needs priority-preloading, not both, or
+              every page load eagerly preloads 4 logo images instead of 2. */}
+          <ThemeToggleLogo priority={false} />
           <span style={{ fontWeight: 600 }}>{greeting}</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>

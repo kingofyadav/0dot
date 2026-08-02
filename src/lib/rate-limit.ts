@@ -43,9 +43,19 @@ export function checkRateLimit(
 // "unknown" bucket (rather than throwing) when nothing is set, e.g. local
 // dev without a reverse proxy — degrades to a single global IP-bucket
 // rather than disabling the limiter entirely.
+//
+// Deployment assumption: exactly one trusted reverse proxy sits in front of
+// this app and appends (never lets the client overwrite) the real client IP
+// as the last hop of X-Forwarded-For. The *first* hop is attacker-controlled
+// — a client can send any value it wants as the start of that header — so
+// taking it would let per-IP limits be trivially spoofed by sending a fresh
+// X-Forwarded-For value per request. The last hop is the one the proxy
+// itself appended and is the only hop this app can trust. If self-hosting
+// behind a different proxy topology (multiple hops, a CDN that doesn't
+// strip client-supplied values), this assumption must be re-verified.
 export async function getClientIp(): Promise<string> {
   const headersList = await headers();
   const forwarded = headersList.get("x-forwarded-for");
-  if (forwarded) return forwarded.split(",")[0].trim();
+  if (forwarded) return forwarded.split(",").pop()!.trim();
   return headersList.get("x-real-ip") ?? "unknown";
 }

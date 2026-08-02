@@ -50,18 +50,42 @@ function extractWebsiteDomain(website: string): string {
     .replace(/^www\./, "");
 }
 
+// Lowercased, whitespace/punctuation-stripped — a loose but effective
+// collision check ("Google", "google", "Google!!" all normalize the same)
+// without needing a fuzzy-match library.
+function normalizeBusinessName(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+// spec §3.3: "a name-collision/likely-impersonation heuristic... the
+// decision to gate is being made now, not deferred." Scoped to existing
+// platform businesses only — a full "well-known external brands" check
+// would need a third-party data source this codebase doesn't have.
+async function hasActiveBusinessNameCollision(name: string): Promise<boolean> {
+  const normalized = normalizeBusinessName(name);
+  if (!normalized) return false;
+  const candidates = await db.business.findMany({ where: { status: "active" }, select: { name: true } });
+  return candidates.some((c) => normalizeBusinessName(c.name) === normalized);
+}
+
 // phase-4 build plan decision #1: the launch-blocking claim gate from spec
 // §3.3, resolved as a weak-signal auto-approval rather than always-pending.
 // A business promotes straight to `active` when the creator's account email
 // domain matches the business's own claimed website domain, or the creator
 // already holds Profile.isVerified (Phase 1's stronger, manually-granted
-// checkmark). Otherwise it stays `pending` — invisible/unsearchable until a
-// platform admin approves it from /admin/businesses.
-export function computeInitialBusinessStatus(args: {
+// checkmark) — unless its name collides with an existing active business,
+// which forces `pending` regardless of the other two signals (an
+// impersonation attempt shouldn't be waved through just because the
+// impersonator's own email happens to match their own fake website).
+// Otherwise it stays `pending` — invisible/unsearchable until a platform
+// admin approves it from /admin/businesses.
+export async function computeInitialBusinessStatus(args: {
   creatorEmail: string;
   creatorIsVerified: boolean;
   website: string | null;
-}): "active" | "pending" {
+  name: string;
+}): Promise<"active" | "pending"> {
+  if (await hasActiveBusinessNameCollision(args.name)) return "pending";
   if (args.creatorIsVerified) return "active";
   if (args.website) {
     const emailDomain = extractEmailDomain(args.creatorEmail);

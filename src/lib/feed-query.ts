@@ -1,6 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { cursorWhere, paginate, POST_PAGE_SIZE, type PostCursor } from "@/lib/pagination";
+import { getBlockedEitherWayUserIds, getPostVisibilityConditions } from "@/lib/post-visibility";
 
 // Exported so src/lib/community-feed.ts can build the identical post shape
 // for the community feed rather than duplicating these — one post
@@ -54,16 +55,21 @@ export async function getVotedPollOptionIds(
 export async function getFeedPosts({
   authorFilter,
   cursor,
+  viewerId,
 }: {
   authorFilter?: { authorId: { in: string[] } };
   cursor: PostCursor | null;
+  viewerId: string | null;
 }) {
+  const blockedIds = viewerId ? await getBlockedEitherWayUserIds(viewerId) : [];
+  const visibilityConditions = await getPostVisibilityConditions(viewerId, blockedIds);
+
   const rows = await db.post.findMany({
     where: {
       deletedAt: null,
       replyToId: null,
       ...authorFilter,
-      ...cursorWhere(cursor),
+      AND: [...visibilityConditions, cursorWhere(cursor)],
     },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: POST_PAGE_SIZE + 1,
@@ -76,7 +82,7 @@ export async function getFeedPosts({
       poll: pollInclude,
       repostOf: { include: { author: { include: authorInclude }, media: mediaInclude } },
       replies: {
-        where: { deletedAt: null },
+        where: { deletedAt: null, authorId: { notIn: blockedIds } },
         orderBy: { createdAt: "asc" },
         include: { author: { include: authorInclude }, media: mediaInclude },
       },

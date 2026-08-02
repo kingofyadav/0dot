@@ -7,7 +7,8 @@ Found by code review + live testing (logging in/out repeatedly in Chrome) on
 `src/components/MobileNavMenu.tsx`.
 
 Items #1 and #3 were fixed in `aa3ca32` ("Fix scheduled-link enforcement,
-account-status check, and rate limiting"). #2, #4, #5 remain open.
+account-status check, and rate limiting"). #2, #4, #5 were fixed in a later
+session (uncommitted at time of writing — see working tree / next commit).
 
 ---
 
@@ -40,7 +41,7 @@ for a since-suspended account stops working too.
 
 ---
 
-## 2. User-enumeration timing side-channel
+## 2. User-enumeration timing side-channel — FIXED
 
 **File:** `src/app/actions/auth.ts:96`
 **Severity:** Medium (security)
@@ -58,6 +59,11 @@ emails are registered without ever seeing a different error message.
 **Suggested fix:** always run a bcrypt comparison, even on a missing user —
 compare against a fixed dummy hash when `user` is null, so both paths take
 approximately the same time.
+
+**Fix applied:** `login()` now compares against a module-level `DUMMY_HASH`
+constant (`user?.passwordHash ?? DUMMY_HASH`) so `bcrypt.compare` always
+runs, whether or not the email matched an account. Same root fix as item #10
+below, which independently re-found this issue.
 
 ---
 
@@ -79,7 +85,7 @@ of the §7.2 requirement.
 
 ---
 
-## 4. Failed login clears the email field, not just the password
+## 4. Failed login clears the email field, not just the password — FIXED
 
 **File:** `src/app/login/page.tsx`, `src/components/AuthTabs.tsx`
 **Severity:** Low (UX)
@@ -98,9 +104,15 @@ persisting would save the user a step every time they mistype a password.
 have the client component hold it in local state across the submit) and set
 it as the email input's `defaultValue` on error.
 
+**Fix applied:** both login forms' email inputs are now controlled
+(`useState` + `value`/`onChange`) instead of plain uncontrolled inputs, so
+the value survives the form-action reset regardless of submit outcome. The
+password field is untouched — still plain/uncontrolled, so it still clears
+on every submit as intended.
+
 ---
 
-## 5. `ThemeToggleLogo` is mounted twice on every page
+## 5. `ThemeToggleLogo` is mounted twice on every page — FIXED
 
 **File:** `src/components/SiteHeader.tsx:37`, `src/components/Sidebar.tsx:21`
 **Severity:** Low (perf, not broken)
@@ -119,6 +131,15 @@ but it's an easy, free fix sitting right in the code being asked about.
 **Suggested fix:** lift `ThemeToggleLogo` out of the two conditionally-visible
 branches, or drop `priority` from whichever pair is offscreen — needs the two
 render sites reconciled either way.
+
+**Fix applied:** `ThemeToggleLogo` now takes an optional `priority` prop
+(default `true`, passed through to both `<Image>` tags). `SiteHeader`'s
+mobile-header instance now passes `priority={false}`, leaving only the
+desktop instance eagerly preloaded — 2 preloaded logo images per page load
+instead of 4, confirmed via the rendered `<link rel="preload">` tags. (By
+the time this fix landed, the logo had already moved out of `Sidebar.tsx`
+into `SiteHeader.tsx`'s own two `<header>` blocks — same duplicate-mount
+shape the bug describes, different file.)
 
 ---
 
@@ -139,13 +160,20 @@ render sites reconciled either way.
 Found by a 4-way parallel code review (one agent per phase, cross-checked
 against each phase's spec) on 2026-07-31, with the top findings independently
 re-verified by reading the actual code afterward. Scope: the entire app —
-foundation/auth, social platform, communities, business platform. All items
-below are open (none fixed yet); a fix plan for all 13 exists at
-`/home/amit/.claude/plans/buzzing-fluttering-newt.md` (Groups A–K) and is
-saved for a future session to execute. One additional spec gap
-(`Link.businessId` / business links, Phase 4 §3.2) was found but deliberately
-excluded from the fix plan — it's an unimplemented feature that was never in
-the Phase 4 build plan's actual scope, not a regression.
+foundation/auth, social platform, communities, business platform. All 13
+items below are now fixed, per the fix plan at
+`/home/amit/.claude/plans/buzzing-fluttering-newt.md` (Groups A–K), executed
+in a later session (2026-08-02; uncommitted at time of writing — see working
+tree / next commit). `tsc --noEmit`, `eslint`, and `next build` all pass
+clean after the fixes; Group A/E's visibility filtering and the
+concurrency-dependent fixes (C, F, G, K) were verified by code review and
+build/smoke-test only, not by exercising real race conditions or seeded
+private-community/blocked-user/pending-business test data — see the fix
+plan's own Verification section for what a fuller pass would still need to
+check. One additional spec gap (`Link.businessId` / business links, Phase 4
+§3.2) was found but deliberately excluded from the fix plan — it's an
+unimplemented feature that was never in the Phase 4 build plan's actual
+scope, not a regression; see "Known gap" at the bottom of this file.
 
 Items #1–#3 share one root cause (`getFeedPosts`/`getTrendingPosts`/
 `getCommunityFeedPosts` build their `where` clause with no visibility
@@ -153,7 +181,7 @@ filtering at all) and are fixed together as "Group A" in the plan.
 
 ---
 
-## 1. Pending/unapproved businesses can broadcast their identity platform-wide
+## 1. Pending/unapproved businesses can broadcast their identity platform-wide — FIXED
 
 **File:** `src/lib/businesses.ts:82-96` (`resolveBusinessAuthorContext`), `:119-125`
 (`getPostableBusinesses`); `src/lib/feed-query.ts:75`
@@ -176,9 +204,16 @@ happened.
 
 **Suggested fix:** see plan Group A.
 
+**Fix applied:** new `src/lib/post-visibility.ts` (`getPostVisibilityConditions`)
+excludes posts whose `businessAuthor.status === "pending"` from
+`getFeedPosts`/`getTrendingPosts`, wired into `/feed`, `/explore`,
+`/trending`, and the profile page. Scoped to read-time filtering per the
+plan — `resolveBusinessAuthorContext`/`getPostableBusinesses` themselves
+were left as-is (out of Group A's scope).
+
 ---
 
-## 2. Private community posts leak into Home/Explore/Trending
+## 2. Private community posts leak into Home/Explore/Trending — FIXED
 
 **File:** `src/lib/feed-query.ts:61-84`, `src/lib/trending.ts:198-215`
 **Severity:** High (privacy)
@@ -195,9 +230,16 @@ member.
 
 **Suggested fix:** see plan Group A.
 
+**Fix applied:** `getPostVisibilityConditions` excludes any post whose
+`communityId` points at a `private` community unless the viewer is an
+active-or-muted member of it, applied to `getFeedPosts`/`getTrendingPosts`.
+`getCommunityFeedPosts` was left without this fragment — its own page
+(`src/app/c/[slug]/page.tsx`) already gates private content via
+`canViewContent` before the query even runs.
+
 ---
 
-## 3. Blocked users' posts still show on Explore/Trending
+## 3. Blocked users' posts still show on Explore/Trending — FIXED
 
 **File:** `src/lib/feed-query.ts:61-84`, `src/lib/trending.ts:198-215`
 **Severity:** High (privacy / safety)
@@ -214,9 +256,15 @@ and `/trending` feeds.
 
 **Suggested fix:** see plan Group A.
 
+**Fix applied:** new `getBlockedEitherWayUserIds` (bulk sibling of
+`blocks.ts`'s `isBlockedEitherWay`) feeds an `authorId: { notIn: blockedIds }`
+filter into `getFeedPosts`, `getTrendingPosts`, and `getCommunityFeedPosts`
+(top-level posts, pinned posts, and nested replies all three), plus the
+repost-wrapper visibility check.
+
 ---
 
-## 4. Voice room join has no community-membership or ban check
+## 4. Voice room join has no community-membership or ban check — FIXED
 
 **File:** `src/app/actions/voice-rooms.ts:122-140` (`joinVoiceRoom`)
 **Severity:** High (authorization bypass)
@@ -238,9 +286,13 @@ in the process.
 **Suggested fix:** see plan Group B — mirror `createVoiceRoom`'s existing
 membership check.
 
+**Fix applied:** `joinVoiceRoom` now calls `getCommunityMember` and requires
+`status === "active"` before creating the participant row, same check
+`createVoiceRoom` already used.
+
 ---
 
-## 5. `toggleRepost` race condition duplicates reposts and inflates the count
+## 5. `toggleRepost` race condition duplicates reposts and inflates the count — FIXED
 
 **File:** `src/app/actions/posts.ts:193-219`
 **Severity:** Medium (correctness)
@@ -258,9 +310,14 @@ posts, count inflated by 2 for one logical action.
 **Suggested fix:** see plan Group C — wrap read+write in one `db.$transaction`,
 same pattern already used in `reviews.ts`/`appointments.ts`.
 
+**Fix applied:** the existing-repost lookup and the create/delete branch now
+both run inside one `db.$transaction(async (tx) => {...})`, using `tx` for
+the read and the write — makes the whole toggle atomic instead of just the
+write half.
+
 ---
 
-## 6. Per-IP rate limits are spoofable via `X-Forwarded-For`
+## 6. Per-IP rate limits are spoofable via `X-Forwarded-For` — FIXED
 
 **File:** `src/lib/rate-limit.ts:46-51` (`getClientIp`)
 **Severity:** Medium (security, deployment-dependent)
@@ -278,9 +335,14 @@ per-email bucket still limits attempts against one specific address).
 first. Deployment-dependent mitigation (assumes exactly one trusted reverse
 proxy in front); not a complete fix on its own.
 
+**Fix applied:** `getClientIp` now takes `forwarded.split(",").pop()!.trim()`
+(last hop) instead of the first. Documented as a deployment-dependent
+mitigation in the code comment, same caveat as above — not verified against
+a live reverse proxy (none exists in this dev environment).
+
 ---
 
-## 7. Public profile page never renders the user's posts
+## 7. Public profile page never renders the user's posts — FIXED
 
 **File:** `src/app/[username]/page.tsx` (full file)
 **Severity:** Medium (spec deviation)
@@ -295,9 +357,16 @@ render correctly, zero posts appear anywhere.
 **Suggested fix:** see plan Group E (depends on Group A's shared visibility
 helper).
 
+**Fix applied:** `src/app/[username]/page.tsx` now fetches a paginated post
+list by reusing `getFeedPosts` scoped to the profile's own `authorId` (which
+gets Group A's visibility filtering for free), precomputes liked/bookmarked/
+voted state the same way `feed/page.tsx` does, and renders via `PostCard`
+with a "Load more" cursor link. Confirmed live: a real seeded profile
+(`/alice`) now renders its Posts section with no error.
+
 ---
 
-## 8. Unhandled race on concurrent username claims
+## 8. Unhandled race on concurrent username claims — FIXED
 
 **File:** `src/app/actions/auth.ts:58-77` (`signup`), `src/app/actions/profile.ts`
 (`claimUsername`)
@@ -314,9 +383,14 @@ unhandled 500 instead of "That username is already taken."
 **Suggested fix:** see plan Group F — catch `P2002` around the create,
 return the existing friendly error.
 
+**Fix applied:** both `signup`'s `db.user.create` and `claimUsername`'s
+`db.$transaction` are now wrapped in try/catch, catching
+`Prisma.PrismaClientKnownRequestError` with `code === "P2002"` and returning
+the existing friendly "already taken" error instead of rethrowing.
+
 ---
 
-## 9. Business staff can review their own business
+## 9. Business staff can review their own business — FIXED
 
 **File:** `src/app/actions/reviews.ts:37-79` (`createOrUpdateReview`)
 **Severity:** Low (correctness / integrity)
@@ -330,9 +404,13 @@ search-ranking tie-break.
 
 **Suggested fix:** see plan Group I.
 
+**Fix applied:** `createOrUpdateReview` now returns an error if
+`getBusinessMember(business.id, user.id)` finds any staff row for the
+reviewer, checked right after the business is resolved.
+
 ---
 
-## 10. Login timing side-channel enables email enumeration (Phase 4 re-confirmation)
+## 10. Login timing side-channel enables email enumeration (Phase 4 re-confirmation) — FIXED
 
 **File:** `src/app/actions/auth.ts:119`
 **Severity:** Low
@@ -343,9 +421,12 @@ entry here since the fix (Group G in the plan) is the concrete one to apply;
 item #2's original "Suggested fix" text describes the same dummy-hash
 approach.
 
+**Fix applied:** see item #2 above — one fix (`DUMMY_HASH` in
+`src/app/actions/auth.ts`) closes both entries.
+
 ---
 
-## 11. Declining a message request also hides it from the sender's own inbox
+## 11. Declining a message request also hides it from the sender's own inbox — FIXED
 
 **File:** `src/lib/messaging.ts:194-219` (`listInboxConversations`)
 **Severity:** Low (UX / spec fidelity)
@@ -360,9 +441,14 @@ conversation silently disappears with no explanation.
 **Suggested fix:** see plan Group J — add a branch keeping it visible to the
 `initiatedBy` user.
 
+**Fix applied:** `listInboxConversations`'s `OR` array gained a fourth
+branch, `{ requestState: { status: "declined", initiatedBy: userId } }`,
+keeping a declined conversation visible to the person who sent the original
+message while it stays hidden from the recipient who declined it.
+
 ---
 
-## 12. Stale "speaker" role never cleared when the voice-room floor times out
+## 12. Stale "speaker" role never cleared when the voice-room floor times out — FIXED
 
 **File:** `src/app/actions/voice-rooms.ts:213-240` (`startSpeaking`)
 **Severity:** Low
@@ -381,9 +467,14 @@ and rejoin the room.
 the same transaction, mirroring `stopSpeaking`/`forceStopSpeaker`'s existing
 pattern.
 
+**Fix applied:** `startSpeaking`'s transaction gained a third (conditional)
+op that resets the previous `room.currentSpeakerId` participant's role back
+to `listener` whenever the new speaker isn't the same person, mirroring
+`stopSpeaking`/`forceStopSpeaker`'s existing pattern exactly.
+
 ---
 
-## 13. No brand-name collision check on business auto-approval
+## 13. No brand-name collision check on business auto-approval — FIXED
 
 **File:** `src/lib/businesses.ts:60-72` (`computeInitialBusinessStatus`)
 **Severity:** Low-Medium (spec gap)
@@ -400,6 +491,13 @@ to any company) creates a business named e.g. "Google" — goes straight to
 **Suggested fix:** see plan Group H — fuzzy-match against existing active
 platform businesses (scoped fix; a full "well-known external brands" check
 would need a third-party data source that doesn't exist in this codebase).
+
+**Fix applied:** `computeInitialBusinessStatus` (now async) checks a
+normalized (lowercased, punctuation/whitespace-stripped) name match against
+existing `status: "active"` businesses before applying the domain-match/
+isVerified gates; a match forces `pending` regardless of those other
+signals. `createBusiness` passes `name` through and awaits the now-async
+call.
 
 ---
 
