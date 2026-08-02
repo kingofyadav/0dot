@@ -5,10 +5,12 @@ import { getCurrentUser } from "@/lib/session";
 import { deleteLink, deleteSocialLink, moveLink, toggleFeatured } from "@/app/actions/profile";
 import { getLinkStats } from "@/lib/link-stats";
 import { getSocialPlatformLabel, type SocialPlatform } from "@/lib/theme-presets";
+import { getMyPayoutAccount } from "@/lib/payments";
 import { SocialIcon } from "@/components/SocialIcon";
 import { EditProfileForm } from "./EditProfileForm";
 import { AddLinkForm } from "./AddLinkForm";
 import { SocialLinksForm } from "./SocialLinksForm";
+import { PayoutOnboardingForm } from "./PayoutOnboardingForm";
 
 // Owner-only settings surface (everything that used to be inline on the
 // public /username page: edit profile, link management, social links,
@@ -43,6 +45,8 @@ export default async function SettingsPage({
   });
   if (!profileRow) notFound();
 
+  const payoutAccount = await getMyPayoutAccount(currentUser.id);
+
   // Every viewer here is the owner — no schedule-window filtering needed
   // (that only ever applied to non-owners on the public page); still sorted
   // featured-first for the same reason the public page does.
@@ -75,6 +79,11 @@ export default async function SettingsPage({
       {/* Share/QR lives on the public profile now (/{handle}) — it's a
           "share this profile" tool useful to anyone, not an owner-only
           setting, so it isn't duplicated here. */}
+
+      <div style={{ marginTop: "1.1rem" }}>
+        <p className="sectionHeading">Monetization</p>
+        <PayoutOnboardingForm status={payoutAccount?.status ?? null} />
+      </div>
 
       <div className="socialLinksRow" style={{ marginTop: "1.1rem" }}>
         {profileRow.socialLinks.length === 0 && <p className="mutedText">No social links yet.</p>}

@@ -37,7 +37,8 @@ type NotificationInput = {
     | "application_status"
     | "appointment_request"
     | "appointment_confirmed"
-    | "appointment_cancelled";
+    | "appointment_cancelled"
+    | "tip_received";
   subjectType: "post" | "user" | "message" | "community" | "business";
   subjectId: string;
 };
@@ -274,6 +275,21 @@ export function notifyAppointmentCancelled(args: {
   });
 }
 
+// phase-5 build plan §1 / spec §12: fires to the creator on a successful
+// Tip. subjectId is the tipper's own id — same shape notifyNewFollower
+// already uses (subjectId: actorId, not a distinct entity id); there's no
+// dedicated tip permalink to route to, so getNotificationHref links to the
+// tipper's profile via the included actor relation, not subjectId itself.
+export function notifyTipReceived(args: { recipientId: string; actorId: string }): Promise<void> {
+  return createNotification({
+    recipientId: args.recipientId,
+    actorId: args.actorId,
+    type: "tip_received",
+    subjectType: "user",
+    subjectId: args.actorId,
+  });
+}
+
 export function getUnreadNotificationCount(userId: string): Promise<number> {
   return db.notification.count({ where: { recipientId: userId, readAt: null } });
 }
@@ -329,6 +345,8 @@ export function getNotificationVerb(type: string): string {
       return "confirmed your appointment";
     case "appointment_cancelled":
       return "cancelled your appointment";
+    case "tip_received":
+      return "sent you a tip";
     default:
       return "";
   }
@@ -352,6 +370,7 @@ export function getNotificationHref(
       return recipientHandle ? `/${recipientHandle}#post-${n.subjectId}` : "/feed";
     case "mention":
     case "new_follower":
+    case "tip_received":
       return n.actor?.username?.handle ? `/${n.actor.username.handle}` : "/feed";
     case "message":
       return `/messages/${n.subjectId}`;

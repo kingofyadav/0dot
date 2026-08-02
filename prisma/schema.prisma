@@ -61,17 +61,23 @@ model User {
   currentSpeakerInVoiceRooms VoiceRoom[]                @relation("VoiceRoomCurrentSpeaker")
   voiceRoomParticipations    VoiceRoomParticipant[]
 
-  createdBusinesses    Business[]
-  businessMemberships  BusinessMember[]
-  sentContactMessages  ContactMessage[]
-  reviews              Review[]
-  reviewResponses      ReviewResponse[]
-  jobApplications      JobApplication[]
+  createdBusinesses   Business[]
+  businessMemberships BusinessMember[]
+  sentContactMessages ContactMessage[]
+  reviews             Review[]
+  reviewResponses     ReviewResponse[]
+  jobApplications     JobApplication[]
 
-  availabilityRulesAsStaff AvailabilityRule[] @relation("AvailabilityRuleStaff")
-  appointmentsAsCustomer   Appointment[]      @relation("AppointmentCustomer")
-  appointmentsAsStaff      Appointment[]      @relation("AppointmentStaff")
+  availabilityRulesAsStaff  AvailabilityRule[] @relation("AvailabilityRuleStaff")
+  appointmentsAsCustomer    Appointment[]      @relation("AppointmentCustomer")
+  appointmentsAsStaff       Appointment[]      @relation("AppointmentStaff")
   uploadedBusinessDocuments BusinessDocument[]
+
+  payoutAccount              CreatorPayoutAccount?
+  paymentTransactionsAsPayer PaymentTransaction[]  @relation("PaymentTransactionPayer")
+  paymentTransactionsAsPayee PaymentTransaction[]  @relation("PaymentTransactionPayee")
+  tipsSent                   Tip[]                 @relation("TipFrom")
+  tipsReceived               Tip[]                 @relation("TipTo")
 }
 
 model Session {
@@ -168,7 +174,7 @@ model Notification {
   recipient   User      @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
   actorId     String?
   actor       User?     @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
-  type        String // like | comment | mention | new_follower | message | community_update | community_invite | business_review | job_application | application_status | appointment_request | appointment_confirmed | appointment_cancelled
+  type        String // like | comment | mention | new_follower | message | community_update | community_invite | business_review | job_application | application_status | appointment_request | appointment_confirmed | appointment_cancelled | tip_received
   subjectType String // post | message | user | community | business
   subjectId   String
   readAt      DateTime?
@@ -265,7 +271,7 @@ model Post {
   // reasoning as flairId above: losing the business shouldn't take the
   // post with it.
   businessAuthorId String?
-  businessAuthor    Business? @relation(fields: [businessAuthorId], references: [id], onDelete: SetNull)
+  businessAuthor   Business? @relation(fields: [businessAuthorId], references: [id], onDelete: SetNull)
 
   // Posts are soft-deleted (deletedAt) only, never hard-deleted, so these
   // self-relations use NoAction rather than Cascade — a reply thread or
@@ -769,14 +775,14 @@ model Business {
   averageRating Float @default(0)
   reviewCount   Int   @default(0)
 
-  members         BusinessMember[]
-  locations       BusinessLocation[]
-  contactInfo     ContactInfo?
-  posts           Post[]
-  contactMessages ContactMessage[]
-  offerings       Offering[]
-  reviews         Review[]
-  jobs            Job[]
+  members           BusinessMember[]
+  locations         BusinessLocation[]
+  contactInfo       ContactInfo?
+  posts             Post[]
+  contactMessages   ContactMessage[]
+  offerings         Offering[]
+  reviews           Review[]
+  jobs              Job[]
   availabilityRules AvailabilityRule[]
   appointments      Appointment[]
   documents         BusinessDocument[]
@@ -1035,4 +1041,73 @@ model BusinessDocument {
   createdAt  DateTime @default(now())
 
   @@index([businessId, visibility])
+}
+
+// phase-5 build plan §0 / spec §3: one payout account per user. `processor`
+// is named explicitly even though `StubPaymentProcessor` is the only
+// implementation this session — the abstraction (src/lib/payments.ts's
+// `PaymentProcessor` interface) is real, not aspirational, same reasoning
+// the spec itself gives for naming the enum with one value. `status` is
+// driven by processor.createPayoutAccount()/webhook confirmation, never a
+// raw client-settable flag — see startCreatorOnboarding in
+// src/app/actions/payments.ts.
+model CreatorPayoutAccount {
+  id                 String   @id @default(uuid())
+  userId             String   @unique
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  processor          String   @default("stub") // stub | stripe_connect
+  processorAccountId String?
+  status             String   @default("onboarding") // onboarding | active | restricted
+  createdAt          DateTime @default(now())
+}
+
+// phase-5 build plan §0 / spec §3.1: the one shared ledger every
+// money-moving feature writes to (just Tip this session) via
+// recordPaymentTransaction() in src/lib/payments.ts — no feature gets its
+// own parallel transaction table. platformFee/amount are Float, not
+// Decimal — SQLite deviation, same as Offering.price (phase-4 build plan
+// step 4). platformFee is captured per-row at transaction time, not
+// recomputed later from a global rate, so a future fee-rate change never
+// rewrites the story of a past transaction (spec §3.2).
+model PaymentTransaction {
+  id                 String   @id @default(uuid())
+  kind               String // tip | digital_purchase | course_purchase | membership_charge | affiliate_commission
+  payerId            String?
+  payer              User?    @relation("PaymentTransactionPayer", fields: [payerId], references: [id], onDelete: SetNull)
+  payeeId            String
+  payee              User     @relation("PaymentTransactionPayee", fields: [payeeId], references: [id], onDelete: Cascade)
+  amount             Float
+  currency           String   @default("usd")
+  platformFee        Float
+  processorReference String
+  status             String // pending | succeeded | failed | refunded
+  relatedObjectType  String? // tip | digital_product | course | membership_tier | affiliate_link
+  relatedObjectId    String?
+  createdAt          DateTime @default(now())
+
+  tip Tip?
+
+  @@index([payeeId, createdAt])
+  @@index([payerId])
+}
+
+// phase-5 build plan §1 / spec §6.1: the smallest feature exercising the
+// backbone end-to-end — a thin wrapper around one PaymentTransaction, no
+// subscription state, no access grant. message is public by default (spec
+// §13.2's one deliberate exception to "financial data is private by
+// default" — a visible "thank you" is often the point).
+model Tip {
+  id                   String             @id @default(uuid())
+  fromUserId           String
+  fromUser             User               @relation("TipFrom", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toCreatorId          String
+  toCreator            User               @relation("TipTo", fields: [toCreatorId], references: [id], onDelete: Cascade)
+  amount               Float
+  currency             String             @default("usd")
+  message              String? // 0-280 chars, validated at the app layer
+  paymentTransactionId String             @unique
+  paymentTransaction   PaymentTransaction @relation(fields: [paymentTransactionId], references: [id], onDelete: Restrict)
+  createdAt            DateTime           @default(now())
+
+  @@index([toCreatorId, createdAt])
 }

@@ -14,6 +14,7 @@ import { Logo } from "@/components/Logo";
 import { SocialIcon } from "@/components/SocialIcon";
 import { CopyLinkButton } from "@/components/CopyLinkButton";
 import { PostCard } from "@/components/PostCard";
+import { TipForm } from "@/components/TipForm";
 
 // Public, read-only profile — identity, links, follow counts, and (spec
 // §3.4) the user's own post list. No editing UI here: that's what
@@ -67,6 +68,22 @@ export default async function ProfilePage({
   // If the owner has blocked the viewer, no Follow/Block controls render at
   // all — quietly, matching how most platforms don't advertise block state.
   const showViewerControls = currentUser && !isOwner && !viewerBlockedByOwner;
+
+  // spec §6: tipping gated on the profile owner having an active payout
+  // account (spec §3.5's literal criterion, re-checked here rather than
+  // trusted from any client state). Recent public tip messages (§13.2's
+  // one deliberate "financial data is public by default" exception) shown
+  // underneath, same read as any other public profile content.
+  const [payoutAccount, recentTips] = await Promise.all([
+    db.creatorPayoutAccount.findUnique({ where: { userId: username.userId }, select: { status: true } }),
+    db.tip.findMany({
+      where: { toCreatorId: username.userId, message: { not: null } },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+      include: { fromUser: { include: { username: true, profile: true } } },
+    }),
+  ]);
+  const canTip = showViewerControls && payoutAccount?.status === "active";
 
   const { cursor: rawCursor } = await searchParams;
   const cursor = parseCursor(rawCursor);
@@ -237,6 +254,17 @@ export default async function ProfilePage({
           </div>
         </details>
 
+        {canTip && (
+          <details className="profileEditToggle">
+            <summary className="mutedText" style={{ fontSize: "0.85rem" }}>
+              Send a tip
+            </summary>
+            <div style={{ marginTop: "0.6rem" }}>
+              <TipForm creatorHandle={username.handle} />
+            </div>
+          </details>
+        )}
+
         {showViewerControls && (
           blockedByViewer ? (
             <form action={unblockUser}>
@@ -267,6 +295,26 @@ export default async function ProfilePage({
           )
         )}
       </div>
+
+      {recentTips.length > 0 && (
+        <div style={{ marginTop: "0.75rem", display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+          <p className="sectionHeading">Recent tips</p>
+          {recentTips.map((tip) => (
+            <p key={tip.id} className="mutedText" style={{ fontSize: "0.85rem" }}>
+              {tip.fromUser.username ? (
+                <Link href={`/${tip.fromUser.username.handle}`}>
+                  {tip.fromUser.profile?.displayName ?? tip.fromUser.username.handle}
+                </Link>
+              ) : (
+                "Someone"
+              )}
+              {" tipped $"}
+              {tip.amount.toFixed(2)}
+              {tip.message ? `: "${tip.message}"` : ""}
+            </p>
+          ))}
+        </div>
+      )}
 
       {profile.socialLinks.length > 0 && (
         <div className="socialLinksRow">
