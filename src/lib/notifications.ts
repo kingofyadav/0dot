@@ -42,7 +42,7 @@ type NotificationInput = {
     | "new_subscriber"
     | "affiliate_conversion"
     | "livestream_started";
-  subjectType: "post" | "user" | "message" | "community" | "business" | "livestream" | "project" | "skill";
+  subjectType: "post" | "user" | "message" | "community" | "business" | "livestream" | "project" | "skill" | "article" | "wiki_page" | "book" | "published_file";
   subjectId: string;
 };
 
@@ -132,6 +132,30 @@ export function notifyProjectComment(args: { recipientId: string; actorId: strin
 // getNotificationHref still routes via the actor relation, not subjectId.
 export function notifySkillEndorsement(args: { recipientId: string; actorId: string; skillId: string }): Promise<void> {
   return createNotification({ recipientId: args.recipientId, actorId: args.actorId, type: "like", subjectType: "skill", subjectId: args.skillId });
+}
+
+// phase-7 spec §4.2: the generalized Reaction/Comment primitive (§4) reuses
+// "like"/comment the same restrained way phase-6 did for project/skill —
+// no new Notification.type values. Generic across all four subject types
+// the primitive now covers (article/wiki_page/book/published_file, spec §12
+// steps 2/5/7/9) rather than one bespoke notify pair per type — the
+// per-type version (notifyArticleLike/Comment) was refactored into this the
+// moment a second call site (wiki_page) needed the identical shape. `path`
+// is the full route (no leading slash) getNotificationHref needs — same
+// "store exactly what the href needs" precedent notifyJobApplication set —
+// since every one of these routes is scoped under an owner's handle, not a
+// flat global namespace the way /p/{slug} is.
+// subjectType is a plain string here rather than NotificationInput's
+// literal union — the caller (reactions.ts) already restricts it to a
+// known-good value via its own SUBJECT_RESOLVERS map before ever reaching
+// this function, so re-deriving that same literal union at this boundary
+// would just duplicate the source of truth. Cast, not re-validated.
+export function notifyReactionLike(args: { recipientId: string; actorId: string; subjectType: string; path: string }): Promise<void> {
+  return createNotification({ recipientId: args.recipientId, actorId: args.actorId, type: "like", subjectType: args.subjectType as NotificationInput["subjectType"], subjectId: args.path });
+}
+
+export function notifyReactionComment(args: { recipientId: string; actorId: string; subjectType: string; path: string }): Promise<void> {
+  return createNotification({ recipientId: args.recipientId, actorId: args.actorId, type: "comment", subjectType: args.subjectType as NotificationInput["subjectType"], subjectId: args.path });
 }
 
 // Resolves @handles found in a post body to real users and fires a mention
@@ -400,9 +424,17 @@ export function getNotificationVerb(type: string, subjectType?: string): string 
     case "like":
       if (subjectType === "project") return "liked your project";
       if (subjectType === "skill") return "endorsed your skill";
+      if (subjectType === "article") return "liked your article";
+      if (subjectType === "wiki_page") return "liked your page";
+      if (subjectType === "book") return "liked your book";
+      if (subjectType === "published_file") return "liked your file";
       return "liked your post";
     case "comment":
       if (subjectType === "project") return "commented on your project";
+      if (subjectType === "article") return "commented on your article";
+      if (subjectType === "wiki_page") return "commented on your page";
+      if (subjectType === "book") return "commented on your book";
+      if (subjectType === "published_file") return "commented on your file";
       return "replied to your post";
     case "mention":
       return "mentioned you";
@@ -475,6 +507,17 @@ export function getNotificationHref(
     case "like":
     case "comment":
       if (n.subjectType === "project") return `/p/${n.subjectId}`;
+      // phase-7: subjectId already encodes the full path for every subject
+      // the generalized Reaction/Comment primitive covers — see
+      // notifyReactionLike/Comment and reactions.ts's subject resolvers.
+      if (
+        n.subjectType === "article" ||
+        n.subjectType === "wiki_page" ||
+        n.subjectType === "book" ||
+        n.subjectType === "published_file"
+      ) {
+        return `/${n.subjectId}`;
+      }
       if (n.subjectType === "skill") {
         return n.actor?.username?.handle ? `/${n.actor.username.handle}` : "/feed";
       }

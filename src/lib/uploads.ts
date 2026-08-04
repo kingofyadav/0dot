@@ -62,11 +62,15 @@ export async function saveUploadedImage(
 
 const ALLOWED_DOCUMENT_TYPES: Record<string, string> = {
   "application/pdf": "pdf",
+  // phase-7 spec §6.1/§6.2: Book.ebookFileUrl's "epub/pdf" — widened from
+  // the original PDF-only allowlist (resume/research-paper PDFs), same
+  // direct-filesystem-write path, no new upload function needed.
+  "application/epub+zip": "epub",
 };
 
 // phase-6 spec §6.1/§7.1: resume PDFs and research paper PDFs are optional
 // uploaded documents, same direct-filesystem-write pattern as every other
-// upload here — a dedicated PDF-only allowlist rather than reusing
+// upload here — a dedicated allowlist rather than reusing
 // saveMessageAttachment's "file" kind, since that one also accepts images/
 // text and carries message-specific size limits that don't apply here.
 export async function saveDocumentFile(
@@ -74,7 +78,7 @@ export async function saveDocumentFile(
   { maxBytes = 20 * 1024 * 1024 }: { maxBytes?: number } = {}
 ): Promise<UploadResult> {
   const ext = ALLOWED_DOCUMENT_TYPES[file.type];
-  if (!ext) return { error: "Only PDF files are supported." };
+  if (!ext) return { error: "Only PDF or EPUB files are supported." };
   if (file.size > maxBytes) {
     return { error: `Files must be ${Math.floor(maxBytes / (1024 * 1024))}MB or smaller.` };
   }

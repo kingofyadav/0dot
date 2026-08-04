@@ -60,7 +60,14 @@ function renderEmphasis(text: string, keyPrefix: string): ReactNode[] {
 
 // Blank-line-separated blocks; each block is either a heading, a bullet
 // list (consecutive "- " lines), or a paragraph.
-export function renderWikiMarkdown(body: string): ReactNode[] {
+export function renderWikiMarkdown(rawBody: string): ReactNode[] {
+  // Every textarea this renders content from is a plain uncontrolled
+  // <textarea> submitted as normal form data — the HTML spec requires
+  // form submission to normalize textarea line breaks to CRLF, so a
+  // multi-paragraph body arrives here as "\r\n\r\n", not "\n\n". Without
+  // this normalization, \n{2,} never matches (the \n's aren't adjacent)
+  // and the whole body collapses into a single paragraph.
+  const body = rawBody.replace(/\r\n/g, "\n");
   const blocks = body.split(/\n{2,}/).filter((b) => b.trim().length > 0);
 
   return blocks.map((block, blockIndex) => {

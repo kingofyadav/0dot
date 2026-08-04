@@ -104,7 +104,13 @@ export async function editWikiPage(
     where: { id: wikiPageId },
     include: { community: { select: { id: true, slug: true, wikiEditPolicy: true } } },
   });
-  if (!page) return { error: "Page not found." };
+  // This action is community-wiki-only (phase-7 spec §5.1's ownership XOR:
+  // profile/book-owned pages go through their own dedicated actions, same
+  // "small dedicated action functions per owner type" split articles.ts vs.
+  // wiki.ts already established) — a null community here means the id
+  // resolved to a profile/book-owned page, which this action was never
+  // meant to touch.
+  if (!page || !page.community) return { error: "Page not found." };
   if (!(await canEditWiki(page.community, user.id))) {
     return { error: "You don't have permission to edit this page." };
   }

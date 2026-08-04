@@ -66,7 +66,10 @@ const TOKEN_SECRET =
   "dev-only-insecure-download-secret-DO-NOT-USE-IN-PRODUCTION-set-DOWNLOAD_TOKEN_SECRET";
 
 type DownloadTokenPayload = {
-  resourceType: "digital_product" | "lesson" | "podcast_episode";
+  // phase-7 spec §7.2: a fourth resourceType rather than a second gated-
+  // delivery pipeline — private/unlisted PublishedFile rows reuse this
+  // exact mechanism (see /api/downloads/[token]'s published_file branch).
+  resourceType: "digital_product" | "lesson" | "podcast_episode" | "published_file";
   resourceId: string;
   userId: string;
   exp: number;

@@ -107,6 +107,10 @@ model User {
   projectLikes          ProjectLike[]
   projectComments       ProjectComment[]
   skillEndorsements     SkillEndorsement[]
+
+  articles  Article[]
+  reactions Reaction[]
+  comments  Comment[]
 }
 
 model Session {
@@ -171,6 +175,10 @@ model Profile {
   certificates    Certificate[]
   awards          Award[]
 
+  wikiPages      WikiPage[]
+  books          Book[]
+  publishedFiles PublishedFile[]
+
   // phase-6 spec §8: reuses the same "small structured config blob on
   // Profile" pattern already established by Profile.themePreset, but that
   // one is a plain string key into a fixed preset list — portfolioLayoutJson
@@ -227,7 +235,7 @@ model Notification {
   actorId     String?
   actor       User?     @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
   type        String // like | comment | mention | new_follower | message | community_update | community_invite | business_review | job_application | application_status | appointment_request | appointment_confirmed | appointment_cancelled | tip_received | new_subscriber | affiliate_conversion | livestream_started
-  subjectType String // post | message | user | community | business | livestream | project | skill
+  subjectType String // post | message | user | community | business | livestream | project | skill | article
   subjectId   String
   readAt      DateTime?
   createdAt   DateTime  @default(now())
@@ -751,12 +759,45 @@ model CommunityRule {
 // reader: page + first revision are created together, currentRevisionId
 // set in the same request before any read can see the gap
 // (src/app/actions/wiki.ts's createWikiPage).
+//
+// phase-7 spec §5.1: communityId became nullable here, joined by profileId/
+// bookId — a three-way ownership XOR (exactly one of the three set),
+// enforced at the application layer in each dedicated create action
+// (createWikiPage stays community-only; new profile/book actions set
+// exactly one of the other two), same as this schema has no DB-level XOR
+// constraint anywhere else (e.g. Link's profileId/businessId pair). Three
+// separate compound uniques (one per owner) rather than one three-column
+// unique, since SQLite/Prisma unique indexes treat each row's NULL columns
+// as distinct — a community page and a profile page can freely share a
+// slug string because the *other* two owner columns are null on both.
+// kind/position both default so every existing Phase 3 community row is
+// valid with zero backfill: kind defaults to "wiki" (community wikis
+// already present the free-form, cross-linked shape §5.2 calls "wiki"
+// presentation), position defaults to 0 (community pages are listed by
+// title, not position — position only matters once parentPageId hierarchy
+// is in play, i.e. profile/book-owned pages). parentPageId/visibility stay
+// genuinely nullable per the spec's own wording — null for every existing
+// community page, so nothing about community wikis changes.
 model WikiPage {
   id                String        @id @default(uuid())
-  communityId       String
-  community         Community     @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  communityId       String?
+  community         Community?    @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  profileId         String?
+  profile           Profile?      @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  bookId            String?
+  book              Book?         @relation(fields: [bookId], references: [id], onDelete: Cascade)
   slug              String
   title             String
+  kind              String        @default("wiki") // wiki | documentation | book_chapter — presentation only, spec §5.2
+  parentPageId      String?
+  parent            WikiPage?     @relation("WikiPageHierarchy", fields: [parentPageId], references: [id], onDelete: SetNull)
+  children          WikiPage[]    @relation("WikiPageHierarchy")
+  position          Int           @default(0)
+  // meaningful only for profile/book-owned pages (spec §5.1) — community-
+  // owned pages keep using Community.visibility unchanged and leave this
+  // null, same "private is real access control" posture Article introduced
+  // (§3.2), reused verbatim rather than reinvented.
+  visibility        String?
   currentRevisionId String?       @unique
   currentRevision   WikiRevision? @relation("CurrentRevision", fields: [currentRevisionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   createdAt         DateTime      @default(now())
@@ -765,6 +806,10 @@ model WikiPage {
   revisions WikiRevision[] @relation("PageRevisions")
 
   @@unique([communityId, slug])
+  @@unique([profileId, slug])
+  @@unique([bookId, slug])
+  @@index([profileId, parentPageId, position])
+  @@index([bookId, parentPageId, position])
 }
 
 // Full revision history retained — every edit creates a new row,
@@ -1863,4 +1908,197 @@ model Award {
   link        String?
 
   @@index([profileId])
+}
+
+// phase-7 spec §3, build plan step 1: article/tutorial/note share one table
+// (format is data, not schema — spec §3.1). Slug is scoped to the author,
+// not global (unlike Project's flat @unique slug) — same @@unique([ownerId,
+// slug]) shape WikiPage already established relative to Community
+// (communityId, slug), substituting authorId here since there's no
+// community-equivalent owner. body reuses renderWikiMarkdown (the same
+// "sanitized markdown" render-time-only posture as Project.description,
+// phase-1 spec §7.2) rather than a new sanitizer.
+model Article {
+  id                 String    @id @default(uuid())
+  authorId           String
+  author             User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  slug               String
+  title              String
+  subtitle           String?
+  format             String    @default("article") // article | tutorial | note — spec §3.1
+  body               String    @default("")
+  coverImageUrl      String?
+  status             String    @default("draft") // draft | published
+  // spec §3.2: the first REAL private tier in this schema — server-enforced,
+  // author-only, not the obscurity-only "unlisted" Project/podcast pattern.
+  // See src/app/actions/articles.ts / [username]/articles/[slug]/page.tsx
+  // for the read-path gate, modeled on Community.visibility's existing
+  // `visibility !== "private" || <authorized>` precedent.
+  visibility         String    @default("public") // public | unlisted | private
+  readingTimeMinutes Int       @default(0) // computed from word count at publish time, cached
+  likeCount          Int       @default(0)
+  commentCount       Int       @default(0)
+  viewCount          Int       @default(0)
+  publishedAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  hashtags ArticleHashtag[]
+
+  @@unique([authorId, slug])
+  @@index([visibility, status, publishedAt])
+}
+
+// phase-7 spec §3.1: the first persisted hashtag structure in this
+// codebase — Post's #tags (src/lib/linkify.tsx) are render-time-only regex
+// styling, never written to a table. Article tags are author-supplied
+// structured input, not parsed from inline body text the way Post's are, so
+// there's no existing extraction path to reuse; this is a fresh, minimal
+// table rather than an extension of linkify.tsx. name is lowercased/trimmed
+// at the app layer for the same near-duplicate reasoning Skill.name uses.
+model Hashtag {
+  id   String @id @default(uuid())
+  name String @unique
+
+  articles ArticleHashtag[]
+}
+
+// Pure join, no attributes of its own — same shape as ProjectSkill.
+// syncArticleHashtags (articles.ts) replaces-all-on-save, same pattern
+// syncProjectSkills already established for ProjectSkill.
+model ArticleHashtag {
+  articleId String
+  article   Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  hashtagId String
+  hashtag   Hashtag @relation(fields: [hashtagId], references: [id], onDelete: Cascade)
+
+  @@id([articleId, hashtagId])
+}
+
+// phase-7 spec §4: the generalized like/comment primitive — Article is the
+// third-plus instance of the "single subject people react to" pattern
+// (after Business.Review, Project's ProjectLike/ProjectComment), the
+// spec-named threshold to stop growing a new bespoke pair per phase (§4.1).
+// subjectType/subjectId is a deliberate polymorphic pair, not a real FK —
+// there's no single table to point a foreign key at across article/
+// wiki_page/book/published_file, so referential integrity (e.g. cleaning up
+// a deleted article's reactions) is enforced at the app layer in
+// deleteArticle, not via onDelete: Cascade. Only subjectType = "article" has
+// a producer this session (build plan step 2); wiki_page/book/
+// published_file are added in later phase-7 steps per spec §12 without any
+// schema change here. Business.Review and ProjectLike/ProjectComment are
+// deliberately NOT retrofitted onto this table (spec §4.3) — untouched by
+// this migration.
+model Reaction {
+  id          String   @id @default(uuid())
+  subjectType String // article | wiki_page | book | published_file
+  subjectId   String
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind        String   @default("like") // like — deliberately one kind, not an overbuilt reaction palette (spec §4)
+  createdAt   DateTime @default(now())
+
+  @@unique([subjectType, subjectId, userId])
+  @@index([subjectType, subjectId])
+}
+
+// Flat, single-level comments, soft-deleted — same simplification already
+// applied to ProjectComment and Post's one-level reply threading (spec §4.1).
+model Comment {
+  id          String    @id @default(uuid())
+  subjectType String
+  subjectId   String
+  authorId    String
+  author      User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  body        String // 1-1000 chars, validated at the app layer
+  createdAt   DateTime  @default(now())
+  deletedAt   DateTime?
+
+  @@index([subjectType, subjectId, createdAt])
+}
+
+// phase-7 spec §6.1, build plan step 6. profileId (not authorId/userId) —
+// unlike Article, the spec's own field list writes this as `fk -> Profile`
+// (§6.1 line 258), matching the ResearchPaper/Certificate/Award/Skill
+// convention of profile-scoped entities, not Article's `authorId -> User`
+// shape (Article mirrors WikiPage's communityId precedent instead — see
+// that model's comment). likeCount/commentCount are real cached columns
+// here (spec lists them explicitly for Book, unlike WikiPage/PublishedFile,
+// which don't get denormalized counters this phase — their like/comment
+// counts are computed at read time via Reaction/Comment queries instead).
+model Book {
+  id            String    @id @default(uuid())
+  profileId     String
+  profile       Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  slug          String
+  title         String
+  description   String    @default("")
+  coverImageUrl String?
+  status        String    @default("draft") // draft | published
+  visibility    String    @default("public") // public | unlisted | private
+  // spec §6.2: optional full-book download (epub/pdf) — an author can skip
+  // native chapters entirely and just upload a finished file, or do both.
+  ebookFileUrl  String?
+  likeCount     Int       @default(0)
+  commentCount  Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Chapters are WikiPage rows with bookId set and kind = "book_chapter"
+  // (spec §6.1) — not a separate chapter entity, reusing the
+  // parentPageId/position hierarchy already built for documentation.
+  chapters WikiPage[]
+
+  @@unique([profileId, slug])
+  @@index([visibility, status])
+}
+
+// phase-7 spec §7.1, build plan step 8. Unlike Book's single ebookFileUrl,
+// this needs visibility-DEPENDENT delivery (spec §7.2): a public file is
+// servable from a stable permanent URL with zero per-request check, so
+// fileUrl is only ever set for public files (a plain /uploads/... path via
+// saveDocumentFile, same as ResearchPaper.fileUrl). A private/unlisted file
+// instead gets fileKey/fileMimeType — an internal src/lib/protected-storage
+// key, never rendered directly, only ever resolved to a short-lived signed
+// download URL after a request-time authorization check (mirrors the
+// existing DigitalProduct.fileKey/fileMimeType pair and the same
+// issueDownloadToken/verifyDownloadToken mechanism Phase 5 built for gated
+// digital-product/lesson/podcast-episode downloads — extended with a fourth
+// resourceType rather than building a second gated-delivery pipeline). No
+// likeCount/commentCount columns (see Reaction/Comment's schema comment) —
+// spec §7.1's own field list doesn't include them the way Article/Book's
+// do, so counts are computed at read time instead of cached.
+model PublishedFile {
+  id            String    @id @default(uuid())
+  profileId     String
+  profile       Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  slug          String
+  title         String
+  description   String    @default("")
+  coverImageUrl String?
+  fileUrl       String? // set only when visibility = public
+  fileKey       String? // set only when visibility = private/unlisted (protected-storage key)
+  fileMimeType  String?
+  fileSizeBytes Int
+  visibility    String    @default("public") // public | unlisted | private
+  downloadCount Int       @default(0)
+  publishedAt   DateTime?
+  createdAt     DateTime  @default(now())
+
+  downloads PublishedFileDownload[]
+
+  @@unique([profileId, slug])
+  @@index([visibility, publishedAt])
+}
+
+// spec §7.1: no raw IP/user-agent, same no-raw-IP/UA posture every other
+// click/analytics event in this system follows since Phase 1 §4.3.
+model PublishedFileDownload {
+  id           String        @id @default(uuid())
+  fileId       String
+  file         PublishedFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  occurredAt   DateTime      @default(now())
+  referrerHost String?
+
+  @@index([fileId, occurredAt])
 }

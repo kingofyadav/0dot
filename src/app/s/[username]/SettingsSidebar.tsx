@@ -39,6 +39,10 @@ function groups(handle: string): NavGroup[] {
     {
       label: "Content",
       items: [
+        { href: `${base}/content/articles`, label: "Articles" },
+        { href: `${base}/content/wiki`, label: "Wiki & Docs" },
+        { href: `${base}/content/books`, label: "Books" },
+        { href: `${base}/content/files`, label: "Files" },
         { href: `${base}/content/courses`, label: "Courses" },
         { href: `${base}/content/podcast`, label: "Podcast" },
         { href: `${base}/content/newsletter`, label: "Newsletter" },

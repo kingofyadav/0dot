@@ -4,13 +4,14 @@ import { getCurrentUser } from "@/lib/session";
 import { getPostVisibilityConditions } from "@/lib/post-visibility";
 import { businessCategoryLabel } from "@/lib/business-categories";
 
-type SearchTab = "users" | "posts" | "communities" | "businesses" | "projects";
+type SearchTab = "users" | "posts" | "communities" | "businesses" | "projects" | "knowledge";
 const TABS: { key: SearchTab; label: string }[] = [
   { key: "users", label: "Users" },
   { key: "posts", label: "Posts" },
   { key: "communities", label: "Communities" },
   { key: "businesses", label: "Businesses" },
   { key: "projects", label: "Projects" },
+  { key: "knowledge", label: "Articles & Docs" },
 ];
 
 function tabHref(q: string, tab: SearchTab) {
@@ -96,7 +97,7 @@ export default async function SearchPage({
 }) {
   const { q: rawQ, tab: rawTab } = await searchParams;
   const q = (rawQ ?? "").trim();
-  const tab: SearchTab = (["users", "posts", "communities", "businesses", "projects"] as const).includes(
+  const tab: SearchTab = (["users", "posts", "communities", "businesses", "projects", "knowledge"] as const).includes(
     rawTab as SearchTab
   )
     ? (rawTab as SearchTab)
@@ -107,6 +108,7 @@ export default async function SearchPage({
   let communities: Awaited<ReturnType<typeof searchCommunities>> = [];
   let businesses: Awaited<ReturnType<typeof searchBusinesses>> = [];
   let projects: Awaited<ReturnType<typeof searchProjects>> = [];
+  let knowledge: Awaited<ReturnType<typeof searchKnowledge>> = [];
   if (q.length > 0) {
     if (tab === "users") users = await searchUsers(q);
     if (tab === "posts") {
@@ -116,6 +118,7 @@ export default async function SearchPage({
     if (tab === "communities") communities = await searchCommunities(q);
     if (tab === "businesses") businesses = await searchBusinesses(q);
     if (tab === "projects") projects = await searchProjects(q);
+    if (tab === "knowledge") knowledge = await searchKnowledge(q);
   }
 
   return (
@@ -244,6 +247,20 @@ export default async function SearchPage({
           ))}
         </div>
       )}
+      {q.length > 0 && tab === "knowledge" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+          {knowledge.length === 0 && <p className="mutedText">No articles or docs found for &ldquo;{q}&rdquo;.</p>}
+          {knowledge.map((row) => (
+            <Link key={`${row.type}-${row.id}`} href={row.href} className="profileLinkItem" style={{ flexDirection: "column", alignItems: "stretch", gap: "0.15rem" }}>
+              <span style={{ fontWeight: 600 }}>{row.title}</span>
+              <span className="mutedText" style={{ fontSize: "0.85rem" }}>
+                {row.typeLabel}
+                {row.subtitle && ` · ${row.subtitle}`}
+              </span>
+            </Link>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -336,4 +353,146 @@ async function searchProjects(q: string) {
     take: 20,
   });
   return rankProjects(rows, q);
+}
+
+type KnowledgeResult = {
+  type: "article" | "book" | "wiki_page" | "published_file";
+  typeLabel: string;
+  id: string;
+  href: string;
+  title: string;
+  subtitle: string;
+  likeCount: number;
+  createdAt: Date;
+};
+
+// phase-7 spec §8: exact title match first, then fuzzy match, tie-broken by
+// like_count then recency — same shape rankProjects already established,
+// applied across four entity types combined into one tab rather than one
+// tab per type (§8's own "worth resisting" reasoning). WikiPage/
+// PublishedFile have no cached likeCount (see Reaction/Comment's schema
+// comment) so they always tie-break on recency alone within this
+// comparator — an accepted, spec-flagged gap (research report's note),
+// not an oversight.
+function rankKnowledge(rows: KnowledgeResult[], query: string): KnowledgeResult[] {
+  const lowerQ = query.toLowerCase();
+  return rows.slice().sort((a, b) => {
+    const rank = (row: KnowledgeResult) => (row.title.toLowerCase() === lowerQ ? 0 : 1);
+    const rankDiff = rank(a) - rank(b);
+    if (rankDiff !== 0) return rankDiff;
+    if (a.likeCount !== b.likeCount) return b.likeCount - a.likeCount;
+    return b.createdAt.getTime() - a.createdAt.getTime();
+  });
+}
+
+// phase-7 spec §8: one combined "Articles & Docs" tab spanning Article,
+// Book, and public WikiPage/PublishedFile rows — `private` is excluded from
+// every WHERE clause itself (never merely filtered post-fetch, same
+// "excluded by construction" posture searchBusinesses/searchProjects use),
+// and per the spec's own admission that this SQLite codebase has no real
+// FTS engine (see searchProjects et al.'s plain `contains` queries),
+// `unlisted` gets the identical treatment as unlisted projects: excluded
+// from the WHERE too, not "indexed but excluded" (there is no separate
+// index to exclude *from* here — reality wins over the spec's Postgres-FTS
+// prose, same posture this codebase applies throughout).
+async function searchKnowledge(q: string) {
+  const [articles, books, wikiPages, files] = await Promise.all([
+    db.article.findMany({
+      where: {
+        status: "published",
+        visibility: "public",
+        OR: [{ title: { contains: q } }, { body: { contains: q } }],
+      },
+      include: { author: { select: { username: true } } },
+      take: 20,
+    }),
+    db.book.findMany({
+      where: {
+        status: "published",
+        visibility: "public",
+        OR: [{ title: { contains: q } }, { description: { contains: q } }],
+      },
+      include: { profile: { select: { user: { select: { username: true } } } } },
+      take: 20,
+    }),
+    db.wikiPage.findMany({
+      where: {
+        profileId: { not: null },
+        kind: { in: ["wiki", "documentation"] },
+        visibility: "public",
+        OR: [{ title: { contains: q } }, { currentRevision: { is: { body: { contains: q } } } }],
+      },
+      include: { profile: { select: { user: { select: { username: true } } } } },
+      take: 20,
+    }),
+    db.publishedFile.findMany({
+      where: {
+        visibility: "public",
+        OR: [{ title: { contains: q } }, { description: { contains: q } }],
+      },
+      include: { profile: { select: { user: { select: { username: true } } } } },
+      take: 20,
+    }),
+  ]);
+
+  const results: KnowledgeResult[] = [];
+
+  for (const a of articles) {
+    const handle = a.author.username?.handle;
+    if (!handle) continue;
+    results.push({
+      type: "article",
+      typeLabel: "Article",
+      id: a.id,
+      href: `/${handle}/articles/${a.slug}`,
+      title: a.title,
+      subtitle: a.subtitle ?? "",
+      likeCount: a.likeCount,
+      createdAt: a.createdAt,
+    });
+  }
+  for (const b of books) {
+    const handle = b.profile.user.username?.handle;
+    if (!handle) continue;
+    results.push({
+      type: "book",
+      typeLabel: "Book",
+      id: b.id,
+      href: `/${handle}/books/${b.slug}`,
+      title: b.title,
+      subtitle: b.description,
+      likeCount: b.likeCount,
+      createdAt: b.createdAt,
+    });
+  }
+  for (const w of wikiPages) {
+    const handle = w.profile?.user.username?.handle;
+    if (!handle) continue;
+    results.push({
+      type: "wiki_page",
+      typeLabel: w.kind === "documentation" ? "Documentation" : "Wiki",
+      id: w.id,
+      href: `/${handle}/wiki/${w.slug}`,
+      title: w.title,
+      subtitle: "",
+      likeCount: 0,
+      createdAt: w.createdAt,
+    });
+  }
+  for (const f of files) {
+    const handle = f.profile.user.username?.handle;
+    if (!handle) continue;
+    results.push({
+      type: "published_file",
+      typeLabel: "File",
+      id: f.id,
+      href: `/${handle}/files/${f.slug}`,
+      title: f.title,
+      subtitle: f.description,
+      likeCount: 0,
+      createdAt: f.createdAt,
+    });
+  }
+
+  return rankKnowledge(results, q).slice(0, 20);
 }
