@@ -8,6 +8,7 @@ import { canManageListing, hasVerifiedListingAccess } from "@/lib/marketplace";
 import { archiveMarketplaceListing, deleteListingReview, respondToListingReview } from "@/app/actions/marketplace";
 import { MarketplacePurchaseButton } from "@/components/MarketplacePurchaseButton";
 import { MarketplaceListingForm } from "@/components/MarketplaceListingForm";
+import { LinkDeveloperAppForm } from "@/components/LinkDeveloperAppForm";
 import { InstallAppForm, UninstallAppButton } from "./InstallAppForm";
 import { ListingReviewForm } from "./ListingReviewForm";
 
@@ -139,7 +140,7 @@ export default async function MarketplaceListingPage({ params }: { params: Promi
                 ))}
               </div>
             )}
-            <InstallAppForm listingId={listing.id} businesses={businesses} communities={communities} />
+            <InstallAppForm listingId={listing.id} businesses={businesses} communities={communities} isOAuthApp={Boolean(listing.developerAppId)} />
           </div>
         )}
       </div>
@@ -176,6 +177,13 @@ export default async function MarketplaceListingPage({ params }: { params: Promi
                 Archive
               </button>
             </form>
+          )}
+          {listing.category === "app" && currentUser && (
+            <LinkDeveloperAppForm
+              listingId={listing.id}
+              apps={await db.developerApp.findMany({ where: { ownerUserId: currentUser.id, status: "active" }, select: { id: true, name: true } })}
+              linkedAppName={listing.developerAppId ? (await db.developerApp.findUnique({ where: { id: listing.developerAppId }, select: { name: true } }))?.name ?? null : null}
+            />
           )}
         </div>
       )}

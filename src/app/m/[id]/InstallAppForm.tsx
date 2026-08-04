@@ -8,17 +8,32 @@ type TargetOption = { id: string; name: string };
 // spec §4.3's three-way installer XOR (user | business | community), same
 // "hosting as" selector shape NewEventForm already established for Event's
 // own three-way host XOR.
+// phase-10 spec §8: a developerAppId-linked listing installs through the
+// real OAuth flow (/m/[id]/install → /oauth/authorize → /m/install-callback)
+// instead of writing a config blob directly — scoped to "my profile" only,
+// since OAuthAuthorization is a per-user grant with no business/community
+// equivalent in this phase's data model (spec §4.2).
 export function InstallAppForm({
   listingId,
   businesses,
   communities,
+  isOAuthApp,
 }: {
   listingId: string;
   businesses: TargetOption[];
   communities: TargetOption[];
+  isOAuthApp?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(installApp, undefined);
   const [installerType, setInstallerType] = useState<"user" | "business" | "community">("user");
+
+  if (isOAuthApp) {
+    return (
+      <a href={`/m/${listingId}/install`} className="button buttonSmall">
+        Connect &amp; install
+      </a>
+    );
+  }
 
   return (
     <form action={formAction} style={{ display: "flex", flexDirection: "column", gap: "0.4rem", maxWidth: "32ch" }}>

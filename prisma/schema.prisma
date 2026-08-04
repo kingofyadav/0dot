@@ -130,6 +130,10 @@ model User {
   marketplacePurchases        MarketplacePurchase[]
   marketplaceListingReviews   MarketplaceListingReview[]
   marketplaceListingResponses MarketplaceListingReviewResponse[]
+
+  developerApps       DeveloperApp[]
+  oauthAuthCodes      OAuthAuthorizationCode[]
+  oauthAuthorizations OAuthAuthorization[]
 }
 
 model Session {
@@ -953,6 +957,8 @@ model Business {
 
   marketplaceListingsSold MarketplaceListing[]
   installedApps           InstalledApp[]
+
+  developerApps DeveloperApp[]
 
   @@index([status])
 }
@@ -2389,6 +2395,13 @@ model MarketplaceListing {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
+  // phase-10 spec §8: null = a Phase 9 sandboxed widget, unaffected by this
+  // column existing at all. Set = installing this listing goes through the
+  // real OAuth authorization flow (see /m/install-callback) instead of just
+  // writing an InstalledApp config blob.
+  developerAppId String?
+  developerApp   DeveloperApp? @relation(fields: [developerAppId], references: [id], onDelete: SetNull)
+
   purchases MarketplacePurchase[]
   installs  InstalledApp[]
   reviews   MarketplaceListingReview[]
@@ -2396,6 +2409,7 @@ model MarketplaceListing {
   @@index([status, category])
   @@index([sellerUserId])
   @@index([sellerBusinessId])
+  @@index([developerAppId])
 }
 
 // spec §4.3/§7.2: paymentTransactionId is nullable — a free listing (or a
@@ -2481,4 +2495,174 @@ model MarketplaceListingReviewResponse {
   responder   User                     @relation(fields: [responderId], references: [id], onDelete: Cascade)
   body        String
   createdAt   DateTime                 @default(now())
+}
+
+// phase-10 spec §3.1: two-way owner XOR, same idiom as Offering/
+// MarketplaceListing's seller side — communities don't build apps, so
+// that third owner kind is excluded here unlike InstalledApp's installer
+// side. clientSecretHash follows User.passwordHash's exact posture: hashed
+// at rest, the raw value shown exactly once at creation (createDeveloperApp,
+// developer-apps.ts) and never retrievable again, not even to this app's
+// own dashboard (spec §3.2).
+model DeveloperApp {
+  id               String    @id @default(uuid())
+  ownerType        String // user | business
+  ownerUserId      String?
+  ownerUser        User?     @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  ownerBusinessId  String?
+  ownerBusiness    Business? @relation(fields: [ownerBusinessId], references: [id], onDelete: Cascade)
+  name             String
+  description      String    @default("")
+  clientId         String    @unique
+  clientSecretHash String
+  redirectUrisJson String // JSON array of exact-match redirect URIs (spec §3.2: no wildcard/prefix matching)
+  status           String    @default("active") // active | suspended
+  createdAt        DateTime  @default(now())
+
+  scopes               DeveloperAppScope[]
+  authorizationCodes   OAuthAuthorizationCode[]
+  authorizations       OAuthAuthorization[]
+  webhookSubscriptions WebhookSubscription[]
+  usageCounters        ApiUsageCounter[]
+  marketplaceListings  MarketplaceListing[]
+
+  @@index([ownerUserId])
+  @@index([ownerBusinessId])
+}
+
+// Fixed, curated catalog (spec §4.1) — rows are seeded (OAUTH_SCOPES in
+// oauth.ts), never user-created, same "fixed allowlist, widened by adding
+// an entry in code" posture as marketplace.ts's EMBED_PROVIDERS.
+model OAuthScope {
+  key         String @id // e.g. "profile:read", "messages:read"
+  description String
+  sensitivity String // low | medium | high
+
+  appScopes DeveloperAppScope[]
+}
+
+// spec §4.1: scopes a DeveloperApp is registered/approved to request.
+// low/medium sensitivity scopes are auto-approved at request time;
+// high-sensitivity scopes sit at status "pending" until an admin approves
+// them (spec §4.3) — requestDeveloperAppScope/approveDeveloperAppScope in
+// oauth.ts, same review-gate shape as MarketplaceListing's pending_review.
+model DeveloperAppScope {
+  appId       String
+  app         DeveloperApp @relation(fields: [appId], references: [id], onDelete: Cascade)
+  scopeKey    String
+  scope       OAuthScope   @relation(fields: [scopeKey], references: [key], onDelete: Cascade)
+  status      String       @default("pending") // pending | approved | rejected
+  requestedAt DateTime     @default(now())
+  reviewedAt  DateTime?
+
+  @@id([appId, scopeKey])
+}
+
+// Short-lived row bridging the redirect (authorize) and token-exchange
+// steps of the authorization-code flow — the spec's §4.2 data model starts
+// at OAuthAuthorization, but a persisted code is required between those two
+// requests (this can't be a server session, since the request lands back
+// on the third-party app's own server). One-time use via usedAt, same
+// "opaque token row, checked and consumed" shape as PodcastFeedToken.
+model OAuthAuthorizationCode {
+  code                String       @id
+  appId               String
+  app                 DeveloperApp @relation(fields: [appId], references: [id], onDelete: Cascade)
+  userId              String
+  user                User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  redirectUri         String
+  scopesJson          String // JSON array of scope keys the user approved at the consent screen
+  codeChallenge       String
+  codeChallengeMethod String // S256 | plain
+  expiresAt           DateTime
+  usedAt              DateTime?
+  createdAt           DateTime     @default(now())
+
+  @@index([appId])
+}
+
+model OAuthAuthorization {
+  id                String       @id @default(uuid())
+  appId             String
+  app               DeveloperApp @relation(fields: [appId], references: [id], onDelete: Cascade)
+  userId            String
+  user              User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  grantedScopesJson String // JSON array of scope keys
+  status            String       @default("active") // active | revoked
+  createdAt         DateTime     @default(now())
+  revokedAt         DateTime?
+
+  tokens OAuthToken[]
+
+  @@unique([appId, userId])
+  @@index([userId])
+}
+
+// accessTokenHash/refreshTokenHash follow clientSecretHash's exact posture
+// (spec §4.2, §12.1) — a leaked DB must not yield usable bearer tokens.
+// Revoking the parent OAuthAuthorization (revokeOAuthAuthorization,
+// oauth.ts) deletes every row here via cascade, satisfying spec §4.4's
+// "revocation immediately invalidates already-issued tokens" criterion
+// without a separate revocation check needed on every API request.
+model OAuthToken {
+  id               String             @id @default(uuid())
+  authorizationId  String
+  authorization    OAuthAuthorization @relation(fields: [authorizationId], references: [id], onDelete: Cascade)
+  accessTokenHash  String             @unique
+  refreshTokenHash String?            @unique
+  expiresAt        DateTime
+  createdAt        DateTime           @default(now())
+
+  @@index([authorizationId])
+}
+
+// spec §7.1: event_types drawn from the existing Notification.type/
+// subjectType catalog, not a second vocabulary. secret is HMAC-signing,
+// shown once at creation like clientSecretHash, but kept in plaintext here
+// (not hashed) since, unlike a bearer credential, it must be re-read on
+// every delivery to compute the signature — same trade-off as would apply
+// to any HMAC secret, not a departure from this schema's hashing posture
+// for actual credentials.
+model WebhookSubscription {
+  id             String       @id @default(uuid())
+  appId          String
+  app            DeveloperApp @relation(fields: [appId], references: [id], onDelete: Cascade)
+  eventTypesJson String // JSON array of Notification.type values
+  targetUrl      String // must be https, checked in createWebhookSubscription
+  secret         String
+  status         String       @default("active") // active | disabled
+  failureCount   Int          @default(0)
+  createdAt      DateTime     @default(now())
+
+  deliveries WebhookDelivery[]
+
+  @@index([appId])
+}
+
+model WebhookDelivery {
+  id              String              @id @default(uuid())
+  subscriptionId  String
+  subscription    WebhookSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  eventType       String
+  payload         String // JSON text
+  status          String              @default("pending") // pending | delivered | failed
+  attemptCount    Int                 @default(0)
+  lastAttemptedAt DateTime?
+  nextRetryAt     DateTime?
+  createdAt       DateTime            @default(now())
+
+  @@index([subscriptionId, status])
+}
+
+// spec §5.3: aggregated rolling-window counters, not a per-request log —
+// windowStart is truncated to the top of the hour; one row per app per
+// hour, incremented in place (checkApiRateLimit, api-rate-limit.ts).
+model ApiUsageCounter {
+  id           String       @id @default(uuid())
+  appId        String
+  app          DeveloperApp @relation(fields: [appId], references: [id], onDelete: Cascade)
+  windowStart  DateTime
+  requestCount Int          @default(0)
+
+  @@unique([appId, windowStart])
 }

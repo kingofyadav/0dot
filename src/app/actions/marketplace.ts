@@ -167,6 +167,37 @@ export async function archiveMarketplaceListing(formData: FormData): Promise<voi
   revalidatePath("/m");
 }
 
+// phase-10 spec §8: opts an existing `app`-category listing into the real
+// OAuth-integrated install flow. The seller's DeveloperApp must already
+// have this platform's own /m/install-callback registered as one of its
+// redirect URIs (§3.2's exact-match allowlist applies here too, no
+// exception for first-party) — checked here rather than assumed, since a
+// missing registration would otherwise fail silently at install time.
+export async function linkDeveloperAppToListing(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await requireVerifiedUser();
+  const listingId = String(formData.get("listingId") ?? "");
+  const appId = String(formData.get("appId") ?? "");
+
+  const listing = await db.marketplaceListing.findUnique({ where: { id: listingId } });
+  if (!listing) return { error: "Listing not found." };
+  if (!(await canManageListing(listing, user.id))) return { error: "You don't manage this listing." };
+  if (listing.category !== "app") return { error: "Only app listings can link a developer app." };
+
+  const { requireOwnedDeveloperApp } = await import("@/lib/developer-apps");
+  const app = await requireOwnedDeveloperApp(appId, user.id);
+  if (!app) return { error: "App not found." };
+
+  const redirectUris: string[] = JSON.parse(app.redirectUrisJson);
+  const expectedCallbackPath = "/m/install-callback";
+  if (!redirectUris.some((uri) => uri.endsWith(expectedCallbackPath))) {
+    return { error: `Add https://<your-domain>${expectedCallbackPath} to this app's redirect URIs first.` };
+  }
+
+  await db.marketplaceListing.update({ where: { id: listingId }, data: { developerAppId: appId } });
+  revalidatePath(`/m/${listingId}`);
+  return undefined;
+}
+
 // spec §4.3/§5.1: free (payload.price null) skips the payment backbone
 // entirely, same nullable-price-means-free shape Offering/DigitalProduct/
 // Ticket already use. A paid purchase reuses recordPaymentTransaction

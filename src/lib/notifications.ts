@@ -47,6 +47,18 @@ type NotificationInput = {
   subjectId: string;
 };
 
+// phase-10 spec §7.1: a system-generated notification with no human actor
+// — bypasses createNotification's recipientId!==actorId self-notification
+// guard (which doesn't apply here) and its dedup/block checks (irrelevant
+// for a platform-to-developer notice, not a social interaction). actorId
+// is nullable on the schema specifically for cases like this.
+export async function notifyWebhookDisabled(args: { recipientId: string; subjectId: string }): Promise<void> {
+  await db.notification.create({
+    data: { recipientId: args.recipientId, actorId: null, type: "webhook_disabled", subjectType: "developer_app", subjectId: args.subjectId },
+  });
+  publishToUsers([args.recipientId], { type: "notification" });
+}
+
 async function createNotification({
   recipientId,
   actorId,
@@ -86,6 +98,14 @@ async function createNotification({
   // router.refresh() picks up NotificationBell's fresh unread count with
   // no client-side changes needed here.
   publishToUsers([recipientId], { type: "notification" });
+
+  // phase-10 spec §7.1: webhooks are a second consumer of this same event,
+  // delivered externally to any app the recipient has authorized for the
+  // corresponding scope (dispatchWebhookEvent, webhooks.ts) — dynamic
+  // import to avoid a load-time cycle (webhooks.ts imports
+  // notifyWebhookDisabled from this module for its own failure path).
+  const { dispatchWebhookEvent } = await import("@/lib/webhooks");
+  await dispatchWebhookEvent({ recipientId, type, subjectType, subjectId });
 }
 
 export function notifyLike(args: { recipientId: string; actorId: string; subjectId: string }): Promise<void> {

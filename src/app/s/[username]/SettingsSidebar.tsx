@@ -50,6 +50,13 @@ function groups(handle: string): NavGroup[] {
         { href: `${base}/content/livestreams`, label: "Livestreams" },
       ],
     },
+    {
+      label: "Developer",
+      items: [
+        { href: `${base}/developer`, label: "Apps" },
+        { href: `${base}/authorized-apps`, label: "Authorized apps" },
+      ],
+    },
   ];
 }
 
