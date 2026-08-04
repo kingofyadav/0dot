@@ -36,6 +36,10 @@ export function AuthTabs() {
 
       {tab === "signup" ? (
         <>
+          <h1>Create your account</h1>
+          <p className="mutedText" style={{ textAlign: "center", marginTop: "-0.75rem" }}>
+            One identity. One profile.
+          </p>
           <form
             action={signupAction}
             style={{ display: "flex", flexDirection: "column", gap: "1rem" }}
@@ -65,6 +69,7 @@ export function AuthTabs() {
                 maxLength={30}
                 required
               />
+              <span className="mutedText">0dot.in/yourname — this is permanent.</span>
             </div>
 
             <div className="field">
@@ -119,6 +124,7 @@ export function AuthTabs() {
         </>
       ) : (
         <>
+          <h1>Log in</h1>
           <form
             action={loginAction}
             style={{ display: "flex", flexDirection: "column", gap: "1rem" }}

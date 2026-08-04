@@ -10,6 +10,7 @@ import { isValidThemePreset, SOCIAL_PLATFORMS, type SocialPlatform } from "@/lib
 import { saveUploadedImage } from "@/lib/uploads";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { requireOwnProfile } from "@/lib/auth-guards";
+import { isSafeUrl } from "@/lib/url-safety";
 import type { ActionState } from "@/app/actions/auth";
 
 // Every mutation here affects both surfaces: the settings page itself
@@ -19,18 +20,6 @@ import type { ActionState } from "@/app/actions/auth";
 function revalidateProfilePaths(handle: string): void {
   revalidatePath(`/s/${handle}`);
   revalidatePath(`/${handle}`);
-}
-
-function isSafeUrl(raw: string): boolean {
-  try {
-    const url = new URL(raw);
-    // Allowlist http/https only, rather than trying to blocklist every
-    // dangerous scheme (javascript:, data:, etc.) — an allowlist can't be
-    // bypassed by a scheme we forgot to blocklist.
-    return url.protocol === "http:" || url.protocol === "https:";
-  } catch {
-    return false;
-  }
 }
 
 // Today, every signup creates a Username + Profile atomically (see

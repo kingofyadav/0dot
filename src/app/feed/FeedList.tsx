@@ -16,6 +16,7 @@ export function FeedList({
   nextCursor,
   basePath,
   postableBusinesses,
+  ownTiers,
 }: {
   posts: FeedPost[];
   currentUser: Awaited<ReturnType<typeof getCurrentUser>>;
@@ -28,15 +29,18 @@ export function FeedList({
   // Optional/defaults to none so any future FeedList caller that doesn't
   // fetch this still renders correctly.
   postableBusinesses?: { id: string; name: string }[];
+  // phase-5 spec §4.2: passed through to ComposeBox's "gate this post"
+  // picker. Same optional/defaults-to-none posture as postableBusinesses.
+  ownTiers?: { id: string; name: string }[];
 }) {
   return (
     <div className="profileCard">
       {currentUser?.profile && (
         <>
-          <ComposeBox postableBusinesses={postableBusinesses} />
+          <ComposeBox postableBusinesses={postableBusinesses} ownTiers={ownTiers} />
           <details className="profileEditToggle" style={{ marginBottom: "1.5rem" }}>
             <summary className="mutedText" style={{ fontSize: "0.85rem", cursor: "pointer" }}>
-              + Poll
+              Poll
             </summary>
             <div style={{ marginTop: "0.6rem" }}>
               <PollComposeForm />

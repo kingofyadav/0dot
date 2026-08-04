@@ -1,4 +1,5 @@
-import type { CSSProperties } from "react";
+import { Fragment } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import Link from "next/link";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
@@ -15,6 +16,39 @@ import { SocialIcon } from "@/components/SocialIcon";
 import { CopyLinkButton } from "@/components/CopyLinkButton";
 import { PostCard } from "@/components/PostCard";
 import { TipForm } from "@/components/TipForm";
+import { SubscribeForm } from "@/components/SubscribeForm";
+import { DigitalProductCard } from "@/components/DigitalProductCard";
+import { PodcastEpisodesList } from "@/components/PodcastEpisodesList";
+import { NewsletterSubscribeForm } from "@/components/NewsletterSubscribeForm";
+import { BecomeAffiliateForm } from "@/components/BecomeAffiliateForm";
+import { endorseSkill } from "@/app/actions/skills";
+import { parsePortfolioLayout } from "@/lib/portfolio-layout";
+
+// Small display-only lookup: turns a program's offeringType/offeringId
+// pointer into a human label for BecomeAffiliateForm — the same
+// polymorphic-pointer-needs-a-resolver shape src/app/aff/[code]/route.ts's
+// resolveOfferingUrl already has for redirect targets, applied here for
+// display text instead of a URL.
+async function resolveAffiliateOfferingLabels(
+  programs: { id: string; offeringType: string; offeringId: string }[]
+): Promise<Map<string, string>> {
+  const labels = new Map<string, string>();
+  await Promise.all(
+    programs.map(async (program) => {
+      if (program.offeringType === "membership_tier") {
+        const tier = await db.membershipTier.findUnique({ where: { id: program.offeringId }, select: { name: true } });
+        if (tier) labels.set(program.id, tier.name);
+      } else if (program.offeringType === "digital_product") {
+        const product = await db.digitalProduct.findUnique({ where: { id: program.offeringId }, select: { title: true } });
+        if (product) labels.set(program.id, product.title);
+      } else if (program.offeringType === "course") {
+        const course = await db.course.findUnique({ where: { id: program.offeringId }, select: { title: true } });
+        if (course) labels.set(program.id, course.title);
+      }
+    })
+  );
+  return labels;
+}
 
 // Public, read-only profile — identity, links, follow counts, and (spec
 // §3.4) the user's own post list. No editing UI here: that's what
@@ -38,6 +72,7 @@ export default async function ProfilePage({
             include: {
               links: { orderBy: { position: "asc" } },
               socialLinks: { orderBy: { position: "asc" } },
+              skills: { orderBy: { position: "asc" } },
             },
           },
         },
@@ -84,6 +119,303 @@ export default async function ProfilePage({
     }),
   ]);
   const canTip = showViewerControls && payoutAccount?.status === "active";
+
+  // spec §4: only active tiers are ever offered on the public profile
+  // (archived tiers stay visible to the owner on /s/[username] for
+  // reactivation, never here), and only once the creator has payouts
+  // enabled — same gate canTip already applies for a different money-moving
+  // feature. A tier the viewer already has effectively active access to
+  // (see tier-access.ts's same status+currentPeriodEnd check) is excluded
+  // from the offer list — no point re-selling it.
+  const canSubscribe = showViewerControls && payoutAccount?.status === "active";
+  const activeTiers = canSubscribe
+    ? await db.membershipTier.findMany({ where: { creatorId: username.userId, status: "active" }, orderBy: { level: "asc" } })
+    : [];
+  const viewerTierAccessIds =
+    canSubscribe && currentUser
+      ? new Set(
+          (
+            await db.membershipSubscription.findMany({
+              where: {
+                fanId: currentUser.id,
+                tier: { creatorId: username.userId },
+                OR: [{ status: "active" }, { status: "cancelled", currentPeriodEnd: { gt: new Date() } }],
+              },
+              select: { tierId: true },
+            })
+          ).map((s) => s.tierId)
+        )
+      : new Set<string>();
+  const subscribableTiers = activeTiers.filter((t) => !viewerTierAccessIds.has(t.id));
+
+  // spec §11: a lightweight discovery list — the course's own page
+  // (/[username]/courses/[courseId]) is where purchase/access/lesson
+  // content actually lives, this is just "here's what's for sale."
+  const activeCourses = await db.course.findMany({
+    where: { creatorId: username.userId, status: "active" },
+    select: { id: true, title: true, price: true, currency: true },
+    orderBy: { createdAt: "desc" },
+  });
+
+  // spec §3.3: unlisted projects are excluded from this listing (still
+  // resolve directly at /p/{slug} — see that page) unless the viewer is the
+  // owner, same "owner sees everything, everyone else sees only what's
+  // meant to be public" posture pending businesses use.
+  const visibleProjects = await db.project.findMany({
+    where: {
+      ownerId: username.userId,
+      status: { not: "archived" },
+      ...(isOwner ? {} : { visibility: "public" }),
+    },
+    select: { id: true, slug: true, title: true, summary: true, likeCount: true },
+    orderBy: { createdAt: "desc" },
+  });
+
+  // spec §4.1/§4.2: any logged-in, non-owner viewer may endorse — this set
+  // just drives the endorsed/not-endorsed button state for this viewer.
+  const standaloneRepositories = await db.gitRepository.findMany({
+    where: { profileId: profile.id, projectId: null },
+  });
+
+  const [publicResearchPapers, publicCertificates, publicAwards] = await Promise.all([
+    db.researchPaper.findMany({ where: { profileId: profile.id }, orderBy: { publishDate: "desc" } }),
+    db.certificate.findMany({ where: { profileId: profile.id }, orderBy: { issueDate: "desc" } }),
+    db.award.findMany({ where: { profileId: profile.id }, orderBy: { awardedDate: "desc" } }),
+  ]);
+
+  const endorsedSkillIds =
+    currentUser && !isOwner && profile.skills.length > 0
+      ? new Set(
+          (
+            await db.skillEndorsement.findMany({
+              where: { endorserId: currentUser.id, skillId: { in: profile.skills.map((s) => s.id) } },
+              select: { skillId: true },
+            })
+          ).map((e) => e.skillId)
+        )
+      : new Set<string>();
+
+  // spec §8: the seven new phase-6 sections render in the owner-chosen
+  // order, skipping any toggled hidden — the one genuinely new rendering
+  // pattern this phase introduces (every other section on this page still
+  // renders in the fixed sequence phases 1-5 established, per the plan's
+  // narrow scoping of this to just the sections built in this phase).
+  const portfolioLayout = parsePortfolioLayout(profile.portfolioLayoutJson);
+  const visiblePortfolioSectionKeys = new Set(
+    portfolioLayout.filter((e) => e.visible).map((e) => e.key)
+  );
+  const portfolioSectionOrder = portfolioLayout.map((e) => e.key);
+
+  const projectsSection =
+    visibleProjects.length > 0 && visiblePortfolioSectionKeys.has("projects") ? (
+      <details className="profileEditToggle">
+        <summary className="mutedText" style={{ fontSize: "0.85rem" }}>
+          Projects
+        </summary>
+        <div style={{ marginTop: "0.6rem", display: "flex", flexDirection: "column", gap: "0.4rem", maxWidth: "32ch" }}>
+          {visibleProjects.map((project) => (
+            <Link key={project.id} href={`/p/${project.slug}`} style={{ fontSize: "0.9rem" }}>
+              {project.title}
+              {project.summary && <span className="mutedText"> — {project.summary}</span>}
+            </Link>
+          ))}
+        </div>
+      </details>
+    ) : null;
+
+  const skillsSection =
+    profile.skills.length > 0 && visiblePortfolioSectionKeys.has("skills") ? (
+      <details className="profileEditToggle">
+        <summary className="mutedText" style={{ fontSize: "0.85rem" }}>
+          Skills
+        </summary>
+        <div style={{ marginTop: "0.6rem", display: "flex", flexWrap: "wrap", gap: "0.5rem", maxWidth: "32ch" }}>
+          {profile.skills.map((skill) =>
+            currentUser && !isOwner ? (
+              <form key={skill.id} action={endorseSkill}>
+                <input type="hidden" name="skillId" value={skill.id} />
+                <button
+                  type="submit"
+                  className="button buttonSecondary buttonSmall"
+                  style={endorsedSkillIds.has(skill.id) ? { borderColor: "var(--accent)", color: "var(--accent)" } : undefined}
+                  aria-pressed={endorsedSkillIds.has(skill.id)}
+                >
+                  {skill.name} · {skill.endorsementCount}
+                </button>
+              </form>
+            ) : (
+              <span key={skill.id} className="mutedText" style={{ fontSize: "0.85rem" }}>
+                {skill.name} · {skill.endorsementCount}
+              </span>
+            )
+          )}
+        </div>
+      </details>
+    ) : null;
+
+  const repositoriesSection =
+    standaloneRepositories.length > 0 && visiblePortfolioSectionKeys.has("repositories") ? (
+      <details className="profileEditToggle">
+        <summary className="mutedText" style={{ fontSize: "0.85rem" }}>
+          Repositories
+        </summary>
+        <div style={{ marginTop: "0.6rem", display: "flex", flexDirection: "column", gap: "0.4rem", maxWidth: "32ch" }}>
+          {standaloneRepositories.map((repo) => (
+            <a key={repo.id} href={repo.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: "0.9rem" }}>
+              {repo.displayName}
+              <span className="mutedText">
+                {" "}
+                {repo.primaryLanguage && `· ${repo.primaryLanguage}`} {repo.starCount !== null && `· ★ ${repo.starCount}`}
+              </span>
+            </a>
+          ))}
+        </div>
+      </details>
+    ) : null;
+
+  const papersSection =
+    publicResearchPapers.length > 0 && visiblePortfolioSectionKeys.has("papers") ? (
+      <details className="profileEditToggle">
+        <summary className="mutedText" style={{ fontSize: "0.85rem" }}>
+          Research papers
+        </summary>
+        <div style={{ marginTop: "0.6rem", display: "flex", flexDirection: "column", gap: "0.5rem", maxWidth: "32ch" }}>
+          {publicResearchPapers.map((paper) => (
+            <div key={paper.id} style={{ fontSize: "0.9rem" }}>
+              <strong>{paper.title}</strong>
+              <p className="mutedText" style={{ margin: "0.1rem 0 0", fontSize: "0.8rem" }}>
+                {paper.authors}
+                {paper.venue && ` · ${paper.venue}`}
+              </p>
+              <span style={{ display: "flex", gap: "0.5rem", marginTop: "0.15rem" }}>
+                {paper.doiOrUrl && <a href={paper.doiOrUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: "0.8rem" }}>DOI/Link</a>}
+                {paper.fileUrl && <a href={paper.fileUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: "0.8rem" }}>PDF</a>}
+              </span>
+            </div>
+          ))}
+        </div>
+      </details>
+    ) : null;
+
+  const certificatesSection =
+    publicCertificates.length > 0 && visiblePortfolioSectionKeys.has("certificates") ? (
+      <details className="profileEditToggle">
+        <summary className="mutedText" style={{ fontSize: "0.85rem" }}>
+          Certificates
+        </summary>
+        <div style={{ marginTop: "0.6rem", display: "flex", flexDirection: "column", gap: "0.4rem", maxWidth: "32ch" }}>
+          {publicCertificates.map((cert) => (
+            <div key={cert.id} style={{ fontSize: "0.9rem" }}>
+              {cert.credentialUrl ? (
+                <a href={cert.credentialUrl} target="_blank" rel="noopener noreferrer"><strong>{cert.title}</strong></a>
+              ) : (
+                <strong>{cert.title}</strong>
+              )}
+              <span className="mutedText"> — {cert.issuingOrg}</span>
+            </div>
+          ))}
+        </div>
+      </details>
+    ) : null;
+
+  const awardsSection =
+    publicAwards.length > 0 && visiblePortfolioSectionKeys.has("awards") ? (
+      <details className="profileEditToggle">
+        <summary className="mutedText" style={{ fontSize: "0.85rem" }}>
+          Awards
+        </summary>
+        <div style={{ marginTop: "0.6rem", display: "flex", flexDirection: "column", gap: "0.4rem", maxWidth: "32ch" }}>
+          {publicAwards.map((award) => (
+            <div key={award.id} style={{ fontSize: "0.9rem" }}>
+              {award.link ? (
+                <a href={award.link} target="_blank" rel="noopener noreferrer"><strong>{award.title}</strong></a>
+              ) : (
+                <strong>{award.title}</strong>
+              )}
+              {award.issuingOrg && <span className="mutedText"> — {award.issuingOrg}</span>}
+            </div>
+          ))}
+        </div>
+      </details>
+    ) : null;
+
+  const portfolioSectionsByKey: Record<string, ReactNode> = {
+    projects: projectsSection,
+    skills: skillsSection,
+    repositories: repositoriesSection,
+    papers: papersSection,
+    certificates: certificatesSection,
+    awards: awardsSection,
+  };
+  const orderedPortfolioSections = portfolioSectionOrder
+    .filter((key) => key !== "resume")
+    .map((key) => <Fragment key={key}>{portfolioSectionsByKey[key]}</Fragment>);
+
+  // spec §8.1: a section toggled hidden doesn't render even if the
+  // underlying rows still exist — the Resume header link is the one
+  // phase-6 section that isn't a <details> block in this row, so its
+  // visibility is applied at the link itself rather than through
+  // portfolioSectionsByKey above.
+  const showResumeLink = visiblePortfolioSectionKeys.has("resume");
+
+  // spec §5: same canSubscribe-style gate — only offered once the creator
+  // has payouts enabled. ownedProductIds marks which active products the
+  // viewer already bought, so DigitalProductCard renders a Download control
+  // instead of a Buy form for those.
+  const canBuy = showViewerControls && payoutAccount?.status === "active";
+  const activeProducts = canBuy
+    ? await db.digitalProduct.findMany({ where: { creatorId: username.userId, status: "active" }, orderBy: { createdAt: "desc" } })
+    : [];
+  const ownedProductIds =
+    canBuy && currentUser
+      ? new Set(
+          (
+            await db.digitalProductPurchase.findMany({
+              where: { buyerId: currentUser.id, productId: { in: activeProducts.map((p) => p.id) } },
+              select: { productId: true },
+            })
+          ).map((p) => p.productId)
+        )
+      : new Set<string>();
+
+  // spec §9: the podcast's episode list — a free episode plays with no
+  // gate at all; a member-only one is labeled but still listed (not
+  // hidden entirely), matching how gated posts render elsewhere as a
+  // visible-but-locked item rather than disappearing outright... except
+  // podcasts have no "locked teaser" UI yet, so PodcastEpisodesList's Play
+  // button is what actually enforces the gate server-side, per spec §9.3.
+  const podcast = await db.podcast.findFirst({
+    where: { creatorId: username.userId },
+    include: { episodes: { orderBy: { episodeNumber: "asc" }, include: { requiredTier: { select: { name: true } } } } },
+  });
+
+  // spec §12: newsletter has no in-app producer of its own (delivered via
+  // email), so this section is just the subscribe form — no "recent
+  // issues" list here, matching §10.1's subscriber-list privacy (only the
+  // creator sees who's subscribed, never public).
+  const hasNewsletter = (await db.newsletterIssue.count({ where: { creatorId: username.userId } })) > 0
+    || (await db.newsletterSubscription.count({ where: { creatorId: username.userId } })) > 0;
+
+  const liveLivestreams = await db.livestream.findMany({
+    where: { creatorId: username.userId, status: { in: ["live", "scheduled"] } },
+    orderBy: { createdAt: "desc" },
+    include: { requiredTier: { select: { name: true } } },
+  });
+
+  // spec §7.1: a non-owner signed-in visitor can become an affiliate for
+  // any of this creator's active programs — the one discovery surface this
+  // build gives affiliate programs (no separate marketplace/browse page,
+  // out of scope per §7.1's "deliberately narrow" framing).
+  const activeAffiliatePrograms =
+    showViewerControls && currentUser
+      ? await db.affiliateProgram.findMany({
+          where: { creatorId: username.userId, status: "active" },
+          include: {
+            links: { where: { affiliateId: currentUser.id }, select: { id: true, code: true } },
+          },
+        })
+      : [];
+  const affiliateOfferingLabels = await resolveAffiliateOfferingLabels(activeAffiliatePrograms);
 
   const { cursor: rawCursor } = await searchParams;
   const cursor = parseCursor(rawCursor);
@@ -186,6 +518,11 @@ export default async function ProfilePage({
             </h1>
             {(isOwner || showViewerControls) && (
               <div className="profileActions">
+                {showResumeLink && (
+                  <Link href={`/${username.handle}/resume`} className="button buttonSecondary">
+                    Resume
+                  </Link>
+                )}
                 {isOwner && (
                   <Link href={`/s/${username.handle}`} className="button buttonSecondary">
                     Edit profile
@@ -261,6 +598,140 @@ export default async function ProfilePage({
             </summary>
             <div style={{ marginTop: "0.6rem" }}>
               <TipForm creatorHandle={username.handle} />
+            </div>
+          </details>
+        )}
+
+        {canSubscribe && (subscribableTiers.length > 0 || viewerTierAccessIds.size > 0) && (
+          <details className="profileEditToggle">
+            <summary className="mutedText" style={{ fontSize: "0.85rem" }}>
+              Memberships
+            </summary>
+            <div style={{ marginTop: "0.6rem", display: "flex", flexDirection: "column", gap: "0.5rem", maxWidth: "32ch" }}>
+              {activeTiers.map((tier) =>
+                viewerTierAccessIds.has(tier.id) ? (
+                  <p key={tier.id} className="mutedText" style={{ fontSize: "0.85rem" }}>
+                    ✓ Subscribed — {tier.name}
+                  </p>
+                ) : (
+                  <div key={tier.id}>
+                    <p style={{ fontWeight: 600, fontSize: "0.9rem", margin: 0 }}>{tier.name}</p>
+                    {tier.description && <p className="mutedText" style={{ fontSize: "0.8rem", margin: "0.15rem 0" }}>{tier.description}</p>}
+                    <SubscribeForm tier={tier} />
+                  </div>
+                )
+              )}
+            </div>
+          </details>
+        )}
+
+        {canBuy && activeProducts.length > 0 && (
+          <details className="profileEditToggle">
+            <summary className="mutedText" style={{ fontSize: "0.85rem" }}>
+              Digital products
+            </summary>
+            <div style={{ marginTop: "0.6rem", display: "flex", flexDirection: "column", gap: "0.6rem", maxWidth: "32ch" }}>
+              {activeProducts.map((product) => (
+                <DigitalProductCard key={product.id} product={product} owned={ownedProductIds.has(product.id)} />
+              ))}
+            </div>
+          </details>
+        )}
+
+        {orderedPortfolioSections}
+
+        {activeCourses.length > 0 && (
+          <details className="profileEditToggle">
+            <summary className="mutedText" style={{ fontSize: "0.85rem" }}>
+              Courses
+            </summary>
+            <div style={{ marginTop: "0.6rem", display: "flex", flexDirection: "column", gap: "0.4rem", maxWidth: "32ch" }}>
+              {activeCourses.map((course) => (
+                <Link key={course.id} href={`/${username.handle}/courses/${course.id}`} style={{ fontSize: "0.9rem" }}>
+                  {course.title}
+                  {course.price !== null && course.currency !== null && (
+                    <span className="mutedText"> — {course.price.toFixed(2)} {course.currency.toUpperCase()}</span>
+                  )}
+                </Link>
+              ))}
+            </div>
+          </details>
+        )}
+
+        {podcast && podcast.episodes.length > 0 && (
+          <details className="profileEditToggle">
+            <summary className="mutedText" style={{ fontSize: "0.85rem" }}>
+              Podcast
+            </summary>
+            <div style={{ marginTop: "0.6rem", maxWidth: "32ch" }}>
+              <PodcastEpisodesList
+                podcastId={podcast.id}
+                rssSlug={podcast.rssSlug}
+                episodes={podcast.episodes.map((ep) => ({
+                  id: ep.id,
+                  title: ep.title,
+                  description: ep.description,
+                  requiredTierId: ep.requiredTierId,
+                  requiredTierName: ep.requiredTier?.name,
+                }))}
+                isSignedIn={!!currentUser}
+              />
+            </div>
+          </details>
+        )}
+
+        {hasNewsletter && !isOwner && (
+          <details className="profileEditToggle">
+            <summary className="mutedText" style={{ fontSize: "0.85rem" }}>
+              Newsletter
+            </summary>
+            <div style={{ marginTop: "0.6rem", maxWidth: "32ch" }}>
+              <NewsletterSubscribeForm creatorId={username.userId} defaultEmail={currentUser?.email} />
+            </div>
+          </details>
+        )}
+
+        {liveLivestreams.length > 0 && (
+          <details className="profileEditToggle" open={liveLivestreams.some((l) => l.status === "live")}>
+            <summary className="mutedText" style={{ fontSize: "0.85rem" }}>
+              Livestreams
+            </summary>
+            <div style={{ marginTop: "0.6rem", display: "flex", flexDirection: "column", gap: "0.4rem", maxWidth: "32ch" }}>
+              {liveLivestreams.map((live) => (
+                <Link key={live.id} href={`/live/${live.id}`} style={{ fontSize: "0.9rem" }}>
+                  {live.status === "live" ? "🔴 " : ""}
+                  {live.title}
+                  <span className="mutedText">
+                    {" "}
+                    — {live.status}
+                    {live.requiredTierId && live.requiredTier && ` · ${live.requiredTier.name}+ only`}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </details>
+        )}
+
+        {activeAffiliatePrograms.length > 0 && (
+          <details className="profileEditToggle">
+            <summary className="mutedText" style={{ fontSize: "0.85rem" }}>
+              Affiliate program
+            </summary>
+            <div style={{ marginTop: "0.6rem", display: "flex", flexDirection: "column", gap: "0.5rem", maxWidth: "32ch" }}>
+              {activeAffiliatePrograms.map((program) =>
+                program.links.length > 0 ? (
+                  <p key={program.id} className="mutedText" style={{ fontSize: "0.85rem" }}>
+                    ✓ Your link: /aff/{program.links[0].code}
+                  </p>
+                ) : (
+                  <BecomeAffiliateForm
+                    key={program.id}
+                    programId={program.id}
+                    offeringLabel={affiliateOfferingLabels.get(program.id) ?? "this offering"}
+                    commissionPercent={program.commissionPercent}
+                  />
+                )
+              )}
             </div>
           </details>
         )}

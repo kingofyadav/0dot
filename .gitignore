@@ -48,3 +48,8 @@ next-env.d.ts
 
 # user-uploaded content (runtime, not source)
 /public/uploads
+
+# gated/purchase-only files — deliberately outside public/, never directly
+# servable; only reachable through the signed download-token route (see
+# src/lib/protected-storage.ts)
+/storage/protected

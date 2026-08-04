@@ -78,6 +78,35 @@ model User {
   paymentTransactionsAsPayee PaymentTransaction[]  @relation("PaymentTransactionPayee")
   tipsSent                   Tip[]                 @relation("TipFrom")
   tipsReceived               Tip[]                 @relation("TipTo")
+
+  membershipTiers         MembershipTier[]
+  membershipSubscriptions MembershipSubscription[]
+
+  digitalProducts         DigitalProduct[]
+  digitalProductPurchases DigitalProductPurchase[]
+
+  courses            Course[]
+  courseAccessGrants CourseAccessGrant[]
+  courseProgress     CourseProgress[]
+
+  podcasts          Podcast[]
+  podcastFeedTokens PodcastFeedToken[]
+
+  newsletterCreated    NewsletterSubscription[] @relation("NewsletterCreator")
+  newsletterSubscribed NewsletterSubscription[] @relation("NewsletterSubscriber")
+  newsletterIssues     NewsletterIssue[]
+
+  affiliatePrograms AffiliateProgram[]
+  affiliateLinks    AffiliateLink[]
+
+  livestreams            Livestream[]
+  livestreamChatMessages LivestreamChatMessage[]
+
+  projects              Project[]
+  projectCollaborations ProjectCollaborator[]
+  projectLikes          ProjectLike[]
+  projectComments       ProjectComment[]
+  skillEndorsements     SkillEndorsement[]
 }
 
 model Session {
@@ -126,8 +155,31 @@ model Profile {
   followerCount  Int @default(0)
   followingCount Int @default(0)
 
-  links       Link[]
-  socialLinks SocialLink[]
+  // phase-6 spec §6.1: optional static alternative/supplement to the
+  // generated resume view (§6.3) — same pre-signed-upload... well,
+  // direct-filesystem-write pattern as every other upload in this codebase
+  // (see uploads.ts), extended with a pdf allowlist entry.
+  resumePdfUrl String?
+
+  links           Link[]
+  socialLinks     SocialLink[]
+  skills          Skill[]
+  workExperiences WorkExperience[]
+  education       Education[]
+  gitRepositories GitRepository[]
+  researchPapers  ResearchPaper[]
+  certificates    Certificate[]
+  awards          Award[]
+
+  // phase-6 spec §8: reuses the same "small structured config blob on
+  // Profile" pattern already established by Profile.themePreset, but that
+  // one is a plain string key into a fixed preset list — portfolioLayoutJson
+  // needs an *ordered list with a per-item toggle*, which doesn't fit a
+  // single string. Follows BusinessLocation.hoursJson/Offering.imagesJson's
+  // JSON-text-column precedent instead of a new table: an array of
+  // {key, visible} parsed/validated at the app layer (src/lib/
+  // portfolio-layout.ts), not the DB — no Zod anywhere in this codebase.
+  portfolioLayoutJson String?
 }
 
 model Follow {
@@ -174,8 +226,8 @@ model Notification {
   recipient   User      @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
   actorId     String?
   actor       User?     @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
-  type        String // like | comment | mention | new_follower | message | community_update | community_invite | business_review | job_application | application_status | appointment_request | appointment_confirmed | appointment_cancelled | tip_received
-  subjectType String // post | message | user | community | business
+  type        String // like | comment | mention | new_follower | message | community_update | community_invite | business_review | job_application | application_status | appointment_request | appointment_confirmed | appointment_cancelled | tip_received | new_subscriber | affiliate_conversion | livestream_started
+  subjectType String // post | message | user | community | business | livestream | project | skill
   subjectId   String
   readAt      DateTime?
   createdAt   DateTime  @default(now())
@@ -195,10 +247,20 @@ model SocialLink {
   createdAt DateTime @default(now())
 }
 
+// phase-4 gap-fill, spec §3.2: businessId is additive alongside the
+// original profileId — both nullable, with "exactly one set" enforced at
+// the app layer (createLink/profile.ts vs createBusinessLink/
+// business-links.ts), same posture as ProjectCollaborator's userId/
+// displayName XOR (phase-6): no partial/CHECK constraint support in this
+// Prisma+SQLite setup. /r/[linkId] and getLinkStats stay untouched — both
+// are already keyed on linkId alone, never profileId, so they work for
+// business links for free.
 model Link {
   id         String    @id @default(uuid())
-  profileId  String
-  profile    Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  profileId  String?
+  profile    Profile?  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  businessId String?
+  business   Business? @relation(fields: [businessId], references: [id], onDelete: Cascade)
   label      String
   url        String
   position   Int
@@ -307,12 +369,22 @@ model Post {
   // in any feed for free, same reasoning as the rest of §7.1.
   poll      Poll?
 
+  // phase-5 spec §4.2: the one gating mechanism reused (adapted per entity)
+  // by podcast episodes, newsletter issues, course access, and livestreams
+  // — never a second parallel gate. onDelete: SetNull, same reasoning as
+  // flairId above: archiving/deleting a tier shouldn't take gated posts
+  // down with it, just ungate them (matches the spec's silence on tier
+  // deletion cascading content away, and errs toward not losing content).
+  requiredTierId String?
+  requiredTier   MembershipTier? @relation(fields: [requiredTierId], references: [id], onDelete: SetNull)
+
   @@index([createdAt])
   @@index([replyToId])
   @@index([repostOfId])
   @@index([trendingScore])
   @@index([communityId, createdAt])
   @@index([communityId, flairId])
+  @@index([requiredTierId])
 }
 
 model PostMedia {
@@ -786,6 +858,7 @@ model Business {
   availabilityRules AvailabilityRule[]
   appointments      Appointment[]
   documents         BusinessDocument[]
+  links             Link[]
 
   @@index([status])
 }
@@ -1085,7 +1158,10 @@ model PaymentTransaction {
   relatedObjectId    String?
   createdAt          DateTime @default(now())
 
-  tip Tip?
+  tip                    Tip?
+  digitalProductPurchase DigitalProductPurchase?
+  courseAccessGrant      CourseAccessGrant?
+  affiliateConversion    AffiliateConversion?
 
   @@index([payeeId, createdAt])
   @@index([payerId])
@@ -1110,4 +1186,681 @@ model Tip {
   createdAt            DateTime           @default(now())
 
   @@index([toCreatorId, createdAt])
+}
+
+// phase-5 spec §4.1: recurring paid access, optionally tiered. `level` is
+// an ordering integer, not a foreign concept — "gates this level or
+// higher" (spec §4.2) is computed entirely from comparing two `level`
+// integers within the same creator, never a separate ranking table.
+model MembershipTier {
+  id              String   @id @default(uuid())
+  creatorId       String
+  creator         User     @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  name            String // 1-60 chars, validated at the app layer
+  level           Int
+  price           Float
+  currency        String   @default("usd")
+  billingInterval String // monthly | yearly
+  description     String   @default("") // 0-1000 chars, validated at the app layer
+  status          String   @default("active") // active | archived
+  createdAt       DateTime @default(now())
+
+  subscriptions         MembershipSubscription[]
+  gatedPosts            Post[]
+  gatedCourses          Course[]
+  gatedPodcastEpisodes  PodcastEpisode[]
+  gatedNewsletterIssues NewsletterIssue[]
+  gatedLivestreams      Livestream[]
+
+  @@index([creatorId, status])
+}
+
+// phase-5 spec §4.1: recurring billing state (renewal, decline retries,
+// dunning) is delegated to the payment processor per §3.3/§4.1's own
+// framing — status/currentPeriodEnd are a cache of what the processor
+// reports, not independently computed here. This build's stub processor
+// (src/lib/payments.ts) has no real recurring-billing webhook to drive
+// that cache, so subscribeToTier sets currentPeriodEnd directly at
+// creation time (one billing period out) — a documented stub limitation,
+// not a real renewal engine; see src/app/actions/memberships.ts.
+model MembershipSubscription {
+  id                      String         @id @default(uuid())
+  tierId                  String
+  tier                    MembershipTier @relation(fields: [tierId], references: [id], onDelete: Cascade)
+  fanId                   String
+  fan                     User           @relation(fields: [fanId], references: [id], onDelete: Cascade)
+  status                  String         @default("active") // active | past_due | cancelled
+  currentPeriodEnd        DateTime
+  processorSubscriptionId String
+  createdAt               DateTime       @default(now())
+
+  @@index([fanId, status])
+  @@index([tierId, status])
+}
+
+// phase-5 spec §5: scoped to a creator selling from their own profile —
+// spec §5.1 flags this is very likely the same feature as Phase 9's
+// Marketplace "digital products," and recommends building the real model
+// here so Phase 9 later adds cross-creator discovery on top of this same
+// table rather than inventing a second product-and-purchase model.
+// fileKey (not a public URL) is an opaque key into protected-storage.ts's
+// storage/protected/ directory — never directly servable, only resolvable
+// through a signed, purchase-checked download token (spec §5.3).
+model DigitalProduct {
+  id            String   @id @default(uuid())
+  creatorId     String
+  creator       User     @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  title         String // 1-120 chars, validated at the app layer
+  description   String   @default("") // 0-2000 chars, validated at the app layer
+  price         Float
+  currency      String   @default("usd")
+  fileKey       String
+  fileMimeType  String
+  fileSizeBytes Int
+  status        String   @default("draft") // draft | active | archived
+  createdAt     DateTime @default(now())
+
+  purchases DigitalProductPurchase[]
+
+  @@index([creatorId, status])
+}
+
+// spec §5.4's literal criteria are enforced through this row, not the file
+// itself: requestDownloadUrl (src/app/actions/digital-products.ts) only
+// issues a token when a purchase row exists for the caller AND its linked
+// PaymentTransaction hasn't been refunded — re-checked at request time, not
+// baked into the token once at purchase time.
+model DigitalProductPurchase {
+  id                   String             @id @default(uuid())
+  productId            String
+  product              DigitalProduct     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  buyerId              String
+  buyer                User               @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  paymentTransactionId String             @unique
+  paymentTransaction   PaymentTransaction @relation(fields: [paymentTransactionId], references: [id], onDelete: Restrict)
+  purchasedAt          DateTime           @default(now())
+
+  // A buyer never re-purchases the same product (purchaseProduct's own
+  // "You already own this product" check assumes this), but that check ran
+  // before the charge with no DB-level backstop against two concurrent
+  // requests both passing it — same @@unique shape CourseAccessGrant
+  // already uses for the identical "one grant per user" guarantee.
+  @@unique([productId, buyerId])
+  @@index([buyerId])
+  @@index([productId])
+}
+
+// phase-5 spec §11: purchasable directly (one-time price) and/or bundled
+// into a membership tier — both simultaneously is allowed, matching §11.1's
+// prose. requiredTierId isn't in the spec's own §11.1 pseudocode listing,
+// but is the same shared gate every other bundled-into-a-tier entity uses
+// (§4.2: "reused for... course access") — without it there'd be no way to
+// express which tier bundles a course, so this fills a gap the prose
+// implies but the model listing omitted, rather than inventing a new
+// mechanism. price/currency nullable together: a course can be
+// tier-only-access with no standalone price (§11.1's own comment on price).
+model Course {
+  id             String          @id @default(uuid())
+  creatorId      String
+  creator        User            @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  title          String // 1-120 chars, validated at the app layer
+  description    String          @default("") // 0-2000 chars, validated at the app layer
+  price          Float?
+  currency       String?
+  requiredTierId String?
+  requiredTier   MembershipTier? @relation(fields: [requiredTierId], references: [id], onDelete: SetNull)
+  status         String          @default("draft") // draft | active | archived
+  createdAt      DateTime        @default(now())
+
+  modules      CourseModule[]
+  accessGrants CourseAccessGrant[]
+
+  @@index([creatorId, status])
+  @@index([requiredTierId])
+}
+
+model CourseModule {
+  id       String @id @default(uuid())
+  courseId String
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  title    String // 1-120 chars, validated at the app layer
+  position Int
+
+  lessons Lesson[]
+
+  @@index([courseId, position])
+}
+
+// video_url/file_url in spec §11.1's pseudocode become fileKey/fileMimeType
+// here — a protected-storage.ts key resolved only through the signed
+// /api/downloads/[token] route (same §5.3 pre-signed-URL pattern this
+// build already applies to digital-product files), never a literal
+// servable URL. Same "security posture wins over literal spec pseudocode"
+// deviation this schema already documents elsewhere (see trendingScore).
+model Lesson {
+  id            String       @id @default(uuid())
+  moduleId      String
+  module        CourseModule @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  title         String // 1-120 chars, validated at the app layer
+  position      Int
+  contentType   String // video | text | download
+  body          String? // for contentType = text
+  fileKey       String? // for contentType = video | download
+  fileMimeType  String?
+  fileSizeBytes Int?
+
+  progress CourseProgress[]
+
+  @@index([moduleId, position])
+}
+
+// spec §11.1/§11.2: only ever written for grantedVia = "purchase" in this
+// build — membership_tier-bundled access (the course's requiredTierId) is
+// checked live via hasTierAccess (src/lib/tier-access.ts) every time,
+// never materialized as a row, so it evaporates the instant a subscription
+// lapses (spec §11.2's second criterion: "these are two independent grant
+// types and must not be conflated"). paymentTransactionId is the typed
+// equivalent of the spec's polymorphic source_id for the purchase case —
+// same typed-fk-over-polymorphic-id precedent Post.businessAuthorId
+// already set instead of an author_type+author_id pair.
+model CourseAccessGrant {
+  id                   String              @id @default(uuid())
+  courseId             String
+  course               Course              @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  userId               String
+  user                 User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  grantedVia           String // purchase | membership_tier
+  paymentTransactionId String?             @unique
+  paymentTransaction   PaymentTransaction? @relation(fields: [paymentTransactionId], references: [id], onDelete: Restrict)
+  createdAt            DateTime            @default(now())
+
+  @@unique([courseId, userId])
+}
+
+// spec §11.2's third criterion: only ever written for a user who currently
+// has access (checked in markLessonComplete, src/app/actions/courses.ts) —
+// never a record of progress through content a user never had rights to.
+model CourseProgress {
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lessonId    String
+  lesson      Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  completedAt DateTime @default(now())
+
+  @@id([userId, lessonId])
+}
+
+// phase-5 spec §9: audio (episode.fileKey) reuses protected-storage.ts's
+// save/stream pipeline — the same fileKey mechanism DigitalProduct/Lesson
+// already use — not a public/uploads URL, even for ungated episodes.
+// /api/podcasts/[episodeId]/audio (src/app/api/podcasts) is the one path
+// in: it serves ungated episodes with no auth (a public RSS/HTTP client
+// has no session to check) and gated episodes only with a valid, unrevoked
+// PodcastFeedToken query param re-verified against live tier access every
+// request — the "gating by obscurity plus revocability" §9.2 explicitly
+// calls out as this ecosystem's real limit, not a gap in this build.
+model Podcast {
+  id          String   @id @default(uuid())
+  creatorId   String
+  creator     User     @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  title       String // 1-120 chars, validated at the app layer
+  description String   @default("") // 0-2000 chars, validated at the app layer
+  coverUrl    String?
+  rssSlug     String   @unique
+  createdAt   DateTime @default(now())
+
+  episodes   PodcastEpisode[]
+  feedTokens PodcastFeedToken[]
+
+  @@index([creatorId])
+}
+
+model PodcastEpisode {
+  id             String          @id @default(uuid())
+  podcastId      String
+  podcast        Podcast         @relation(fields: [podcastId], references: [id], onDelete: Cascade)
+  episodeNumber  Int
+  title          String // 1-120 chars, validated at the app layer
+  description    String          @default("") // 0-2000 chars, validated at the app layer
+  fileKey        String
+  fileMimeType   String
+  fileSizeBytes  Int
+  durationS      Int
+  publishAt      DateTime        @default(now())
+  requiredTierId String? // spec §9.1: member-only bonus episodes, reuses §4.2's gate
+  requiredTier   MembershipTier? @relation(fields: [requiredTierId], references: [id], onDelete: SetNull)
+  createdAt      DateTime        @default(now())
+
+  @@index([podcastId, episodeNumber])
+  @@index([requiredTierId])
+}
+
+// spec §9.2: one row per (podcast, subscriber) pair. `token` is embedded in
+// a private feed URL (/podcast/[rssSlug]/rss.xml?t=token) that a podcast
+// app polls with no login step — this row, not the token's cryptography,
+// is what makes revocation real: verifyPodcastFeedToken (src/lib/
+// podcasts.ts) checks revokedAt on every fetch, not just at issuance.
+model PodcastFeedToken {
+  id           String    @id @default(uuid())
+  podcastId    String
+  podcast      Podcast   @relation(fields: [podcastId], references: [id], onDelete: Cascade)
+  subscriberId String
+  subscriber   User      @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+  token        String    @unique
+  createdAt    DateTime  @default(now())
+  revokedAt    DateTime?
+
+  @@index([podcastId, subscriberId])
+}
+
+// phase-5 spec §10: unsubscribeToken isn't in the spec's §10.1 field
+// listing but is what actually implements §10.2's legally-required
+// one-click unsubscribe link — same "fills a gap the prose implies but the
+// model listing omitted" precedent Course.requiredTierId already set for
+// §11. subscriberUserId nullable per spec (email-only subscribers with no
+// 0dot account); subscriberEmail always set since that's who the issue
+// actually gets sent to regardless of account linkage.
+model NewsletterSubscription {
+  id               String    @id @default(uuid())
+  creatorId        String
+  creator          User      @relation("NewsletterCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  subscriberUserId String?
+  subscriberUser   User?     @relation("NewsletterSubscriber", fields: [subscriberUserId], references: [id], onDelete: SetNull)
+  subscriberEmail  String
+  unsubscribeToken String    @unique
+  subscribedAt     DateTime  @default(now())
+  unsubscribedAt   DateTime?
+
+  @@unique([creatorId, subscriberEmail])
+  @@index([creatorId])
+}
+
+model NewsletterIssue {
+  id             String          @id @default(uuid())
+  creatorId      String
+  creator        User            @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  subject        String // 1-150 chars, validated at the app layer
+  body           String // sanitized markdown/HTML, same posture as every other user-authored content field since Phase 1 §7.2
+  requiredTierId String? // spec §10.1: paid-only issues, reuses §4.2's gate
+  requiredTier   MembershipTier? @relation(fields: [requiredTierId], references: [id], onDelete: SetNull)
+  status         String          @default("draft") // draft | scheduled | sent
+  sentAt         DateTime?
+  createdAt      DateTime        @default(now())
+
+  @@index([creatorId, status])
+}
+
+// phase-5 spec §7.1: the affiliate must be a 0dot user who completes the
+// *same* CreatorPayoutAccount onboarding from §3 — no separate payout rail.
+// offeringType/offeringId is a polymorphic pointer (membership_tier |
+// digital_product | course) rather than three nullable FKs, matching this
+// schema's own precedent for a small closed set of target types where a
+// typed FK per type would just be three always-two-null columns.
+model AffiliateProgram {
+  id                String   @id @default(uuid())
+  creatorId         String
+  creator           User     @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  offeringType      String // membership_tier | digital_product | course
+  offeringId        String
+  commissionPercent Float
+  status            String   @default("active") // active | paused
+  createdAt         DateTime @default(now())
+
+  links AffiliateLink[]
+
+  @@index([creatorId])
+  @@index([offeringType, offeringId])
+}
+
+model AffiliateLink {
+  id          String           @id @default(uuid())
+  programId   String
+  program     AffiliateProgram @relation(fields: [programId], references: [id], onDelete: Cascade)
+  affiliateId String
+  affiliate   User             @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+  code        String           @unique
+  createdAt   DateTime         @default(now())
+
+  clicks      AffiliateClick[]
+  conversions AffiliateConversion[]
+
+  @@index([programId])
+  @@index([affiliateId])
+}
+
+// spec §7.2/§13.1: referrerHost only, same no-raw-IP/UA posture as Phase
+// 1's LinkClick — src/app/aff/[code]/route.ts is the one write path.
+model AffiliateClick {
+  id              String        @id @default(uuid())
+  affiliateLinkId String
+  affiliateLink   AffiliateLink @relation(fields: [affiliateLinkId], references: [id], onDelete: Cascade)
+  occurredAt      DateTime      @default(now())
+  referrerHost    String?
+
+  @@index([affiliateLinkId, occurredAt])
+}
+
+// spec §7.3: only ever created alongside a successful PaymentTransaction
+// (paymentTransactionId unique — one conversion per sale, never a second
+// row for the same charge), reusing the ledger rather than a separate
+// payout table, same "every money-moving feature writes exactly one
+// PaymentTransaction row" rule §3.1 establishes for every other kind.
+model AffiliateConversion {
+  id                   String             @id @default(uuid())
+  affiliateLinkId      String
+  affiliateLink        AffiliateLink      @relation(fields: [affiliateLinkId], references: [id], onDelete: Cascade)
+  paymentTransactionId String             @unique
+  paymentTransaction   PaymentTransaction @relation(fields: [paymentTransactionId], references: [id], onDelete: Restrict)
+  commissionAmount     Float
+  createdAt            DateTime           @default(now())
+
+  @@index([affiliateLinkId])
+}
+
+// phase-5 spec §8.2 (MVP: single-host broadcast, no VOD by default).
+// ingestKey/playbackUrl come from LivestreamProvider (src/lib/
+// livestream-provider.ts) — a processor-agnostic interface with a stub
+// implementation, same delegation pattern payments.ts already established
+// for CreatorPayoutAccount: this build has no real video ingest/
+// transcoding/CDN behind it (spec §8.1 flags that as a substantially
+// larger infra lift than anything else in this phase), so playbackUrl is
+// an opaque stub value, not a real streamable URL. What's real here is the
+// access-control layer around it (§8.3's three acceptance criteria), which
+// doesn't change shape when a real provider is swapped in later.
+model Livestream {
+  id             String          @id @default(uuid())
+  creatorId      String
+  creator        User            @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  title          String // 1-120 chars, validated at the app layer
+  status         String          @default("scheduled") // scheduled | live | ended
+  scheduledAt    DateTime?
+  startedAt      DateTime?
+  endedAt        DateTime?
+  requiredTierId String? // spec §8.2: reuses §4.2's gate for paid livestreams
+  requiredTier   MembershipTier? @relation(fields: [requiredTierId], references: [id], onDelete: SetNull)
+  ingestKey      String // opaque, infra-managed — never exposed in a viewer-facing response (§13.1)
+  playbackUrl    String
+  createdAt      DateTime        @default(now())
+
+  chatMessages LivestreamChatMessage[]
+
+  @@index([creatorId, status])
+  @@index([requiredTierId])
+}
+
+// Structurally identical to Phase 3's CommunityChatMessage (§11.1 of that
+// spec) — a second instance of the same "broadcast chat, no per-user read
+// state" shape, spec §8.2's own comment on this. Two instances doesn't yet
+// justify extracting a shared table (the standing "three similar things
+// before you generalize" guidance), noted for if a third shows up.
+model LivestreamChatMessage {
+  id           String     @id @default(uuid())
+  livestreamId String
+  livestream   Livestream @relation(fields: [livestreamId], references: [id], onDelete: Cascade)
+  senderId     String
+  sender       User       @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  body         String // 1-500 chars, validated at the app layer
+  createdAt    DateTime   @default(now())
+  deletedAt    DateTime?
+
+  @@index([livestreamId, createdAt])
+}
+
+// phase-6 spec §3.1, build plan step 1: the anchor entity for the whole
+// phase — everything else in Phase 6 optionally attaches to a Project, but
+// Project itself only depends on User. Deliberately NOT another Post scope
+// (see spec §9's full reasoning: a Project is a single subject people react
+// to, like Business, not a space people post into — that's what earns it
+// its own ProjectLike/ProjectComment below instead of a fifth
+// Post.<x>_id column). No citext (SQLite, see Community.slug/Business.slug)
+// — lowercased at write time, same as every other slug namespace; this is
+// the fourth reuse of validateSlugFormat (usernames, communities,
+// businesses, now projects — src/lib/reserved-project-slugs.ts).
+// galleryJson/externalLinksJson follow BusinessLocation.hoursJson's exact
+// "JSON text column, not jsonb[]" reasoning — SQLite has no array/jsonb
+// type. status/visibility are plain strings per this schema's existing
+// string-enum convention (see User.status), not Prisma enum blocks (this
+// schema doesn't use any).
+model Project {
+  id                String    @id @default(uuid())
+  slug              String    @unique
+  ownerId           String
+  owner             User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  title             String
+  summary           String    @default("") // 0-280 chars, shown on cards and in search results
+  description       String    @default("") // sanitized markdown, same posture as every other long-form field since phase-1 §7.2
+  coverImageUrl     String?
+  galleryJson       String? // JSON array of up to 12 {url, ...} media entries; null/empty = none
+  status            String    @default("in_progress") // in_progress | completed | archived
+  startedAt         DateTime?
+  completedAt       DateTime?
+  externalLinksJson String? // JSON array of {label, url}; each url validated by isSafeUrl at write time (no javascript:/data:)
+  visibility        String    @default("public") // public | unlisted — see spec §3.3: unlisted is obscurity, not access control
+  featuredOnResume  Boolean   @default(false)
+  likeCount         Int       @default(0)
+  commentCount      Int       @default(0)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  collaborators   ProjectCollaborator[]
+  likes           ProjectLike[]
+  comments        ProjectComment[]
+  skills          ProjectSkill[]
+  gitRepositories GitRepository[]
+  researchPapers  ResearchPaper[]
+
+  @@index([ownerId])
+  @@index([visibility, createdAt])
+}
+
+// spec §3.1: userId is nullable so a collaborator without a 0dot account can
+// still be credited by display_name alone — enforced at the app layer
+// (addCollaborator requires displayName when userId is absent), not a DB
+// CHECK constraint, same "app-layer invariant, not a schema constraint"
+// posture as Follow's followerId != followeeId. The spec's partial unique
+// index on (project_id, user_id) WHERE user_id IS NOT NULL has no Prisma
+// schema representation without a native database extension this codebase
+// doesn't use elsewhere — duplicate-credit prevention for a registered user
+// is enforced the same app-layer way in addCollaborator instead.
+model ProjectCollaborator {
+  id          String   @id @default(uuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  displayName String?
+  role        String?
+  createdAt   DateTime @default(now())
+
+  @@index([projectId])
+}
+
+// phase-6 spec §9: mirrors PostLike exactly (composite PK, no separate id).
+model ProjectLike {
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([projectId, userId])
+}
+
+// phase-6 spec §9: flat comments only, no reply_to_id-equivalent — same
+// simplification phase-1 §5.3 already applied to the general feed. Soft-
+// deleted (deletedAt), never hard-deleted, same posture as Post.
+model ProjectComment {
+  id        String    @id @default(uuid())
+  projectId String
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  body      String // 1-1000 chars, validated at the app layer
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
+
+  @@index([projectId, createdAt])
+}
+
+// phase-6 spec §4.1, build plan step 3. name is free text (not a fixed
+// taxonomy — skill vocabulary is too broad to curate exhaustively, unlike
+// phase-4's business categories), normalized (trimmed, case-folded) at the
+// app layer for near-duplicate comparison only, not a DB constraint —
+// same "app-layer invariant, not schema constraint" posture used
+// throughout this schema. position follows Link.position's manual
+// drag-and-drop-equivalent (up/down swap, see moveLink) ordering
+// convention.
+model Skill {
+  id               String  @id @default(uuid())
+  profileId        String
+  profile          Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  name             String
+  position         Int
+  endorsementCount Int     @default(0)
+
+  endorsements SkillEndorsement[]
+  projects     ProjectSkill[]
+
+  @@index([profileId])
+}
+
+// spec §4.1/§4.2: any logged-in user may endorse any skill once, no
+// relationship gating — same open default phase-2 following already uses.
+// Composite PK makes a repeat endorsement a no-op at the DB level (the
+// idempotency the spec's acceptance criterion asks for), same shape as
+// PollVote/ProjectLike.
+model SkillEndorsement {
+  skillId    String
+  skill      Skill    @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  endorserId String
+  endorser   User     @relation(fields: [endorserId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@id([skillId, endorserId])
+}
+
+// spec §3.1: a Project may credit the Skills it used — pure join table,
+// no attributes of its own.
+model ProjectSkill {
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  skillId   String
+  skill     Skill   @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, skillId])
+}
+
+// phase-6 spec §6.1, build plan step 4. position is a manual override;
+// the default reverse-chronological-by-start_date ordering (spec §6.1's
+// literal wording) is computed at the read path, not stored — same
+// "position overrides a computed default" shape Link.position uses
+// relative to createdAt elsewhere, kept consistent rather than inventing a
+// second convention for the same idea.
+model WorkExperience {
+  id          String    @id @default(uuid())
+  profileId   String
+  profile     Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  company     String
+  title       String
+  location    String?
+  startDate   DateTime
+  endDate     DateTime? // null = current position
+  description String    @default("")
+  position    Int
+
+  @@index([profileId])
+}
+
+model Education {
+  id           String    @id @default(uuid())
+  profileId    String
+  profile      Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  institution  String
+  degree       String?
+  fieldOfStudy String?
+  startDate    DateTime
+  endDate      DateTime?
+  description  String    @default("")
+  position     Int
+
+  @@index([profileId])
+}
+
+// phase-6 spec §5.1/§5.3, build plan step 5. Public repository URLs only —
+// no OAuth token or credential of any kind is stored here, a deliberate
+// scope boundary (§5.3), not an oversight: linking a private repo would
+// need per-user stored provider credentials, a real security-surface
+// increase this phase doesn't need to justify. provider follows this
+// schema's plain-string-enum convention. starCount/description/
+// primaryLanguage/lastSyncedAt are refreshed by src/lib/portfolio-sync.ts
+// on a background schedule (§5.2) — never fetched live on a profile view.
+model GitRepository {
+  id              String    @id @default(uuid())
+  profileId       String
+  profile         Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  projectId       String?
+  project         Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  provider        String // github | gitlab | bitbucket | other
+  url             String
+  displayName     String
+  description     String?
+  primaryLanguage String?
+  starCount       Int?
+  lastSyncedAt    DateTime?
+
+  @@index([profileId])
+  @@index([projectId])
+}
+
+// phase-6 spec §7: research papers, certificates, and awards are all
+// self-attested, never verified against a third-party issuer API (§7.4) —
+// an explicit, named trust boundary (same posture Phase 5 gave podcast
+// RSS gating, §9.2 of that spec), not a silent gap. None of the three
+// exposes verified-style UI (no reuse of the isVerified checkmark
+// treatment used elsewhere) — only a self-reported credential with an
+// optional external link the viewer can check themselves (§7.5).
+
+model ResearchPaper {
+  id          String    @id @default(uuid())
+  profileId   String
+  profile     Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  projectId   String?
+  project     Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  title       String
+  authors     String // free text (e.g. "A. Smith, B. Jones") — not linked Users, co-authors are frequently not 0dot members
+  venue       String?
+  publishDate DateTime?
+  doiOrUrl    String?
+  fileUrl     String? // optional uploaded PDF, same direct-filesystem-write pattern as resumePdfUrl
+  abstract    String    @default("")
+
+  @@index([profileId])
+}
+
+model Certificate {
+  id            String    @id @default(uuid())
+  profileId     String
+  profile       Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  title         String
+  issuingOrg    String
+  issueDate     DateTime
+  expiryDate    DateTime?
+  credentialId  String?
+  credentialUrl String? // external verification link the viewer can independently check, e.g. a Credly badge page
+  badgeImageUrl String?
+
+  @@index([profileId])
+}
+
+model Award {
+  id          String   @id @default(uuid())
+  profileId   String
+  profile     Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  title       String
+  issuingOrg  String?
+  awardedDate DateTime
+  description String   @default("")
+  link        String?
+
+  @@index([profileId])
 }

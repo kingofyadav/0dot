@@ -28,6 +28,7 @@ type NotificationRow = Awaited<ReturnType<typeof fetchRawRows>>[number];
 type DisplayGroup = {
   type: string;
   subjectId: string;
+  subjectType: string;
   actorNames: string[];
   firstActorVerified: boolean;
   createdAt: Date;
@@ -69,6 +70,7 @@ function groupRows(rows: NotificationRow[], recipientHandle: string | null): Dis
     const group: DisplayGroup = {
       type: row.type,
       subjectId: row.subjectId,
+      subjectType: row.subjectType,
       actorNames: [row.actor?.profile?.displayName ?? "Someone"],
       // Only the first actor's badge is shown (spec §3.2's "renders in...
       // notifications") — matches the same "one badge per row" precedent
@@ -90,7 +92,7 @@ function groupRows(rows: NotificationRow[], recipientHandle: string | null): Dis
 }
 
 function GroupDescription({ group }: { group: DisplayGroup }) {
-  const verb = getNotificationVerb(group.type);
+  const verb = getNotificationVerb(group.type, group.subjectType);
   const [first, ...rest] = group.actorNames;
   return (
     <>

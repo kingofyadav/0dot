@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { parseCursor, paginate, POST_PAGE_SIZE } from "@/lib/pagination";
+import { getTierGatingCondition } from "@/lib/post-visibility";
 import { PostCard } from "@/components/PostCard";
 
 const authorInclude = { profile: true, username: true } as const;
@@ -19,13 +20,20 @@ export default async function BookmarksPage({
   const { cursor: rawCursor } = await searchParams;
   const cursor = parseCursor(rawCursor);
 
+  // phase-5 spec §4.3/§13.1: a bookmarked post can be (or become, if the
+  // viewer's subscription later lapses) tier-gated — re-checked here same
+  // as every other post-listing surface, not just at bookmark-creation
+  // time, so a lapsed subscriber can't keep reading gated content forever
+  // through their bookmarks list.
+  const tierGating = await getTierGatingCondition(currentUser.id);
+
   // Bookmark has no single `id` (its key is [postId, userId]) so it can't
   // reuse cursorWhere() as-is — same (createdAt, tiebreaker) composite
   // pattern, just written against postId as the tiebreaker instead.
   const bookmarkRows = await db.bookmark.findMany({
     where: {
       userId: currentUser.id,
-      post: { deletedAt: null },
+      post: { AND: [{ deletedAt: null }, tierGating] },
       ...(cursor
         ? {
             OR: [

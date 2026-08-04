@@ -349,6 +349,23 @@ export async function transferBusinessOwnership(formData: FormData): Promise<voi
   }
 }
 
+// spec §4.1: "owner: full control, including deleting the business and
+// transferring ownership." Every FK to Business in the schema is
+// onDelete: Cascade except Post.businessAuthorId (SetNull) — a business
+// post's author line just loses its business attribution, the post itself
+// (and its author's own authorship) survives, same as spec §5 intends. No
+// separate cleanup needed beyond the one delete call.
+export async function deleteBusiness(formData: FormData): Promise<void> {
+  const user = await requireVerifiedUser();
+  const businessId = String(formData.get("businessId") ?? "");
+  if (!businessId) return;
+  if (!(await isBusinessOwner(businessId, user.id))) return;
+
+  await db.business.delete({ where: { id: businessId } });
+
+  redirect("/b");
+}
+
 // The owner can never leave — they must transfer ownership first (spec
 // §4.2: removing the last owner is prevented). Every other role can leave
 // unconditionally.

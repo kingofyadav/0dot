@@ -58,6 +58,11 @@ type BasicPost = {
   // attributable in the data, just not surfaced in the UI. Same optional/
   // present-everywhere posture as community/flair above.
   businessAuthor?: { id: string; name: string; slug: string; logoUrl: string | null } | null;
+  // phase-5 spec §4.2: display-only — a row only ever reaches here after
+  // already passing getTierGatingCondition's access check, so this badge is
+  // purely informational ("this post required a subscription"), not a
+  // second gate. Same optional/present-everywhere posture as flair above.
+  requiredTier?: { id: string; name: string } | null;
   // phase-3 spec §8: not community-exclusive, same optional/present-
   // everywhere posture. Results always visible (no "hide until you vote").
   poll?: {
@@ -373,6 +378,11 @@ export function PostCard({
               {post.postType === "question" && (
                 <span className="mutedText" style={{ marginInlineStart: "0.4rem", fontSize: "0.8rem" }}>
                   ❓ Question
+                </span>
+              )}
+              {post.requiredTier && (
+                <span className="mutedText" style={{ marginInlineStart: "0.4rem", fontSize: "0.8rem" }}>
+                  🔒 {post.requiredTier.name} subscribers
                 </span>
               )}
             </span>

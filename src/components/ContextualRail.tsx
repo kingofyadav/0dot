@@ -41,7 +41,7 @@ export async function ContextualRail() {
                   ✓
                 </span>
               )}{" "}
-              {getNotificationVerb(n.type)}
+              {getNotificationVerb(n.type, n.subjectType)}
             </Link>
           ))}
         </div>

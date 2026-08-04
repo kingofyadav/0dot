@@ -237,6 +237,13 @@ async function CommunityFeedContent({
       ])
     : [new Set<string>(), new Set<string>()];
   const votedOptionIds = await getVotedPollOptionIds(currentUser?.id, [...pinned, ...posts]);
+  const ownTiers = currentUser
+    ? await db.membershipTier.findMany({
+        where: { creatorId: currentUser.id, status: "active" },
+        select: { id: true, name: true },
+        orderBy: { level: "asc" },
+      })
+    : [];
 
   return (
     <CommunityFeedList
@@ -252,6 +259,7 @@ async function CommunityFeedContent({
       canPost={canPost}
       canModerate={canModerate}
       flairs={flairs}
+      ownTiers={ownTiers}
       activeFlairId={validFlairId}
     />
   );

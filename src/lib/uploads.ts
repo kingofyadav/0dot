@@ -60,6 +60,29 @@ export async function saveUploadedImage(
   return { url };
 }
 
+const ALLOWED_DOCUMENT_TYPES: Record<string, string> = {
+  "application/pdf": "pdf",
+};
+
+// phase-6 spec §6.1/§7.1: resume PDFs and research paper PDFs are optional
+// uploaded documents, same direct-filesystem-write pattern as every other
+// upload here — a dedicated PDF-only allowlist rather than reusing
+// saveMessageAttachment's "file" kind, since that one also accepts images/
+// text and carries message-specific size limits that don't apply here.
+export async function saveDocumentFile(
+  file: File,
+  { maxBytes = 20 * 1024 * 1024 }: { maxBytes?: number } = {}
+): Promise<UploadResult> {
+  const ext = ALLOWED_DOCUMENT_TYPES[file.type];
+  if (!ext) return { error: "Only PDF files are supported." };
+  if (file.size > maxBytes) {
+    return { error: `Files must be ${Math.floor(maxBytes / (1024 * 1024))}MB or smaller.` };
+  }
+
+  const url = await writeToUploadsDir(file, ext);
+  return { url };
+}
+
 export type MessageAttachmentKind = "voice_note" | "file";
 
 export type MessageAttachmentResult = { url: string; mimeType: string; sizeBytes: number } | { error: string };

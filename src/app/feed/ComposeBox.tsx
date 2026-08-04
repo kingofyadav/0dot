@@ -9,6 +9,7 @@ export function ComposeBox({
   communityId,
   flairs,
   postableBusinesses,
+  ownTiers,
 }: {
   communityId?: string;
   // phase-3 spec §6: only ever passed alongside communityId — /feed and
@@ -19,6 +20,10 @@ export function ComposeBox({
   // /feed and /explore compose boxes — a business isn't a CommunityMember,
   // so there's no "post as this business into this community" case to wire.
   postableBusinesses?: { id: string; name: string }[];
+  // phase-5 spec §4.2: this author's own active MembershipTiers, offered
+  // as a "gate this post" picker — createPost re-validates ownership
+  // server-side regardless (see posts.ts), this is just what's offered.
+  ownTiers?: { id: string; name: string }[];
 } = {}) {
   const [state, formAction, pending] = useActionState(createPost, undefined);
   const formRef = useRef<HTMLFormElement>(null);
@@ -82,6 +87,17 @@ export function ComposeBox({
         rows={3}
         className="textInput"
       />
+
+      {ownTiers && ownTiers.length > 0 && (
+        <select name="requiredTierId" defaultValue="" className="textInput" style={{ marginTop: "0.5rem" }}>
+          <option value="">Visible to everyone</option>
+          {ownTiers.map((t) => (
+            <option key={t.id} value={t.id}>
+              🔒 {t.name} subscribers only
+            </option>
+          ))}
+        </select>
+      )}
 
       {previews.length > 0 && (
         <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap" }}>

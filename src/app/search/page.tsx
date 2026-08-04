@@ -1,13 +1,16 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
+import { getCurrentUser } from "@/lib/session";
+import { getPostVisibilityConditions } from "@/lib/post-visibility";
 import { businessCategoryLabel } from "@/lib/business-categories";
 
-type SearchTab = "users" | "posts" | "communities" | "businesses";
+type SearchTab = "users" | "posts" | "communities" | "businesses" | "projects";
 const TABS: { key: SearchTab; label: string }[] = [
   { key: "users", label: "Users" },
   { key: "posts", label: "Posts" },
   { key: "communities", label: "Communities" },
   { key: "businesses", label: "Businesses" },
+  { key: "projects", label: "Projects" },
 ];
 
 function tabHref(q: string, tab: SearchTab) {
@@ -67,6 +70,25 @@ function rankBusinesses<
   });
 }
 
+// phase-6 spec §10: exact title match first, then fuzzy title/summary
+// match, tie-broken by like_count then recency — same exact-then-fuzzy-
+// then-engagement shape rankUsers/rankCommunities/rankBusinesses already
+// established, applied to a fifth entity type rather than inventing a
+// different ranking philosophy for it.
+function rankProjects<T extends { title: string; summary: string; likeCount: number; createdAt: Date }>(
+  rows: T[],
+  query: string
+): T[] {
+  const lowerQ = query.toLowerCase();
+  return rows.slice().sort((a, b) => {
+    const rank = (row: T) => (row.title.toLowerCase() === lowerQ ? 0 : 1);
+    const rankDiff = rank(a) - rank(b);
+    if (rankDiff !== 0) return rankDiff;
+    if (a.likeCount !== b.likeCount) return b.likeCount - a.likeCount;
+    return b.createdAt.getTime() - a.createdAt.getTime();
+  });
+}
+
 export default async function SearchPage({
   searchParams,
 }: {
@@ -74,7 +96,7 @@ export default async function SearchPage({
 }) {
   const { q: rawQ, tab: rawTab } = await searchParams;
   const q = (rawQ ?? "").trim();
-  const tab: SearchTab = (["users", "posts", "communities", "businesses"] as const).includes(
+  const tab: SearchTab = (["users", "posts", "communities", "businesses", "projects"] as const).includes(
     rawTab as SearchTab
   )
     ? (rawTab as SearchTab)
@@ -84,11 +106,16 @@ export default async function SearchPage({
   let posts: Awaited<ReturnType<typeof searchPosts>> = [];
   let communities: Awaited<ReturnType<typeof searchCommunities>> = [];
   let businesses: Awaited<ReturnType<typeof searchBusinesses>> = [];
+  let projects: Awaited<ReturnType<typeof searchProjects>> = [];
   if (q.length > 0) {
     if (tab === "users") users = await searchUsers(q);
-    if (tab === "posts") posts = await searchPosts(q);
+    if (tab === "posts") {
+      const viewerId = (await getCurrentUser())?.id ?? null;
+      posts = await searchPosts(q, viewerId);
+    }
     if (tab === "communities") communities = await searchCommunities(q);
     if (tab === "businesses") businesses = await searchBusinesses(q);
+    if (tab === "projects") projects = await searchProjects(q);
   }
 
   return (
@@ -203,6 +230,20 @@ export default async function SearchPage({
           ))}
         </div>
       )}
+      {q.length > 0 && tab === "projects" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+          {projects.length === 0 && <p className="mutedText">No projects found for &ldquo;{q}&rdquo;.</p>}
+          {projects.map((project) => (
+            <Link key={project.id} href={`/p/${project.slug}`} className="profileLinkItem" style={{ fontWeight: 600 }}>
+              {project.title}
+              <span className="mutedText" style={{ marginLeft: "0.5rem" }}>
+                {project.summary}
+                {project.likeCount > 0 && ` · ♥ ${project.likeCount}`}
+              </span>
+            </Link>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -221,11 +262,22 @@ async function searchUsers(q: string) {
   return rankUsers(rows, q);
 }
 
-async function searchPosts(q: string) {
+// phase-5 spec §4.3/§13.1: same tier-gating + block/community-privacy
+// conditions every other post-listing surface (feed-query.ts,
+// community-feed.ts, trending) applies — search was the one surface that
+// queried Post directly and would otherwise leak a gated post's full body
+// to anyone who searches its text, bypassing the gate entirely.
+async function searchPosts(q: string, viewerId: string | null) {
   const query = q.startsWith("#") ? q.slice(1) : q;
   if (query.length === 0) return [];
+  const visibilityConditions = await getPostVisibilityConditions(viewerId);
   return db.post.findMany({
-    where: { deletedAt: null, replyToId: null, body: { contains: query } },
+    where: {
+      AND: [
+        { deletedAt: null, replyToId: null, body: { contains: query } },
+        ...visibilityConditions,
+      ],
+    },
     orderBy: { createdAt: "desc" },
     take: 20,
     include: { author: { include: { profile: true, username: true } } },
@@ -266,4 +318,22 @@ async function searchBusinesses(q: string) {
     take: 20,
   });
   return rankBusinesses(rows, q);
+}
+
+// phase-6 spec §10: unlisted projects are excluded from the WHERE clause
+// itself, not just ranked lower — same "excluded by construction" posture
+// searchBusinesses already uses for non-active businesses, so an unlisted
+// project can never surface here regardless of match quality (spec §10
+// bullet 3's explicit acceptance criterion).
+async function searchProjects(q: string) {
+  const rows = await db.project.findMany({
+    where: {
+      visibility: "public",
+      status: { not: "archived" },
+      OR: [{ title: { contains: q } }, { summary: { contains: q } }],
+    },
+    select: { id: true, slug: true, title: true, summary: true, likeCount: true, createdAt: true },
+    take: 20,
+  });
+  return rankProjects(rows, q);
 }

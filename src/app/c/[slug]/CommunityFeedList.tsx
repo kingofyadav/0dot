@@ -22,6 +22,7 @@ export function CommunityFeedList({
   canModerate,
   flairs,
   activeFlairId,
+  ownTiers,
 }: {
   communitySlug: string;
   communityId: string;
@@ -36,6 +37,7 @@ export function CommunityFeedList({
   canModerate: boolean;
   flairs: { id: string; label: string; color: string }[];
   activeFlairId: string | null;
+  ownTiers?: { id: string; name: string }[];
 }) {
   const basePath = `/c/${communitySlug}`;
 
@@ -43,7 +45,7 @@ export function CommunityFeedList({
     <div className="profileCard">
       {canPost && (
         <>
-          <ComposeBox communityId={communityId} flairs={flairs} />
+          <ComposeBox communityId={communityId} flairs={flairs} ownTiers={ownTiers} />
           <details className="profileEditToggle" style={{ marginBottom: "1.5rem" }}>
             <summary className="mutedText" style={{ fontSize: "0.85rem", cursor: "pointer" }}>
               + Poll

@@ -34,6 +34,17 @@
   --space-5: 1.25rem;
   --space-6: 1.5rem;
   --space-8: 2rem;
+
+  /* Type scale (DESIGN_SYSTEM.md) — dimensional, not themed, same posture
+     as the spacing scale above. --text-3xl was reserved for "future
+     marketing/landing headlines"; the landing hero below is that moment. */
+  --text-xs: 0.8rem;
+  --text-sm: 0.9rem;
+  --text-base: 1rem;
+  --text-lg: 1.1rem;
+  --text-xl: 1.4rem;
+  --text-2xl: 1.6rem;
+  --text-3xl: 2.25rem;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -183,6 +194,72 @@ html[data-theme="dark"] {
   font-weight: 700;
   margin-bottom: 0.25rem;
   text-align: center;
+}
+
+/* Logged-out landing page only (src/app/page.tsx) — hero + feature
+   overview stacked above the unchanged .authCard. Distinct from
+   .authWrap (still used as-is by login/signup/verify/claim-username,
+   which stay simple centered single-card layouts) since this page needs
+   to stack multiple sections, not center one card. */
+.landingWrap {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2rem;
+  padding: 2rem 1rem;
+  isolation: isolate;
+}
+
+@media (min-width: 1024px) {
+  .landingWrap {
+    gap: 2.5rem;
+    padding: 3rem 1rem;
+  }
+}
+
+.landingWrap::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(560px circle at 25% 10%, var(--accent-soft), transparent 60%),
+    radial-gradient(560px circle at 80% 30%, var(--accent-green-soft), transparent 60%);
+}
+
+/* Hidden on mobile — small screens show the auth form only, no hero
+   text, to get a new visitor straight to signup/login. Shown again at
+   the desktop breakpoint below. */
+.landingHero {
+  display: none;
+  width: 100%;
+  max-width: 640px;
+  text-align: center;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.landingHero h1 {
+  font-size: var(--text-3xl);
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.landingHero p {
+  font-size: var(--text-lg);
+  opacity: 0.75;
+  max-width: 48ch;
+}
+
+@media (min-width: 1024px) {
+  .landingHero {
+    display: flex;
+  }
 }
 
 .field {
@@ -1025,4 +1102,140 @@ html[data-theme="dark"] {
   flex: 1;
   resize: none;
   max-height: 6.5rem;
+}
+
+/* Settings shell: persistent grouped sub-nav + content, GitHub/Stripe/
+   Linear-style. Wider than .profileCard's 640px cap — the shell now holds
+   a sidebar *and* content, and the app grid's main track has real room
+   for it. Individual sections inside .settingsContent still use
+   .profileCard/.field/.textInput unchanged. */
+.settingsShell {
+  width: 100%;
+  max-width: 960px;
+  margin: 2rem auto;
+  padding: 0 1rem;
+}
+
+.settingsShellInner {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.settingsSidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.settingsNavGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.settingsNavGroupLabel {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.5;
+  padding: 0 0.6rem;
+  margin-bottom: 0.25rem;
+}
+
+.settingsNavLink {
+  display: block;
+  padding: 0.45rem 0.6rem;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: var(--foreground);
+  opacity: 0.75;
+  transition: background 0.15s ease, opacity 0.15s ease, color 0.15s ease;
+}
+
+.settingsNavLink:hover {
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+  opacity: 1;
+}
+
+/* Same "accent-tinted, no ambiguity about current state" treatment used
+   for aria-pressed buttons elsewhere (like/endorse buttons) — applied to
+   nav-active instead of toggle-active. */
+.settingsNavLinkActive,
+.settingsNavLinkActive:hover {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  opacity: 1;
+  font-weight: 700;
+}
+
+.settingsContent {
+  min-width: 0;
+}
+
+/* Per-page content wrapper — .profileCard's width/max-width without its
+   margin: 2rem auto centering, which would float content away from the
+   sidebar instead of hugging its column. */
+.settingsSection {
+  width: 100%;
+  max-width: 640px;
+}
+
+.settingsSectionHeading {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+}
+
+@media (min-width: 1024px) {
+  .settingsShellInner {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 2.5rem;
+  }
+
+  .settingsSidebar {
+    flex: 0 0 200px;
+    position: sticky;
+    top: calc(var(--desktop-header-h) + 1.5rem);
+  }
+
+  .settingsContent {
+    flex: 1;
+  }
+}
+
+/* Below 1024px: the grouped vertical sidebar collapses to a flat,
+   horizontally scrollable pill row — same .button.buttonSecondary pill
+   styling /search's tab row and business page tab links already use,
+   rather than inventing a second mobile nav pattern. */
+@media (max-width: 1023px) {
+  .settingsSidebar {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: 0.5rem;
+    padding-bottom: 0.35rem;
+  }
+
+  .settingsNavGroup {
+    flex-direction: row;
+    gap: 0.4rem;
+    flex: 0 0 auto;
+  }
+
+  .settingsNavGroupLabel {
+    display: none;
+  }
+
+  .settingsNavLink {
+    white-space: nowrap;
+    border: 1px solid var(--border);
+  }
+
+  .settingsNavLinkActive {
+    border-color: var(--accent);
+  }
 }

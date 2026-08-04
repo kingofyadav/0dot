@@ -8,10 +8,16 @@ import {
   updateTeamMemberVisibility,
   removeTeamMember,
   transferBusinessOwnership,
+  deleteBusiness,
 } from "@/app/actions/businesses";
+import { deleteBusinessLink, moveBusinessLink } from "@/app/actions/business-links";
+import { deleteLocation } from "@/app/actions/business-locations";
+import { parseBusinessHours } from "@/lib/businesses";
 import { Logo } from "@/components/Logo";
 import { InviteTeamMemberForm } from "./InviteTeamMemberForm";
 import { ManageBusinessForm } from "./ManageBusinessForm";
+import { BusinessLinksForm } from "./BusinessLinksForm";
+import { LocationForm } from "./LocationForm";
 
 const ROLE_LABEL: Record<string, string> = {
   owner: "Owner",
@@ -27,7 +33,7 @@ export default async function ManageBusinessPage({ params }: { params: Promise<{
   const currentUser = await getCurrentUser();
   if (!currentUser) redirect("/login");
 
-  const business = await db.business.findUnique({ where: { slug }, include: { contactInfo: true } });
+  const business = await db.business.findUnique({ where: { slug }, include: { contactInfo: true, locations: true } });
   if (!business) notFound();
 
   // Staff (owner or admin) — a plain member/editor gets sent back to the
@@ -39,6 +45,7 @@ export default async function ManageBusinessPage({ params }: { params: Promise<{
   const viewerMembership = await getBusinessMember(business.id, currentUser.id);
   const isOwner = viewerMembership?.role === "owner";
   const newContactMessageCount = await db.contactMessage.count({ where: { businessId: business.id, status: "new" } });
+  const links = await db.link.findMany({ where: { businessId: business.id }, orderBy: { position: "asc" } });
 
   const members = await db.businessMember.findMany({
     where: { businessId: business.id },
@@ -151,28 +158,120 @@ export default async function ManageBusinessPage({ params }: { params: Promise<{
         website={business.contactInfo?.website ?? null}
       />
 
-      {isOwner && transferCandidates.length > 0 && (
+      <div style={{ marginTop: "1.5rem" }}>
+        <p className="sectionHeading">Locations</p>
+        {business.locations.length === 0 && <p className="mutedText">No locations yet.</p>}
+        {business.locations.map((location) => (
+          <div key={location.id} className="profileLinkItem" style={{ flexDirection: "column", alignItems: "stretch", gap: "0.35rem", marginBottom: "0.5rem" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span>
+                <strong>{location.label}</strong> <span className="mutedText">{location.address}</span>
+              </span>
+              <form action={deleteLocation}>
+                <input type="hidden" name="locationId" value={location.id} />
+                <button type="submit" className="button buttonDanger buttonSmall">Delete</button>
+              </form>
+            </div>
+            <details className="profileEditToggle">
+              <summary className="mutedText" style={{ fontSize: "0.85rem" }}>Edit</summary>
+              <div style={{ marginTop: "0.5rem" }}>
+                <LocationForm
+                  businessId={business.id}
+                  location={{ ...location, hours: parseBusinessHours(location.hoursJson) }}
+                />
+              </div>
+            </details>
+          </div>
+        ))}
+        <details className="profileEditToggle" style={{ marginTop: "0.5rem" }}>
+          <summary>Add a location</summary>
+          <div style={{ marginTop: "0.5rem" }}>
+            <LocationForm businessId={business.id} />
+          </div>
+        </details>
+      </div>
+
+      <div className="linksSection" style={{ marginTop: "1.5rem" }}>
+        <p className="sectionHeading">Links</p>
+        {links.length === 0 && <p className="mutedText">No links yet.</p>}
+        {links.map((link, index) => (
+          <div key={link.id} className="profileLinkItem" style={{ flexDirection: "column", alignItems: "stretch", gap: "0.35rem" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <a href={`/r/${link.id}`} target="_blank" rel="noopener noreferrer nofollow" style={{ flex: 1, fontWeight: 600 }}>
+                {link.label}
+              </a>
+              <span className="mutedText" style={{ fontSize: "0.8rem" }}>
+                {link.clickCount} click{link.clickCount === 1 ? "" : "s"}
+              </span>
+              <div style={{ display: "flex", gap: "0.35rem" }}>
+                <form action={moveBusinessLink}>
+                  <input type="hidden" name="businessId" value={business.id} />
+                  <input type="hidden" name="linkId" value={link.id} />
+                  <input type="hidden" name="direction" value="up" />
+                  <button type="submit" className="button buttonSecondary iconButton" disabled={index === 0} aria-label="Move up">↑</button>
+                </form>
+                <form action={moveBusinessLink}>
+                  <input type="hidden" name="businessId" value={business.id} />
+                  <input type="hidden" name="linkId" value={link.id} />
+                  <input type="hidden" name="direction" value="down" />
+                  <button type="submit" className="button buttonSecondary iconButton" disabled={index === links.length - 1} aria-label="Move down">↓</button>
+                </form>
+                <form action={deleteBusinessLink}>
+                  <input type="hidden" name="businessId" value={business.id} />
+                  <input type="hidden" name="linkId" value={link.id} />
+                  <button type="submit" className="button buttonSecondary iconButton" aria-label="Delete">✕</button>
+                </form>
+              </div>
+            </div>
+          </div>
+        ))}
+        <div style={{ marginTop: "0.75rem" }}>
+          <BusinessLinksForm businessId={business.id} />
+        </div>
+      </div>
+
+      {isOwner && (
         <div style={{ marginTop: "2rem", paddingTop: "1.5rem", borderTop: "1px solid var(--border)" }}>
           <p className="sectionHeading">Danger zone</p>
-          <details className="profileEditToggle">
+          {transferCandidates.length > 0 && (
+            <details className="profileEditToggle">
+              <summary className="mutedText" style={{ fontSize: "0.85rem" }}>
+                Transfer ownership
+              </summary>
+              <div style={{ marginTop: "0.6rem", display: "flex", flexDirection: "column", gap: "0.6rem", maxWidth: "32ch" }}>
+                <p className="mutedText" style={{ fontSize: "0.85rem" }}>
+                  You&apos;ll become an admin. The new owner is the only one who can transfer it again.
+                </p>
+                <form action={transferBusinessOwnership} style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                  <input type="hidden" name="businessId" value={business.id} />
+                  <select name="userId" required>
+                    {transferCandidates.map((m) => (
+                      <option key={m.userId} value={m.userId}>
+                        {memberName(m)}
+                      </option>
+                    ))}
+                  </select>
+                  <button type="submit" className="button buttonDanger buttonSmall">
+                    Yes, transfer ownership
+                  </button>
+                </form>
+              </div>
+            </details>
+          )}
+
+          <details className="profileEditToggle" style={{ marginTop: "0.5rem" }}>
             <summary className="mutedText" style={{ fontSize: "0.85rem" }}>
-              Transfer ownership
+              Delete business
             </summary>
             <div style={{ marginTop: "0.6rem", display: "flex", flexDirection: "column", gap: "0.6rem", maxWidth: "32ch" }}>
               <p className="mutedText" style={{ fontSize: "0.85rem" }}>
-                You&apos;ll become an admin. The new owner is the only one who can transfer it again.
+                Permanently deletes {business.name} — team, catalog, reviews, jobs, appointments, and
+                documents all go with it. This cannot be undone.
               </p>
-              <form action={transferBusinessOwnership} style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+              <form action={deleteBusiness}>
                 <input type="hidden" name="businessId" value={business.id} />
-                <select name="userId" required>
-                  {transferCandidates.map((m) => (
-                    <option key={m.userId} value={m.userId}>
-                      {memberName(m)}
-                    </option>
-                  ))}
-                </select>
                 <button type="submit" className="button buttonDanger buttonSmall">
-                  Yes, transfer ownership
+                  Yes, delete {business.name}
                 </button>
               </form>
             </div>

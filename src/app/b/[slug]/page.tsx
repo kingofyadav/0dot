@@ -29,17 +29,18 @@ const SIZE_RANGE_LABEL: Record<string, string> = {
 };
 
 // Identity header + about content (build plan step 1) plus links to every
-// other tab this phase builds (Catalog, Store, Reviews, Jobs, Appointments,
-// Documents) — a business-authored Posts feed isn't a separate tab here
-// (spec §5: business posts show up in the normal feed/profile surfaces via
-// PostCard's business author line, not a dedicated route).
+// other tab this phase builds (Posts, Catalog, Store, Reviews, Jobs,
+// Appointments, Documents) — spec §6 lists a business post feed as one of
+// these tabs; composing as the business still happens from the global
+// /feed "Post as" picker (ComposeBox's postableBusinesses prop, spec §5),
+// this tab is just the browsable feed.
 export default async function BusinessPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug: rawSlug } = await params;
   const slug = decodeURIComponent(rawSlug).toLowerCase();
 
   const business = await db.business.findUnique({
     where: { slug },
-    include: { contactInfo: true, locations: true },
+    include: { contactInfo: true, locations: true, links: { orderBy: { position: "asc" } } },
   });
   if (!business) notFound();
 
@@ -97,6 +98,9 @@ export default async function BusinessPage({ params }: { params: Promise<{ slug:
               )}
             </h1>
             <div className="profileActions">
+              <Link href={`/b/${business.slug}/posts`} className="button buttonSecondary">
+                Posts
+              </Link>
               <Link href={`/b/${business.slug}/catalog`} className="button buttonSecondary">
                 Catalog
               </Link>
@@ -184,6 +188,19 @@ export default async function BusinessPage({ params }: { params: Promise<{ slug:
               );
             })}
           </div>
+        </div>
+      )}
+
+      {business.links.length > 0 && (
+        <div className="linksSection" style={{ marginTop: "0.75rem" }}>
+          <p className="sectionHeading">Links</p>
+          {business.links.map((link) => (
+            <div key={link.id} className="profileLinkItem">
+              <a href={`/r/${link.id}`} target="_blank" rel="noopener noreferrer nofollow" style={{ flex: 1, fontWeight: 600 }}>
+                {link.label}
+              </a>
+            </div>
+          ))}
         </div>
       )}
 

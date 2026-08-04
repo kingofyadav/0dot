@@ -33,6 +33,13 @@ export default async function ExplorePage({
     : [new Set<string>(), new Set<string>()];
   const votedOptionIds = await getVotedPollOptionIds(currentUser?.id, posts);
   const postableBusinesses = currentUser ? await getPostableBusinesses(currentUser.id) : [];
+  const ownTiers = currentUser
+    ? await db.membershipTier.findMany({
+        where: { creatorId: currentUser.id, status: "active" },
+        select: { id: true, name: true },
+        orderBy: { level: "asc" },
+      })
+    : [];
 
   return (
     <FeedList
@@ -44,6 +51,7 @@ export default async function ExplorePage({
       nextCursor={nextCursor}
       basePath="/explore"
       postableBusinesses={postableBusinesses}
+      ownTiers={ownTiers}
     />
   );
 }

@@ -1,7 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { cursorWhere, paginate, POST_PAGE_SIZE, type PostCursor } from "@/lib/pagination";
-import { getBlockedEitherWayUserIds } from "@/lib/post-visibility";
+import { getBlockedEitherWayUserIds, getTierGatingCondition } from "@/lib/post-visibility";
 import {
   authorInclude,
   mediaInclude,
@@ -9,6 +9,7 @@ import {
   flairInclude,
   businessAuthorInclude,
   pollInclude,
+  requiredTierInclude,
 } from "@/lib/feed-query";
 
 function buildPostInclude(blockedIds: string[]) {
@@ -19,7 +20,8 @@ function buildPostInclude(blockedIds: string[]) {
     flair: flairInclude,
     businessAuthor: businessAuthorInclude,
     poll: pollInclude,
-    repostOf: { include: { author: { include: authorInclude }, media: mediaInclude } },
+    requiredTier: requiredTierInclude,
+    repostOf: { include: { author: { include: authorInclude }, media: mediaInclude, requiredTier: requiredTierInclude } },
     replies: {
       where: { deletedAt: null, authorId: { notIn: blockedIds } },
       orderBy: { createdAt: "asc" as const },
@@ -51,8 +53,11 @@ export async function getCommunityFeedPosts({
   const flairFilter = flairId ? { flairId } : {};
   // Community-privacy is already gated at the page level by canViewContent
   // (src/app/c/[slug]/page.tsx) — this only needs the block exclusion that
-  // canViewContent doesn't cover.
+  // canViewContent doesn't cover, plus tier gating (see getTierGatingCondition's
+  // own comment: not community-scoped, so this page needs it too even
+  // though it skips the rest of getPostVisibilityConditions).
   const blockedIds = viewerId ? await getBlockedEitherWayUserIds(viewerId) : [];
+  const tierGating = await getTierGatingCondition(viewerId);
   const postInclude = buildPostInclude(blockedIds);
   const authorBlockFilter = { authorId: { notIn: blockedIds } };
 
@@ -66,6 +71,7 @@ export async function getCommunityFeedPosts({
             pinnedAt: { not: null },
             ...flairFilter,
             ...authorBlockFilter,
+            AND: [tierGating],
           },
           orderBy: [{ pinnedAt: "desc" }, { id: "desc" }],
           include: postInclude,
@@ -80,7 +86,7 @@ export async function getCommunityFeedPosts({
       pinnedAt: null,
       ...flairFilter,
       ...authorBlockFilter,
-      ...cursorWhere(cursor),
+      AND: [tierGating, cursorWhere(cursor)],
     },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: POST_PAGE_SIZE + 1,

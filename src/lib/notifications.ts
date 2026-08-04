@@ -38,8 +38,11 @@ type NotificationInput = {
     | "appointment_request"
     | "appointment_confirmed"
     | "appointment_cancelled"
-    | "tip_received";
-  subjectType: "post" | "user" | "message" | "community" | "business";
+    | "tip_received"
+    | "new_subscriber"
+    | "affiliate_conversion"
+    | "livestream_started";
+  subjectType: "post" | "user" | "message" | "community" | "business" | "livestream" | "project" | "skill";
   subjectId: string;
 };
 
@@ -94,6 +97,41 @@ export function notifyReply(args: { recipientId: string; actorId: string; subjec
 
 export function notifyMention(args: { recipientId: string; actorId: string; subjectId: string }): Promise<void> {
   return createNotification({ ...args, type: "mention", subjectType: "post" });
+}
+
+// phase-6 spec §9.1: reuses the existing like/comment type values with
+// subjectType: "project" instead of growing Notification.type — the
+// restraint phase-3 §15/phase-4 §13 already showed, extended one step
+// further (even the *subject* type list grows before the *action* type
+// list does). subjectId is the project's *slug*, not its id — same "store
+// exactly what getNotificationHref needs to route somewhere useful"
+// precedent notifyCommunityUpdate/notifyBusinessReview already set, since
+// /p/{slug} is what a viewer actually needs to reach the project.
+// getNotificationHref/getNotificationVerb below both branch on subjectType
+// to route/word these correctly instead of assuming "post" the way the
+// bare like/comment case used to.
+export function notifyProjectLike(args: { recipientId: string; actorId: string; projectSlug: string }): Promise<void> {
+  return createNotification({ recipientId: args.recipientId, actorId: args.actorId, type: "like", subjectType: "project", subjectId: args.projectSlug });
+}
+
+export function notifyProjectComment(args: { recipientId: string; actorId: string; projectSlug: string }): Promise<void> {
+  return createNotification({ recipientId: args.recipientId, actorId: args.actorId, type: "comment", subjectType: "project", subjectId: args.projectSlug });
+}
+
+// phase-6 spec §9.1: a skill endorsement also reuses "like" (§9.1: "a skill
+// endorsement reuses like with subject_type = skill"). subjectId is the
+// *skill's* id, not the endorser's — "like" is dedupable (DEDUPABLE_TYPES
+// above), and dedup keys on (recipientId, actorId, type, subjectId); using
+// the endorser's id there (the way notifyTipReceived uses subjectId=actorId)
+// would make endorsing a second, different skill within the aggregation
+// window silently produce no notification at all, since the same endorser
+// would collide on the same key regardless of which skill. Keying on the
+// skill's id instead means two different skills endorsed by the same
+// person correctly produce two independent (and independently
+// aggregatable) notifications. No skill permalink exists, so
+// getNotificationHref still routes via the actor relation, not subjectId.
+export function notifySkillEndorsement(args: { recipientId: string; actorId: string; skillId: string }): Promise<void> {
+  return createNotification({ recipientId: args.recipientId, actorId: args.actorId, type: "like", subjectType: "skill", subjectId: args.skillId });
 }
 
 // Resolves @handles found in a post body to real users and fires a mention
@@ -290,6 +328,48 @@ export function notifyTipReceived(args: { recipientId: string; actorId: string }
   });
 }
 
+// spec §12: fires to the creator when a MembershipSubscription becomes
+// active. subjectId is the new subscriber's own id — same shape
+// notifyTipReceived/notifyNewFollower already use.
+export function notifyNewSubscriber(args: { recipientId: string; actorId: string }): Promise<void> {
+  return createNotification({
+    recipientId: args.recipientId,
+    actorId: args.actorId,
+    type: "new_subscriber",
+    subjectType: "user",
+    subjectId: args.actorId,
+  });
+}
+
+// spec §12: fires to the affiliate on a credited AffiliateConversion.
+// subjectId is the buyer's id (the actor) — there's no dedicated
+// conversion permalink, same "link to whoever caused this" precedent as
+// tip_received.
+export function notifyAffiliateConversion(args: { recipientId: string; actorId: string }): Promise<void> {
+  return createNotification({
+    recipientId: args.recipientId,
+    actorId: args.actorId,
+    type: "affiliate_conversion",
+    subjectType: "user",
+    subjectId: args.actorId,
+  });
+}
+
+// spec §12: fires to qualifying subscribers/followers when a creator's
+// Livestream transitions to `live`. subjectId is the livestream id — the
+// one type here that needs a real subjectId (not just "the actor") since
+// getNotificationHref must route to the specific stream, not the
+// creator's profile.
+export function notifyLivestreamStarted(args: { recipientId: string; actorId: string; livestreamId: string }): Promise<void> {
+  return createNotification({
+    recipientId: args.recipientId,
+    actorId: args.actorId,
+    type: "livestream_started",
+    subjectType: "livestream",
+    subjectId: args.livestreamId,
+  });
+}
+
 export function getUnreadNotificationCount(userId: string): Promise<number> {
   return db.notification.count({ where: { recipientId: userId, readAt: null } });
 }
@@ -310,11 +390,19 @@ export function getRecentNotificationsPreview(userId: string, limit: number) {
 // Shared by the rail preview and the full /notifications list — a single
 // actor's action reads as "{name} {verb}"; the full list composes the same
 // verb onto an aggregated group ("{name} and 12 others {verb}").
-export function getNotificationVerb(type: string): string {
+// phase-6: like/comment are shared by post, project, and (like only) skill
+// subjects now — subjectType picks the right wording. Defaults to the
+// original post-only wording when subjectType is omitted so every existing
+// call site (which only ever produced post notifications) keeps working
+// unchanged.
+export function getNotificationVerb(type: string, subjectType?: string): string {
   switch (type) {
     case "like":
+      if (subjectType === "project") return "liked your project";
+      if (subjectType === "skill") return "endorsed your skill";
       return "liked your post";
     case "comment":
+      if (subjectType === "project") return "commented on your project";
       return "replied to your post";
     case "mention":
       return "mentioned you";
@@ -347,6 +435,12 @@ export function getNotificationVerb(type: string): string {
       return "cancelled your appointment";
     case "tip_received":
       return "sent you a tip";
+    case "new_subscriber":
+      return "subscribed to your membership";
+    case "affiliate_conversion":
+      return "made a purchase through your affiliate link";
+    case "livestream_started":
+      return "started a livestream";
     default:
       return "";
   }
@@ -361,16 +455,35 @@ export function getNotificationVerb(type: string): string {
 // reachable anchor (profile Posts queries filter replyToId: null) — this
 // degrades to the actor's bare profile URL in that case, an accepted gap.
 export function getNotificationHref(
-  n: { type: string; subjectId: string; actor: { username: { handle: string } | null } | null },
+  n: {
+    type: string;
+    subjectId: string;
+    subjectType: string;
+    actor: { username: { handle: string } | null } | null;
+  },
   recipientHandle: string | null
 ): string {
   switch (n.type) {
+    // phase-6: like/comment now also fire for project subjects (routes to
+    // the project's own permalink, subjectId = slug — see
+    // notifyProjectLike/notifyProjectComment) and skill subjects (no
+    // permalink to route to, so it falls through to the actor-profile case
+    // below alongside tip_received/new_subscriber). Must check subjectType
+    // first — assuming "post" unconditionally here was the bug this phase
+    // found: a project like would otherwise mis-route to a nonexistent
+    // #post-{projectId} anchor on the recipient's own profile.
     case "like":
     case "comment":
+      if (n.subjectType === "project") return `/p/${n.subjectId}`;
+      if (n.subjectType === "skill") {
+        return n.actor?.username?.handle ? `/${n.actor.username.handle}` : "/feed";
+      }
       return recipientHandle ? `/${recipientHandle}#post-${n.subjectId}` : "/feed";
     case "mention":
     case "new_follower":
     case "tip_received":
+    case "new_subscriber":
+    case "affiliate_conversion":
       return n.actor?.username?.handle ? `/${n.actor.username.handle}` : "/feed";
     case "message":
       return `/messages/${n.subjectId}`;
@@ -388,6 +501,8 @@ export function getNotificationHref(
     case "appointment_confirmed":
     case "appointment_cancelled":
       return `/b/${n.subjectId}/appointments`;
+    case "livestream_started":
+      return `/live/${n.subjectId}`;
     default:
       return "/notifications";
   }

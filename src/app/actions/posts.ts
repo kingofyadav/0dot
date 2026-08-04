@@ -91,6 +91,25 @@ export async function createPost(
     if (businessContext) businessAuthorId = businessContext.businessId;
   }
 
+  // phase-5 spec §4.2: a gated post is still a top-level post — reusing the
+  // same requiredTierId-null-means-ungated field Post already carries, not
+  // a separate "gated post" entity. Only meaningful for a top-level post
+  // (same reasoning as communityId/businessAuthorId above), and only ever
+  // settable to one of the *author's own* active tiers — trusting a raw
+  // client-submitted tierId without this check would let anyone gate a post
+  // behind someone else's paywall.
+  let requiredTierId: string | null = null;
+  if (!replyToId) {
+    const requiredTierRaw = String(formData.get("requiredTierId") ?? "").trim() || null;
+    if (requiredTierRaw) {
+      const tier = await db.membershipTier.findUnique({ where: { id: requiredTierRaw }, select: { creatorId: true, status: true } });
+      if (!tier || tier.creatorId !== user.id || tier.status !== "active") {
+        return { error: "Choose one of your own active membership tiers." };
+      }
+      requiredTierId = requiredTierRaw;
+    }
+  }
+
   // phase-3 spec §9: a question is structurally identical to a normal post
   // (same body/media/community/flair fields), just flagged — unlike polls,
   // which have a genuinely different compose shape and get their own
@@ -124,7 +143,7 @@ export async function createPost(
     await notifyReply({ recipientId: parent.authorId, actorId: user.id, subjectId: replyToId });
   } else {
     const newPost = await db.post.create({
-      data: { authorId: user.id, body, communityId, flairId, businessAuthorId, postType, media: { create: mediaCreates } },
+      data: { authorId: user.id, body, communityId, flairId, businessAuthorId, postType, requiredTierId, media: { create: mediaCreates } },
     });
     newPostId = newPost.id;
   }

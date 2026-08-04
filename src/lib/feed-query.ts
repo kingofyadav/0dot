@@ -27,6 +27,12 @@ export const businessAuthorInclude = { select: { id: true, name: true, slug: tru
 export const pollInclude = {
   include: { options: { orderBy: { position: "asc" as const }, include: { _count: { select: { votes: true } } } } },
 } as const;
+// phase-5 spec §4.2: lets PostCard show a "Subscribers only" badge on a
+// gated post — same "present on every surface" reasoning as
+// communityInclude/flairInclude/businessAuthorInclude above. Rows that
+// reach this far already passed getPostVisibilityConditions' tier gate, so
+// this is purely a display label, not a second access check.
+export const requiredTierInclude = { select: { id: true, name: true } } as const;
 
 // Shared by every page that renders posts-with-polls (/feed, /explore, the
 // community feed) — one query for "which of these posts' poll options has
@@ -80,7 +86,8 @@ export async function getFeedPosts({
       flair: flairInclude,
       businessAuthor: businessAuthorInclude,
       poll: pollInclude,
-      repostOf: { include: { author: { include: authorInclude }, media: mediaInclude } },
+      requiredTier: requiredTierInclude,
+      repostOf: { include: { author: { include: authorInclude }, media: mediaInclude, requiredTier: requiredTierInclude } },
       replies: {
         where: { deletedAt: null, authorId: { notIn: blockedIds } },
         orderBy: { createdAt: "asc" },
