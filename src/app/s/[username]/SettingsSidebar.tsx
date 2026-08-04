@@ -33,6 +33,7 @@ function groups(handle: string): NavGroup[] {
         { href: `${base}/monetization/payouts`, label: "Payouts" },
         { href: `${base}/monetization/memberships`, label: "Memberships" },
         { href: `${base}/monetization/products`, label: "Digital products" },
+        { href: `${base}/monetization/services`, label: "Freelance services" },
         { href: `${base}/monetization/affiliate`, label: "Affiliate" },
       ],
     },

@@ -41,8 +41,9 @@ type NotificationInput = {
     | "tip_received"
     | "new_subscriber"
     | "affiliate_conversion"
-    | "livestream_started";
-  subjectType: "post" | "user" | "message" | "community" | "business" | "livestream" | "project" | "skill" | "article" | "wiki_page" | "book" | "published_file";
+    | "livestream_started"
+    | "event_cancelled";
+  subjectType: "post" | "user" | "message" | "community" | "business" | "livestream" | "project" | "skill" | "article" | "wiki_page" | "book" | "published_file" | "event";
   subjectId: string;
 };
 
@@ -295,45 +296,49 @@ export function notifyApplicationStatusChange(args: {
 // party" — staff for a new request, the customer for a confirmation or
 // cancellation. subjectId is the business slug (both the staff manage page
 // and the customer's own appointments page only need that to route).
-export function notifyAppointmentRequest(args: {
-  recipientId: string;
-  actorId: string;
-  businessSlug: string;
-}): Promise<void> {
+// phase-9 spec §3.2: an individual seller has no business slug to route
+// through, so the owner ref is now a discriminated union — subjectType
+// becomes "user" (subjectId = seller's handle) for that case, "business"
+// (subjectId = slug, unchanged) otherwise. getNotificationHref branches on
+// subjectType for these three types accordingly.
+type AppointmentOwnerRef = { businessSlug: string; sellerHandle?: undefined } | { sellerHandle: string; businessSlug?: undefined };
+
+function appointmentOwnerSubject(owner: AppointmentOwnerRef): Pick<NotificationInput, "subjectType" | "subjectId"> {
+  return owner.businessSlug !== undefined
+    ? { subjectType: "business", subjectId: owner.businessSlug }
+    : { subjectType: "user", subjectId: owner.sellerHandle };
+}
+
+export function notifyAppointmentRequest(
+  args: { recipientId: string; actorId: string } & AppointmentOwnerRef
+): Promise<void> {
   return createNotification({
     recipientId: args.recipientId,
     actorId: args.actorId,
     type: "appointment_request",
-    subjectType: "business",
-    subjectId: args.businessSlug,
+    ...appointmentOwnerSubject(args),
   });
 }
 
-export function notifyAppointmentConfirmed(args: {
-  recipientId: string;
-  actorId: string;
-  businessSlug: string;
-}): Promise<void> {
+export function notifyAppointmentConfirmed(
+  args: { recipientId: string; actorId: string } & AppointmentOwnerRef
+): Promise<void> {
   return createNotification({
     recipientId: args.recipientId,
     actorId: args.actorId,
     type: "appointment_confirmed",
-    subjectType: "business",
-    subjectId: args.businessSlug,
+    ...appointmentOwnerSubject(args),
   });
 }
 
-export function notifyAppointmentCancelled(args: {
-  recipientId: string;
-  actorId: string;
-  businessSlug: string;
-}): Promise<void> {
+export function notifyAppointmentCancelled(
+  args: { recipientId: string; actorId: string } & AppointmentOwnerRef
+): Promise<void> {
   return createNotification({
     recipientId: args.recipientId,
     actorId: args.actorId,
     type: "appointment_cancelled",
-    subjectType: "business",
-    subjectId: args.businessSlug,
+    ...appointmentOwnerSubject(args),
   });
 }
 
@@ -394,6 +399,55 @@ export function notifyLivestreamStarted(args: { recipientId: string; actorId: st
   });
 }
 
+// phase-8 spec §8.2/§8.4: fires to every current EventRSVP (going/interested)
+// and every non-cancelled Ticket holder on an event's published->cancelled
+// transition — not ticket-holders-only (§8.4's literal acceptance
+// criterion). subjectId is the event's slug, same "subjectId is whatever
+// getNotificationHref needs to link somewhere useful" precedent every other
+// producer here follows. actorId is the host/staff member who cancelled —
+// a real second party in the normal case, so this goes through the shared
+// createNotification (including its self-notification skip, which is the
+// right behavior if a host who'd also RSVP'd cancels their own event).
+export function notifyEventCancelled(args: { recipientId: string; actorId: string; eventSlug: string }): Promise<void> {
+  return createNotification({
+    recipientId: args.recipientId,
+    actorId: args.actorId,
+    type: "event_cancelled",
+    subjectType: "event",
+    subjectId: args.eventSlug,
+  });
+}
+
+// spec §8.2: event_reminder/ticket_purchased have no real second-party
+// actor — a reminder is time-triggered, and a purchase receipt's recipient
+// IS the person who caused it (the buyer). createNotification's
+// recipientId===actorId guard exists for like/comment-style "someone else
+// did something to you" cases and would silently drop both of these, so
+// they write directly rather than route through it. No dedup either (each
+// purchase/reminder is independently meaningful, same posture as message).
+async function createSystemEventNotification(args: {
+  recipientId: string;
+  type: "event_reminder" | "ticket_purchased";
+  eventSlug: string;
+}): Promise<void> {
+  await db.notification.create({
+    data: { recipientId: args.recipientId, actorId: null, type: args.type, subjectType: "event", subjectId: args.eventSlug },
+  });
+  publishToUsers([args.recipientId], { type: "notification" });
+}
+
+export function notifyTicketPurchased(args: { recipientId: string; eventSlug: string }): Promise<void> {
+  return createSystemEventNotification({ recipientId: args.recipientId, type: "ticket_purchased", eventSlug: args.eventSlug });
+}
+
+// No producer wired yet — event_reminder needs a scheduled-job mechanism
+// this spec itself calls "an infra concern, not specified further here"
+// (§8.2), same placement notifyCommunityInvite (Phase 3 §15) already
+// occupies: schema/type ready, not built speculatively.
+export function notifyEventReminder(args: { recipientId: string; eventSlug: string }): Promise<void> {
+  return createSystemEventNotification({ recipientId: args.recipientId, type: "event_reminder", eventSlug: args.eventSlug });
+}
+
 export function getUnreadNotificationCount(userId: string): Promise<number> {
   return db.notification.count({ where: { recipientId: userId, readAt: null } });
 }
@@ -428,6 +482,7 @@ export function getNotificationVerb(type: string, subjectType?: string): string 
       if (subjectType === "wiki_page") return "liked your page";
       if (subjectType === "book") return "liked your book";
       if (subjectType === "published_file") return "liked your file";
+      if (subjectType === "event") return "liked your event";
       return "liked your post";
     case "comment":
       if (subjectType === "project") return "commented on your project";
@@ -435,6 +490,7 @@ export function getNotificationVerb(type: string, subjectType?: string): string 
       if (subjectType === "wiki_page") return "commented on your page";
       if (subjectType === "book") return "commented on your book";
       if (subjectType === "published_file") return "commented on your file";
+      if (subjectType === "event") return "commented on your event";
       return "replied to your post";
     case "mention":
       return "mentioned you";
@@ -473,6 +529,12 @@ export function getNotificationVerb(type: string, subjectType?: string): string 
       return "made a purchase through your affiliate link";
     case "livestream_started":
       return "started a livestream";
+    case "event_cancelled":
+      return "cancelled an event you're attending";
+    case "ticket_purchased":
+      return "Your ticket purchase is confirmed";
+    case "event_reminder":
+      return "Reminder: an event you're attending starts soon";
     default:
       return "";
   }
@@ -514,7 +576,8 @@ export function getNotificationHref(
         n.subjectType === "article" ||
         n.subjectType === "wiki_page" ||
         n.subjectType === "book" ||
-        n.subjectType === "published_file"
+        n.subjectType === "published_file" ||
+        n.subjectType === "event"
       ) {
         return `/${n.subjectId}`;
       }
@@ -540,12 +603,16 @@ export function getNotificationHref(
     case "application_status":
       return `/b/${n.subjectId}`;
     case "appointment_request":
-      return `/b/${n.subjectId}/appointments/manage`;
+      return n.subjectType === "user" ? `/s/${n.subjectId}/monetization/services` : `/b/${n.subjectId}/appointments/manage`;
     case "appointment_confirmed":
     case "appointment_cancelled":
-      return `/b/${n.subjectId}/appointments`;
+      return n.subjectType === "user" ? `/s/${n.subjectId}/monetization/services` : `/b/${n.subjectId}/appointments`;
     case "livestream_started":
       return `/live/${n.subjectId}`;
+    case "event_cancelled":
+    case "ticket_purchased":
+    case "event_reminder":
+      return `/e/${n.subjectId}`;
     default:
       return "/notifications";
   }

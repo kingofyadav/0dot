@@ -99,11 +99,30 @@ async function resolvePublishedFileSubject(subjectId: string): Promise<ResolvedS
   return { ownerId: file.profile.userId, path: `${handle}/files/${file.slug}` };
 }
 
+// phase-8 spec §8.1: the first phase to actually reuse the generalized
+// primitive for a new content type since it was introduced. subjectId is
+// the Event's id (not its slug, unlike every other resolver here) since
+// toggleReaction/createComment are called with whatever the caller already
+// has in hand from the page — the event detail page already has the row
+// loaded by id, so no extra lookup is needed to resolve id -> slug first.
+// ownerId is always Event.createdBy — never null, unlike WikiPage's
+// community-owned case, since createdBy is guaranteed set regardless of
+// which of the three host types is set (build plan §4).
+async function resolveEventSubject(subjectId: string): Promise<ResolvedSubject | null> {
+  const event = await db.event.findUnique({
+    where: { id: subjectId },
+    select: { slug: true, createdBy: true },
+  });
+  if (!event) return null;
+  return { ownerId: event.createdBy, path: `e/${event.slug}` };
+}
+
 const SUBJECT_RESOLVERS: Record<string, (subjectId: string) => Promise<ResolvedSubject | null>> = {
   article: resolveArticleSubject,
   wiki_page: resolveWikiPageSubject,
   book: resolveBookSubject,
   published_file: resolvePublishedFileSubject,
+  event: resolveEventSubject,
 };
 
 async function resolveSubject(subjectType: string, subjectId: string): Promise<ResolvedSubject | null> {

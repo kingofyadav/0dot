@@ -3,8 +3,9 @@ import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { getPostVisibilityConditions } from "@/lib/post-visibility";
 import { businessCategoryLabel } from "@/lib/business-categories";
+import { fetchAllMarketplaceCategories } from "@/lib/marketplace-browse";
 
-type SearchTab = "users" | "posts" | "communities" | "businesses" | "projects" | "knowledge";
+type SearchTab = "users" | "posts" | "communities" | "businesses" | "projects" | "knowledge" | "events" | "marketplace";
 const TABS: { key: SearchTab; label: string }[] = [
   { key: "users", label: "Users" },
   { key: "posts", label: "Posts" },
@@ -12,10 +13,16 @@ const TABS: { key: SearchTab; label: string }[] = [
   { key: "businesses", label: "Businesses" },
   { key: "projects", label: "Projects" },
   { key: "knowledge", label: "Articles & Docs" },
+  { key: "events", label: "Events" },
+  { key: "marketplace", label: "Marketplace" },
 ];
 
 function tabHref(q: string, tab: SearchTab) {
   return `/search?q=${encodeURIComponent(q)}&tab=${tab}`;
+}
+
+function eventWhenHref(q: string, when: "upcoming" | "past") {
+  return `/search?q=${encodeURIComponent(q)}&tab=events&when=${when}`;
 }
 
 function rankUsers<
@@ -90,18 +97,34 @@ function rankProjects<T extends { title: string; summary: string; likeCount: num
   });
 }
 
+// spec §9.1: the one deliberate ranking exception in this file — every
+// other rank* function above tie-breaks on engagement or recency, but "which
+// matching event is most popular" isn't the operative question for events;
+// "which can I still attend" is. Exact/fuzzy title match first (consistent
+// with every other tab), tie-broken by soonest startsAt instead.
+function rankEvents<T extends { title: string; startsAt: Date }>(rows: T[], query: string): T[] {
+  const lowerQ = query.toLowerCase();
+  return rows.slice().sort((a, b) => {
+    const rank = (row: T) => (row.title.toLowerCase() === lowerQ ? 0 : 1);
+    const rankDiff = rank(a) - rank(b);
+    if (rankDiff !== 0) return rankDiff;
+    return a.startsAt.getTime() - b.startsAt.getTime();
+  });
+}
+
 export default async function SearchPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; tab?: string }>;
+  searchParams: Promise<{ q?: string; tab?: string; when?: string }>;
 }) {
-  const { q: rawQ, tab: rawTab } = await searchParams;
+  const { q: rawQ, tab: rawTab, when: rawWhen } = await searchParams;
   const q = (rawQ ?? "").trim();
-  const tab: SearchTab = (["users", "posts", "communities", "businesses", "projects", "knowledge"] as const).includes(
-    rawTab as SearchTab
-  )
+  const tab: SearchTab = (
+    ["users", "posts", "communities", "businesses", "projects", "knowledge", "events", "marketplace"] as const
+  ).includes(rawTab as SearchTab)
     ? (rawTab as SearchTab)
     : "users";
+  const eventsWhen: "upcoming" | "past" = rawWhen === "past" ? "past" : "upcoming";
 
   let users: Awaited<ReturnType<typeof searchUsers>> = [];
   let posts: Awaited<ReturnType<typeof searchPosts>> = [];
@@ -109,6 +132,8 @@ export default async function SearchPage({
   let businesses: Awaited<ReturnType<typeof searchBusinesses>> = [];
   let projects: Awaited<ReturnType<typeof searchProjects>> = [];
   let knowledge: Awaited<ReturnType<typeof searchKnowledge>> = [];
+  let events: Awaited<ReturnType<typeof searchEvents>> = [];
+  let marketplace: Awaited<ReturnType<typeof fetchAllMarketplaceCategories>> = [];
   if (q.length > 0) {
     if (tab === "users") users = await searchUsers(q);
     if (tab === "posts") {
@@ -119,6 +144,8 @@ export default async function SearchPage({
     if (tab === "businesses") businesses = await searchBusinesses(q);
     if (tab === "projects") projects = await searchProjects(q);
     if (tab === "knowledge") knowledge = await searchKnowledge(q);
+    if (tab === "events") events = await searchEvents(q, eventsWhen);
+    if (tab === "marketplace") marketplace = await fetchAllMarketplaceCategories(q);
   }
 
   return (
@@ -256,6 +283,55 @@ export default async function SearchPage({
               <span className="mutedText" style={{ fontSize: "0.85rem" }}>
                 {row.typeLabel}
                 {row.subtitle && ` · ${row.subtitle}`}
+              </span>
+            </Link>
+          ))}
+        </div>
+      )}
+      {q.length > 0 && tab === "events" && (
+        <div>
+          <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.75rem" }}>
+            <Link
+              href={eventWhenHref(q, "upcoming")}
+              aria-current={eventsWhen === "upcoming" ? "page" : undefined}
+              className={`button buttonSmall ${eventsWhen === "upcoming" ? "" : "buttonSecondary"}`}
+            >
+              Upcoming
+            </Link>
+            <Link
+              href={eventWhenHref(q, "past")}
+              aria-current={eventsWhen === "past" ? "page" : undefined}
+              className={`button buttonSmall ${eventsWhen === "past" ? "" : "buttonSecondary"}`}
+            >
+              Past
+            </Link>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+            {events.length === 0 && <p className="mutedText">No {eventsWhen} events found for &ldquo;{q}&rdquo;.</p>}
+            {events.map((event) => (
+              <Link key={event.id} href={`/e/${event.slug}`} className="profileLinkItem" style={{ flexDirection: "column", alignItems: "stretch", gap: "0.15rem" }}>
+                <span style={{ fontWeight: 600 }}>{event.title}</span>
+                <span className="mutedText" style={{ fontSize: "0.85rem" }}>
+                  {new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(event.startsAt)}
+                </span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+      {q.length > 0 && tab === "marketplace" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+          {marketplace.length === 0 && <p className="mutedText">No marketplace results found for &ldquo;{q}&rdquo;.</p>}
+          {marketplace.map((item) => (
+            <Link
+              key={`${item.category}-${item.id}`}
+              href={item.href}
+              className="profileLinkItem"
+              style={{ flexDirection: "column", alignItems: "stretch", gap: "0.15rem" }}
+            >
+              <span style={{ fontWeight: 600 }}>{item.title}</span>
+              <span className="mutedText" style={{ fontSize: "0.85rem" }}>
+                {item.categoryLabel} · {item.subtitle} · {item.priceLabel}
               </span>
             </Link>
           ))}
@@ -495,4 +571,28 @@ async function searchKnowledge(q: string) {
   }
 
   return rankKnowledge(results, q).slice(0, 20);
+}
+
+// spec §9: only `published` events, split by an explicit Upcoming/Past
+// filter rather than blended into one chronologically-confusing list
+// (§9.1). §9.2's attendee-privacy acceptance criterion is met by
+// construction here — this query never selects EventRSVP/Ticket rows at
+// all, so a host_only attendee list has nothing to leak through a search
+// result regardless of ranking.
+async function searchEvents(q: string, when: "upcoming" | "past") {
+  const now = new Date();
+  const timeFilter =
+    when === "upcoming"
+      ? { OR: [{ endsAt: { gte: now } }, { endsAt: null, startsAt: { gte: now } }] }
+      : { OR: [{ endsAt: { lt: now } }, { endsAt: null, startsAt: { lt: now } }] };
+
+  const rows = await db.event.findMany({
+    where: {
+      status: "published",
+      AND: [{ OR: [{ title: { contains: q } }, { description: { contains: q } }] }, timeFilter],
+    },
+    select: { id: true, slug: true, title: true, startsAt: true },
+    take: 20,
+  });
+  return rankEvents(rows, q);
 }

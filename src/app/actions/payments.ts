@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { getPaymentProcessor } from "@/lib/payments";
+import { isBusinessStaff } from "@/lib/businesses";
 import type { ActionState } from "@/app/actions/auth";
 
 // spec §3: idempotent so the settings UI can safely re-POST — a second
@@ -35,5 +36,41 @@ export async function startCreatorOnboarding(_prevState: ActionState, _formData:
   });
 
   if (user.username) revalidatePath(`/s/${user.username.handle}`);
+  return undefined;
+}
+
+// phase-8 spec §5.2: same idempotent onboarding shape as
+// startCreatorOnboarding, keyed on businessId instead of userId — lets a
+// business host activate payouts so its paid TicketTypes have somewhere to
+// receive ticket revenue (purchaseTicket, events.ts, requires this to
+// already be active before charging, same "no auto-provision on the fly"
+// posture sendTip already established for individual creators).
+export async function startBusinessPayoutOnboarding(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await requireVerifiedUser();
+  const businessId = String(formData.get("businessId") ?? "");
+
+  if (!(await isBusinessStaff(businessId, user.id))) {
+    return { error: "Only the owner or an admin can enable payouts for this business." };
+  }
+
+  const existing = await db.creatorPayoutAccount.findUnique({ where: { businessId } });
+  if (existing?.status === "active") return undefined;
+
+  const result = await getPaymentProcessor().createPayoutAccount({ id: businessId, email: user.email });
+
+  await db.creatorPayoutAccount.upsert({
+    where: { businessId },
+    create: {
+      businessId,
+      processor: getPaymentProcessor().name,
+      processorAccountId: result.processorAccountId,
+      status: result.status,
+    },
+    update: {
+      processorAccountId: result.processorAccountId,
+      status: result.status,
+    },
+  });
+
   return undefined;
 }

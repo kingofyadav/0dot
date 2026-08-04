@@ -5,7 +5,7 @@ import { getCurrentUser } from "@/lib/session";
 import { getBusinessMember } from "@/lib/businesses";
 import { getAvailableSlots } from "@/lib/appointments";
 import { requestAppointment, cancelMyAppointment } from "@/app/actions/appointments";
-import { RequestSlotButton } from "./RequestSlotButton";
+import { RequestSlotButton } from "@/components/RequestSlotButton";
 
 const STATUS_LABEL: Record<string, string> = {
   requested: "Requested",
@@ -47,7 +47,7 @@ export default async function AppointmentsPage({
   const selectedOffering = offeringId ? bookableOfferings.find((o) => o.id === offeringId) : undefined;
   const now = new Date();
   const slots = selectedOffering
-    ? await getAvailableSlots(business.id, selectedOffering.id, {
+    ? await getAvailableSlots(selectedOffering.id, {
         from: now,
         to: new Date(now.getTime() + SLOT_WINDOW_DAYS * 24 * 60 * 60 * 1000),
       })

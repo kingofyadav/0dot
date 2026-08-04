@@ -4,10 +4,22 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { Prisma } from "@/generated/prisma/client";
 import { requireVerifiedUser } from "@/lib/auth-guards";
-import { canManageCatalog, isBusinessStaff } from "@/lib/businesses";
+import { canManageOfferingOwner, isOfferingOwnerStaff, resolveOfferingOwner } from "@/lib/offerings";
 import { notifyAppointmentRequest, notifyAppointmentConfirmed, notifyAppointmentCancelled } from "@/lib/notifications";
 import { checkRateLimit } from "@/lib/rate-limit";
 import type { ActionState } from "@/app/actions/auth";
+
+// Shared by requestAppointment/confirmAppointment/cancelAppointment —
+// resolves the manage/booking path for either owner kind, same shape
+// offerings.ts's offeringManagePath uses.
+async function offeringOwnerPath(owner: { businessId: string | null; sellerUserId: string | null }): Promise<string> {
+  if (owner.businessId) {
+    const business = await db.business.findUnique({ where: { id: owner.businessId }, select: { slug: true } });
+    return `/b/${business!.slug}/appointments`;
+  }
+  const username = await db.username.findUnique({ where: { userId: owner.sellerUserId! }, select: { handle: true } });
+  return `/s/${username!.handle}/monetization/services`;
+}
 
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 
@@ -15,30 +27,31 @@ function checkAppointmentRateLimit(userId: string): boolean {
   return checkRateLimit(`appointment:${userId}`, { max: 10, windowMs: 60 * 60 * 1000 });
 }
 
-// canManageCatalog-tier (owner|admin|editor) — same tier that manages the
-// bookable offerings this availability is scoped to. Business-level only
-// (teamMemberId stays null, see AvailabilityRule's schema comment for why).
+// canManageOfferingOwner-tier (business: owner|admin|editor; individual:
+// the seller themself) — same tier that manages the bookable offerings
+// this availability is scoped to. Business-level only within a business
+// (teamMemberId stays null, see AvailabilityRule's schema comment for why)
+// — phase-9 spec §3.2 extends the owner kind, not the per-staff scope.
 export async function createAvailabilityRule(formData: FormData): Promise<void> {
   const user = await requireVerifiedUser();
-  const businessId = String(formData.get("businessId") ?? "");
+  const ownerType = String(formData.get("ownerType") ?? "business");
+  const ownerId = String(formData.get("businessId") ?? "");
   const dayOfWeek = Number(formData.get("dayOfWeek"));
   const startsAtLocal = String(formData.get("startsAtLocal") ?? "");
   const endsAtLocal = String(formData.get("endsAtLocal") ?? "");
   const timezone = String(formData.get("timezone") ?? "").trim();
 
-  if (!businessId || !(await canManageCatalog(businessId, user.id))) return;
+  const owner = await resolveOfferingOwner(user.id, ownerType, ownerId);
+  if ("error" in owner) return;
   if (!Number.isInteger(dayOfWeek) || dayOfWeek < 0 || dayOfWeek > 6) return;
   if (!TIME_PATTERN.test(startsAtLocal) || !TIME_PATTERN.test(endsAtLocal) || startsAtLocal >= endsAtLocal) return;
   if (!timezone) return;
 
-  const business = await db.business.findUnique({ where: { id: businessId }, select: { slug: true } });
-  if (!business) return;
-
   await db.availabilityRule.create({
-    data: { businessId, dayOfWeek, startsAtLocal, endsAtLocal, timezone },
+    data: { ...owner, dayOfWeek, startsAtLocal, endsAtLocal, timezone },
   });
 
-  revalidatePath(`/b/${business.slug}/appointments/manage`);
+  revalidatePath(owner.businessId ? await offeringOwnerPath(owner) + "/manage" : await offeringOwnerPath(owner));
 }
 
 export async function deleteAvailabilityRule(formData: FormData): Promise<void> {
@@ -46,12 +59,12 @@ export async function deleteAvailabilityRule(formData: FormData): Promise<void> 
   const ruleId = String(formData.get("ruleId") ?? "");
   if (!ruleId) return;
 
-  const rule = await db.availabilityRule.findUnique({ where: { id: ruleId }, include: { business: { select: { id: true, slug: true } } } });
+  const rule = await db.availabilityRule.findUnique({ where: { id: ruleId } });
   if (!rule) return;
-  if (!(await canManageCatalog(rule.business.id, user.id))) return;
+  if (!(await canManageOfferingOwner(rule, user.id))) return;
 
   await db.availabilityRule.delete({ where: { id: ruleId } });
-  revalidatePath(`/b/${rule.business.slug}/appointments/manage`);
+  revalidatePath(rule.businessId ? (await offeringOwnerPath(rule)) + "/manage" : await offeringOwnerPath(rule));
 }
 
 // spec §10.3: every acceptance criterion lives here. endsAt is always
@@ -80,10 +93,12 @@ export async function requestAppointment(_prevState: ActionState, formData: Form
   const endsAt = new Date(startsAt.getTime() + offering.durationMinutes * 60 * 1000);
   if (notes.length > 1000) return { error: "Notes must be 1000 characters or fewer." };
 
+  const owner = { businessId: offering.businessId, sellerUserId: offering.sellerUserId };
+
   const result = await db.$transaction(async (tx: Prisma.TransactionClient) => {
     const conflict = await tx.appointment.findFirst({
       where: {
-        businessId: offering.business.id,
+        ...owner,
         teamMemberId: null,
         status: { not: "cancelled" },
         startsAt: { lt: endsAt },
@@ -94,44 +109,56 @@ export async function requestAppointment(_prevState: ActionState, formData: Form
     if (conflict) return null;
 
     return tx.appointment.create({
-      data: { businessId: offering.business.id, offeringId: offering.id, customerId: user.id, startsAt, endsAt, notes: notes || null },
+      data: { ...owner, offeringId: offering.id, customerId: user.id, startsAt, endsAt, notes: notes || null },
     });
   });
 
   if (!result) return { error: "That slot was just taken. Please pick another." };
 
-  const staff = await db.businessMember.findMany({
-    where: { businessId: offering.business.id, role: { in: ["owner", "admin"] } },
-    select: { userId: true },
-  });
-  await Promise.all(
-    staff.map((m) =>
-      notifyAppointmentRequest({ recipientId: m.userId, actorId: user.id, businessSlug: offering.business.slug })
-    )
-  );
+  if (offering.business) {
+    const staff = await db.businessMember.findMany({
+      where: { businessId: offering.business.id, role: { in: ["owner", "admin"] } },
+      select: { userId: true },
+    });
+    await Promise.all(
+      staff.map((m) =>
+        notifyAppointmentRequest({ recipientId: m.userId, actorId: user.id, businessSlug: offering.business!.slug })
+      )
+    );
+  } else {
+    const sellerUsername = await db.username.findUnique({ where: { userId: offering.sellerUserId! }, select: { handle: true } });
+    await notifyAppointmentRequest({ recipientId: offering.sellerUserId!, actorId: user.id, sellerHandle: sellerUsername!.handle });
+  }
 
-  revalidatePath(`/b/${offering.business.slug}/appointments`);
+  revalidatePath(await offeringOwnerPath(owner));
   return undefined;
 }
 
-// business-staff-tier (owner|admin) per build plan step 8.
+// business-staff-tier (owner|admin) for a business, the seller themself for
+// an individual — per build plan step 8, extended by phase-9 spec §3.2.
 export async function confirmAppointment(formData: FormData): Promise<void> {
   const user = await requireVerifiedUser();
   const appointmentId = String(formData.get("appointmentId") ?? "");
   if (!appointmentId) return;
 
-  const appointment = await db.appointment.findUnique({
-    where: { id: appointmentId },
-    include: { business: { select: { id: true, slug: true } } },
-  });
+  const appointment = await db.appointment.findUnique({ where: { id: appointmentId } });
   if (!appointment || appointment.status !== "requested") return;
-  if (!(await isBusinessStaff(appointment.business.id, user.id))) return;
+  if (!(await isOfferingOwnerStaff(appointment, user.id))) return;
 
   await db.appointment.update({ where: { id: appointmentId }, data: { status: "confirmed" } });
-  await notifyAppointmentConfirmed({ recipientId: appointment.customerId, actorId: user.id, businessSlug: appointment.business.slug });
+  if (appointment.businessId) {
+    const business = await db.business.findUnique({ where: { id: appointment.businessId }, select: { slug: true } });
+    await notifyAppointmentConfirmed({ recipientId: appointment.customerId, actorId: user.id, businessSlug: business!.slug });
+  } else {
+    const sellerUsername = await db.username.findUnique({ where: { userId: appointment.sellerUserId! }, select: { handle: true } });
+    await notifyAppointmentConfirmed({ recipientId: appointment.customerId, actorId: user.id, sellerHandle: sellerUsername!.handle });
+  }
 
-  revalidatePath(`/b/${appointment.business.slug}/appointments/manage`);
-  revalidatePath(`/b/${appointment.business.slug}/appointments`);
+  revalidatePath(await offeringOwnerPath(appointment));
+  if (appointment.businessId) {
+    const business = await db.business.findUnique({ where: { id: appointment.businessId }, select: { slug: true } });
+    revalidatePath(`/b/${business!.slug}/appointments/manage`);
+  }
 }
 
 export async function cancelAppointment(formData: FormData): Promise<void> {
@@ -139,18 +166,21 @@ export async function cancelAppointment(formData: FormData): Promise<void> {
   const appointmentId = String(formData.get("appointmentId") ?? "");
   if (!appointmentId) return;
 
-  const appointment = await db.appointment.findUnique({
-    where: { id: appointmentId },
-    include: { business: { select: { id: true, slug: true } } },
-  });
+  const appointment = await db.appointment.findUnique({ where: { id: appointmentId } });
   if (!appointment || appointment.status === "cancelled") return;
-  if (!(await isBusinessStaff(appointment.business.id, user.id))) return;
+  if (!(await isOfferingOwnerStaff(appointment, user.id))) return;
 
   await db.appointment.update({ where: { id: appointmentId }, data: { status: "cancelled" } });
-  await notifyAppointmentCancelled({ recipientId: appointment.customerId, actorId: user.id, businessSlug: appointment.business.slug });
+  if (appointment.businessId) {
+    const business = await db.business.findUnique({ where: { id: appointment.businessId }, select: { slug: true } });
+    await notifyAppointmentCancelled({ recipientId: appointment.customerId, actorId: user.id, businessSlug: business!.slug });
+    revalidatePath(`/b/${business!.slug}/appointments/manage`);
+  } else {
+    const sellerUsername = await db.username.findUnique({ where: { userId: appointment.sellerUserId! }, select: { handle: true } });
+    await notifyAppointmentCancelled({ recipientId: appointment.customerId, actorId: user.id, sellerHandle: sellerUsername!.handle });
+  }
 
-  revalidatePath(`/b/${appointment.business.slug}/appointments/manage`);
-  revalidatePath(`/b/${appointment.business.slug}/appointments`);
+  revalidatePath(await offeringOwnerPath(appointment));
 }
 
 // customer-facing cancel — no staff notification (spec §13 only wires
@@ -161,12 +191,9 @@ export async function cancelMyAppointment(formData: FormData): Promise<void> {
   const appointmentId = String(formData.get("appointmentId") ?? "");
   if (!appointmentId) return;
 
-  const appointment = await db.appointment.findUnique({
-    where: { id: appointmentId },
-    include: { business: { select: { slug: true } } },
-  });
+  const appointment = await db.appointment.findUnique({ where: { id: appointmentId } });
   if (!appointment || appointment.customerId !== user.id || appointment.status === "cancelled") return;
 
   await db.appointment.update({ where: { id: appointmentId }, data: { status: "cancelled" } });
-  revalidatePath(`/b/${appointment.business.slug}/appointments`);
+  revalidatePath(await offeringOwnerPath(appointment));
 }

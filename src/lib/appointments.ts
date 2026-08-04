@@ -11,26 +11,33 @@ function parseLocalMinutes(hhmm: string): number {
 // spec §10.2: "computed on read from AvailabilityRule minus existing
 // non-cancelled Appointment rows in that window — no precomputed slot
 // table," same fan-out-on-read instinct as Phase 2's feed. MVP scope only
-// (§10.1): business-level availability (AvailabilityRule.teamMemberId is
-// always null in this build's booking flow), slots are wall-clock (no
-// timezone conversion — see AvailabilityRule's schema comment).
+// (§10.1): business-level (or, phase-9 spec §3.2, individual-seller-level)
+// availability (AvailabilityRule.teamMemberId is always null in this
+// build's booking flow), slots are wall-clock (no timezone conversion —
+// see AvailabilityRule's schema comment).
+//
+// phase-9 spec §3.2: businessId dropped as a caller-supplied argument —
+// the owner (business or seller user) is derived from the Offering itself,
+// same two-way XOR every other extended call site now resolves off the
+// row rather than trusting a separately-passed id.
 export async function getAvailableSlots(
-  businessId: string,
   offeringId: string,
   { from, to }: { from: Date; to: Date }
 ): Promise<AvailableSlot[]> {
   const offering = await db.offering.findUnique({ where: { id: offeringId } });
-  if (!offering || offering.businessId !== businessId || !offering.isBookable || !offering.durationMinutes) {
-    return [];
-  }
+  if (!offering || !offering.isBookable || !offering.durationMinutes) return [];
   const durationMs = offering.durationMinutes * 60 * 1000;
 
-  const rules = await db.availabilityRule.findMany({ where: { businessId, teamMemberId: null } });
+  const ownerWhere = offering.businessId
+    ? { businessId: offering.businessId, sellerUserId: null }
+    : { businessId: null, sellerUserId: offering.sellerUserId };
+
+  const rules = await db.availabilityRule.findMany({ where: { ...ownerWhere, teamMemberId: null } });
   if (rules.length === 0) return [];
 
   const existing = await db.appointment.findMany({
     where: {
-      businessId,
+      ...ownerWhere,
       teamMemberId: null,
       status: { not: "cancelled" },
       startsAt: { lt: to },

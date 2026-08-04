@@ -157,6 +157,11 @@ export default async function ProfilePage({
     orderBy: { createdAt: "desc" },
   });
 
+  // phase-9 spec §3.2: a lightweight discovery link to the full storefront/
+  // booking page — same "here's what's for sale, full page has the actual
+  // checkout/booking flow" posture as activeCourses above.
+  const hasFreelanceServices = (await db.offering.count({ where: { sellerUserId: username.userId, status: "active" } })) > 0;
+
   // spec §3.3: unlisted projects are excluded from this listing (still
   // resolve directly at /p/{slug} — see that page) unless the viewer is the
   // owner, same "owner sees everything, everyone else sees only what's
@@ -639,6 +644,12 @@ export default async function ProfilePage({
         )}
 
         {orderedPortfolioSections}
+
+        {hasFreelanceServices && (
+          <Link href={`/${username.handle}/services`} className="profileEditToggle" style={{ display: "block" }}>
+            <span className="mutedText" style={{ fontSize: "0.85rem" }}>Services →</span>
+          </Link>
+        )}
 
         {activeCourses.length > 0 && (
           <details className="profileEditToggle">

@@ -29,6 +29,17 @@ export async function isCommunityStaff(communityId: string, userId: string): Pro
   return (member?.role === "owner" || member?.role === "moderator") && member?.status === "active";
 }
 
+// phase-8: populates the "host as" picker on /e/new — every community this
+// user moderates, same "owner|moderator, active" bar as isCommunityStaff,
+// mirrors getPostableBusinesses' role (businesses.ts).
+export function getModeratedCommunities(userId: string) {
+  return db.community.findMany({
+    where: { members: { some: { userId, role: { in: ["owner", "moderator"] }, status: "active" } } },
+    select: { id: true, name: true, slug: true },
+    orderBy: { name: "asc" },
+  });
+}
+
 // phase-3 spec §14: append-only source of truth for the "member growth
 // (joins/leaves per day)" analytics metric — the one metric that can't be
 // derived from current CommunityMember state, since leaveCommunity/

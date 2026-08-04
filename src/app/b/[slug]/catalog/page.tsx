@@ -3,11 +3,12 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { getBusinessMember, canManageCatalog } from "@/lib/businesses";
-import { archiveOffering } from "@/app/actions/offerings";
-import { OfferingForm } from "./OfferingForm";
+import { archiveOffering, updateOfferingPurchaseStatus } from "@/app/actions/offerings";
+import { OfferingForm } from "@/components/OfferingForm";
 
 const KIND_VALUES = new Set(["product", "service"]);
 const STATUS_LABEL: Record<string, string> = { draft: "Draft", active: "Active", archived: "Archived" };
+const PURCHASE_STATUS_LABEL: Record<string, string> = { pending: "Pending", fulfilled: "Fulfilled", refunded: "Refunded" };
 
 function firstImage(imagesJson: string | null): string | null {
   if (!imagesJson) return null;
@@ -53,6 +54,14 @@ export default async function CatalogPage({
     orderBy: { createdAt: "desc" },
   });
 
+  const orders = canManage
+    ? await db.offeringPurchase.findMany({
+        where: { offering: { businessId: business.id } },
+        orderBy: { createdAt: "desc" },
+        include: { offering: { select: { name: true } }, buyer: { include: { username: true, profile: true } } },
+      })
+    : [];
+
   return (
     <div className="profileCard">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
@@ -92,7 +101,7 @@ export default async function CatalogPage({
             Add offering
           </summary>
           <div style={{ marginTop: "0.6rem" }}>
-            <OfferingForm businessId={business.id} />
+            <OfferingForm owner={{ type: "business", businessId: business.id }} />
           </div>
         </details>
       )}
@@ -135,7 +144,7 @@ export default async function CatalogPage({
                     </summary>
                     <div style={{ marginTop: "0.5rem" }}>
                       <OfferingForm
-                        businessId={business.id}
+                        owner={{ type: "business", businessId: business.id }}
                         offering={{
                           id: offering.id,
                           kind: offering.kind,
@@ -167,6 +176,33 @@ export default async function CatalogPage({
           );
         })}
       </div>
+
+      {canManage && orders.length > 0 && (
+        <div style={{ marginTop: "1.5rem" }}>
+          <p className="sectionHeading">Orders</p>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+            {orders.map((order) => {
+              const buyerName = order.buyer.profile?.displayName ?? order.buyer.username?.handle ?? "Unknown";
+              return (
+                <div key={order.id} className="profileLinkItem" style={{ justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: "0.85rem" }}>
+                    {order.offering.name} × {order.quantity} — {buyerName}
+                  </span>
+                  <form action={updateOfferingPurchaseStatus} style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
+                    <input type="hidden" name="purchaseId" value={order.id} />
+                    <select name="status" defaultValue={order.status} className="textInput" style={{ width: "auto", fontSize: "0.8rem" }}>
+                      {Object.entries(PURCHASE_STATUS_LABEL).map(([value, label]) => (
+                        <option key={value} value={value}>{label}</option>
+                      ))}
+                    </select>
+                    <button type="submit" className="button buttonSecondary buttonSmall">Update</button>
+                  </form>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

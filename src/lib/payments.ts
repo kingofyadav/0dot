@@ -70,18 +70,29 @@ export function getMyPayoutAccount(userId: string) {
   return db.creatorPayoutAccount.findUnique({ where: { userId } });
 }
 
+// phase-8 spec §5.2: business-hosted paid events need a payout account too
+// — same shape as getMyPayoutAccount, keyed on businessId instead of userId.
+export function getBusinessPayoutAccount(businessId: string) {
+  return db.creatorPayoutAccount.findUnique({ where: { businessId } });
+}
+
 // spec §3.5's "every kind produces exactly one PaymentTransaction row with
 // a non-null platform_fee and processor_reference" criterion is enforced by
 // funneling every money-moving feature through this one function, not by
 // convention. Runs inside the caller's transaction so the ledger write and
 // the feature's own row (Tip, later MembershipSubscription, etc.) can never
 // drift apart.
+// phase-8 build plan §5: payeeId/payeeBusinessId — exactly one set, mutual
+// exclusivity enforced by the caller (purchaseTicket, events.ts), not here.
+// Every pre-phase-8 caller (tip/digital/course/affiliate) keeps passing
+// payeeId only, unaffected.
 export async function recordPaymentTransaction(
   tx: Prisma.TransactionClient,
   params: {
     kind: string;
     payerId: string | null;
-    payeeId: string;
+    payeeId?: string | null;
+    payeeBusinessId?: string | null;
     amount: number;
     currency: string;
     processorReference: string;
@@ -95,7 +106,8 @@ export async function recordPaymentTransaction(
     data: {
       kind: params.kind,
       payerId: params.payerId,
-      payeeId: params.payeeId,
+      payeeId: params.payeeId ?? null,
+      payeeBusinessId: params.payeeBusinessId ?? null,
       amount: params.amount,
       currency: params.currency,
       platformFee,

@@ -1,0 +1,157 @@
+"use client";
+
+import { useActionState, useState } from "react";
+import { createEvent } from "@/app/actions/events";
+
+type HostOption = { id: string; name: string; slug: string };
+
+export function NewEventForm({
+  businesses,
+  communities,
+}: {
+  businesses: HostOption[];
+  communities: HostOption[];
+}) {
+  const [state, formAction, pending] = useActionState(createEvent, undefined);
+  const [hostType, setHostType] = useState<"self" | "business" | "community">("self");
+  const [format, setFormat] = useState<"in_person" | "virtual" | "hybrid">("in_person");
+
+  return (
+    <form action={formAction} className="authCard" style={{ maxWidth: "none" }}>
+      <div className="field">
+        <label htmlFor="hostType">Hosting as</label>
+        <select
+          id="hostType"
+          name="hostType"
+          value={hostType}
+          onChange={(e) => setHostType(e.target.value as typeof hostType)}
+        >
+          <option value="self">Myself</option>
+          {businesses.length > 0 && <option value="business">A business I manage</option>}
+          {communities.length > 0 && <option value="community">A community I moderate</option>}
+        </select>
+      </div>
+
+      {hostType === "business" && (
+        <div className="field">
+          <label htmlFor="hostId">Business</label>
+          <select id="hostId" name="hostId" required defaultValue="">
+            <option value="" disabled>
+              Choose a business
+            </option>
+            {businesses.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {hostType === "community" && (
+        <div className="field">
+          <label htmlFor="hostId">Community</label>
+          <select id="hostId" name="hostId" required defaultValue="">
+            <option value="" disabled>
+              Choose a community
+            </option>
+            {communities.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      <div className="field">
+        <label htmlFor="title">Title</label>
+        <input id="title" name="title" type="text" maxLength={160} required />
+      </div>
+
+      <div className="field">
+        <label htmlFor="slug">Slug</label>
+        <input
+          id="slug"
+          name="slug"
+          type="text"
+          placeholder="your-event"
+          pattern="[a-zA-Z0-9_]{3,60}"
+          minLength={3}
+          maxLength={60}
+          required
+        />
+        <span className="mutedText">0dot.in/e/your-event — this is permanent.</span>
+      </div>
+
+      <div className="field">
+        <label htmlFor="description">Description</label>
+        <textarea id="description" name="description" maxLength={10000} rows={5} />
+      </div>
+
+      <div className="field">
+        <label htmlFor="format">Format</label>
+        <select id="format" name="format" value={format} onChange={(e) => setFormat(e.target.value as typeof format)}>
+          <option value="in_person">In person</option>
+          <option value="virtual">Virtual</option>
+          <option value="hybrid">Hybrid</option>
+        </select>
+      </div>
+
+      {format !== "virtual" && (
+        <div className="field">
+          <label htmlFor="location">Location</label>
+          <input id="location" name="location" type="text" maxLength={200} required />
+        </div>
+      )}
+
+      {format !== "in_person" && (
+        <div className="field">
+          <label htmlFor="virtualJoinUrl">Virtual join link</label>
+          <input id="virtualJoinUrl" name="virtualJoinUrl" type="text" placeholder="https://…" maxLength={500} />
+        </div>
+      )}
+
+      <div className="field">
+        <label htmlFor="startsAt">Starts</label>
+        <input id="startsAt" name="startsAt" type="datetime-local" required />
+      </div>
+
+      <div className="field">
+        <label htmlFor="endsAt">Ends (optional)</label>
+        <input id="endsAt" name="endsAt" type="datetime-local" />
+      </div>
+
+      <div className="field">
+        <label htmlFor="timezone">Timezone</label>
+        <input id="timezone" name="timezone" type="text" placeholder="IANA timezone, e.g. America/New_York" maxLength={60} required />
+      </div>
+
+      <div className="field">
+        <label htmlFor="capacity">Capacity (optional)</label>
+        <input id="capacity" name="capacity" type="number" min={1} />
+        <span className="mutedText">Hard cap on total attendees (RSVPs + tickets). Leave blank for unlimited.</span>
+      </div>
+
+      <div className="field">
+        <label htmlFor="attendeeListVisibility">Who can see the attendee list</label>
+        <select id="attendeeListVisibility" name="attendeeListVisibility" defaultValue="public">
+          <option value="public">Anyone</option>
+          <option value="attendees_only">Attendees only</option>
+          <option value="host_only">Host only</option>
+        </select>
+      </div>
+
+      <div className="field">
+        <label htmlFor="coverImage">Cover image</label>
+        <input id="coverImage" name="coverImage" type="file" accept="image/png,image/jpeg,image/webp,image/gif" />
+      </div>
+
+      {state?.error && <p className="errorText">{state.error}</p>}
+
+      <button type="submit" className="button" disabled={pending}>
+        {pending ? "Creating…" : "Create event"}
+      </button>
+    </form>
+  );
+}

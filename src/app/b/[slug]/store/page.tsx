@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { getBusinessMember, canManageCatalog } from "@/lib/businesses";
 import { BusinessContactForm } from "../BusinessContactForm";
+import { OfferingBuyButton } from "@/components/OfferingBuyButton";
 
 function firstImage(imagesJson: string | null): string | null {
   if (!imagesJson) return null;
@@ -32,6 +33,8 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
   if (business.status === "pending" && !membership) notFound();
 
   const canManage = currentUser ? await canManageCatalog(business.id, currentUser.id) : false;
+  const payoutAccount = await db.creatorPayoutAccount.findUnique({ where: { businessId: business.id } });
+  const nativeCheckoutAvailable = payoutAccount?.status === "active";
 
   const offerings = await db.offering.findMany({
     where: {
@@ -88,6 +91,14 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
                   <a href={offering.paymentLinkUrl} target="_blank" rel="noopener noreferrer" className="button buttonSmall">
                     Buy
                   </a>
+                ) : nativeCheckoutAvailable ? (
+                  currentUser ? (
+                    <OfferingBuyButton offeringId={offering.id} price={offering.price!} currency={offering.currency!} />
+                  ) : (
+                    <Link href="/login" className="button buttonSmall">
+                      Log in to buy
+                    </Link>
+                  )
                 ) : (
                   <a href="#contact" className="button buttonSmall">
                     Buy

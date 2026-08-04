@@ -18,11 +18,16 @@ type OfferingValues = {
   durationMinutes: number | null;
 };
 
+// phase-9 spec §3.2: owner is now business or "self" (an individual
+// freelancer) — the form only differs by which hidden owner fields it
+// submits, createOffering/updateOffering resolve the rest server-side.
+type OfferingOwnerProp = { type: "business"; businessId: string } | { type: "self" };
+
 export function OfferingForm({
-  businessId,
+  owner,
   offering,
 }: {
-  businessId: string;
+  owner: OfferingOwnerProp;
   // Edit mode when set, create mode when omitted — one form, same shape as
   // ManageBusinessForm's create-vs-edit reuse elsewhere in this phase.
   offering?: OfferingValues;
@@ -34,7 +39,8 @@ export function OfferingForm({
 
   return (
     <form action={formAction} style={{ display: "flex", flexDirection: "column", gap: "0.5rem", maxWidth: "36ch" }}>
-      <input type="hidden" name="businessId" value={businessId} />
+      {!isEdit && <input type="hidden" name="ownerType" value={owner.type === "business" ? "business" : "self"} />}
+      {!isEdit && owner.type === "business" && <input type="hidden" name="businessId" value={owner.businessId} />}
       {isEdit && <input type="hidden" name="offeringId" value={offering!.id} />}
 
       <select name="kind" value={kind} onChange={(e) => setKind(e.target.value)} className="textInput">

@@ -111,6 +111,25 @@ model User {
   articles  Article[]
   reactions Reaction[]
   comments  Comment[]
+
+  hostedEvents  Event[]     @relation("EventHostedByUser")
+  createdEvents Event[]     @relation("EventCreatedBy")
+  eventRSVPs    EventRSVP[]
+  tickets       Ticket[]    @relation("TicketOwner")
+
+  // phase-9 spec §3.2: an individual freelancer is a second owner kind on
+  // the same Offering/AvailabilityRule/Appointment trio Phase 4 built for
+  // businesses — named relations since Appointment already has two other
+  // User relations (customer, teamMember) pointing back here.
+  offeringsAsSeller         Offering[]         @relation("OfferingSeller")
+  availabilityRulesAsSeller AvailabilityRule[] @relation("AvailabilityRuleSeller")
+  appointmentsAsSeller      Appointment[]      @relation("AppointmentSeller")
+  offeringPurchases         OfferingPurchase[]
+
+  marketplaceListingsSold     MarketplaceListing[]
+  marketplacePurchases        MarketplacePurchase[]
+  marketplaceListingReviews   MarketplaceListingReview[]
+  marketplaceListingResponses MarketplaceListingReviewResponse[]
 }
 
 model Session {
@@ -188,6 +207,14 @@ model Profile {
   // {key, visible} parsed/validated at the app layer (src/lib/
   // portfolio-layout.ts), not the DB — no Zod anywhere in this codebase.
   portfolioLayoutJson String?
+
+  // phase-9 spec §4.3: InstalledApp's installer_user_id is typed as a
+  // Profile FK, not User — a deliberate departure from the seller-side XOR
+  // (Offering.sellerUserId etc., which point at User), because an installed
+  // widget attaches to the profile *page* as a display surface, the same
+  // "Profile is the thing being rendered" reasoning WikiPage/Book's
+  // profileId already uses, not an account-level relationship.
+  installedApps InstalledApp[]
 }
 
 model Follow {
@@ -598,6 +625,8 @@ model Community {
   chatMessages     CommunityChatMessage[]
   membershipEvents CommunityMembershipEvent[]
   voiceRooms       VoiceRoom[]
+  hostedEvents     Event[]                    @relation("EventHostedByCommunity")
+  installedApps    InstalledApp[]
 }
 
 // phase-3 spec §12.2, built as a deliberately narrower "walkie-talkie" mode
@@ -629,7 +658,21 @@ model VoiceRoom {
   currentSpeaker      User?     @relation("VoiceRoomCurrentSpeaker", fields: [currentSpeakerId], references: [id], onDelete: SetNull)
   currentSpeakerSince DateTime?
 
+  // phase-8 spec §6.2/§6.3: identical event-scoping and recording shape as
+  // Livestream gains above — see that model's comment for the full
+  // reasoning, not repeated here. This revisits Phase 3 §12.2's original
+  // no-recording decision now that recording exists elsewhere in the
+  // system, with the same consent-disclosure caveat.
+  eventId String?
+  event   Event?  @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  isRecorded             Boolean @default(false)
+  recordingUrl           String?
+  recordingRetentionDays Int?
+
   participants VoiceRoomParticipant[]
+
+  @@index([eventId])
 }
 
 // No recording/playback (spec §12.2: a voice room's audio is live-only and
@@ -904,6 +947,12 @@ model Business {
   appointments      Appointment[]
   documents         BusinessDocument[]
   links             Link[]
+  hostedEvents      Event[]               @relation("EventHostedByBusiness")
+  payoutAccount     CreatorPayoutAccount?
+  paymentsReceived  PaymentTransaction[]  @relation("PaymentTransactionPayeeBusiness")
+
+  marketplaceListingsSold MarketplaceListing[]
+  installedApps           InstalledApp[]
 
   @@index([status])
 }
@@ -967,30 +1016,66 @@ model ContactMessage {
 // media, without needing a second attachment table. price: Float, not
 // Decimal — Prisma's SQLite connector doesn't support Decimal (same
 // deviation Post.trendingScore already documents).
+// phase-9 spec §3.2: businessId is now nullable, joined by sellerUserId —
+// exactly one set, the same two-way owner XOR idiom Link (Phase 4 §3.2) and
+// CreatorPayoutAccount (Phase 8 §5.2) already use, enforced at the app layer
+// (createOffering, offerings.ts) not the DB (no partial-index/CHECK support
+// in this Prisma+SQLite setup). Every pre-phase-9 row/call site keeps
+// businessId set, sellerUserId null, unaffected.
 model Offering {
-  id              String   @id @default(uuid())
-  businessId      String
-  business        Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  id              String    @id @default(uuid())
+  businessId      String?
+  business        Business? @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  sellerUserId    String?
+  seller          User?     @relation("OfferingSeller", fields: [sellerUserId], references: [id], onDelete: Cascade)
   kind            String // product | service
   name            String
-  description     String   @default("")
+  description     String    @default("")
   imagesJson      String? // JSON array of up to 8 image URLs; null/empty = none
   price           Float? // nullable = "contact for pricing"
   currency        String? // required iff price is set (§7.2)
   paymentLinkUrl  String? // build plan step 5: external checkout link; only meaningful when price is set, falls back to the contact form when absent
-  status          String   @default("draft") // draft | active | archived
+  status          String    @default("draft") // draft | active | archived
   // product-only, null for kind = service
   sku             String?
   stockStatus     String? // in_stock | out_of_stock | made_to_order
   // service-only, null for kind = product
   isBookable      Boolean?
   durationMinutes Int? // required when isBookable = true (§7.2)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   appointments Appointment[]
+  purchases    OfferingPurchase[]
 
   @@index([businessId, status])
+  @@index([sellerUserId, status])
+}
+
+// phase-9 spec §3.1: resolves the Phase 4/5-flagged Store checkout
+// deferral — native in-app checkout for an Offering, reusing the Phase 5
+// payment ledger (recordPaymentTransaction) rather than a new transaction
+// table. Fulfillment is a status enum the seller updates manually, same
+// "don't build what wasn't asked for" restraint §7.1 already applied to
+// inventory. paymentTransactionId is nullable to cover the free/
+// contact-for-pricing path being routed here too would be wrong — it's
+// only ever set because purchaseOffering (offerings.ts) requires a priced
+// Offering to reach this table at all; unpriced offerings keep using the
+// existing external-link/contact-form path untouched.
+model OfferingPurchase {
+  id                   String             @id @default(uuid())
+  offeringId           String
+  offering             Offering           @relation(fields: [offeringId], references: [id], onDelete: Cascade)
+  buyerId              String
+  buyer                User               @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  paymentTransactionId String             @unique
+  paymentTransaction   PaymentTransaction @relation(fields: [paymentTransactionId], references: [id], onDelete: Restrict)
+  quantity             Int                @default(1)
+  status               String             @default("pending") // pending | fulfilled | refunded
+  createdAt            DateTime           @default(now())
+
+  @@index([offeringId])
+  @@index([buyerId])
 }
 
 // spec §4.1. `role` gates write permissions (owner > admin > editor > member,
@@ -1099,28 +1184,39 @@ model JobApplication {
 // .hoursJson is display-only for the same reason); every date/time here is
 // treated as wall-clock, a deliberate MVP simplification per §10.1's scope
 // warning ("timezone handling... treat as signals to revisit scope").
+// phase-9 spec §3.2: businessId nullable, joined by sellerUserId — same
+// two-way owner XOR as Offering above. teamMemberId stays business-only
+// (an individual seller has no team to assign a slot to; sellerUserId
+// itself is the one person the slot belongs to).
 model AvailabilityRule {
-  id            String   @id @default(uuid())
-  businessId    String
-  business      Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  id            String    @id @default(uuid())
+  businessId    String?
+  business      Business? @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  sellerUserId  String?
+  seller        User?     @relation("AvailabilityRuleSeller", fields: [sellerUserId], references: [id], onDelete: Cascade)
   teamMemberId  String?
-  teamMember    User?    @relation("AvailabilityRuleStaff", fields: [teamMemberId], references: [id], onDelete: Cascade)
+  teamMember    User?     @relation("AvailabilityRuleStaff", fields: [teamMemberId], references: [id], onDelete: Cascade)
   dayOfWeek     Int // 0 (Sunday) - 6
   startsAtLocal String // "HH:MM", 24h
   endsAtLocal   String // "HH:MM", 24h
   timezone      String // IANA tz name, stored not converted (see model comment)
 
   @@index([businessId, teamMemberId, dayOfWeek])
+  @@index([sellerUserId, dayOfWeek])
 }
 
 // spec §10.2/§10.3. build plan decision #3: a `requested` appointment DOES
 // tentatively hold the slot — the overlap check below runs against every
 // non-cancelled status, not just confirmed, so two customers can't both
 // hold the same slot while it's pending.
+// phase-9 spec §3.2: businessId nullable, joined by sellerUserId — same
+// two-way owner XOR as Offering/AvailabilityRule above.
 model Appointment {
   id           String    @id @default(uuid())
-  businessId   String
-  business     Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  businessId   String?
+  business     Business? @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  sellerUserId String?
+  seller       User?     @relation("AppointmentSeller", fields: [sellerUserId], references: [id], onDelete: Cascade)
   offeringId   String?
   offering     Offering? @relation(fields: [offeringId], references: [id], onDelete: SetNull)
   customerId   String
@@ -1138,6 +1234,7 @@ model Appointment {
   // overlap, enforced transactionally in requestAppointment, not just in
   // the UI. This index backs that check.
   @@index([businessId, teamMemberId, startsAt])
+  @@index([sellerUserId, startsAt])
 }
 
 // build plan step 9 / spec §12.1: a simple file library, no versioning
@@ -1169,14 +1266,23 @@ model BusinessDocument {
 // driven by processor.createPayoutAccount()/webhook confirmation, never a
 // raw client-settable flag — see startCreatorOnboarding in
 // src/app/actions/payments.ts.
+// phase-8 spec §5.2: userId made nullable, businessId added — exactly one
+// of userId/businessId set, the same two-way owner XOR idiom Link (Phase 4
+// §3.2) already uses, not the three-way pattern Event hosting uses, since
+// payout accounts only need two owner kinds so far. Communities
+// deliberately do not get one here (spec §5.2: no monetization concept
+// exists for communities anywhere in this system yet — community-hosted
+// events stay RSVP-only, not a reason to invent a "community treasury").
 model CreatorPayoutAccount {
-  id                 String   @id @default(uuid())
-  userId             String   @unique
-  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  processor          String   @default("stub") // stub | stripe_connect
+  id                 String    @id @default(uuid())
+  userId             String?   @unique
+  user               User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  businessId         String?   @unique
+  business           Business? @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  processor          String    @default("stub") // stub | stripe_connect
   processorAccountId String?
-  status             String   @default("onboarding") // onboarding | active | restricted
-  createdAt          DateTime @default(now())
+  status             String    @default("onboarding") // onboarding | active | restricted
+  createdAt          DateTime  @default(now())
 }
 
 // phase-5 build plan §0 / spec §3.1: the one shared ledger every
@@ -1188,27 +1294,44 @@ model CreatorPayoutAccount {
 // recomputed later from a global rate, so a future fee-rate change never
 // rewrites the story of a past transaction (spec §3.2).
 model PaymentTransaction {
-  id                 String   @id @default(uuid())
-  kind               String // tip | digital_purchase | course_purchase | membership_charge | affiliate_commission
+  id                 String    @id @default(uuid())
+  // phase-9 spec §3.1/§3.2/§4.3: business_purchase/freelance_purchase
+  // resolve the Phase 4/5 Store checkout deferral (Offering, either owner
+  // kind); marketplace_purchase is MarketplaceListing checkout (§4.3).
+  kind               String // tip | digital_purchase | course_purchase | membership_charge | affiliate_commission | ticket_purchase | business_purchase | freelance_purchase | marketplace_purchase
   payerId            String?
-  payer              User?    @relation("PaymentTransactionPayer", fields: [payerId], references: [id], onDelete: SetNull)
-  payeeId            String
-  payee              User     @relation("PaymentTransactionPayee", fields: [payeeId], references: [id], onDelete: Cascade)
+  payer              User?     @relation("PaymentTransactionPayer", fields: [payerId], references: [id], onDelete: SetNull)
+  // phase-8 build plan §5: payeeId made nullable, payeeBusinessId added —
+  // exactly one set, enforced at the call site (purchaseTicket), not the
+  // DB (no partial-index/CHECK support in this Prisma+SQLite setup, same
+  // limitation Link/ProjectCollaborator already work around). A
+  // business-hosted paid ticket's revenue belongs to the business's own
+  // CreatorPayoutAccount (§5.2), not an individual staff member's ledger
+  // row. Every pre-phase-8 call site (tip/digital/course/affiliate) is
+  // unaffected — payeeId only, payeeBusinessId always null there.
+  payeeId            String?
+  payee              User?     @relation("PaymentTransactionPayee", fields: [payeeId], references: [id], onDelete: Cascade)
+  payeeBusinessId    String?
+  payeeBusiness      Business? @relation("PaymentTransactionPayeeBusiness", fields: [payeeBusinessId], references: [id], onDelete: Cascade)
   amount             Float
-  currency           String   @default("usd")
+  currency           String    @default("usd")
   platformFee        Float
   processorReference String
   status             String // pending | succeeded | failed | refunded
-  relatedObjectType  String? // tip | digital_product | course | membership_tier | affiliate_link
+  relatedObjectType  String? // tip | digital_product | course | membership_tier | affiliate_link | ticket | offering | marketplace_listing
   relatedObjectId    String?
-  createdAt          DateTime @default(now())
+  createdAt          DateTime  @default(now())
 
   tip                    Tip?
   digitalProductPurchase DigitalProductPurchase?
   courseAccessGrant      CourseAccessGrant?
   affiliateConversion    AffiliateConversion?
+  ticket                 Ticket?
+  offeringPurchase       OfferingPurchase?
+  marketplacePurchase    MarketplacePurchase?
 
   @@index([payeeId, createdAt])
+  @@index([payeeBusinessId, createdAt])
   @@index([payerId])
 }
 
@@ -1627,10 +1750,29 @@ model Livestream {
   playbackUrl    String
   createdAt      DateTime        @default(now())
 
+  // phase-8 spec §6.2: scopes a livestream to an event, same additive-column
+  // idiom as Post.communityId — the event is a *context*, not a competing
+  // owner (creatorId already names the one meaningful owner: whoever's
+  // broadcasting). "At most one native session per event" (§6.4) is an
+  // app-layer constraint (attachLivestreamToEvent, events.ts), not a DB
+  // unique here, since a future stream can reattach after an earlier one
+  // ends.
+  eventId String?
+  event   Event?  @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  // phase-8 spec §6.3: resolves the Phase 5 §8.2 VOD deferral. isRecorded
+  // must be surfaced as a visible disclosure before/at session start at the
+  // UI layer (§6.4's acceptance criterion) — this schema only stores the
+  // fact, it doesn't enforce the disclosure UX.
+  isRecorded             Boolean @default(false)
+  recordingUrl           String?
+  recordingRetentionDays Int?
+
   chatMessages LivestreamChatMessage[]
 
   @@index([creatorId, status])
   @@index([requiredTierId])
+  @@index([eventId])
 }
 
 // Structurally identical to Phase 3's CommunityChatMessage (§11.1 of that
@@ -2027,22 +2169,22 @@ model Comment {
 // which don't get denormalized counters this phase — their like/comment
 // counts are computed at read time via Reaction/Comment queries instead).
 model Book {
-  id            String    @id @default(uuid())
+  id            String   @id @default(uuid())
   profileId     String
-  profile       Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  profile       Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
   slug          String
   title         String
-  description   String    @default("")
+  description   String   @default("")
   coverImageUrl String?
-  status        String    @default("draft") // draft | published
-  visibility    String    @default("public") // public | unlisted | private
+  status        String   @default("draft") // draft | published
+  visibility    String   @default("public") // public | unlisted | private
   // spec §6.2: optional full-book download (epub/pdf) — an author can skip
   // native chapters entirely and just upload a finished file, or do both.
   ebookFileUrl  String?
-  likeCount     Int       @default(0)
-  commentCount  Int       @default(0)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  likeCount     Int      @default(0)
+  commentCount  Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   // Chapters are WikiPage rows with bookId set and kind = "book_chapter"
   // (spec §6.1) — not a separate chapter entity, reusing the
@@ -2101,4 +2243,242 @@ model PublishedFileDownload {
   referrerHost String?
 
   @@index([fileId, occurredAt])
+}
+
+// phase-8 spec §3.1, build plan step 1: the anchor entity for the whole
+// phase. Third instance of the three-way nullable-owner-column-set idiom in
+// this schema, after WikiPage (Phase 7 §5.1) — which the spec itself names
+// as precedent (§3.2) — real per-type FKs with an enforced exactly-one
+// constraint, checked at the app layer (createEvent/updateEvent, events.ts),
+// not a generic polymorphic owner_type/owner_id pair. createdBy is kept
+// distinct from the host columns for audit (spec's own field comment), and
+// doubles as the one resolvable "owner" the Reaction/Comment subject
+// resolver needs (build plan §4) regardless of which host type is set. No
+// citext (SQLite, see Community.slug) — lowercased at write time, sixth
+// reuse of validateSlugFormat (usernames, communities, businesses, projects,
+// articles, now events) via reserved-event-slugs.ts. Global slug namespace
+// (@@unique, not owner-scoped) — 0dot.in/e/slug is a flat namespace like
+// /c/, /b/, /p/, not a per-owner path.
+model Event {
+  id                     String     @id @default(uuid())
+  slug                   String     @unique
+  hostedByUserId         String?
+  hostedByUser           User?      @relation("EventHostedByUser", fields: [hostedByUserId], references: [id], onDelete: Cascade)
+  hostedByBusinessId     String?
+  hostedByBusiness       Business?  @relation("EventHostedByBusiness", fields: [hostedByBusinessId], references: [id], onDelete: Cascade)
+  hostedByCommunityId    String?
+  hostedByCommunity      Community? @relation("EventHostedByCommunity", fields: [hostedByCommunityId], references: [id], onDelete: Cascade)
+  createdBy              String
+  creator                User       @relation("EventCreatedBy", fields: [createdBy], references: [id], onDelete: Cascade)
+  title                  String
+  description            String     @default("") // sanitized markdown, standard posture since Phase 1 §7.2
+  coverImageUrl          String?
+  format                 String // in_person | virtual | hybrid
+  location               String? // required if format != virtual, enforced at the app layer
+  virtualJoinUrl         String? // external meeting link — independent of native livestream/voice-room attachment (§6.1)
+  startsAt               DateTime
+  endsAt                 DateTime?
+  timezone               String // IANA name, stored explicitly — same reasoning as AvailabilityRule (Phase 4 §10.2)
+  status                 String     @default("draft") // draft | published | cancelled
+  capacity               Int? // hard cap on going RSVPs + non-cancelled tickets combined, no waitlist (§4.3)
+  attendeeListVisibility String     @default("public") // public | attendees_only | host_only
+  createdAt              DateTime   @default(now())
+  updatedAt              DateTime   @updatedAt
+
+  rsvps       EventRSVP[]
+  ticketTypes TicketType[]
+  livestreams Livestream[]
+  voiceRooms  VoiceRoom[]
+
+  @@index([hostedByUserId])
+  @@index([hostedByBusinessId])
+  @@index([hostedByCommunityId])
+  @@index([status, startsAt]) // search §9.1: upcoming listing, soonest-first tie-break
+}
+
+// spec §4.1. unique (eventId, userId) is the one-RSVP-per-user guarantee;
+// a status change (going -> not_going, etc.) updates this row rather than
+// creating a new one.
+model EventRSVP {
+  id        String   @id @default(uuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status    String // going | interested | not_going
+  createdAt DateTime @default(now())
+
+  @@unique([eventId, userId])
+  @@index([eventId, status])
+}
+
+// spec §5.1. price/currency nullable together = a free tier, same
+// nullable-price-means-free shape Offering/DigitalProduct already use.
+// quantitySold is denormalized, incremented transactionally alongside every
+// Ticket write — same pattern used throughout this schema.
+model TicketType {
+  id            String    @id @default(uuid())
+  eventId       String
+  event         Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name          String
+  price         Float?
+  currency      String?
+  quantityTotal Int?
+  quantitySold  Int       @default(0)
+  salesStartAt  DateTime?
+  salesEndAt    DateTime?
+  createdAt     DateTime  @default(now())
+
+  tickets Ticket[]
+
+  @@index([eventId])
+}
+
+// spec §5.1. qrCodeToken is a genuine access-control credential (build plan
+// §5) — crypto.randomBytes-generated, never derivable from ownerId/eventId/
+// ticketTypeId, unlike Phase 1's profile QR code which just encodes a
+// public URL and carries no access-control weight (§5.1's explicit
+// distinction).
+model Ticket {
+  id                   String              @id @default(uuid())
+  ticketTypeId         String
+  ticketType           TicketType          @relation(fields: [ticketTypeId], references: [id], onDelete: Cascade)
+  ownerId              String
+  owner                User                @relation("TicketOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  paymentTransactionId String?             @unique // null = a free ticket
+  paymentTransaction   PaymentTransaction? @relation(fields: [paymentTransactionId], references: [id], onDelete: Restrict)
+  status               String              @default("valid") // valid | cancelled | checked_in
+  qrCodeToken          String              @unique
+  checkedInAt          DateTime?
+  createdAt            DateTime            @default(now())
+
+  @@index([ownerId])
+  @@index([ticketTypeId])
+}
+
+// phase-9 spec §4.3: the new entity for Themes/Templates/Apps — Courses and
+// digital products are deliberately NOT modeled here (spec §5.1: reused
+// as-is, this phase only adds a browse layer over them, see the search/page
+// query-time union). seller_type/seller_user_id/seller_business_id is the
+// same two-way owner XOR idiom as Offering/Link, communities excluded from
+// selling here same as Phase 8 §5.2 excludes them from ticketing payout.
+// payload is jsonb-equivalent (SQLite has no jsonb — a JSON text column,
+// same BusinessLocation.hoursJson precedent) and is validated at write time
+// per category (§4.6's literal acceptance criteria: theme payloads can't
+// exceed Phase 1 §3.6's token schema, app payloads can't reference an
+// embed source outside the provider allowlist) — never raw HTML/CSS/JS in
+// any category, checked in createMarketplaceListing (marketplace.ts), not
+// left to the review queue alone to catch.
+model MarketplaceListing {
+  id               String    @id @default(uuid())
+  sellerType       String // user | business
+  sellerUserId     String?
+  seller           User?     @relation(fields: [sellerUserId], references: [id], onDelete: Cascade)
+  sellerBusinessId String?
+  sellerBusiness   Business? @relation(fields: [sellerBusinessId], references: [id], onDelete: Cascade)
+  category         String // theme | template | app
+  title            String // 1-120 chars, validated at the app layer
+  description      String    @default("") // sanitized markdown, standard posture since Phase 1 §7.2
+  price            Float? // nullable = free
+  currency         String? // required iff price is set, same convention as Offering
+  status           String    @default("pending_review") // pending_review | active | rejected | archived
+  payload          String // JSON text — category-specific structured content, see model comment
+  averageRating    Float     @default(0)
+  reviewCount      Int       @default(0)
+  purchaseCount    Int       @default(0)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  purchases MarketplacePurchase[]
+  installs  InstalledApp[]
+  reviews   MarketplaceListingReview[]
+
+  @@index([status, category])
+  @@index([sellerUserId])
+  @@index([sellerBusinessId])
+}
+
+// spec §4.3/§7.2: paymentTransactionId is nullable — a free listing (or a
+// free install-gate for review eligibility) has no charge to point at,
+// same nullable-payment shape CourseAccessGrant already uses for its
+// membership_tier-bundled (non-purchase) grant path.
+model MarketplacePurchase {
+  id                   String              @id @default(uuid())
+  listingId            String
+  listing              MarketplaceListing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  buyerId              String
+  buyer                User                @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  paymentTransactionId String?             @unique
+  paymentTransaction   PaymentTransaction? @relation(fields: [paymentTransactionId], references: [id], onDelete: Restrict)
+  createdAt            DateTime            @default(now())
+
+  @@unique([listingId, buyerId])
+  @@index([buyerId])
+}
+
+// spec §4.3: a three-way installer XOR — wider than the seller XOR above
+// because a widget can attach to a profile, a business page, or a
+// community, all three of which are real installation surfaces (unlike
+// selling, where communities are deliberately excluded). installerUserId
+// points at Profile, not User — see Profile.installedApps's comment for
+// why. config is validated against the listing's own declared payload
+// schema at install time (installApp, marketplace.ts), not the DB.
+model InstalledApp {
+  id                   String             @id @default(uuid())
+  listingId            String
+  listing              MarketplaceListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  installerType        String // user | business | community
+  installerUserId      String?
+  installerProfile     Profile?           @relation(fields: [installerUserId], references: [id], onDelete: Cascade)
+  installerBusinessId  String?
+  installerBusiness    Business?          @relation(fields: [installerBusinessId], references: [id], onDelete: Cascade)
+  installerCommunityId String?
+  installerCommunity   Community?         @relation(fields: [installerCommunityId], references: [id], onDelete: Cascade)
+  config               String? // JSON text — installer-specific settings within the app's declared schema
+  installedAt          DateTime           @default(now())
+
+  @@index([listingId])
+  @@index([installerUserId])
+  @@index([installerBusinessId])
+  @@index([installerCommunityId])
+}
+
+// phase-9 spec §7.1: the second instance of the rated-review pattern after
+// Business's Review/ReviewResponse (Phase 4 §11) — per this codebase's
+// "three instances before generalizing" discipline (spec's own citation of
+// Phase 6 §9/Phase 7 §4.1), not yet generalized into Reaction/Comment or a
+// subject-type table. One review per (listingId, authorId), same
+// "editable, not stackable" upsert shape as Review. Unlike Review,
+// verified-purchase gating is enforced at write time (createOrUpdate
+// ListingReview, marketplace.ts) per spec §7.2 — cheap to check here since
+// each listing is an individually purchased/installed thing, unlike a
+// business as a whole.
+model MarketplaceListingReview {
+  id        String             @id @default(uuid())
+  listingId String
+  listing   MarketplaceListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User               @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  rating    Int
+  body      String             @default("")
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  response MarketplaceListingReviewResponse?
+
+  @@unique([listingId, authorId])
+  @@index([listingId])
+}
+
+// One official response per review — same shape as ReviewResponse
+// (reviewId as the model's own @id enforces the one-response rule).
+// responderId must be the individual seller, or admin+ business staff,
+// checked in respondToListingReview (marketplace.ts), not the schema.
+model MarketplaceListingReviewResponse {
+  reviewId    String                   @id
+  review      MarketplaceListingReview @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  responderId String
+  responder   User                     @relation(fields: [responderId], references: [id], onDelete: Cascade)
+  body        String
+  createdAt   DateTime                 @default(now())
 }
