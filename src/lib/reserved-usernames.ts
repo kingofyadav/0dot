@@ -37,6 +37,17 @@ export const RESERVED_USERNAMES = new Set([
   "org",
   "sso",
   "0dot",
+  "l",
+  "m",
+  "form",
+  "fund",
+  "live",
+  "map",
+  "messages",
+  "newsletter",
+  "oauth",
+  "podcast",
+  "aff",
 ]);
 
 import { validateSlugFormat } from "./slug-validation";

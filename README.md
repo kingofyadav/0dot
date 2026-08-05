@@ -4,7 +4,7 @@
 
 0dot.in is a digital identity platform: a permanent home on the internet that grows from a single `0dot.in/@username` profile into a full social feed, community spaces, and a business presence — all under one identity. This repo is the reference implementation, built in phases against the specs in [`docs/specs/`](docs/specs).
 
-> Full long-range vision: [`docs/ROADMAP.md`](docs/ROADMAP.md) (16 phases, identity → social → communities → business → creator monetization → developer platform → AI → enterprise). This README covers what's actually built today: **Phases 1–10**.
+> Full long-range vision: [`docs/ROADMAP.md`](docs/ROADMAP.md) (16 phases, identity → social → communities → business → creator monetization → developer platform → AI → enterprise). This README covers what's actually built today: **Phases 1–16** (Phase 16's "Future Modules" list was triaged, not built module-for-module — see [its row below](#whats-built) and [`docs/specs/phase-16-future-modules.md`](docs/specs/phase-16-future-modules.md) §2 for what was in scope vs. deferred).
 
 ## What's built
 
@@ -20,8 +20,14 @@
 | **8 — Events** | `/e/event` | Business- or community-hosted events (owner XOR), RSVP and ticketing |
 | **9 — Marketplace** | `/m/` | Freelance services at `/[username]/services` (individual-seller extension of the Phase 4 `Offering`/`Appointment` model) plus a `MarketplaceListing` browse/search surface for apps, themes, templates, and digital products |
 | **10 — Developer platform** | API & OAuth | `DeveloperApp` registration, scoped OAuth2/PKCE ("Sign in with 0dot"), a bearer-authed public REST API with rate limiting and usage counters, and HMAC-signed webhook delivery with retry/backoff |
+| **11 — AI platform** | AI layered on existing surfaces | A shared `AIGeneration` usage-audit substrate every AI call logs through; AI moderation (`ModerationFlag` queue), AI content writer/profile builder, AI accessibility (alt-text/captions via `MediaAccessibilityMetadata`), AI-driven recommendations replacing Phase 2's placeholder "suggested users" heuristic, AI-assisted search, and AI translation (`ContentTranslation`) — no live model provider wired in, `ai-provider.ts` is the swappable seam |
+| **12 — Trust & safety** | Moderation & review | Unified `TrustSafetyCase` case management across every surface that previously had ad hoc review (community, business, marketplace, OAuth scopes, AI flags), a `Report` center, `Appeal` workflow, spam/bot `AccountRiskSignal` detection, age controls, and transparency reporting |
+| **13 — Copyright & IP** | Legal/compliance | `ContentRevision` version history for posts/articles, a full DMCA takedown/counter-notice workflow (`DMCATakedownNotice`/`DMCACounterNotice`), copyright declarations, watermarking, `ContentLicense` ownership records, 0dot brand trademark protection, and generalized `JurisdictionRule`-driven jurisdiction rules |
+| **14 — Enterprise** | Organizations | `Organization` (distinct from `Business`), team management via `OrganizationMember`, internal communities (`Community.restrictedToOrganizationId`), SAML2/OIDC single sign-on (`SSOConnection`/`SSOIdentity`) with JIT provisioning, an employee directory, and `OrganizationAuditLog` reusing Phase 3's `ModAction` shape |
+| **15 — Mobile apps** | PWA & first-party clients | 0dot's own apps as real OAuth clients of the Phase 10 API (no privileged internal-only path), a PWA (`manifest.json`, service worker, install prompt), web push notifications as a third delivery channel alongside in-app/email, in-app-purchase payout batching (`IapPayoutBatch`), and digital business cards (`DigitalBusinessCard`) as a `.well-known`/vCard-style share surface |
+| **16 — Future modules** | Triaged reuse, not a rebuild | Of the roadmap's 16 unscheduled "Future Modules," Podcasts/Polling/Newsletters were already built in earlier phases (not duplicated); Job board resolves a deferral named back in Phase 4; Notes, Calendar, Maps, Donations, and Learning platform are thin new layers over existing entities; URL shortener (`ShortLink`), Forms & Surveys (`Form`), and a lightweight CRM (`Contact`/`Activity`) are genuinely new but modest; Cloud storage and Video hosting were scope-warned/flagged as open questions in the spec and were **not built** — see [`docs/specs/phase-16-future-modules.md`](docs/specs/phase-16-future-modules.md) §2 for the full triage table |
 
-Everything above is server-rendered, permission-checked server-side (never just hidden in the UI), and covered by the specs in `docs/specs/phase-{1..10}-*.md`.
+Everything above is server-rendered, permission-checked server-side (never just hidden in the UI), and covered by the specs in `docs/specs/phase-{1..16}-*.md`.
 
 ### Known gaps
 
@@ -30,7 +36,7 @@ This is an actively developed reference build, not a finished product. See [`BUG
 ## Tech stack
 
 - **[Next.js 16](https://nextjs.org)** (App Router, Turbopack, Server Actions) + **React 19**, TypeScript throughout
-- **[Prisma 7](https://www.prisma.io)** + **SQLite** (`@prisma/adapter-better-sqlite3`) — 110 models spanning identity, social, community, business, creator monetization, portfolio, knowledge, events, marketplace, and developer-platform domains
+- **[Prisma 7](https://www.prisma.io)** + **SQLite** (`@prisma/adapter-better-sqlite3`) — 148 models spanning identity, social, community, business, creator monetization, portfolio, knowledge, events, marketplace, developer-platform, AI, trust & safety, copyright/IP, enterprise, mobile/PWA, and CRM/short-link/forms/calendar domains
 - **Server Components by default**; client components only at real interactivity boundaries (`useActionState` forms, live SSE consumers)
 - No external services required to run locally — auth, sessions, encryption, and file storage are all self-contained (see [Known gaps](#known-gaps) for what that trades off)
 
@@ -79,7 +85,10 @@ src/
   app/                # routes (App Router) — pages, layouts, Server Actions, SSE route handlers
     actions/           # "use server" mutations, grouped by domain (posts, follow, communities, businesses, ...)
     b/, c/, s/, p/, e/, m/  # business (/b), community (/c), creator (/s), portfolio (/p), event (/e), marketplace (/m) route trees
+    org/, sso/, trust-safety/, dmca/  # enterprise, SSO, trust & safety, and copyright/IP surfaces
+    form/, fund/, map/, l/, jobs/     # Phase 16: forms, donations/fundraising, maps, short-link redirects, job board
     oauth/, api/            # OAuth2/PKCE authorization flow and the public REST API
+    .well-known/            # digital business card discovery (Phase 15)
   components/          # shared React components (PostCard, MessagingProvider, ...)
   lib/                  # server-only domain logic — query builders, permission checks, notifications, crypto
   generated/prisma/     # generated Prisma client (gitignored)
