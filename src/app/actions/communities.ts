@@ -9,6 +9,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { saveUploadedImage } from "@/lib/uploads";
 import { validateCommunitySlugFormat } from "@/lib/reserved-community-slugs";
 import { getCommunityMember, isCommunityOwner, isCommunityStaff, logModAction, logMembershipEvent } from "@/lib/communities";
+import { isOrgAdmin, logOrgAudit, isEligibleForOrgRestrictedCommunity } from "@/lib/organizations";
 import { softDeletePostAndDecrementCounts } from "@/lib/post-moderation";
 import { notifyCommunityUpdate } from "@/lib/notifications";
 import type { ActionState } from "@/app/actions/auth";
@@ -40,6 +41,15 @@ export async function createCommunity(
   const visibilityRaw = String(formData.get("visibility") ?? "public");
   const visibility = VISIBILITY_VALUES.has(visibilityRaw) ? visibilityRaw : "public";
 
+  // phase-14 spec §4.1: settable at creation only — an org_admin restricting
+  // their own organization's internal community. No retroactive-restriction
+  // path exists (createCommunity is the only writer of this column), so
+  // there's never a case of purging existing non-eligible members.
+  const restrictedToOrganizationId = String(formData.get("organizationId") ?? "").trim() || null;
+  if (restrictedToOrganizationId && !(await isOrgAdmin(restrictedToOrganizationId, user.id))) {
+    return { error: "Only an admin of that organization can restrict a community to it." };
+  }
+
   if (name.length < 1 || name.length > 80) {
     return { error: "Name must be 1-80 characters." };
   }
@@ -63,7 +73,7 @@ export async function createCommunity(
   let avatarUrl: string | undefined;
   const avatarFile = formData.get("avatar");
   if (avatarFile instanceof File && avatarFile.size > 0) {
-    const result = await saveUploadedImage(avatarFile);
+    const result = await saveUploadedImage(avatarFile, { uploadedById: user.id });
     if ("error" in result) return { error: result.error };
     avatarUrl = result.url;
   }
@@ -71,7 +81,7 @@ export async function createCommunity(
   let coverUrl: string | undefined;
   const coverFile = formData.get("cover");
   if (coverFile instanceof File && coverFile.size > 0) {
-    const result = await saveUploadedImage(coverFile);
+    const result = await saveUploadedImage(coverFile, { uploadedById: user.id });
     if ("error" in result) return { error: result.error };
     coverUrl = result.url;
   }
@@ -99,6 +109,7 @@ export async function createCommunity(
         avatarUrl,
         coverUrl,
         createdBy: user.id,
+        restrictedToOrganizationId,
         members: { create: [{ userId: user.id, role: "owner", status: "active" }] },
       },
     });
@@ -107,6 +118,16 @@ export async function createCommunity(
       return { error: "That slug is already taken." };
     }
     throw err;
+  }
+
+  if (restrictedToOrganizationId) {
+    await logOrgAudit({
+      organizationId: restrictedToOrganizationId,
+      actorId: user.id,
+      action: "community_created",
+      targetType: "community",
+      targetId: community.id,
+    });
   }
 
   redirect(`/c/${community.slug}`);
@@ -155,14 +176,14 @@ export async function updateCommunity(
 
   const avatarFile = formData.get("avatar");
   if (avatarFile instanceof File && avatarFile.size > 0) {
-    const result = await saveUploadedImage(avatarFile);
+    const result = await saveUploadedImage(avatarFile, { uploadedById: user.id });
     if ("error" in result) return { error: result.error };
     data.avatarUrl = result.url;
   }
 
   const coverFile = formData.get("cover");
   if (coverFile instanceof File && coverFile.size > 0) {
-    const result = await saveUploadedImage(coverFile);
+    const result = await saveUploadedImage(coverFile, { uploadedById: user.id });
     if ("error" in result) return { error: result.error };
     data.coverUrl = result.url;
   }
@@ -195,6 +216,10 @@ export async function joinCommunity(formData: FormData): Promise<void> {
   // unbanMember below, so there's no path to bypass a ban via re-joining).
   const existing = await getCommunityMember(communityId, user.id);
   if (existing) return;
+
+  // phase-14 spec §4.3 acceptance criterion: blocks the join outright,
+  // regardless of the community's own visibility setting.
+  if (!(await isEligibleForOrgRestrictedCommunity(community.restrictedToOrganizationId, user.id))) return;
 
   const status = community.visibility === "public" ? "active" : "pending";
 

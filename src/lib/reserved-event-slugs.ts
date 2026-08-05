@@ -3,7 +3,10 @@
 // not owner-scoped like Article's per-author slugs.
 import { validateSlugFormat } from "./slug-validation";
 
-export const RESERVED_EVENT_SLUGS = new Set<string>(["new"]);
+// phase-13 spec §8.1: 0dot's own brand terms and common confusable
+// variants, alongside the create-event route — actively maintained as new
+// confusables are identified.
+export const RESERVED_EVENT_SLUGS = new Set<string>(["new", "0dot", "0dotin"]);
 
 export type EventSlugValidationError = "invalid_format" | "reserved" | null;
 

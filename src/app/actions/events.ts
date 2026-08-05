@@ -127,7 +127,7 @@ export async function createEvent(_prevState: ActionState, formData: FormData): 
   let coverImageUrl: string | undefined;
   const coverFile = formData.get("coverImage");
   if (coverFile instanceof File && coverFile.size > 0) {
-    const result = await saveUploadedImage(coverFile);
+    const result = await saveUploadedImage(coverFile, { uploadedById: user.id });
     if ("error" in result) return { error: result.error };
     coverImageUrl = result.url;
   }
@@ -199,7 +199,7 @@ export async function updateEvent(_prevState: ActionState, formData: FormData): 
   let coverImageUrl: string | undefined;
   const coverFile = formData.get("coverImage");
   if (coverFile instanceof File && coverFile.size > 0) {
-    const result = await saveUploadedImage(coverFile);
+    const result = await saveUploadedImage(coverFile, { uploadedById: user.id });
     if ("error" in result) return { error: result.error };
     coverImageUrl = result.url;
   }

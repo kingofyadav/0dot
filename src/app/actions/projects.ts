@@ -139,7 +139,7 @@ export async function createProject(_prevState: ActionState, formData: FormData)
   let coverImageUrl: string | undefined;
   const coverFile = formData.get("coverImage");
   if (coverFile instanceof File && coverFile.size > 0) {
-    const result = await saveUploadedImage(coverFile, { maxBytes: MAX_IMAGE_BYTES });
+    const result = await saveUploadedImage(coverFile, { maxBytes: MAX_IMAGE_BYTES, uploadedById: user.id });
     if ("error" in result) return { error: result.error };
     coverImageUrl = result.url;
   }
@@ -150,7 +150,7 @@ export async function createProject(_prevState: ActionState, formData: FormData)
     .slice(0, MAX_GALLERY_IMAGES);
   const galleryUrls: string[] = [];
   for (const file of galleryFiles) {
-    const result = await saveUploadedImage(file, { maxBytes: MAX_IMAGE_BYTES });
+    const result = await saveUploadedImage(file, { maxBytes: MAX_IMAGE_BYTES, uploadedById: user.id });
     if ("error" in result) return { error: result.error };
     galleryUrls.push(result.url);
   }
@@ -185,7 +185,7 @@ export async function updateProject(_prevState: ActionState, formData: FormData)
   let coverImageUrl = project.coverImageUrl;
   const coverFile = formData.get("coverImage");
   if (coverFile instanceof File && coverFile.size > 0) {
-    const result = await saveUploadedImage(coverFile, { maxBytes: MAX_IMAGE_BYTES });
+    const result = await saveUploadedImage(coverFile, { maxBytes: MAX_IMAGE_BYTES, uploadedById: user.id });
     if ("error" in result) return { error: result.error };
     coverImageUrl = result.url;
   }
@@ -200,7 +200,7 @@ export async function updateProject(_prevState: ActionState, formData: FormData)
   if (galleryFiles.length > 0) {
     const galleryUrls: string[] = [];
     for (const file of galleryFiles) {
-      const result = await saveUploadedImage(file, { maxBytes: MAX_IMAGE_BYTES });
+      const result = await saveUploadedImage(file, { maxBytes: MAX_IMAGE_BYTES, uploadedById: user.id });
       if ("error" in result) return { error: result.error };
       galleryUrls.push(result.url);
     }

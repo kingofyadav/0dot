@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { getCommunityMember } from "@/lib/communities";
+import { isGatedFromCommunityContent } from "@/lib/organizations";
 import { listVoiceRooms } from "@/lib/voice-rooms";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -22,7 +23,7 @@ export default async function VoiceRoomListPage({ params }: { params: Promise<{ 
   const currentUser = await getCurrentUser();
   const membership = currentUser ? await getCommunityMember(community.id, currentUser.id) : null;
   const isActiveMember = membership?.status === "active" || membership?.status === "muted";
-  if (community.visibility === "private" && !isActiveMember) {
+  if (isGatedFromCommunityContent(community, isActiveMember)) {
     return (
       <div className="profileCard">
         <p className="mutedText">This is a private community. Join to see its voice rooms.</p>

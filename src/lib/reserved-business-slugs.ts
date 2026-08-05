@@ -7,6 +7,10 @@ import { validateSlugFormat } from "./slug-validation";
 
 export const RESERVED_BUSINESS_SLUGS = new Set([
   "new", // /b/new — the create-business route
+  // phase-13 spec §8.1: 0dot's own brand terms and common confusable
+  // variants — actively maintained as new confusables are identified.
+  "0dot",
+  "0dotin",
 ]);
 
 export type BusinessSlugValidationError = "invalid_format" | "reserved" | "taken" | null;

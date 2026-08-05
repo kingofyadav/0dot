@@ -1,7 +1,9 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { createArticle, updateArticle } from "@/app/actions/articles";
+import { suggestArticleDraft } from "@/app/actions/ai-content";
+import { AISuggestButton } from "@/components/AISuggestButton";
 
 type ArticleFormArticle = {
   id: string;
@@ -21,6 +23,7 @@ export function ArticleForm({ article }: { article?: ArticleFormArticle }) {
   const action = article ? updateArticle : createArticle;
   const [state, formAction, pending] = useActionState(action, undefined);
   const idSuffix = article?.id ?? "new";
+  const [bodyValue, setBodyValue] = useState(article?.body ?? "");
 
   return (
     <form action={formAction} style={{ display: "flex", flexDirection: "column", gap: "0.5rem", maxWidth: "50ch" }}>
@@ -41,8 +44,22 @@ export function ArticleForm({ article }: { article?: ArticleFormArticle }) {
       </div>
       <div className="field">
         <label htmlFor={`articleBody-${idSuffix}`}>Body</label>
-        <textarea id={`articleBody-${idSuffix}`} name="body" defaultValue={article?.body} rows={10} />
+        <textarea
+          id={`articleBody-${idSuffix}`}
+          name="body"
+          value={bodyValue}
+          onChange={(e) => setBodyValue(e.target.value)}
+          rows={10}
+        />
       </div>
+
+      <AISuggestButton
+        label="AI: Draft this article"
+        contextLabel="Topic or working title"
+        contextPlaceholder="e.g. Getting started with sourdough"
+        generate={suggestArticleDraft}
+        onInsert={(text) => setBodyValue((current) => (current.trim().length > 0 ? `${current}\n\n${text}` : text))}
+      />
       <div className="field">
         <label htmlFor={`articleTags-${idSuffix}`}>Tags (comma-separated)</label>
         <input id={`articleTags-${idSuffix}`} name="tags" defaultValue={article?.tags?.join(", ")} placeholder="cooking, travel" />

@@ -7,6 +7,7 @@ import { requireVerifiedUser } from "@/lib/auth-guards";
 import { saveUploadedImage } from "@/lib/uploads";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { validateArticleSlugFormat } from "@/lib/reserved-article-slugs";
+import { recordContentRevision } from "@/lib/content-revisions";
 import type { ActionState } from "@/app/actions/auth";
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -114,7 +115,7 @@ export async function createArticle(_prevState: ActionState, formData: FormData)
   let coverImageUrl: string | undefined;
   const coverFile = formData.get("coverImage");
   if (coverFile instanceof File && coverFile.size > 0) {
-    const result = await saveUploadedImage(coverFile, { maxBytes: MAX_IMAGE_BYTES });
+    const result = await saveUploadedImage(coverFile, { maxBytes: MAX_IMAGE_BYTES, uploadedById: user.id });
     if ("error" in result) return { error: result.error };
     coverImageUrl = result.url;
   }
@@ -152,7 +153,7 @@ export async function updateArticle(_prevState: ActionState, formData: FormData)
   let coverImageUrl = article.coverImageUrl;
   const coverFile = formData.get("coverImage");
   if (coverFile instanceof File && coverFile.size > 0) {
-    const result = await saveUploadedImage(coverFile, { maxBytes: MAX_IMAGE_BYTES });
+    const result = await saveUploadedImage(coverFile, { maxBytes: MAX_IMAGE_BYTES, uploadedById: user.id });
     if ("error" in result) return { error: result.error };
     coverImageUrl = result.url;
   }
@@ -164,14 +165,19 @@ export async function updateArticle(_prevState: ActionState, formData: FormData)
   const isPublishing = fields.status === "published";
   const publishedAt = isPublishing ? (article.publishedAt ?? new Date()) : null;
 
-  await db.article.update({
-    where: { id: article.id },
-    data: {
-      ...fields,
-      coverImageUrl,
-      readingTimeMinutes: isPublishing ? computeReadingTimeMinutes(fields.body) : article.readingTimeMinutes,
-      publishedAt,
-    },
+  // phase-13 spec §3.3: the ContentRevision row is created before the
+  // update is visible, not after — both writes share one transaction.
+  await db.$transaction(async (tx) => {
+    await recordContentRevision(tx, "article", article.id, fields.body, user.id);
+    await tx.article.update({
+      where: { id: article.id },
+      data: {
+        ...fields,
+        coverImageUrl,
+        readingTimeMinutes: isPublishing ? computeReadingTimeMinutes(fields.body) : article.readingTimeMinutes,
+        publishedAt,
+      },
+    });
   });
   await syncArticleHashtags(article.id, parseTags(formData));
 

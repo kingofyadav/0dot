@@ -9,6 +9,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { saveUploadedImage } from "@/lib/uploads";
 import { validateBusinessSlugFormat } from "@/lib/reserved-business-slugs";
 import { BUSINESS_CATEGORY_KEYS } from "@/lib/business-categories";
+import { createTrustSafetyCase } from "@/lib/trust-safety";
 import {
   getBusinessMember,
   isBusinessOwner,
@@ -94,7 +95,7 @@ export async function createBusiness(
   let logoUrl: string | undefined;
   const logoFile = formData.get("logo");
   if (logoFile instanceof File && logoFile.size > 0) {
-    const result = await saveUploadedImage(logoFile);
+    const result = await saveUploadedImage(logoFile, { uploadedById: user.id });
     if ("error" in result) return { error: result.error };
     logoUrl = result.url;
   }
@@ -102,7 +103,7 @@ export async function createBusiness(
   let coverUrl: string | undefined;
   const coverFile = formData.get("cover");
   if (coverFile instanceof File && coverFile.size > 0) {
-    const result = await saveUploadedImage(coverFile);
+    const result = await saveUploadedImage(coverFile, { uploadedById: user.id });
     if ("error" in result) return { error: result.error };
     coverUrl = result.url;
   }
@@ -143,6 +144,14 @@ export async function createBusiness(
       return { error: "That slug is already taken." };
     }
     throw err;
+  }
+
+  // phase-12 spec §11 step 3: wires the claim gate into the unified
+  // Trust & Safety queue — Business.status itself is untouched by this
+  // (§3.3), reportedById is null since this originates from the
+  // claimant's own submission, not a report (§3.1's model comment).
+  if (business.status === "pending") {
+    await createTrustSafetyCase({ caseType: "business_claim_review", subjectType: "business", subjectId: business.id });
   }
 
   redirect(`/b/${business.slug}`);
@@ -196,14 +205,14 @@ export async function updateBusiness(
 
   const logoFile = formData.get("logo");
   if (logoFile instanceof File && logoFile.size > 0) {
-    const result = await saveUploadedImage(logoFile);
+    const result = await saveUploadedImage(logoFile, { uploadedById: user.id });
     if ("error" in result) return { error: result.error };
     data.logoUrl = result.url;
   }
 
   const coverFile = formData.get("cover");
   if (coverFile instanceof File && coverFile.size > 0) {
-    const result = await saveUploadedImage(coverFile);
+    const result = await saveUploadedImage(coverFile, { uploadedById: user.id });
     if ("error" in result) return { error: result.error };
     data.coverUrl = result.url;
   }

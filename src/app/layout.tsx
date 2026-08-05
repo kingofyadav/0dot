@@ -5,8 +5,10 @@ import "./globals.css";
 import { SiteHeader } from "@/components/SiteHeader";
 import { ContextualRail } from "@/components/ContextualRail";
 import { MessagingProvider } from "@/components/MessagingProvider";
+import { ToastProvider } from "@/components/Toast";
+import { AgeGatePrompt } from "@/components/AgeGatePrompt";
 import { getCurrentUser } from "@/lib/session";
-import { showsContextualRail } from "@/lib/route-context";
+import { showsContextualRail, isChromelessPath } from "@/lib/route-context";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -50,7 +52,12 @@ export default async function RootLayout({
   const headersList = await headers();
   const pathname = headersList.get("x-pathname") ?? "";
   const showRail = showsContextualRail(pathname);
+  const chromeless = isChromelessPath(pathname);
   const currentUser = await getCurrentUser();
+
+  const bodyClassNames = [showRail && "hasRail", chromeless && "noChrome"]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <html
@@ -67,13 +74,27 @@ export default async function RootLayout({
           }}
         />
       </head>
-      <body className={showRail ? "hasRail" : undefined}>
+      <body className={bodyClassNames || undefined}>
+        <a href="#main-content" className="skipLink">
+          Skip to content
+        </a>
         <MessagingProvider userId={currentUser?.id ?? null}>
-          <SiteHeader />
-          <main className="appMain">{children}</main>
-          {/* Sibling of .appMain, not nested inside it — grid-area only
-              applies to direct children of the body grid container. */}
-          {showRail && <ContextualRail />}
+          <ToastProvider>
+            {!chromeless && <SiteHeader />}
+            <main id="main-content" tabIndex={-1} className="appMain">
+              {/* Rendered inside .appMain, not as a body-level sibling —
+                  body is a CSS grid with named areas at desktop width
+                  (header/sidebar/main/aside), and an unassigned grid-area
+                  child gets auto-placed into whatever cell is next,
+                  overlapping the sidebar instead of appearing above the
+                  page content. */}
+              {!chromeless && currentUser && !currentUser.dateOfBirth && <AgeGatePrompt />}
+              {children}
+            </main>
+            {/* Sibling of .appMain, not nested inside it — grid-area only
+                applies to direct children of the body grid container. */}
+            {showRail && <ContextualRail />}
+          </ToastProvider>
         </MessagingProvider>
       </body>
     </html>

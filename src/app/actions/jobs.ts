@@ -109,7 +109,7 @@ export async function applyToJob(_prevState: ActionState, formData: FormData): P
   let resumeUrl: string | null = null;
   const resumeFile = formData.get("resume");
   if (resumeFile instanceof File && resumeFile.size > 0) {
-    const result = await saveMessageAttachment(resumeFile, "file");
+    const result = await saveMessageAttachment(resumeFile, "file", user.id);
     if ("error" in result) return { error: result.error };
     resumeUrl = result.url;
   }

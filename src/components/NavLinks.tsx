@@ -1,8 +1,23 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { SearchForm } from "./SearchForm";
+
+const DESTINATIONS = [
+  { href: "/feed", label: "Feed", icon: "🏠" },
+  { href: "/explore", label: "Explore", icon: "🔍" },
+  { href: "/trending", label: "Trending", icon: "🔥" },
+  { href: "/c", label: "Communities", icon: "👥" },
+  { href: "/b", label: "Businesses", icon: "💼" },
+] as const;
 
 // Shared between Sidebar (desktop) and the mobile hamburger dropdown — same
 // destinations, same markup, just rendered inside a different container.
+// Client Component (usePathname) so the active destination can be
+// highlighted — SiteHeader's server-side x-pathname header tells the page
+// shell whether a route is a profile page, but per-link active-state needs
+// the exact current path, which only the client router knows on navigation.
 export function NavLinks({
   showBookmarks,
   profileHandle,
@@ -10,38 +25,37 @@ export function NavLinks({
   showBookmarks: boolean;
   profileHandle: string | null;
 }) {
+  const pathname = usePathname();
+
+  const items = [
+    ...DESTINATIONS,
+    ...(showBookmarks
+      ? ([
+          { href: "/messages", label: "Messages", icon: "💬" },
+          { href: "/bookmarks", label: "Bookmarks", icon: "🔖" },
+        ] as const)
+      : []),
+    ...(profileHandle ? [{ href: `/${profileHandle}`, label: "Profile", icon: "👤" }] : []),
+  ];
+
   return (
     <>
-      <Link href="/feed" style={{ fontWeight: 600, opacity: 0.85 }}>
-        Feed
-      </Link>
-      <Link href="/explore" style={{ fontWeight: 600, opacity: 0.85 }}>
-        Explore
-      </Link>
-      <Link href="/trending" style={{ fontWeight: 600, opacity: 0.85 }}>
-        Trending
-      </Link>
-      <Link href="/c" style={{ fontWeight: 600, opacity: 0.85 }}>
-        Communities
-      </Link>
-      <Link href="/b" style={{ fontWeight: 600, opacity: 0.85 }}>
-        Businesses
-      </Link>
-      {showBookmarks && (
-        <Link href="/messages" style={{ fontWeight: 600, opacity: 0.85 }}>
-          Messages
-        </Link>
-      )}
-      {showBookmarks && (
-        <Link href="/bookmarks" style={{ fontWeight: 600, opacity: 0.85 }}>
-          Bookmarks
-        </Link>
-      )}
-      {profileHandle && (
-        <Link href={`/${profileHandle}`} style={{ fontWeight: 600, opacity: 0.85 }}>
-          Profile
-        </Link>
-      )}
+      {items.map(({ href, label, icon }) => {
+        const isActive = href === "/" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
+        return (
+          <Link
+            key={href}
+            href={href}
+            className={`navLink${isActive ? " navLinkActive" : ""}`}
+            aria-current={isActive ? "page" : undefined}
+          >
+            <span className="navLinkIcon" aria-hidden="true">
+              {icon}
+            </span>
+            {label}
+          </Link>
+        );
+      })}
       <SearchForm />
     </>
   );

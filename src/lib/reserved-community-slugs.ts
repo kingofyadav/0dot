@@ -6,6 +6,11 @@
 // router/validator checks) rather than inventing a second policy shape.
 export const RESERVED_COMMUNITY_SLUGS = new Set([
   "new", // /c/new — the create-community route
+  // phase-13 spec §8.1: 0dot's own brand terms and common confusable
+  // variants — actively maintained as new confusables are identified, not
+  // frozen at this list.
+  "0dot",
+  "0dotin",
 ]);
 
 import { validateSlugFormat } from "./slug-validation";

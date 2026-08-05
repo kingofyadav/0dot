@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { followUser, unfollowUser } from "@/app/actions/follow";
-import { Logo } from "@/components/Logo";
+import { Avatar } from "@/components/Avatar";
 
 // Shared row for any "list of users" surface (followers, following,
 // suggested users) — avatar/name/handle + an inline follow toggle, same
@@ -30,20 +30,7 @@ export function UserListItem({
         href={handle ? `/${handle}` : "#"}
         style={{ display: "flex", alignItems: "center", gap: "0.6rem", minWidth: 0 }}
       >
-        {avatarUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element -- user-supplied URL, not a local/optimizable asset
-          <img
-            src={avatarUrl}
-            alt=""
-            width={40}
-            height={40}
-            style={{ borderRadius: "50%", objectFit: "cover", flexShrink: 0 }}
-          />
-        ) : (
-          <span style={{ display: "inline-flex", borderRadius: "50%", flexShrink: 0 }}>
-            <Logo size={40} />
-          </span>
-        )}
+        <Avatar src={avatarUrl} alt="" size={40} />
         <span style={{ minWidth: 0, overflow: "hidden" }}>
           <span style={{ fontWeight: 600, display: "block" }}>
             {displayName}

@@ -19,3 +19,13 @@ const RAIL_ROUTES = new Set(["/feed", "/explore", "/notifications"]);
 export function showsContextualRail(pathname: string): boolean {
   return RAIL_ROUTES.has(pathname);
 }
+
+// The landing page ("/") and the standalone /login and /signup pages each
+// render their own self-contained hero/auth card with no site chrome at
+// all — matching the classic split-layout marketing pattern (logo/pitch
+// beside a login form, no header, no nav).
+const CHROMELESS_PATHS = new Set(["/", "/login", "/signup"]);
+
+export function isChromelessPath(pathname: string): boolean {
+  return CHROMELESS_PATHS.has(pathname);
+}

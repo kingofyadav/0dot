@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { getCommunityMember } from "@/lib/communities";
+import { isGatedFromCommunityContent } from "@/lib/organizations";
 import { getWikiRevisions } from "@/lib/wiki";
 import { parseCursor } from "@/lib/pagination";
 
@@ -22,14 +23,14 @@ export default async function WikiPageHistory({
 
   const community = await db.community.findUnique({
     where: { slug },
-    select: { id: true, slug: true, visibility: true },
+    select: { id: true, slug: true, visibility: true, restrictedToOrganizationId: true },
   });
   if (!community) notFound();
 
   const currentUser = await getCurrentUser();
   const membership = currentUser ? await getCommunityMember(community.id, currentUser.id) : null;
   const isActiveMember = membership?.status === "active" || membership?.status === "muted";
-  if (community.visibility === "private" && !isActiveMember) {
+  if (isGatedFromCommunityContent(community, isActiveMember)) {
     return (
       <div className="profileCard">
         <p className="mutedText">This is a private community. Join to see its wiki.</p>

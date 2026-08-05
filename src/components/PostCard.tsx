@@ -7,6 +7,8 @@ import { linkifyPostBody } from "@/lib/linkify";
 import { flairColorStyle } from "@/lib/flair-colors";
 import { ReplyForm } from "@/app/feed/ReplyForm";
 import { QuoteRepostForm } from "@/app/feed/QuoteRepostForm";
+import { ReportButton } from "@/components/ReportButton";
+import { EditPostForm } from "@/app/feed/EditPostForm";
 
 // Plain helper, not called directly in a component body — same reasoning
 // as relativeTime just below: react-hooks/purity flags Date.now() called
@@ -422,8 +424,13 @@ export function PostCard({
                   </button>
                 </form>
               )}
+              {/* phase-12 spec §4.1: the generic report action, available on
+                  any post the viewer doesn't own — same reusable
+                  ReportButton every other subjectType renders. */}
+              {currentUserId && !isOwner && <ReportButton subjectType="post" subjectId={post.id} />}
             </span>
           </div>
+          {isOwner && <EditPostForm postId={post.id} body={post.body} />}
           <p style={{ whiteSpace: "pre-wrap" }}>{linkifyPostBody(post.body)}</p>
           <PostMediaGrid media={post.media} />
           {post.poll && <PollBlock poll={post.poll} votedOptionIds={votedOptionIds ?? new Set()} />}

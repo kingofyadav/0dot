@@ -19,22 +19,23 @@ Status: Foundational document (Priority 7). Inventory of what exists today plus 
 | Post card | `src/components/PostCard.tsx` | Used on both `/feed` and profile Posts section — good example of the "avoid page-specific components" rule already being followed |
 | Compose box | `src/app/feed/ComposeBox.tsx` | Currently feed-page-specific; will need to become shared once posting is possible from other surfaces (e.g. a community) |
 | Disclosure (expand/collapse) | `.profileEditToggle` (styled `<details>`) | Currently only used for Edit Profile |
+| Modal / dialog | `src/components/Modal.tsx` | Native `<dialog>`, themed via `.modal`/`--shadow-lg`. Free focus trap, Escape-to-close, focus-return via the platform. |
+| Confirm button | `src/components/ConfirmButton.tsx` | Wraps Modal for the destructive-confirmation pattern (`UX_GUIDELINES.md` #9). Wired into the profile Links page's link/social-link delete buttons; other delete flows (see grep for `"Delete"`/`"Block"` across `src/app`) still need this — a Phase-4-style sweep, not yet done everywhere. |
+| Toast | `src/components/Toast.tsx` (`ToastProvider`/`useToast`) | Mounted once at the root (`layout.tsx`), `aria-live="polite"`. Built as ready-to-use infra per this doc's own "write it as if it'll be reused" rule — not yet called from any page; adopt it the next time a lightweight non-navigating confirmation is needed. |
+| Avatar | `src/components/Avatar.tsx` | Extracted from the profile page's avatar-with-fallback branching, also adopted by `UserListItem.tsx`. ~17 other `avatarUrl` call sites (messages, community members, etc.) still have their own inline version — migrate opportunistically, not in one sweep. |
+| Empty state | `src/components/EmptyState.tsx` (`.emptyState`) | Replaces the ad hoc `<p className="mutedText">` pattern on the profile Links page (both the social-links and links empty states); most other empty states across the app haven't been migrated yet. |
 
 ## Missing (needed before the next few phases)
 
 | Component | Needed for | Priority |
 |---|---|---|
-| **Modal / dialog** | Confirmations (delete account, destructive actions per `UX_GUIDELINES.md` #9), any focused task that shouldn't navigate away | High — first destructive-action flow (Phase 12) blocks on this |
-| **Toast / inline notification** | Non-blocking feedback ("Link added", "Copied to clipboard") — today, feedback is only via full page re-render (`revalidatePath`), which works but doesn't scale to lightweight confirmations | Medium |
 | **Tabs** | Profile sub-sections once Media/Articles/Projects/Store land (Phases 6/7/9) | Medium — needed once IA's profile sub-navigation grows past Posts+Links |
-| **Menu / dropdown** | Overflow actions once primary-action space runs out (`UX_GUIDELINES.md` #3 — only for genuinely secondary actions) | Low for now |
+| **Menu / dropdown** | Overflow actions once primary-action space runs out (`UX_GUIDELINES.md` #3 — only for genuinely secondary actions) | Low for now — `MobileNavMenu.tsx` already covers the one place a dropdown-like disclosure is needed today; deliberately not generalized into a standalone `Dropdown` component without a second concrete caller (would be unused infra, not "written to be reused"). |
 | **List** (generic, virtualized-ready) | Feed and profile Posts currently render full unpaginated lists (`take: 50`, no cursor) — needs to become a real paginated/virtualized list before performance targets in `PERFORMANCE.md` are at risk | High — tied to infinite scroll |
-| **Avatar (standalone, sizeable)** | Currently avatar rendering is inlined per-page (profile page has its own `<img>`/`Logo` branching); extract into a shared `Avatar` component before it's needed a third time (e.g. comment threads, follower lists) | Medium |
 | **Media viewer** | Image/video posts (Phase 1 named "image/video posts" as a Feed feature — not yet built; current `Post` model is text-only) | High — blocks a named Phase 1 feature |
 | **Rich text editor** | Articles (Phase 7) | Low — not until Phase 7 |
 | **Comment thread** | Post comments (Phase 1 named "comment" as a Feed feature — not yet built; `PostLike` exists, no `Comment` model yet) | High — blocks a named Phase 1 feature |
 | **Form field variants** (select, checkbox, radio, toggle switch) | Settings (Phase 1/12), any future preference UI | Medium |
-| **Empty state** (as a real component, not ad hoc `<p className="mutedText">`) | Consistency per `UX_GUIDELINES.md` #10 — currently each empty state is hand-written per page | Low, but cheap to fix now before more pages copy the ad hoc pattern |
 
 ## Rule
 

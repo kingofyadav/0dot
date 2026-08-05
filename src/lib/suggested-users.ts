@@ -1,12 +1,19 @@
 import "server-only";
 import { db } from "@/lib/db";
+import { getAIProvider, cosineSimilarity } from "@/lib/ai-provider";
+import { logAIGeneration } from "@/lib/ai-generation";
 
-// phase-2 spec §3.3 — a simple weighted heuristic computed on read, not a
-// precomputed/ML recommendation (that's Phase 11 territory). Mutual
-// follows weigh highest, verified accounts moderate, recently-active
-// accounts a small nudge. App-layer scoring after a couple of targeted
-// queries, same posture as search/page.tsx's rankUsers — SQLite has no
-// clean way to express this as a single weighted-scoring query.
+// phase-2 spec §3.3 — originally a placeholder heuristic "to revisit when
+// there's enough interaction data for the phase-11 AI recommendation
+// system to take over" (that spec's own words). Phase-11 §7.2 resolves it
+// not by replacing this heuristic but by blending a learned similarity
+// signal into it — mutual follows still weigh highest, verified/active
+// stay as before, and bio-similarity is one more additive term, same
+// "re-ranking signal that supplements the existing tie-break" framing
+// §7.2 applies to every other ranking surface in that phase. App-layer
+// scoring after a couple of targeted queries, same posture as
+// search/page.tsx's rankUsers — SQLite has no clean way to express this as
+// a single weighted-scoring query.
 
 const SUGGESTION_POOL_SIZE = 50; // candidates considered before scoring/limiting
 
@@ -60,17 +67,43 @@ export async function getSuggestedUsers(viewerId: string, limit: number) {
     where: { id: { in: candidateIds } },
     include: { username: true, profile: true },
   });
+  const eligible = candidates.filter((u) => u.username && u.profile);
 
-  return candidates
-    .filter((u) => u.username && u.profile)
+  // phase-11 §7.2: bio-similarity to the viewer's own bio as a learned
+  // similarity stand-in — see ai-provider.ts's embed() for why this is a
+  // deterministic hash embedding rather than a real learned model, and why
+  // that's fine here (every score is a supplementary nudge, none of them
+  // gate visibility the way, say, a moderation confidence threshold would).
+  const viewerProfile = await db.profile.findUnique({ where: { userId: viewerId }, select: { bio: true } });
+  const provider = getAIProvider();
+  const viewerVector = provider.embed(viewerProfile?.bio ?? "");
+  const similarity = new Map<string, number>();
+  for (const u of eligible) {
+    similarity.set(u.id, cosineSimilarity(viewerVector, provider.embed(u.profile!.bio)));
+  }
+
+  const scored = eligible
     .map((u) => ({
       user: u,
       score:
         (mutualCounts.get(u.id) ?? 0) * 3 + // mutual-follow — highest weight
         (u.profile!.isVerified ? 2 : 0) + // verified — moderate weight
-        (activeIds.has(u.id) ? 1 : 0), // recently active — small weight
+        (activeIds.has(u.id) ? 1 : 0) + // recently active — small weight
+        (similarity.get(u.id) ?? 0) * 1.5, // learned similarity — additive, doesn't override the above
     }))
     .sort((a, b) => b.score - a.score)
-    .slice(0, limit)
-    .map((s) => s.user);
+    .slice(0, limit);
+
+  await logAIGeneration({
+    feature: "recommendation",
+    requestedById: viewerId,
+    subjectType: "user",
+    subjectId: viewerId,
+    modelName: provider.modelName,
+    input: { candidateCount: eligible.length },
+    output: { suggestedUserIds: scored.map((s) => s.user.id) },
+    costTokens: eligible.length,
+  });
+
+  return scored.map((s) => s.user);
 }

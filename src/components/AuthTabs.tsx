@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { signup, login } from "@/app/actions/auth";
 import { Logo } from "./Logo";
+import { AuthTrust } from "./AuthTrust";
 
 export function AuthTabs() {
   const [tab, setTab] = useState<"signup" | "login">("signup");
@@ -21,17 +22,9 @@ export function AuthTabs() {
 
   return (
     <div className="authCard">
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: "0.5rem",
-          marginBottom: "0.5rem",
-        }}
-      >
+      <div className="authHeader">
         <Logo size={48} />
-        <p style={{ fontWeight: 600 }}>Welcome</p>
+        <p>Welcome</p>
       </div>
 
       {tab === "signup" ? (
@@ -106,18 +99,7 @@ export function AuthTabs() {
 
           <p className="authFooter">
             Already have an account?{" "}
-            <button
-              type="button"
-              onClick={() => setTab("login")}
-              style={{
-                background: "none",
-                border: "none",
-                padding: 0,
-                font: "inherit",
-                cursor: "pointer",
-                textDecoration: "underline",
-              }}
-            >
+            <button type="button" className="linkButton" onClick={() => setTab("login")}>
               Log in
             </button>
           </p>
@@ -164,23 +146,14 @@ export function AuthTabs() {
 
           <p className="authFooter">
             New here?{" "}
-            <button
-              type="button"
-              onClick={() => setTab("signup")}
-              style={{
-                background: "none",
-                border: "none",
-                padding: 0,
-                font: "inherit",
-                cursor: "pointer",
-                textDecoration: "underline",
-              }}
-            >
+            <button type="button" className="linkButton" onClick={() => setTab("signup")}>
               Create an account
             </button>
           </p>
         </>
       )}
+
+      <AuthTrust />
     </div>
   );
 }

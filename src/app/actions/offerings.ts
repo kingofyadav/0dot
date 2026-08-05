@@ -135,7 +135,7 @@ export async function createOffering(
     .slice(0, MAX_IMAGES);
   const imageUrls: string[] = [];
   for (const file of imageFiles) {
-    const result = await saveUploadedImage(file, { maxBytes: MAX_IMAGE_BYTES });
+    const result = await saveUploadedImage(file, { maxBytes: MAX_IMAGE_BYTES, uploadedById: user.id });
     if ("error" in result) return { error: result.error };
     imageUrls.push(result.url);
   }
@@ -185,7 +185,7 @@ export async function updateOffering(
   if (imageFiles.length > 0) {
     const imageUrls: string[] = [];
     for (const file of imageFiles) {
-      const result = await saveUploadedImage(file, { maxBytes: MAX_IMAGE_BYTES });
+      const result = await saveUploadedImage(file, { maxBytes: MAX_IMAGE_BYTES, uploadedById: user.id });
       if ("error" in result) return { error: result.error };
       imageUrls.push(result.url);
     }

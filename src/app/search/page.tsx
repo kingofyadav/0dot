@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/session";
 import { getPostVisibilityConditions } from "@/lib/post-visibility";
 import { businessCategoryLabel } from "@/lib/business-categories";
 import { fetchAllMarketplaceCategories } from "@/lib/marketplace-browse";
+import { semanticRerank } from "@/lib/ai-search";
 
 type SearchTab = "users" | "posts" | "communities" | "businesses" | "projects" | "knowledge" | "events" | "marketplace";
 const TABS: { key: SearchTab; label: string }[] = [
@@ -143,7 +144,7 @@ export default async function SearchPage({
     if (tab === "communities") communities = await searchCommunities(q);
     if (tab === "businesses") businesses = await searchBusinesses(q);
     if (tab === "projects") projects = await searchProjects(q);
-    if (tab === "knowledge") knowledge = await searchKnowledge(q);
+    if (tab === "knowledge") knowledge = await searchKnowledge(q, (await getCurrentUser())?.id ?? null);
     if (tab === "events") events = await searchEvents(q, eventsWhen);
     if (tab === "marketplace") marketplace = await fetchAllMarketplaceCategories(q);
   }
@@ -471,7 +472,7 @@ function rankKnowledge(rows: KnowledgeResult[], query: string): KnowledgeResult[
 // from the WHERE too, not "indexed but excluded" (there is no separate
 // index to exclude *from* here — reality wins over the spec's Postgres-FTS
 // prose, same posture this codebase applies throughout).
-async function searchKnowledge(q: string) {
+async function searchKnowledge(q: string, viewerId: string | null) {
   const [articles, books, wikiPages, files] = await Promise.all([
     db.article.findMany({
       where: {
@@ -570,7 +571,20 @@ async function searchKnowledge(q: string) {
     });
   }
 
-  return rankKnowledge(results, q).slice(0, 20);
+  const lexicallyRanked = rankKnowledge(results, q).slice(0, 20);
+
+  // phase-11 spec §8.1: semantic re-ranking as a supplementary signal over
+  // the existing lexical order, exact title matches pinned ahead of it —
+  // see semanticRerank's own comment for why this needs no separate vector
+  // index (§8.2).
+  return semanticRerank({
+    query: q,
+    rows: lexicallyRanked,
+    getText: (row) => `${row.title} ${row.subtitle}`,
+    getId: (row) => row.id,
+    isExactMatch: (row) => row.title.toLowerCase() === q.toLowerCase(),
+    requestedById: viewerId,
+  });
 }
 
 // spec §9: only `published` events, split by an explicit Upcoming/Past

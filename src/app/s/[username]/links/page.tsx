@@ -5,6 +5,8 @@ import { deleteLink, deleteSocialLink, moveLink, toggleFeatured } from "@/app/ac
 import { getLinkStats } from "@/lib/link-stats";
 import { getSocialPlatformLabel, type SocialPlatform } from "@/lib/theme-presets";
 import { SocialIcon } from "@/components/SocialIcon";
+import { ConfirmButton } from "@/components/ConfirmButton";
+import { EmptyState } from "@/components/EmptyState";
 import { AddLinkForm } from "../AddLinkForm";
 import { SocialLinksForm } from "../SocialLinksForm";
 
@@ -34,7 +36,7 @@ export default async function LinksSettingsPage() {
 
       <p className="sectionHeading">Social links</p>
       <div className="socialLinksRow">
-        {profileRow.socialLinks.length === 0 && <p className="mutedText">No social links yet.</p>}
+        {profileRow.socialLinks.length === 0 && <EmptyState message="No social links yet." />}
         {profileRow.socialLinks.map((social) => (
           <span key={social.id} style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}>
             <a
@@ -49,9 +51,15 @@ export default async function LinksSettingsPage() {
             </a>
             <form action={deleteSocialLink}>
               <input type="hidden" name="socialLinkId" value={social.id} />
-              <button type="submit" className="button buttonSecondary iconButton" aria-label={`Remove ${social.platform} link`}>
+              <ConfirmButton
+                className="button buttonSecondary iconButton"
+                aria-label={`Remove ${social.platform} link`}
+                title="Remove this link?"
+                description={`This removes your ${getSocialPlatformLabel(social.platform)} link from your profile. You can add it again anytime.`}
+                confirmLabel="Remove"
+              >
                 ✕
-              </button>
+              </ConfirmButton>
             </form>
           </span>
         ))}
@@ -62,7 +70,7 @@ export default async function LinksSettingsPage() {
 
       <div className="linksSection">
         <p className="sectionHeading">Links</p>
-        {links.length === 0 && <p className="mutedText">No links yet.</p>}
+        {links.length === 0 && <EmptyState message="No links yet." />}
         {links.map((link, index) => {
           const isScheduledHidden =
             (link.startsAt && link.startsAt > now) || (link.endsAt && link.endsAt < now);
@@ -112,9 +120,15 @@ export default async function LinksSettingsPage() {
                   </form>
                   <form action={deleteLink}>
                     <input type="hidden" name="linkId" value={link.id} />
-                    <button type="submit" className="button buttonSecondary iconButton" aria-label="Delete">
+                    <ConfirmButton
+                      className="button buttonSecondary iconButton"
+                      aria-label="Delete"
+                      title="Delete this link?"
+                      description={`"${link.label}" will be permanently removed from your profile, along with its click history.`}
+                      confirmLabel="Delete"
+                    >
                       ✕
-                    </button>
+                    </ConfirmButton>
                   </form>
                 </div>
               </div>

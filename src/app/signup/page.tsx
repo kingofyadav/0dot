@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import Link from "next/link";
 import { signup } from "@/app/actions/auth";
 import { Logo } from "@/components/Logo";
+import { AuthTrust } from "@/components/AuthTrust";
 
 export default function SignupPage() {
   const [state, formAction, pending] = useActionState(signup, undefined);
@@ -11,17 +12,9 @@ export default function SignupPage() {
   return (
     <div className="authWrap">
       <form action={formAction} className="authCard">
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: "0.5rem",
-            marginBottom: "0.5rem",
-          }}
-        >
+        <div className="authHeader">
           <Logo size={48} />
-          <p style={{ fontWeight: 600 }}>Welcome</p>
+          <p>Welcome</p>
         </div>
         <h1>Create your account</h1>
         <p className="mutedText">One identity. One profile.</p>
@@ -80,6 +73,7 @@ export default function SignupPage() {
         <p className="authFooter">
           Already have an account? <Link href="/login">Log in</Link>
         </p>
+        <AuthTrust />
       </form>
     </div>
   );

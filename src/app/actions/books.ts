@@ -59,7 +59,7 @@ export async function createBook(_prevState: ActionState, formData: FormData): P
   let coverImageUrl: string | undefined;
   const coverFile = formData.get("coverImage");
   if (coverFile instanceof File && coverFile.size > 0) {
-    const result = await saveUploadedImage(coverFile, { maxBytes: MAX_IMAGE_BYTES });
+    const result = await saveUploadedImage(coverFile, { maxBytes: MAX_IMAGE_BYTES, uploadedById: user.id });
     if ("error" in result) return { error: result.error };
     coverImageUrl = result.url;
   }
@@ -67,7 +67,7 @@ export async function createBook(_prevState: ActionState, formData: FormData): P
   let ebookFileUrl: string | undefined;
   const ebookFile = formData.get("ebookFile");
   if (ebookFile instanceof File && ebookFile.size > 0) {
-    const result = await saveDocumentFile(ebookFile);
+    const result = await saveDocumentFile(ebookFile, { uploadedById: user.id });
     if ("error" in result) return { error: result.error };
     ebookFileUrl = result.url;
   }
@@ -94,7 +94,7 @@ export async function updateBook(_prevState: ActionState, formData: FormData): P
   let coverImageUrl = book.coverImageUrl;
   const coverFile = formData.get("coverImage");
   if (coverFile instanceof File && coverFile.size > 0) {
-    const result = await saveUploadedImage(coverFile, { maxBytes: MAX_IMAGE_BYTES });
+    const result = await saveUploadedImage(coverFile, { maxBytes: MAX_IMAGE_BYTES, uploadedById: user.id });
     if ("error" in result) return { error: result.error };
     coverImageUrl = result.url;
   }
@@ -102,7 +102,7 @@ export async function updateBook(_prevState: ActionState, formData: FormData): P
   let ebookFileUrl = book.ebookFileUrl;
   const ebookFile = formData.get("ebookFile");
   if (ebookFile instanceof File && ebookFile.size > 0) {
-    const result = await saveDocumentFile(ebookFile);
+    const result = await saveDocumentFile(ebookFile, { uploadedById: user.id });
     if ("error" in result) return { error: result.error };
     ebookFileUrl = result.url;
   }

@@ -7,11 +7,12 @@ import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { followUser, unfollowUser } from "@/app/actions/follow";
 import { blockUser, unblockUser } from "@/app/actions/block";
+import { ReportButton } from "@/components/ReportButton";
 import { isBlocked } from "@/lib/blocks";
 import { getThemePreset, getSocialPlatformLabel, type SocialPlatform } from "@/lib/theme-presets";
 import { getFeedPosts, getVotedPollOptionIds } from "@/lib/feed-query";
 import { parseCursor } from "@/lib/pagination";
-import { Logo } from "@/components/Logo";
+import { Avatar } from "@/components/Avatar";
 import { SocialIcon } from "@/components/SocialIcon";
 import { CopyLinkButton } from "@/components/CopyLinkButton";
 import { PostCard } from "@/components/PostCard";
@@ -490,21 +491,7 @@ export default async function ProfilePage({
         )}
       </div>
       <div className="profileHeaderRow">
-        {profile.avatarUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element -- user-supplied URL, not a local/optimizable asset
-          <img
-            src={profile.avatarUrl}
-            alt={profile.displayName}
-            width={96}
-            height={96}
-            className="profileAvatar"
-            style={{ objectFit: "cover" }}
-          />
-        ) : (
-          <span className="profileAvatar" style={{ display: "inline-flex", borderRadius: "50%" }}>
-            <Logo size={96} />
-          </span>
-        )}
+        <Avatar src={profile.avatarUrl} alt={profile.displayName} size={96} className="profileAvatar" />
         <div className="profileHeaderInfo">
           {/* Name and primary actions (Follow/Message for a visitor, Edit
               profile for the owner) share one row — the two things
@@ -746,6 +733,11 @@ export default async function ProfilePage({
             </div>
           </details>
         )}
+
+        {/* phase-12 spec §4.1: the generic report action, reused here for
+            account-level reports the same way PostCard reuses it for
+            content reports — one ReportButton, every subjectType. */}
+        {showViewerControls && !blockedByViewer && <ReportButton subjectType="user" subjectId={username.userId} small={false} />}
 
         {showViewerControls && (
           blockedByViewer ? (

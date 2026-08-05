@@ -18,9 +18,15 @@ Indian-tricolor-inspired accent system: saffron primary, India green secondary, 
 | `--accent-green` | `#138808` | `#22b014` | Secondary accent — decorative (avatar ring, header bar), hashtag styling |
 | `--accent-green-soft` | `rgba(19,136,8,.14)` | `rgba(34,176,20,.18)` | Secondary decorative backgrounds |
 | `--accent-navy` | `#0b1f66` | `#6b7fd7` | Tertiary — secondary links (auth footer links, @mentions) |
+| `--on-accent` | `#171717` | `#171717` | Text/icons on an `--accent`/`--accent-strong` surface (primary buttons). Same value both themes — near-black clears AA against every accent value in both themes, unlike most tokens. |
+| `--on-danger` | `#ffffff` | `#171717` | Text/icons on a `--danger` surface (danger buttons, notification count badge). Differs per theme because `--danger` itself is tuned as a *foreground* color per theme, not a button background — white fails AA against dark mode's lighter `--danger` value. |
 | `--shadow` | 2-layer soft shadow | deeper/darker equivalent | Card elevation |
+| `--shadow-md` | mid soft shadow | deeper/darker equivalent | Dropdowns, popovers |
+| `--shadow-lg` | large soft shadow | deeper/darker equivalent | Modals, dialogs (`Modal.tsx`) |
 
 **Rule:** never hardcode a hex value in a component. Every color reference goes through a CSS variable. This is already followed everywhere in the current codebase — keep it that way as new components are added.
+
+**Fixed 2026-08: primary/danger button text contrast.** `.button`'s white text on `--accent`/`--accent-strong` measured ~2.1–2.8:1 against WCAG AA's 4.5:1 minimum for normal text — a real, sitewide failure (every primary CTA), not a hypothetical. `--on-danger` white text on dark mode's `--danger` (#f87171, tuned as a *foreground* color, not a button background) measured ~2.8:1 for the same reason. Fixed via the `--on-accent`/`--on-danger` tokens above; verify any new color used as a button/badge background against its actual text color in both themes before shipping, not just the background against the page.
 
 **Dark mode is not simply inverted.** Dark-mode accent values are individually tuned (lighter/more saturated) for contrast against a near-black surface, not derived mechanically from the light values. Any new token added to the palette needs its own dark-mode value chosen for contrast, not an auto-inverted one.
 
@@ -58,9 +64,7 @@ Currently ad hoc: `8px` (icon buttons), `10px` (buttons, inputs), `12px` (link i
 
 ## Shadow / Elevation
 
-One token today (`--shadow`), used for cards. Fine for current surface count. Before modals/toasts/menus (Priority 7) are built, add elevation tiers — a modal needs to sit visually above a card, which a single shared shadow value can't express:
-
-`--shadow-sm` (current `--shadow`, for cards) · `--shadow-md` (dropdowns, popovers) · `--shadow-lg` (modals, dialogs)
+Three tiers, implemented: `--shadow` (cards — the original single token, kept as-is rather than renamed to `--shadow-sm` to avoid a blanket rename across every existing card), `--shadow-md` (dropdowns, popovers — not yet consumed by anything, reserved for when a dropdown/popover component is built), `--shadow-lg` (modals — `Modal.tsx`).
 
 ## Grid / Breakpoints
 
@@ -68,7 +72,7 @@ Not yet defined anywhere in the codebase — every page today is effectively a s
 
 ## Components (current inventory)
 
-See `docs/foundations/COMPONENT_LIBRARY.md` for the full inventory and what's still missing. Summary of what exists today, styled via shared classes in `globals.css`: `.button` / `.buttonSecondary` / `.iconButton`, `.field` / `.textInput`, `.authCard`, `.profileCard` / `.profileHeaderRow` / `.profileAvatar` / `.profileLinkItem` / `.profileEditToggle`, `.siteHeader`, `.errorText` / `.mutedText`.
+See `docs/foundations/COMPONENT_LIBRARY.md` for the full inventory and what's still missing. Summary of what exists today, styled via shared classes in `globals.css`: `.button` / `.buttonSecondary` / `.iconButton`, `.field` / `.textInput`, `.authCard`, `.profileCard` / `.profileHeaderRow` / `.profileAvatar` / `.profileLinkItem` / `.profileEditToggle`, `.siteHeader`, `.errorText` / `.mutedText`, `Modal.tsx` / `ConfirmButton.tsx` (`.modal`), `Toast.tsx` (`.toastStack`/`.toast`), `Avatar.tsx`, `EmptyState.tsx` (`.emptyState`).
 
 **Known inconsistency to fix, not perpetuate:** several pages (`SiteHeader.tsx`, `[username]/page.tsx`) use inline `style={{...}}` for layout (flex gaps, margins) instead of a class. This works today because the app is small, but it's already the first crack in "one visual language" — new layout patterns used more than once should become a class (e.g. a `.stack` / `.row` utility) rather than a repeated inline object literal. Don't do a wholesale retrofit unprompted; apply the rule going forward and clean up opportunistically when touching a file anyway.
 
@@ -84,4 +88,6 @@ Three-layer system, already implemented and working: OS preference (`@media (pre
 
 ## Accessibility
 
-Color contrast, focus indicators, and reduced motion are design-system concerns as much as engineering ones — see `docs/foundations/ACCESSIBILITY.md` for the full standard. Minimum bar for any new component added to this system: visible focus state (the `--accent` + `--accent-soft` ring pattern already used on inputs), 44×44px minimum touch target for anything tappable, and contrast checked against both light and dark token values before shipping.
+Color contrast, focus indicators, and reduced motion are design-system concerns as much as engineering ones — see `docs/foundations/ACCESSIBILITY.md` for the full standard. Minimum bar for any new component added to this system: visible focus state, 44×44px minimum touch target for anything tappable, and contrast checked against both light and dark token values before shipping.
+
+**Implemented 2026-08:** a global `:focus-visible` outline (`var(--accent)`, 2px, offset 2px) on every `a`/`button`/`summary`/`[tabindex]` — not just inputs, which previously had the only explicit focus style and relied on the inconsistent browser default everywhere else. A skip-to-content link (`.skipLink`, targets `#main-content`) and a blanket `prefers-reduced-motion: reduce` override are also now in `globals.css`. See `docs/foundations/ACCESSIBILITY.md` for the up-to-date audit.

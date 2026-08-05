@@ -32,6 +32,10 @@ export const RESERVED_USERNAMES = new Set([
   "r",
   "uploads",
   "qr",
+  "dmca",
+  "trust-safety",
+  "org",
+  "sso",
   "0dot",
 ]);
 

@@ -21,6 +21,16 @@ model User {
   // /admin/businesses, the review queue for businesses that don't clear the
   // weak-signal auto-approval in businesses.ts.
   isPlatformAdmin Boolean   @default(false)
+  // phase-12 spec §8.1/§8.2: nullable — every account created since Phase 1
+  // predates this field. An unknown DOB gets the default protective
+  // restriction set (age-controls.ts) until the user is prompted at next
+  // login, never treated as an adult by default.
+  dateOfBirth     DateTime?
+  ageVerifiedAt   DateTime? // set only if a stronger check (e.g. ID) went beyond self-reported DOB
+  // phase-13 spec §4.3: incremented on each valid, unrebutted DMCA takedown
+  // against content this user posted — a safe-harbor condition, not a
+  // cosmetic counter (see enforceDmcaStrikeThreshold in dmca.ts).
+  dmcaStrikeCount Int       @default(0)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -60,6 +70,11 @@ model User {
   createdVoiceRooms          VoiceRoom[]                @relation("VoiceRoomCreator")
   currentSpeakerInVoiceRooms VoiceRoom[]                @relation("VoiceRoomCurrentSpeaker")
   voiceRoomParticipations    VoiceRoomParticipant[]
+
+  createdOrganizations     Organization[]
+  organizationMemberships  OrganizationMember[]
+  ssoIdentities            SSOIdentity[]
+  organizationAuditActions OrganizationAuditLog[]
 
   createdBusinesses   Business[]
   businessMemberships BusinessMember[]
@@ -134,6 +149,23 @@ model User {
   developerApps       DeveloperApp[]
   oauthAuthCodes      OAuthAuthorizationCode[]
   oauthAuthorizations OAuthAuthorization[]
+
+  aiGenerations          AIGeneration[]
+  moderationFlagsHandled ModerationFlag[]
+  uploadedFileAssets     FileAsset[]
+
+  trustSafetyStaffRole    TrustSafetyStaffRole?
+  trustSafetyCasesReported TrustSafetyCase[]     @relation("TrustSafetyCaseReporter")
+  trustSafetyCasesAssigned TrustSafetyCase[]     @relation("TrustSafetyCaseAssignee")
+  reportsFiled             Report[]
+  appealsFiled              Appeal[]              @relation("AppealFiledBy")
+  appealsReviewed           Appeal[]              @relation("AppealReviewedBy")
+  accountRiskSignals        AccountRiskSignal[]
+
+  contentRevisions     ContentRevision[]
+  dmcaCounterNotices   DMCACounterNotice[]
+  ownershipTransfersFrom OwnershipTransfer[] @relation("OwnershipTransferFrom")
+  ownershipTransfersTo   OwnershipTransfer[] @relation("OwnershipTransferTo")
 }
 
 model Session {
@@ -616,6 +648,16 @@ model Community {
   // member may edit).
   wikiEditPolicy String @default("moderators")
 
+  // phase-14 spec §4.1: sixth instance of the additive-scope-column idiom
+  // (Post.communityId/businessAuthorId/requiredTierId, Livestream/
+  // VoiceRoom.eventId, MarketplaceListing.developerAppId). Layered on top
+  // of, not replacing, `visibility` above — set only at creation
+  // (createCommunity), so there's no retroactive-membership-purge case to
+  // handle. onDelete SetNull: an organization going away un-restricts the
+  // community rather than cascading into content deletion.
+  restrictedToOrganizationId String?
+  organization               Organization? @relation(fields: [restrictedToOrganizationId], references: [id], onDelete: SetNull)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -631,6 +673,8 @@ model Community {
   voiceRooms       VoiceRoom[]
   hostedEvents     Event[]                    @relation("EventHostedByCommunity")
   installedApps    InstalledApp[]
+
+  @@index([restrictedToOrganizationId])
 }
 
 // phase-3 spec §12.2, built as a deliberately narrower "walkie-talkie" mode
@@ -959,6 +1003,11 @@ model Business {
   installedApps           InstalledApp[]
 
   developerApps DeveloperApp[]
+
+  // phase-14 spec §2.1: optional link from the enterprise control-plane
+  // entity back to this public-facing one — kept deliberately separate,
+  // see Organization's own model comment.
+  organizations Organization[]
 
   @@index([status])
 }
@@ -2665,4 +2714,500 @@ model ApiUsageCounter {
   requestCount Int          @default(0)
 
   @@unique([appId, windowStart])
+}
+
+// phase-11 spec §3: shared AI usage audit substrate, deliberately
+// generalized starting with the very first feature rather than waiting for
+// three real instances (§3.1's stated exception to this series' usual
+// "wait for three" discipline — Reaction/Comment in phase-7 §4.1, the
+// explicit non-retrofit of Review in phase-9 §7.1). Every AI-touching model
+// below (ModerationFlag, ContentTranslation, MediaAccessibilityMetadata)
+// links back here instead of keeping its own bespoke log.
+// requestedById is nullable for system-initiated generations (e.g. async
+// moderation classification of newly-created content with no user actively
+// waiting on it). inputSummary/outputSummary are bounded JSON text, not a
+// verbatim prompt dump — see §3.2 and pruneExpiredPrivateAIGenerations in
+// ai-generation.ts for the private-subject retention window this
+// acceptance criterion requires.
+model AIGeneration {
+  id            String   @id @default(uuid())
+  feature       String // profile_builder | content_writer | moderation | recommendation | search_rerank | translation | accessibility_caption
+  requestedById String?
+  requestedBy   User?    @relation(fields: [requestedById], references: [id], onDelete: SetNull)
+  subjectType   String?
+  subjectId     String?
+  modelName     String
+  inputSummary  String // bounded/redacted JSON text — see §3.2
+  outputSummary String // bounded/redacted JSON text
+  accepted      Boolean? // null while pending; did a human accept/use/uphold the output
+  costTokens    Int?
+  createdAt     DateTime @default(now())
+
+  moderationFlags       ModerationFlag[]
+  translations          ContentTranslation[]
+  accessibilityMetadata MediaAccessibilityMetadata[]
+  trustSafetyCases      TrustSafetyCase[]
+  accountRiskSignals    AccountRiskSignal[]
+
+  @@index([subjectType, subjectId])
+  @@index([requestedById])
+}
+
+// phase-11 spec §4.1: assistive by design, not by accident — four prior
+// phases (phase-3 community moderation, phase-4 §3.3 business-claim gate,
+// phase-9 §4.5 marketplace listing review, phase-10 §4.3 sensitive-scope
+// review) each reserved room for exactly this feature on the explicit
+// condition that automated screening supplements human review, never
+// replaces it. suggestedAction deliberately has no auto-remove value for
+// any risk_category here — every row ends at a human reviewedBy decision
+// (upheld | overridden), recorded the same way phase-3's ModAction (§13)
+// records community moderator decisions. The one exception (CSAM
+// hash-matching, §4.2) is NOT modeled as a risk_category value here — see
+// ai-moderation.ts's explicit note on why that pipeline is a wholly
+// separate, legally-reviewed system.
+model ModerationFlag {
+  id              String    @id @default(uuid())
+  subjectType     String // post | article | comment | marketplace_listing | business | ...
+  subjectId       String
+  aiGenerationId  String
+  aiGeneration    AIGeneration @relation(fields: [aiGenerationId], references: [id], onDelete: Cascade)
+  riskCategory    String // spam | harassment | violence | ip_infringement | fraud | other — illustrative, needs real policy/legal taxonomy
+  confidence      Float // 0.0-1.0
+  suggestedAction String // none | flag_for_review | escalate_urgent
+  status          String    @default("pending_human_review") // pending_human_review | upheld | overridden
+  reviewedById    String?
+  reviewedBy      User?     @relation(fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewedAt      DateTime?
+  createdAt       DateTime  @default(now())
+
+  @@index([subjectType, subjectId])
+  @@index([status, createdAt])
+}
+
+// phase-11 spec §6.1: the file-attachment shape phase-7 §7.3 named
+// (BusinessDocument, DigitalProduct.files, several phase-6 file_url
+// columns) and explicitly declined to consolidate, since the duplication
+// was low-cost scalar URL columns with no shared logic. AI accessibility
+// metadata is the first real *logic* needing uniform attachment across
+// every file-bearing field, which tips that cost/benefit call — but only
+// for new uploads (§6.2): existing file columns are NOT retroactively
+// migrated onto this table, same non-retrofit discipline phase-9 §7.1
+// applied to Review/ProjectComment.
+model FileAsset {
+  id           String   @id @default(uuid())
+  url          String
+  contentType  String // image | video | audio | document
+  uploadedById String
+  uploadedBy   User     @relation(fields: [uploadedById], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+
+  // phase-13 spec §6.1: opt-in per upload. watermarkedUrl is generated
+  // asynchronously (same "never computed synchronously during a request"
+  // principle as MediaAccessibilityMetadata below) — the original url above
+  // is never mutated, so an owner/verified purchaser keeps receiving the
+  // clean original regardless of this flag.
+  watermarkEnabled Boolean @default(false)
+  watermarkedUrl   String?
+
+  accessibilityMetadata MediaAccessibilityMetadata?
+
+  @@index([uploadedById])
+}
+
+// phase-11 spec §6.1/§6.2: fileAssetId covers every new upload from this
+// phase forward; the legacySubjectType/legacySubjectId/legacyFieldName
+// triplet is the lighter-weight path for attaching accessibility metadata
+// to pre-existing (pre-phase-11) file columns without migrating them onto
+// FileAsset. Exactly one of the two addressing schemes is set per row.
+// humanEdited guards against a later automated re-generation silently
+// overwriting a human's correction (§6.4 acceptance criterion).
+model MediaAccessibilityMetadata {
+  id                String       @id @default(uuid())
+  fileAssetId       String?      @unique
+  fileAsset         FileAsset?   @relation(fields: [fileAssetId], references: [id], onDelete: Cascade)
+  legacySubjectType String?
+  legacySubjectId   String?
+  legacyFieldName   String?
+  altText           String?
+  captionVttUrl     String?
+  transcript        String?
+  aiGenerationId    String
+  aiGeneration      AIGeneration @relation(fields: [aiGenerationId], references: [id], onDelete: Cascade)
+  humanEdited       Boolean      @default(false)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  @@index([legacySubjectType, legacySubjectId])
+}
+
+// phase-11 spec §9.1: on-demand and cached per exact source version, not
+// precomputed for every piece of content at write time, given per-call
+// inference cost (§10.1). sourceRevisionKey is a WikiRevision id for
+// versioned content (phase-3/7) or the source's own updatedAt.toISOString()
+// for non-versioned content (Post, Article) — reuses the existing revision
+// system rather than inventing a second versioning concept. A translation
+// carries no visibility field of its own; it inherits the source's tier
+// exactly, checked through the source's own authorization function (see
+// ai-translation.ts), never a separate check that could drift from it.
+model ContentTranslation {
+  id                String   @id @default(uuid())
+  subjectType       String
+  subjectId         String
+  sourceRevisionKey String
+  targetLanguage    String // IETF BCP47 tag
+  translatedText    String
+  aiGenerationId    String
+  aiGeneration      AIGeneration @relation(fields: [aiGenerationId], references: [id], onDelete: Cascade)
+  createdAt         DateTime @default(now())
+
+  @@unique([subjectType, subjectId, sourceRevisionKey, targetLanguage])
+}
+
+// phase-12 spec §3.2: manually granted, no self-serve flow — same posture
+// as User.isPlatformAdmin (phase-4) and Profile.isVerified. requireTrustSafetyStaff
+// (auth-guards.ts) upserts an `admin`-role row for any isPlatformAdmin user
+// on first use so the unified queue has a bootstrap path without a
+// dedicated role-management UI this phase doesn't need to build.
+model TrustSafetyStaffRole {
+  userId String @id
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   String // reviewer | senior_reviewer | admin — senior_reviewer+ required for appeal review (§4.2) and the CSAM-adjacent pipeline (§3.2)
+}
+
+// phase-12 spec §3.1: the unified case-management layer over five
+// previously-scattered review gates (business claim, marketplace listing,
+// OAuth sensitive scope, AI ModerationFlag, community escalation) plus the
+// two new report-driven case types this phase adds — WITHOUT migrating or
+// restructuring any of those five tables' own status fields, which remain
+// each entity's actual source of truth (resolveTrustSafetyCase in
+// trust-safety.ts updates them). subjectType/subjectId deliberately mirror
+// ModerationFlag's loose string-pair addressing (phase-11) rather than a
+// polymorphic FK, since the subject set spans a dozen+ unrelated tables.
+model TrustSafetyCase {
+  id                  String    @id @default(uuid())
+  caseType            String // content_report | account_report | business_claim_review | marketplace_listing_review | oauth_scope_review | ai_moderation_flag | community_escalation | review_dispute
+  subjectType         String
+  subjectId           String
+  reportedById        String? // null for system/AI-initiated or gate-driven cases — see model comment on Report
+  reportedBy          User?     @relation("TrustSafetyCaseReporter", fields: [reportedById], references: [id], onDelete: SetNull)
+  linkedAiGenerationId String?
+  linkedAiGeneration  AIGeneration? @relation(fields: [linkedAiGenerationId], references: [id], onDelete: SetNull)
+  reason              String?
+  status              String    @default("open") // open | in_review | resolved_upheld | resolved_dismissed | escalated
+  assignedToId        String?
+  assignedTo          User?     @relation("TrustSafetyCaseAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  resolutionNotes     String?
+  createdAt           DateTime  @default(now())
+  resolvedAt          DateTime?
+
+  reports Report[]
+  appeals Appeal[]
+  dmcaTakedownNotice DMCATakedownNotice?
+
+  @@index([status, createdAt])
+  @@index([subjectType, subjectId])
+  @@index([caseType, status])
+}
+
+// phase-12 spec §4.1: the one generic report action every reportable
+// subjectType uses, instead of a bespoke report flow per content type.
+// Kept deliberately distinct from TrustSafetyCase — this is the immutable
+// record of what the reporter actually submitted, preserved as-is even as
+// the case gets updated during review, same "raw input separate from
+// mutable working state" split phase-11 used between AIGeneration and
+// ModerationFlag. reporterId is never exposed to a report's subject —
+// enforced at the query/serialization layer (trust-safety.ts), not by
+// omitting the column (staff still need to see it).
+model Report {
+  id         String   @id @default(uuid())
+  reporterId String
+  reporter   User     @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+  subjectType String
+  subjectId   String
+  category    String // spam | harassment | hate_speech | violence | sexual_content | ip_infringement | impersonation | fraud | other
+  details     String   @default("") // 0-2000 chars, validated at the app layer
+  caseId      String
+  case        TrustSafetyCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+
+  @@index([subjectType, subjectId])
+  @@index([reporterId])
+}
+
+// phase-12 spec §5.1: an appeal of a TrustSafetyCase resolution.
+// reviewedBy differs from the original case's assignedTo whenever a
+// qualifying second (senior_reviewer+) reviewer is available (§5.2) —
+// enforced in reviewAppeal (trust-safety.ts), not at the schema level.
+model Appeal {
+  id             String    @id @default(uuid())
+  originalCaseId String
+  originalCase   TrustSafetyCase @relation(fields: [originalCaseId], references: [id], onDelete: Cascade)
+  filedById      String
+  filedBy        User      @relation("AppealFiledBy", fields: [filedById], references: [id], onDelete: Cascade)
+  statement      String // 1-2000 chars, validated at the app layer
+  status         String    @default("pending") // pending | upheld_original | overturned
+  reviewedById   String?
+  reviewedBy     User?     @relation("AppealReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+  decidedAt      DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([originalCaseId])
+  @@index([status, createdAt])
+}
+
+// phase-12 spec §6.1: account/behavioral-level signal, distinct from
+// phase-11's ModerationFlag (which classifies individual pieces of
+// content). aiGenerationId reuses phase-11's audit substrate when
+// ML-derived rather than a second, parallel audit log (§6.4).
+model AccountRiskSignal {
+  id             String   @id @default(uuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  signalType     String // velocity_anomaly | duplicate_content | coordinated_behavior | device_fingerprint_cluster | other
+  score          Float // 0.0-1.0
+  aiGenerationId String?
+  aiGeneration   AIGeneration? @relation(fields: [aiGenerationId], references: [id], onDelete: SetNull)
+  detectedAt     DateTime @default(now())
+
+  @@index([userId, detectedAt])
+}
+
+// phase-13 spec §3.2: generalized at exactly three instances (WikiRevision
+// was the first) rather than a bespoke table per content type. Full
+// snapshot per revision, not a diff, matching WikiRevision's own approach.
+// subjectType/subjectId is a loose pair (like Report/TrustSafetyCase), not
+// a real FK — the subject set spans two unrelated tables.
+model ContentRevision {
+  id           String   @id @default(uuid())
+  subjectType  String // post | article
+  subjectId    String
+  bodySnapshot String
+  editedBy     String
+  editor       User     @relation(fields: [editedBy], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+
+  @@index([subjectType, subjectId, createdAt])
+}
+
+// phase-13 spec §5.1: opt-in — all_rights_reserved is the default in the
+// absence of any row here (standard copyright law already grants creators
+// full rights), so this table only exists for creators declaring *more*
+// permissive terms. subjectType is intentionally broad (post, article,
+// project, marketplace listing, business content, ...).
+model ContentLicense {
+  subjectType  String
+  subjectId    String
+  licenseType  String // all_rights_reserved | cc_by | cc_by_sa | cc_by_nc | cc_by_nd | cc0 | custom
+  customTerms  String?
+  declaredAt   DateTime @default(now())
+
+  @@id([subjectType, subjectId])
+}
+
+// phase-13 spec §4.1: built on Phase 12's TrustSafetyCase, not a parallel
+// case-management system. Both statutory attestation booleans correspond to
+// specific 17 U.S.C. § 512 language — the exact wording shown to
+// complainants is legal's to draft, not engineering's; these fields only
+// record that the required attestation was made.
+model DMCATakedownNotice {
+  id                             String    @id @default(uuid())
+  trustSafetyCaseId              String    @unique
+  trustSafetyCase                TrustSafetyCase @relation(fields: [trustSafetyCaseId], references: [id], onDelete: Cascade)
+  complainantName                String
+  complainantContact             String
+  copyrightedWorkDescription     String
+  infringingContentSubjectType   String
+  infringingContentSubjectId     String
+  goodFaithStatementAccepted     Boolean
+  accuracyPerjuryStatementAccepted Boolean
+  signature                      String
+  submittedAt                    DateTime  @default(now())
+  status                         String    @default("received") // received | content_removed | invalid_rejected
+
+  counterNotice DMCACounterNotice?
+
+  @@index([infringingContentSubjectType, infringingContentSubjectId])
+}
+
+// phase-13 spec §4.1/§4.5: restorationEligibleAt is submittedAt + the
+// jurisdiction's statutory waiting period (JurisdictionRule, §9) —
+// enforced by the restoration scheduler in dmca.ts (same setInterval
+// posture as trending.ts's scheduler), not left to manual staff
+// follow-through.
+model DMCACounterNotice {
+  id                        String    @id @default(uuid())
+  originalNoticeId          String    @unique
+  originalNotice            DMCATakedownNotice @relation(fields: [originalNoticeId], references: [id], onDelete: Cascade)
+  subjectUserId             String
+  subjectUser               User      @relation(fields: [subjectUserId], references: [id], onDelete: Cascade)
+  goodFaithStatementAccepted Boolean
+  consentToJurisdiction     Boolean
+  signature                 String
+  submittedAt               DateTime  @default(now())
+  restorationEligibleAt     DateTime
+  status                    String    @default("received") // received | content_restored | notice_forwarded_awaiting_lawsuit
+
+  @@index([status, restorationEligibleAt])
+}
+
+// phase-13 spec §7: a lightweight historical log, distinct from just
+// trusting whatever an entity's current owner/author field says right now
+// — not a full chain-of-title system with transfer-approval workflows
+// (§7's open question on consent model is left to product/legal, §11).
+model OwnershipTransfer {
+  id             String    @id @default(uuid())
+  subjectType    String
+  subjectId      String
+  fromUserId     String?
+  fromUser       User?     @relation("OwnershipTransferFrom", fields: [fromUserId], references: [id], onDelete: SetNull)
+  toUserId       String
+  toUser         User      @relation("OwnershipTransferTo", fields: [toUserId], references: [id], onDelete: Cascade)
+  transferredAt  DateTime  @default(now())
+  reason         String?
+
+  @@index([subjectType, subjectId])
+}
+
+// phase-13 spec §9.1: a fifth instance of "legally required behavior that
+// varies by jurisdiction" (recording consent, minimum age, newsletter
+// consent regime, now copyright notice regime) — the shared extension
+// point going forward. Not required to be exhaustively populated at
+// launch; this phase's own DMCA-vs-other-regimes lookup (dmca.ts) is the
+// proving consumer (§9.2's acceptance criterion), not every existing
+// jurisdiction-dependent feature retrofitted onto it.
+model JurisdictionRule {
+  id             String   @id @default(uuid())
+  region         String // ISO country code or broader region grouping
+  ruleType       String // recording_consent | minimum_age | newsletter_consent_regime | copyright_notice_regime | other
+  // Stringified JSON, e.g. {"waitingPeriodDays": 10} — follows
+  // BusinessLocation.hoursJson/Offering.imagesJson's exact "no native Json
+  // scalar in this codebase's sqlite setup" convention rather than
+  // introducing a new field-typing pattern for one table.
+  parametersJson String
+  updatedAt      DateTime @updatedAt
+
+  @@unique([region, ruleType])
+}
+
+// phase-14 spec §2.1: a company's internal control plane over its own
+// employees' 0dot presence — SSO, audit logs, internal communities.
+// Deliberately a separate entity from Business (Phase 4's public-facing
+// storefront/company-page concept), not merged into it, with only an
+// optional link. domain/domainVerifiedAt gate SSO enforcement and any
+// domain-based auto-matching (§2.2) — the same "capability requires a gate"
+// pattern as Business's claim gate, Marketplace's listing review, and
+// Phase 10's sensitive-scope review.
+model Organization {
+  id        String @id @default(uuid())
+  name      String
+
+  businessId String?
+  business   Business? @relation(fields: [businessId], references: [id], onDelete: SetNull)
+
+  domain                 String?   @unique
+  // Random token an admin publishes as a DNS TXT record
+  // (`0dot-domain-verify=<token>`) under the claimed domain — checked by
+  // verifyOrganizationDomain (organizations.ts) via a real DNS TXT lookup.
+  // Exact mechanism was flagged as an implementation detail in the spec
+  // (§9); DNS TXT was chosen since it needs no new upload/hosting surface.
+  domainVerificationToken String?
+  domainVerifiedAt        DateTime?
+
+  plan      String   @default("standard") // standard | enterprise
+  createdBy String
+  creator   User     @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members               OrganizationMember[]
+  ssoConnection         SSOConnection?
+  auditLogs             OrganizationAuditLog[]
+  restrictedCommunities Community[]
+
+  @@index([businessId])
+}
+
+// phase-14 spec §3.1: deliberately separate from BusinessMember — "is an
+// employee for HR/SSO/audit purposes" and "can post as the company
+// publicly" are different permission questions. Granting BusinessMember
+// access, even on a linked Business, always stays a separate, explicit
+// action through Phase 4's own flow (never implied by this row existing).
+model OrganizationMember {
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           String       @default("member") // org_admin | member
+  department     String?
+  title          String?
+  status         String       @default("active") // active | deactivated
+  joinedAt       DateTime     @default(now())
+
+  @@id([organizationId, userId])
+  @@index([userId])
+}
+
+// phase-14 spec §5.1: the reverse role from Phase 10's identity-provider
+// work — here 0dot is the service provider trusting an enterprise
+// customer's own IdP (Okta/Azure AD/Google Workspace/etc.) via SAML2 or
+// OIDC. idpMetadataJson holds whichever protocol's own connection details
+// (SAML: IdP entity ID/certificate/metadata XML; OIDC: issuer/client
+// credentials/JWKS endpoint) — a plain String, same "no native Json
+// scalar" convention as every other ...Json column in this schema.
+// `enforced` gates organization-scoped access only (§5.3) — see
+// requireOrgAccess in organizations.ts for what that means in practice;
+// it never disables a user's other login methods for their personal
+// account (auth.ts's login() is untouched by this model).
+model SSOConnection {
+  id             String       @id @default(uuid())
+  organizationId String       @unique
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  protocol       String // saml2 | oidc
+  idpMetadataJson String
+  enforced       Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+
+  identities SSOIdentity[]
+}
+
+// spec §5.2: links one 0dot User to the IdP's own subject/NameID for them.
+// JIT provisioning (provisionOrLinkUserForSso, sso.ts) either creates this
+// against a fresh User or an existing one matched by verified email —
+// never a second, walled-off "enterprise identity" (§5.2/mission
+// principle "One Identity, One Profile").
+model SSOIdentity {
+  id                String        @id @default(uuid())
+  ssoConnectionId   String
+  ssoConnection     SSOConnection @relation(fields: [ssoConnectionId], references: [id], onDelete: Cascade)
+  userId            String
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  externalSubjectId String
+  lastLoginAt       DateTime?
+  createdAt         DateTime      @default(now())
+
+  @@unique([ssoConnectionId, externalSubjectId])
+  @@index([userId])
+}
+
+// phase-14 spec §7.1: same append-only, actor-attributed shape as
+// ModAction (Phase 3 §13.1 named this phase as ModAction's "direct
+// precedent") — reused rather than inventing a fourth, subtly different
+// audit-log shape alongside ModAction/PaymentTransaction/TrustSafetyCase.
+// Kept as its own table despite the shared shape (§7.2): the audience is
+// an organization's own admins reviewing their own history, not 0dot's
+// Trust & Safety staff, so merging into TrustSafetyCase would leak
+// unrelated data across that boundary either direction.
+model OrganizationAuditLog {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actorId        String?
+  actor          User?        @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action         String // member_added | member_removed | member_deactivated | sso_connection_configured | sso_enforcement_changed | community_created | org_settings_changed
+  targetType     String?
+  targetId       String?
+  metadataJson   String?
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, createdAt])
 }

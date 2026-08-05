@@ -6,6 +6,7 @@ import { requireVerifiedUser } from "@/lib/auth-guards";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { isBlockedEitherWay } from "@/lib/blocks";
 import { notifyNewFollower } from "@/lib/notifications";
+import { recordFollowVelocityAnomaly } from "@/lib/account-risk";
 
 // Real spam vector (mass-follow bots) — unlike read paths, this gets a
 // budget. Silent no-op on limit hit, not an error, matching the "quiet
@@ -32,7 +33,13 @@ export async function followUser(formData: FormData): Promise<void> {
   const followeeId = String(formData.get("followeeId") ?? "");
 
   if (!followeeId || followeeId === user.id) return;
-  if (!checkFollowRateLimit(user.id)) return;
+  if (!checkFollowRateLimit(user.id)) {
+    // phase-12 spec §6.2: textbook bot pattern, high-confidence — the
+    // existing rate limit above is already the full reversible response;
+    // this just records the audit signal for it.
+    await recordFollowVelocityAnomaly(user.id);
+    return;
+  }
   if (await isBlockedEitherWay(user.id, followeeId)) return;
 
   const existing = await db.follow.findUnique({

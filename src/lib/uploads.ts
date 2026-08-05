@@ -2,6 +2,7 @@ import "server-only";
 import { randomBytes } from "crypto";
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
+import { createFileAsset, type FileAssetContentType } from "@/lib/ai-accessibility";
 
 const ALLOWED_IMAGE_EXTENSIONS: Record<string, string> = {
   "image/png": "png",
@@ -44,9 +45,14 @@ async function writeToUploadsDir(file: File, ext: string): Promise<string> {
 // straight to public/uploads (no cloud storage wired up yet, see
 // src/app/actions/profile.ts's original note on this). Allowlists file
 // types rather than blocklisting, same reasoning as isSafeUrl elsewhere.
+// phase-11 spec §6.1/§6.4: uploadedById is optional only so existing
+// call sites keep compiling one at a time during migration — every call
+// site that has an authenticated user in scope passes it, since every new
+// upload from this phase forward must create a FileAsset row (no new
+// upload path bypasses it).
 export async function saveUploadedImage(
   file: File,
-  { maxBytes = 5 * 1024 * 1024 }: { maxBytes?: number } = {}
+  { maxBytes = 5 * 1024 * 1024, uploadedById }: { maxBytes?: number; uploadedById?: string } = {}
 ): Promise<UploadResult> {
   const ext = ALLOWED_IMAGE_EXTENSIONS[file.type];
   if (!ext) {
@@ -57,6 +63,7 @@ export async function saveUploadedImage(
   }
 
   const url = await writeToUploadsDir(file, ext);
+  if (uploadedById) await createFileAsset({ url, contentType: "image", uploadedById });
   return { url };
 }
 
@@ -75,7 +82,7 @@ const ALLOWED_DOCUMENT_TYPES: Record<string, string> = {
 // text and carries message-specific size limits that don't apply here.
 export async function saveDocumentFile(
   file: File,
-  { maxBytes = 20 * 1024 * 1024 }: { maxBytes?: number } = {}
+  { maxBytes = 20 * 1024 * 1024, uploadedById }: { maxBytes?: number; uploadedById?: string } = {}
 ): Promise<UploadResult> {
   const ext = ALLOWED_DOCUMENT_TYPES[file.type];
   if (!ext) return { error: "Only PDF or EPUB files are supported." };
@@ -84,6 +91,7 @@ export async function saveDocumentFile(
   }
 
   const url = await writeToUploadsDir(file, ext);
+  if (uploadedById) await createFileAsset({ url, contentType: "document", uploadedById });
   return { url };
 }
 
@@ -114,7 +122,8 @@ const MESSAGE_ATTACHMENT_LIMITS: Record<
 // for display only (spec §5.4), not re-validated server-side here.
 export async function saveMessageAttachment(
   file: File,
-  kind: MessageAttachmentKind
+  kind: MessageAttachmentKind,
+  uploadedById?: string
 ): Promise<MessageAttachmentResult> {
   const { types, maxBytes, typeErrorLabel } = MESSAGE_ATTACHMENT_LIMITS[kind];
   const ext = types[file.type];
@@ -124,5 +133,10 @@ export async function saveMessageAttachment(
   }
 
   const url = await writeToUploadsDir(file, ext);
+  if (uploadedById) {
+    const contentType: FileAssetContentType =
+      kind === "voice_note" ? "audio" : file.type.startsWith("image/") ? "image" : "document";
+    await createFileAsset({ url, contentType, uploadedById });
+  }
   return { url, mimeType: file.type, sizeBytes: file.size };
 }

@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { getPaymentProcessor } from "@/lib/payments";
 import { isBusinessStaff } from "@/lib/businesses";
+import { meetsPayoutAgeFloor, PAYOUT_MINIMUM_AGE_YEARS } from "@/lib/age-controls";
 import type { ActionState } from "@/app/actions/auth";
 
 // spec §3: idempotent so the settings UI can safely re-POST — a second
@@ -18,6 +19,14 @@ export async function startCreatorOnboarding(_prevState: ActionState, _formData:
 
   const existing = await db.creatorPayoutAccount.findUnique({ where: { userId: user.id } });
   if (existing?.status === "active") return undefined;
+
+  // phase-12 spec §8.3: ties age verification into the payout onboarding
+  // gate itself, rather than a general-purpose field this flow never
+  // checks — an unknown DOB is the same default-deny as an under-floor one
+  // (§8.4), so this doubles as the nudge toward the AgeGatePrompt above.
+  if (!meetsPayoutAgeFloor(user.dateOfBirth)) {
+    return { error: `You must be at least ${PAYOUT_MINIMUM_AGE_YEARS} and have confirmed your date of birth to enable payouts.` };
+  }
 
   const result = await getPaymentProcessor().createPayoutAccount({ id: user.id, email: user.email });
 

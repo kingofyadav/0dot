@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { getCommunityMember } from "@/lib/communities";
+import { isGatedFromCommunityContent } from "@/lib/organizations";
 import { joinCommunity, leaveCommunity } from "@/app/actions/communities";
 import { getCommunityFeedPosts } from "@/lib/community-feed";
 import { getVotedPollOptionIds } from "@/lib/feed-query";
@@ -55,8 +56,10 @@ export default async function CommunityPage({
 
   // spec §3.1/§17.1: private content is member-only; public/restricted
   // content is visible to everyone regardless of membership (restricted
-  // only gates *joining*, not viewing).
-  const canViewContent = community.visibility !== "private" || isActiveMember;
+  // only gates *joining*, not viewing). phase-14 spec §4.3: an
+  // org-restricted community is gated the same way regardless of its own
+  // visibility value (isGatedFromCommunityContent, organizations.ts).
+  const canViewContent = !isGatedFromCommunityContent(community, isActiveMember);
 
   return (
     <>

@@ -5,8 +5,17 @@ import { getCurrentUser } from "@/lib/session";
 import { renderWikiMarkdown } from "@/lib/wiki-markdown";
 import { toggleReaction, deleteComment } from "@/app/actions/reactions";
 import { ArticleCommentForm } from "./ArticleCommentForm";
+import { TranslateArticleButton } from "./TranslateArticleButton";
 
 const FORMAT_LABEL: Record<string, string> = { article: "Article", tutorial: "Tutorial", note: "Note" };
+const LICENSE_LABEL: Record<string, string> = {
+  cc_by: "CC BY",
+  cc_by_sa: "CC BY-SA",
+  cc_by_nc: "CC BY-NC",
+  cc_by_nd: "CC BY-ND",
+  cc0: "CC0",
+  custom: "Custom license",
+};
 
 export default async function ArticlePage({ params }: { params: Promise<{ username: string; slug: string }> }) {
   const { username: rawParam, slug: rawSlug } = await params;
@@ -38,6 +47,12 @@ export default async function ArticlePage({ params }: { params: Promise<{ userna
     orderBy: { createdAt: "asc" },
     include: { author: { include: { username: true, profile: true } } },
   });
+  // phase-13 spec §5.1: absence of a row means all_rights_reserved — the
+  // default under standard copyright law, not something that needs its own
+  // ContentLicense row to be true.
+  const license = await db.contentLicense.findUnique({
+    where: { subjectType_subjectId: { subjectType: "article", subjectId: article.id } },
+  });
   const isLiked = currentUser
     ? Boolean(
         await db.reaction.findUnique({
@@ -65,6 +80,7 @@ export default async function ArticlePage({ params }: { params: Promise<{ userna
         {article.status === "draft" && " · Draft"}
         {article.visibility === "unlisted" && " · Unlisted"}
         {article.visibility === "private" && " · Private"}
+        {license && license.licenseType !== "all_rights_reserved" && ` · ${LICENSE_LABEL[license.licenseType] ?? license.licenseType}`}
       </p>
 
       {isOwner && (
@@ -76,6 +92,8 @@ export default async function ArticlePage({ params }: { params: Promise<{ userna
       )}
 
       {article.body && <div style={{ marginTop: "0.75rem" }}>{renderWikiMarkdown(article.body)}</div>}
+
+      {article.body && <TranslateArticleButton articleId={article.id} />}
 
       {article.hashtags.length > 0 && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", marginTop: "0.75rem" }}>

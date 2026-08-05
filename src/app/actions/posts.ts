@@ -9,6 +9,8 @@ import { notifyLike, notifyReply, notifyMentionsInBody } from "@/lib/notificatio
 import { resolvePostCommunityContext } from "@/lib/communities";
 import { resolveBusinessAuthorContext } from "@/lib/businesses";
 import { softDeletePostAndDecrementCounts } from "@/lib/post-moderation";
+import { checkDuplicatePostPattern } from "@/lib/account-risk";
+import { recordContentRevision } from "@/lib/content-revisions";
 import type { ActionState } from "@/app/actions/auth";
 
 const MAX_MEDIA_PER_POST = 4;
@@ -120,7 +122,7 @@ export async function createPost(
 
   const mediaCreates: { url: string; position: number }[] = [];
   for (const [index, file] of mediaFiles.entries()) {
-    const result = await saveUploadedImage(file, { maxBytes: MAX_MEDIA_BYTES });
+    const result = await saveUploadedImage(file, { maxBytes: MAX_MEDIA_BYTES, uploadedById: user.id });
     if ("error" in result) return { error: result.error };
     mediaCreates.push({ url: result.url, position: index });
   }
@@ -149,6 +151,11 @@ export async function createPost(
   }
 
   await notifyMentionsInBody(body, user.id, newPostId);
+  // phase-12 spec §6.1/§6.2: account-level velocity/duplicate-content
+  // signal, distinct from phase-11's per-content ModerationFlag — never
+  // blocks this request, only records the pattern and (past its
+  // threshold) opens a case for human review.
+  await checkDuplicatePostPattern(user.id, body);
 
   revalidatePath("/feed");
   revalidatePath("/explore");
@@ -289,6 +296,36 @@ export async function createQuoteRepost(
   if (user.username) {
     revalidatePath(`/${user.username.handle}`);
   }
+  return undefined;
+}
+
+// phase-13 spec §3.3: the first Post edit path this codebase has — every
+// edit creates a ContentRevision (content-revisions.ts) inside the same
+// transaction as the body update, so history exists before the change is
+// visible, never overwritten in place with no trace (same "append, never
+// mutate" posture as WikiRevision/updateArticle).
+export async function editPost(
+  _prevState: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const user = await requireVerifiedUser();
+  const postId = String(formData.get("postId") ?? "");
+  const body = String(formData.get("body") ?? "").trim();
+
+  if (body.length < 1) return { error: "Post can't be empty." };
+  if (body.length > 500) return { error: "Posts are limited to 500 characters." };
+
+  const post = await db.post.findFirst({ where: { id: postId, authorId: user.id, deletedAt: null } });
+  if (!post) return { error: "Post not found." };
+
+  await db.$transaction(async (tx) => {
+    await recordContentRevision(tx, "post", post.id, body, user.id);
+    await tx.post.update({ where: { id: post.id }, data: { body } });
+  });
+
+  revalidatePath("/feed");
+  revalidatePath("/explore");
+  if (user.username) revalidatePath(`/${user.username.handle}`);
   return undefined;
 }
 

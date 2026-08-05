@@ -35,7 +35,8 @@ type ResolvedAttachment = {
 // caller can branch on — {attachment: null} when no file was submitted at
 // all, since that's not an error, just a text-only message.
 async function resolveMessageAttachment(
-  formData: FormData
+  formData: FormData,
+  uploadedById: string
 ): Promise<{ error: string } | { attachment: ResolvedAttachment | null }> {
   const file = formData.get("attachment");
   if (!(file instanceof File) || file.size === 0) return { attachment: null };
@@ -43,7 +44,7 @@ async function resolveMessageAttachment(
   const kindRaw = String(formData.get("attachmentKind") ?? "");
   if (kindRaw !== "voice_note" && kindRaw !== "file") return { error: "Invalid attachment type." };
 
-  const result = await saveMessageAttachment(file, kindRaw);
+  const result = await saveMessageAttachment(file, kindRaw, uploadedById);
   if ("error" in result) return { error: result.error };
 
   // Client-supplied, trusted for display only (spec §5.4) — not
@@ -207,7 +208,7 @@ export async function sendMessage(formData: FormData): Promise<SendMessageResult
   if (!conversationId) return { error: "Invalid conversation." };
   if (!checkSendMessageRateLimit(user.id)) return { error: RATE_LIMIT_ERROR };
 
-  const attachmentResult = await resolveMessageAttachment(formData);
+  const attachmentResult = await resolveMessageAttachment(formData, user.id);
   if ("error" in attachmentResult) return { error: attachmentResult.error };
   const { attachment } = attachmentResult;
 

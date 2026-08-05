@@ -111,14 +111,14 @@ export async function updateProfile(
 
   const avatarFile = formData.get("avatar");
   if (avatarFile instanceof File && avatarFile.size > 0) {
-    const result = await saveUploadedImage(avatarFile);
+    const result = await saveUploadedImage(avatarFile, { uploadedById: user.id });
     if ("error" in result) return { error: result.error };
     data.avatarUrl = result.url;
   }
 
   const coverFile = formData.get("cover");
   if (coverFile instanceof File && coverFile.size > 0) {
-    const result = await saveUploadedImage(coverFile);
+    const result = await saveUploadedImage(coverFile, { uploadedById: user.id });
     if ("error" in result) return { error: result.error };
     data.coverUrl = result.url;
   }

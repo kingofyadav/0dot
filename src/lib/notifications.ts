@@ -42,8 +42,19 @@ type NotificationInput = {
     | "new_subscriber"
     | "affiliate_conversion"
     | "livestream_started"
-    | "event_cancelled";
-  subjectType: "post" | "user" | "message" | "community" | "business" | "livestream" | "project" | "skill" | "article" | "wiki_page" | "book" | "published_file" | "event";
+    | "event_cancelled"
+    | "report_acknowledged"
+    | "case_resolved"
+    | "appeal_decided"
+    | "dmca_notice_received"
+    | "dmca_content_removed"
+    | "dmca_counter_notice_received"
+    | "dmca_content_restored"
+    | "dmca_strike_issued"
+    | "org_member_added"
+    | "org_member_deactivated"
+    | "org_sso_configured";
+  subjectType: "post" | "user" | "message" | "community" | "business" | "livestream" | "project" | "skill" | "article" | "wiki_page" | "book" | "published_file" | "event" | "trust_safety_case" | "appeal" | "dmca_takedown_notice" | "dmca_counter_notice" | "organization";
   subjectId: string;
 };
 
@@ -55,6 +66,94 @@ type NotificationInput = {
 export async function notifyWebhookDisabled(args: { recipientId: string; subjectId: string }): Promise<void> {
   await db.notification.create({
     data: { recipientId: args.recipientId, actorId: null, type: "webhook_disabled", subjectType: "developer_app", subjectId: args.subjectId },
+  });
+  publishToUsers([args.recipientId], { type: "notification" });
+}
+
+// phase-11 spec §4.3 acceptance criterion: sent for `upheld` ModerationFlag
+// outcomes on ordinary categories only — never for the wholly separate
+// CSAM pipeline (§4.2), which follows its own legally-governed rules about
+// what (if anything) the uploader is told. System-initiated (no actor),
+// same shape as notifyWebhookDisabled.
+export async function notifyModerationAction(args: { recipientId: string; subjectType: string; subjectId: string }): Promise<void> {
+  await db.notification.create({
+    data: {
+      recipientId: args.recipientId,
+      actorId: null,
+      type: "moderation_action",
+      subjectType: args.subjectType,
+      subjectId: args.subjectId,
+    },
+  });
+  publishToUsers([args.recipientId], { type: "notification" });
+}
+
+// phase-12 spec §11 step 8: system-initiated (no actor), same shape as
+// notifyModerationAction — sent to a Report's reporter once its
+// TrustSafetyCase resolves, and to the case subject's owner separately
+// (notifyCaseResolved). Neither ever carries reporter identity in the
+// other direction (§4.2's anonymity requirement) — these are two distinct
+// one-way notices, not a shared payload.
+export async function notifyReportAcknowledged(args: { recipientId: string; caseId: string }): Promise<void> {
+  await db.notification.create({
+    data: { recipientId: args.recipientId, actorId: null, type: "report_acknowledged", subjectType: "trust_safety_case", subjectId: args.caseId },
+  });
+  publishToUsers([args.recipientId], { type: "notification" });
+}
+
+export async function notifyCaseResolved(args: { recipientId: string; caseId: string }): Promise<void> {
+  await db.notification.create({
+    data: { recipientId: args.recipientId, actorId: null, type: "case_resolved", subjectType: "trust_safety_case", subjectId: args.caseId },
+  });
+  publishToUsers([args.recipientId], { type: "notification" });
+}
+
+export async function notifyAppealDecided(args: { recipientId: string; appealId: string }): Promise<void> {
+  await db.notification.create({
+    data: { recipientId: args.recipientId, actorId: null, type: "appeal_decided", subjectType: "appeal", subjectId: args.appealId },
+  });
+  publishToUsers([args.recipientId], { type: "notification" });
+}
+
+// phase-13 spec §12 step 8: the DMCA lifecycle's five producers. None carry
+// a human actorId — same "system-generated" posture as the trust-safety
+// notifications above. The complainant is never a notification recipient:
+// unlike every other party here, they aren't necessarily a platform user
+// (real-world DMCA notices routinely come from rights holders with no
+// account), so there's no userId to notify even in principle.
+export async function notifyDmcaNoticeReceived(args: { recipientId: string; noticeId: string }): Promise<void> {
+  await db.notification.create({
+    data: { recipientId: args.recipientId, actorId: null, type: "dmca_notice_received", subjectType: "dmca_takedown_notice", subjectId: args.noticeId },
+  });
+  publishToUsers([args.recipientId], { type: "notification" });
+}
+
+export async function notifyDmcaContentRemoved(args: { recipientId: string; noticeId: string }): Promise<void> {
+  await db.notification.create({
+    data: { recipientId: args.recipientId, actorId: null, type: "dmca_content_removed", subjectType: "dmca_takedown_notice", subjectId: args.noticeId },
+  });
+  publishToUsers([args.recipientId], { type: "notification" });
+}
+
+// Confirms receipt to the counter-notifier themselves (the only party on
+// this event guaranteed to hold an account, per the comment above).
+export async function notifyDmcaCounterNoticeReceived(args: { recipientId: string; counterNoticeId: string }): Promise<void> {
+  await db.notification.create({
+    data: { recipientId: args.recipientId, actorId: null, type: "dmca_counter_notice_received", subjectType: "dmca_counter_notice", subjectId: args.counterNoticeId },
+  });
+  publishToUsers([args.recipientId], { type: "notification" });
+}
+
+export async function notifyDmcaContentRestored(args: { recipientId: string; counterNoticeId: string }): Promise<void> {
+  await db.notification.create({
+    data: { recipientId: args.recipientId, actorId: null, type: "dmca_content_restored", subjectType: "dmca_counter_notice", subjectId: args.counterNoticeId },
+  });
+  publishToUsers([args.recipientId], { type: "notification" });
+}
+
+export async function notifyDmcaStrikeIssued(args: { recipientId: string; noticeId: string }): Promise<void> {
+  await db.notification.create({
+    data: { recipientId: args.recipientId, actorId: null, type: "dmca_strike_issued", subjectType: "dmca_takedown_notice", subjectId: args.noticeId },
   });
   publishToUsers([args.recipientId], { type: "notification" });
 }
@@ -205,6 +304,22 @@ export async function notifyMentionsInBody(body: string, actorId: string, subjec
 
 export function notifyNewFollower(args: { recipientId: string; actorId: string }): Promise<void> {
   return createNotification({ ...args, type: "new_follower", subjectType: "user", subjectId: args.actorId });
+}
+
+// phase-14 spec §10 step 8: the three org-scoped producers, sequenced last
+// in that build plan since they describe outcomes of steps built earlier
+// (member add/deactivate, SSO configure). subjectId is the organizationId
+// in all three — see getNotificationHref's org_* cases above.
+export function notifyOrgMemberAdded(args: { recipientId: string; actorId: string; organizationId: string }): Promise<void> {
+  return createNotification({ recipientId: args.recipientId, actorId: args.actorId, type: "org_member_added", subjectType: "organization", subjectId: args.organizationId });
+}
+
+export function notifyOrgMemberDeactivated(args: { recipientId: string; actorId: string; organizationId: string }): Promise<void> {
+  return createNotification({ recipientId: args.recipientId, actorId: args.actorId, type: "org_member_deactivated", subjectType: "organization", subjectId: args.organizationId });
+}
+
+export function notifyOrgSsoConfigured(args: { recipientId: string; actorId: string; organizationId: string }): Promise<void> {
+  return createNotification({ recipientId: args.recipientId, actorId: args.actorId, type: "org_sso_configured", subjectType: "organization", subjectId: args.organizationId });
 }
 
 // phase-2 spec §5: subjectId is the conversationId, not a single message id
@@ -555,6 +670,26 @@ export function getNotificationVerb(type: string, subjectType?: string): string 
       return "Your ticket purchase is confirmed";
     case "event_reminder":
       return "Reminder: an event you're attending starts soon";
+    // phase-11 spec §4.3: sent on an upheld ModerationFlag outcome — actor
+    // is always null (system-initiated), so GroupDescription's "Someone"
+    // fallback reads as the platform, not a masked user.
+    case "moderation_action":
+      return "removed your content for violating community guidelines";
+    // phase-12 spec §11 step 8: report_acknowledged/case_resolved/
+    // appeal_decided are all system-initiated (actor always null, same as
+    // moderation_action above).
+    case "report_acknowledged":
+      return "Your report has been reviewed";
+    case "case_resolved":
+      return "A Trust & Safety case involving you has been resolved";
+    case "appeal_decided":
+      return "Your appeal has been decided";
+    case "org_member_added":
+      return "added you to their organization";
+    case "org_member_deactivated":
+      return "removed your organization access";
+    case "org_sso_configured":
+      return "updated your organization's SSO settings";
     default:
       return "";
   }
@@ -633,6 +768,22 @@ export function getNotificationHref(
     case "ticket_purchased":
     case "event_reminder":
       return `/e/${n.subjectId}`;
+    // phase-12 spec §5/§11 step 8: routes to the one page a recipient can
+    // actually act on either notification from — the appeals list
+    // (/trust-safety) — rather than the report_acknowledged default below
+    // (a reporter has nothing further to do, so that one keeps the
+    // /notifications fallback).
+    case "case_resolved":
+    case "appeal_decided":
+      return "/trust-safety";
+    // phase-14 spec §10 step 8: subjectId is the organizationId for all
+    // three org producers — routes to the org's own overview/directory
+    // page, same "subjectId is whatever routing needs" precedent as
+    // notifyNewFollower.
+    case "org_member_added":
+    case "org_member_deactivated":
+    case "org_sso_configured":
+      return `/org/${n.subjectId}`;
     default:
       return "/notifications";
   }

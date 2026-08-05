@@ -30,7 +30,7 @@ export async function uploadDocument(_prevState: ActionState, formData: FormData
 
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) return { error: "Choose a file." };
-  const result = await saveMessageAttachment(file, "file");
+  const result = await saveMessageAttachment(file, "file", user.id);
   if ("error" in result) return { error: result.error };
 
   await db.businessDocument.create({

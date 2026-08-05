@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { getCommunityMember } from "@/lib/communities";
+import { isGatedFromCommunityContent } from "@/lib/organizations";
 import { listWikiPages } from "@/lib/wiki";
 
 // Public listing, same visibility posture as the community feed (spec
@@ -17,7 +18,7 @@ export default async function WikiListPage({ params }: { params: Promise<{ slug:
   const currentUser = await getCurrentUser();
   const membership = currentUser ? await getCommunityMember(community.id, currentUser.id) : null;
   const isActiveMember = membership?.status === "active" || membership?.status === "muted";
-  if (community.visibility === "private" && !isActiveMember) {
+  if (isGatedFromCommunityContent(community, isActiveMember)) {
     return (
       <div className="profileCard">
         <p className="mutedText">This is a private community. Join to see its wiki.</p>

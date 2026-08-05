@@ -203,7 +203,7 @@ export async function uploadResumePdf(_prevState: ActionState, formData: FormDat
   const file = formData.get("resumePdf");
   if (!(file instanceof File) || file.size === 0) return { error: "Choose a PDF file." };
 
-  const result = await saveDocumentFile(file);
+  const result = await saveDocumentFile(file, { uploadedById: user.id });
   if ("error" in result) return { error: result.error };
 
   await db.profile.update({ where: { userId: user.id }, data: { resumePdfUrl: result.url } });

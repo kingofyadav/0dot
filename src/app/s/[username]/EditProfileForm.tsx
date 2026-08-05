@@ -1,7 +1,9 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { updateProfile } from "@/app/actions/profile";
+import { suggestProfileBio } from "@/app/actions/ai-content";
+import { AISuggestButton } from "@/components/AISuggestButton";
 import { THEME_PRESETS } from "@/lib/theme-presets";
 
 export function EditProfileForm({
@@ -18,6 +20,7 @@ export function EditProfileForm({
   themePreset: string;
 }) {
   const [state, formAction, pending] = useActionState(updateProfile, undefined);
+  const [bioValue, setBioValue] = useState(bio);
 
   return (
     <form action={formAction} className="authCard" style={{ maxWidth: "none" }}>
@@ -35,8 +38,23 @@ export function EditProfileForm({
 
       <div className="field">
         <label htmlFor="bio">Bio</label>
-        <textarea id="bio" name="bio" defaultValue={bio} maxLength={280} rows={3} />
+        <textarea
+          id="bio"
+          name="bio"
+          value={bioValue}
+          onChange={(e) => setBioValue(e.target.value)}
+          maxLength={280}
+          rows={3}
+        />
       </div>
+
+      <AISuggestButton
+        label="AI: Suggest a bio"
+        contextLabel="What should your bio focus on? (optional)"
+        contextPlaceholder="e.g. indie game dev, plant care"
+        generate={suggestProfileBio}
+        onInsert={setBioValue}
+      />
 
       <div className="field">
         <label htmlFor="avatar">Avatar</label>

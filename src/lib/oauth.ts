@@ -2,6 +2,7 @@ import "server-only";
 import { createHash, timingSafeEqual } from "crypto";
 import { db } from "@/lib/db";
 import { hashApiToken, generateOpaqueToken, isAllowedRedirectUri } from "@/lib/developer-apps";
+import { createTrustSafetyCase } from "@/lib/trust-safety";
 
 // spec §4.1: fixed, curated scope catalog — seeded here (seedOAuthScopes,
 // called lazily from the developer dashboard and the authorize page, same
@@ -46,6 +47,14 @@ export async function requestDeveloperAppScope(appId: string, scopeKey: string):
     create: { appId, scopeKey, status, reviewedAt: status === "approved" ? new Date() : null },
     update: {},
   });
+  // phase-12 spec §11 step 3: wires the sensitive-scope gate into the
+  // unified queue — DeveloperAppScope.status stays the source of truth
+  // (§3.3). subjectId encodes the composite appId:scopeKey key, same "store
+  // exactly what the resolver needs" precedent notifications.ts's
+  // subjectId conventions already use.
+  if (status === "pending") {
+    await createTrustSafetyCase({ caseType: "oauth_scope_review", subjectType: "developer_app_scope", subjectId: `${appId}:${scopeKey}` });
+  }
   return { ok: true };
 }
 

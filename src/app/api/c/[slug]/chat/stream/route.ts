@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { getCommunityMember } from "@/lib/communities";
+import { isGatedFromCommunityContent } from "@/lib/organizations";
 import { subscribeToCommunityChat, type CommunityChatEvent } from "@/lib/community-chat-events";
 
 export const dynamic = "force-dynamic";
@@ -20,15 +21,15 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
 
   const community = await db.community.findUnique({
     where: { slug },
-    select: { id: true, visibility: true },
+    select: { id: true, visibility: true, restrictedToOrganizationId: true },
   });
   if (!community) return new Response("Not found", { status: 404 });
 
   const user = await getCurrentUser();
-  if (community.visibility === "private") {
-    const membership = user ? await getCommunityMember(community.id, user.id) : null;
-    const isActiveMember = membership?.status === "active" || membership?.status === "muted";
-    if (!isActiveMember) return new Response("Unauthorized", { status: 401 });
+  const membership = user ? await getCommunityMember(community.id, user.id) : null;
+  const isActiveMember = membership?.status === "active" || membership?.status === "muted";
+  if (isGatedFromCommunityContent(community, isActiveMember)) {
+    return new Response("Unauthorized", { status: 401 });
   }
 
   let unsubscribe: (() => void) | undefined;

@@ -41,12 +41,12 @@ function parseAndValidateFileFields(formData: FormData): { error: string } | Fil
 // extended with a fourth resourceType rather than a second pipeline).
 // Exactly one of {fileUrl} / {fileKey, fileMimeType} is set, matching which
 // branch ran — never both.
-async function storeFile(file: File, visibility: string): Promise<{ fileUrl: string | null; fileKey: string | null; fileMimeType: string } | { error: string }> {
+async function storeFile(file: File, visibility: string, uploadedById: string): Promise<{ fileUrl: string | null; fileKey: string | null; fileMimeType: string } | { error: string }> {
   if (file.type !== ALLOWED_FILE_TYPE) return { error: "Only PDF files are supported." };
   if (file.size > MAX_FILE_BYTES) return { error: `Files must be ${Math.floor(MAX_FILE_BYTES / (1024 * 1024))}MB or smaller.` };
 
   if (visibility === "public") {
-    const result = await saveDocumentFile(file, { maxBytes: MAX_FILE_BYTES });
+    const result = await saveDocumentFile(file, { maxBytes: MAX_FILE_BYTES, uploadedById });
     if ("error" in result) return { error: result.error };
     return { fileUrl: result.url, fileKey: null, fileMimeType: file.type };
   }
@@ -76,13 +76,13 @@ export async function createPublishedFile(_prevState: ActionState, formData: For
 
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) return { error: "A PDF file is required." };
-  const stored = await storeFile(file, fields.visibility);
+  const stored = await storeFile(file, fields.visibility, user.id);
   if ("error" in stored) return stored;
 
   let coverImageUrl: string | undefined;
   const coverFile = formData.get("coverImage");
   if (coverFile instanceof File && coverFile.size > 0) {
-    const result = await saveUploadedImage(coverFile, { maxBytes: MAX_IMAGE_BYTES });
+    const result = await saveUploadedImage(coverFile, { maxBytes: MAX_IMAGE_BYTES, uploadedById: user.id });
     if ("error" in result) return { error: result.error };
     coverImageUrl = result.url;
   }
@@ -119,7 +119,7 @@ export async function updatePublishedFile(_prevState: ActionState, formData: For
   let coverImageUrl = existing.coverImageUrl;
   const coverFile = formData.get("coverImage");
   if (coverFile instanceof File && coverFile.size > 0) {
-    const result = await saveUploadedImage(coverFile, { maxBytes: MAX_IMAGE_BYTES });
+    const result = await saveUploadedImage(coverFile, { maxBytes: MAX_IMAGE_BYTES, uploadedById: user.id });
     if ("error" in result) return { error: result.error };
     coverImageUrl = result.url;
   }
@@ -129,7 +129,7 @@ export async function updatePublishedFile(_prevState: ActionState, formData: For
   const storageCategoryChanged = (fields.visibility === "public") !== (existing.visibility === "public");
 
   if (newFile instanceof File && newFile.size > 0) {
-    const stored = await storeFile(newFile, fields.visibility);
+    const stored = await storeFile(newFile, fields.visibility, user.id);
     if ("error" in stored) return stored;
     ({ fileUrl, fileKey, fileMimeType } = stored);
     fileSizeBytes = newFile.size;

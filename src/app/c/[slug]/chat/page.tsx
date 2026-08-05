@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { getCommunityMember, isCommunityStaff } from "@/lib/communities";
+import { isGatedFromCommunityContent } from "@/lib/organizations";
 import { getRecentChatMessages } from "@/lib/community-chat";
 import { CommunityChatView } from "./CommunityChatView";
 
@@ -12,7 +13,7 @@ export default async function CommunityChatPage({ params }: { params: Promise<{ 
 
   const community = await db.community.findUnique({
     where: { slug },
-    select: { id: true, slug: true, name: true, visibility: true },
+    select: { id: true, slug: true, name: true, visibility: true, restrictedToOrganizationId: true },
   });
   if (!community) notFound();
 
@@ -20,7 +21,7 @@ export default async function CommunityChatPage({ params }: { params: Promise<{ 
   const membership = currentUser ? await getCommunityMember(community.id, currentUser.id) : null;
   const isActiveMember = membership?.status === "active" || membership?.status === "muted";
 
-  if (community.visibility === "private" && !isActiveMember) {
+  if (isGatedFromCommunityContent(community, isActiveMember)) {
     return (
       <div className="profileCard">
         <p className="mutedText">This is a private community. Join to see its chat.</p>

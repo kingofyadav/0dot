@@ -16,7 +16,23 @@
   --accent-navy: #0b1f66;
   --danger: #dc2626;
   --danger-soft: rgba(220, 38, 38, 0.14);
+  /* Text/icon color for content placed on top of an --accent or
+     --accent-strong surface (primary buttons). White text on the raw
+     saffron accent is only ~2.1:1 contrast — fails WCAG AA (4.5:1) badly.
+     Near-black clears 6.4:1+ against every accent value in both themes, so
+     unlike most tokens this one doesn't need a separate dark-mode value —
+     still declared in all four theme blocks per this doc's own rule, so a
+     future accent change doesn't silently regress it unnoticed. */
+  --on-accent: #171717;
+  /* Text color for content on a --danger surface. --danger itself is tuned
+     as a *foreground* (text-on-background) color per theme, not as a button
+     background — its dark-mode value (#f87171) is a light red meant to read
+     against near-black, so white button text on it drops to ~2.8:1. White
+     stays correct in light mode (danger is a saturated dark red there). */
+  --on-danger: #ffffff;
   --shadow: 0 1px 2px rgba(23, 23, 23, 0.04), 0 8px 24px rgba(23, 23, 23, 0.06);
+  --shadow-md: 0 4px 12px rgba(23, 23, 23, 0.08), 0 2px 4px rgba(23, 23, 23, 0.06);
+  --shadow-lg: 0 16px 40px rgba(23, 23, 23, 0.14), 0 4px 12px rgba(23, 23, 23, 0.08);
   /* Layout constant (not a themed color, so no dark-mode override needed):
      shared by .desktopTopHeader's height and .desktopSidebar's sticky
      offset so the two never overlap. */
@@ -61,7 +77,14 @@
     --accent-navy: #6b7fd7;
     --danger: #f87171;
     --danger-soft: rgba(248, 113, 113, 0.18);
+    --on-accent: #171717;
+    /* Dark mode's --danger (#f87171) is a light red tuned for text-on-dark
+       use, not a button background — white text on it fails AA (~2.8:1);
+       near-black clears 7:1+. */
+    --on-danger: #171717;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 8px 24px rgba(0, 0, 0, 0.35);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3), 0 2px 4px rgba(0, 0, 0, 0.2);
+    --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.45), 0 4px 12px rgba(0, 0, 0, 0.3);
   }
 }
 
@@ -81,7 +104,11 @@
   --accent-navy: #0b1f66;
   --danger: #dc2626;
   --danger-soft: rgba(220, 38, 38, 0.14);
+  --on-accent: #171717;
+  --on-danger: #ffffff;
   --shadow: 0 1px 2px rgba(23, 23, 23, 0.04), 0 8px 24px rgba(23, 23, 23, 0.06);
+  --shadow-md: 0 4px 12px rgba(23, 23, 23, 0.08), 0 2px 4px rgba(23, 23, 23, 0.06);
+  --shadow-lg: 0 16px 40px rgba(23, 23, 23, 0.14), 0 4px 12px rgba(23, 23, 23, 0.08);
 }
 
 :root[data-theme="dark"] {
@@ -97,7 +124,11 @@
   --accent-navy: #6b7fd7;
   --danger: #f87171;
   --danger-soft: rgba(248, 113, 113, 0.18);
+  --on-accent: #171717;
+  --on-danger: #171717;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 8px 24px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3), 0 2px 4px rgba(0, 0, 0, 0.2);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.45), 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 /* overflow-x: hidden lives on html only, not body — setting it on both
@@ -149,6 +180,66 @@ html[data-theme="dark"] {
   color-scheme: dark;
 }
 
+/* Accessibility baseline (ACCESSIBILITY.md) — applies globally, not
+   per-component, so every existing and future interactive element gets it
+   automatically. */
+
+/* Skip-to-content link: first focusable element in the DOM (rendered before
+   SiteHeader in layout.tsx), invisible until keyboard-focused. Targets
+   #main-content (the <main> element, given tabIndex={-1} so it can receive
+   focus programmatically even though it's not natively focusable). */
+.skipLink {
+  position: fixed;
+  top: -100%;
+  left: var(--space-3);
+  z-index: 1000;
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-lg);
+  font-weight: 600;
+  transition: top 0.15s ease;
+}
+
+.skipLink:focus {
+  top: var(--space-3);
+}
+
+/* Consistent focus-visible ring for every interactive element that isn't
+   already covered by .field's own input/textarea/select rule — reuses the
+   same --accent + --accent-soft ring pattern rather than the inconsistent
+   browser-default outline (ACCESSIBILITY.md: "Buttons and links do not have
+   an explicit custom focus style"). outline (not box-shadow) so it isn't
+   clipped by ancestors with overflow:hidden (e.g. .postMediaGrid), and
+   outline-offset keeps it legible regardless of the element's own
+   background color (button text also swapped to --on-accent above for the
+   same reason — a ring alone doesn't fix low text contrast). */
+a:focus-visible,
+button:focus-visible,
+summary:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Respects the user's OS-level motion preference — not yet handled
+   anywhere before this (ACCESSIBILITY.md). Placed after the theme rules but
+   before any component styles so no later, more specific rule needs to
+   repeat it. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* Shared form/auth styling */
 
 .authWrap {
@@ -164,16 +255,27 @@ html[data-theme="dark"] {
 /* A soft, blurred glow in the brand's two primary accent tones behind the
    auth card — this is the first thing a new visitor sees, so it gets a
    little more polish than the rest of the app. Purely decorative: sits
-   behind the card (z-index below it) and never intercepts clicks. */
+   behind the card (z-index below it) and never intercepts clicks.
+   position: fixed + inset: 0 (viewport-relative), not absolute — .authWrap
+   is a flex item whose own box is only as wide as its content (or capped
+   by an ancestor's max-width), so an absolutely-positioned inset:0 glow
+   was clipped to that narrower box and left bare page background on
+   either side instead of filling the screen edge to edge. Fixed
+   positioning escapes that (no ancestor here has a transform, so the
+   containing block is the viewport) while isolation: isolate on .authWrap
+   still keeps it painted behind the card, not above unrelated chrome.
+   Identical gradient to .landingWrap::before (same circle size/position/
+   tones) so "/" and the standalone /login, /signup pages read as one
+   consistent background, not two slightly different treatments. */
 .authWrap::before {
   content: "";
-  position: absolute;
+  position: fixed;
   inset: 0;
   z-index: -1;
   pointer-events: none;
   background:
-    radial-gradient(480px circle at 30% 20%, var(--accent-soft), transparent 60%),
-    radial-gradient(480px circle at 75% 75%, var(--accent-green-soft), transparent 60%);
+    radial-gradient(560px circle at 25% 10%, var(--accent-soft), transparent 60%),
+    radial-gradient(560px circle at 80% 30%, var(--accent-green-soft), transparent 60%);
 }
 
 .authCard {
@@ -196,11 +298,38 @@ html[data-theme="dark"] {
   text-align: center;
 }
 
-/* Logged-out landing page only (src/app/page.tsx) — hero + feature
-   overview stacked above the unchanged .authCard. Distinct from
-   .authWrap (still used as-is by login/signup/verify/claim-username,
-   which stay simple centered single-card layouts) since this page needs
-   to stack multiple sections, not center one card. */
+/* Landing page only (AuthTabs's .authCard, nested in .landingWrap) — on
+   mobile the page shows the auth form only, no hero (see .landingHero
+   below), so the card's own box chrome is redundant on top of that: just
+   bare form fields on the page background. Scoped to .landingWrap
+   .authCard specifically, not .authCard itself, so the standalone
+   /login and /signup cards (still a real centered card on every size)
+   are unaffected. Restored at the 1024px breakpoint below, where the
+   card sits beside the hero as a genuine two-column layout and needs to
+   read as a distinct card again. */
+.landingWrap .authCard {
+  border: none;
+  box-shadow: none;
+  background: none;
+  padding: 0;
+}
+
+@media (min-width: 1024px) {
+  .landingWrap .authCard {
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    background: var(--surface);
+    padding: 2rem;
+  }
+}
+
+/* Logged-out landing page only (src/app/page.tsx) — split two-column
+   layout (marketing copy left, .authCard right) on desktop, matching the
+   classic "wordmark + pitch beside a login card" pattern used by large
+   social landing pages. Distinct from .authWrap (still used as-is by
+   login/signup/verify/claim-username, which stay simple centered
+   single-card layouts) since this page needs to lay out multiple
+   sections side by side, not center one card. */
 .landingWrap {
   position: relative;
   flex: 1;
@@ -213,16 +342,54 @@ html[data-theme="dark"] {
   isolation: isolate;
 }
 
+/* Full viewport width on desktop, not a centered max-width column — the
+   hero (flex: 1 1 480px below) absorbs the extra space and pushes the
+   auth card to the right edge, which is what actually makes the
+   top-left-pinned .landingLogo below read as a corner mark rather than
+   floating in the middle of unused whitespace. */
 @media (min-width: 1024px) {
   .landingWrap {
-    gap: 2.5rem;
-    padding: 3rem 1rem;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 4rem;
+    padding: 3rem clamp(2rem, 5vw, 6rem);
   }
 }
 
+/* Pinned to the section's top-left corner on desktop, separate from the
+   hero column so it reads as a persistent brand mark rather than sitting
+   inline above the headline. Hidden on mobile — the mobile view shows the
+   auth form only (see .landingHero below), and that form already carries
+   its own logo above "Welcome". top/left are set to the same values as
+   .landingWrap's own padding (3rem / clamp(2rem, 5vw, 6rem)) above, not
+   0/0 — the containing block for an absolutely positioned element is the
+   ancestor's padding box, so top:0/left:0 lines up with that box's OUTER
+   edge (i.e. flush with the viewport corner, ignoring the padding
+   entirely), not the inset content edge. Matching the padding values
+   explicitly is what actually aligns the logo with the rest of the
+   inset content instead of overlapping the corner. */
+.landingLogo {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .landingLogo {
+    display: flex;
+    position: absolute;
+    top: 3rem;
+    left: clamp(2rem, 5vw, 6rem);
+  }
+}
+
+/* position: fixed, not absolute — see the matching note on .authWrap::before.
+   .landingWrap is capped at max-width: 980px on desktop, so an
+   absolute inset:0 glow was clipped to that centered column and left a
+   visible hard-edged rectangle of bare background on both sides instead
+   of covering the full screen. */
 .landingWrap::before {
   content: "";
-  position: absolute;
+  position: fixed;
   inset: 0;
   z-index: -1;
   pointer-events: none;
@@ -233,11 +400,12 @@ html[data-theme="dark"] {
 
 /* Hidden on mobile — small screens show the auth form only, no hero
    text, to get a new visitor straight to signup/login. Shown again at
-   the desktop breakpoint below. */
+   the desktop breakpoint below, left-aligned beside the auth card rather
+   than centered above it. */
 .landingHero {
   display: none;
   width: 100%;
-  max-width: 640px;
+  max-width: 480px;
   text-align: center;
   flex-direction: column;
   align-items: center;
@@ -258,6 +426,50 @@ html[data-theme="dark"] {
 
 @media (min-width: 1024px) {
   .landingHero {
+    display: flex;
+    text-align: left;
+    align-items: flex-start;
+    flex: 1 1 480px;
+    /* Overrides the base rule's max-width: 480px above — without this,
+       flex-grow: 1 has no effect (the box is still capped at 480px), so
+       on laptop-width viewports the hero+card group can't actually widen
+       to fill the extra space and ends up centered in a narrow band with
+       large empty margins on both sides. */
+    max-width: 640px;
+  }
+
+  .landingHero p {
+    max-width: none;
+  }
+}
+
+.landingFeatures {
+  display: none;
+  list-style: none;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 1rem;
+  width: 100%;
+}
+
+.landingFeatures li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.landingFeatures strong {
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+
+.landingFeatures span {
+  font-size: var(--text-sm);
+  opacity: 0.7;
+}
+
+@media (min-width: 1024px) {
+  .landingFeatures {
     display: flex;
   }
 }
@@ -303,10 +515,45 @@ html[data-theme="dark"] {
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
+/* Bug fix: browser/password-manager autofill (Chrome, Edge, Brave, …)
+   force their own white-ish input background + black text via internal
+   UA styles that ignore `background`/`color` entirely — the only way to
+   override them is this `:-webkit-autofill` shadow-DOM hack. Left
+   unhandled (as it was), every autofilled email/password field broke
+   dark mode: a bright white box with barely-legible text, instead of the
+   app's own surface color. The inset box-shadow reproduces the input's
+   actual composited background (3% foreground over --surface) so filled
+   and autofilled fields look identical in both themes. The absurdly long
+   `transition` delay is the standard trick to stop Chrome's own
+   autofill-yellow flash from ever painting before our override applies. */
+.field input:-webkit-autofill,
+.field textarea:-webkit-autofill,
+.field select:-webkit-autofill,
+.textInput:-webkit-autofill,
+.field input:-webkit-autofill:hover,
+.field input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--foreground);
+  caret-color: var(--foreground);
+  -webkit-box-shadow: 0 0 0px 1000px color-mix(in srgb, var(--foreground) 3%, var(--surface)) inset;
+  box-shadow: 0 0 0px 1000px color-mix(in srgb, var(--foreground) 3%, var(--surface)) inset;
+  transition: background-color 5000s ease-in-out 0s, box-shadow 5000s ease-in-out 0s;
+}
+
+.field input:-webkit-autofill:focus,
+.field textarea:-webkit-autofill:focus,
+.field select:-webkit-autofill:focus,
+.textInput:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0px 1000px color-mix(in srgb, var(--foreground) 3%, var(--surface)) inset,
+    0 0 0 3px var(--accent-soft);
+  box-shadow: 0 0 0px 1000px color-mix(in srgb, var(--foreground) 3%, var(--surface)) inset,
+    0 0 0 3px var(--accent-soft);
+  border-color: var(--accent);
+}
+
 .button {
   font: inherit;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--on-accent);
   background: var(--accent);
   border: none;
   border-radius: 10px;
@@ -341,6 +588,7 @@ html[data-theme="dark"] {
 /* Destructive actions (UX_GUIDELINES.md #9) — same shape as .button, red
    instead of accent. First use: Block confirmation. */
 .button.buttonDanger {
+  color: var(--on-danger);
   background: var(--danger);
 }
 
@@ -386,6 +634,226 @@ html[data-theme="dark"] {
   color: var(--accent-navy);
   font-weight: 600;
   text-decoration: underline;
+}
+
+/* Resets a <button> to read as inline text — used where a button needs
+   .authFooter's link styling (e.g. AuthTabs's tab-switch control) without
+   inheriting default button chrome (background/border/padding/font). */
+.linkButton {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+/* Shared Logo + "Welcome" block, previously an identical inline
+   style={{...}} object duplicated across login/page.tsx, signup/page.tsx,
+   and AuthTabs.tsx (DESIGN_SYSTEM.md's "known inconsistency to fix"). */
+.authHeader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.authHeader p {
+  font-weight: 600;
+}
+
+/* Trust microcopy shown below every auth form (AuthTrust.tsx). Plain text,
+   not links — no /terms or /privacy pages exist yet. */
+.authTrust {
+  text-align: center;
+  font-size: var(--text-xs);
+  opacity: 0.6;
+}
+
+/* Auth surfaces get a deliberately larger radius/height than the app's
+   default .button/.field (10px, ad hoc height) — a contained, intentional
+   divergence for the primary conversion surface (DESIGN_SYSTEM.md's Radius
+   section), not scaled out to every button/input in the app. */
+.authCard .button {
+  height: 52px;
+  border-radius: 14px;
+  font-size: var(--text-base);
+  transition: background-color 0.15s ease, transform 0.15s ease;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .authCard .button:hover:not(:disabled) {
+    transform: scale(1.01);
+  }
+
+  .authCard .button:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+}
+
+.authCard .field input,
+.authCard .field textarea,
+.authCard .field select {
+  min-height: 52px;
+  border-radius: 14px;
+  font-size: var(--text-base);
+}
+
+/* Entrance motion for the first thing a visitor sees — fade + 8px slide-up,
+   respecting prefers-reduced-motion (DESIGN_SYSTEM.md flags this as not yet
+   handled anywhere; this is the first component to do it correctly). */
+@media (prefers-reduced-motion: no-preference) {
+  .authCard {
+    animation: authCardIn 220ms ease-out;
+  }
+
+  @keyframes authCardIn {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+/* Modal / dialog (Modal.tsx, ConfirmButton.tsx) — the first component
+   using --shadow-lg (DESIGN_SYSTEM.md's elevation tiers: a modal needs to
+   sit visually above a card, which the single old --shadow value couldn't
+   express). Built on native <dialog>, so most of this just re-themes the
+   UA default box rather than positioning it from scratch. */
+.modal {
+  width: calc(100% - 2rem);
+  max-width: 420px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+  color: var(--foreground);
+  box-shadow: var(--shadow-lg);
+}
+
+/* color-mix over the design tokens rather than a hardcoded rgba(0,0,0,...)
+   scrim — DESIGN_SYSTEM.md's "never hardcode a hex/color value" rule
+   applies to this overlay the same as any other surface. */
+.modal::backdrop {
+  background: color-mix(in srgb, var(--foreground) 45%, transparent);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .modal {
+    animation: modalIn 180ms ease-out;
+  }
+
+  .modal::backdrop {
+    animation: modalBackdropIn 180ms ease-out;
+  }
+
+  @keyframes modalIn {
+    from {
+      opacity: 0;
+      transform: translateY(8px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @keyframes modalBackdropIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+}
+
+.modalBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-6);
+}
+
+.modalTitle {
+  font-size: var(--text-lg);
+  font-weight: 700;
+}
+
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+/* Toast (Toast.tsx) — fixed stack, bottom-center on mobile (thumb-reachable,
+   doesn't cover the bottom nav's eventual position) and bottom-right on
+   larger screens where there's room beside content instead of over it. */
+.toastStack {
+  position: fixed;
+  left: 50%;
+  bottom: var(--space-4);
+  transform: translateX(-50%);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  pointer-events: none;
+}
+
+.toast {
+  padding: var(--space-3) var(--space-4);
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-md);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .toast {
+    animation: toastIn 180ms ease-out;
+  }
+
+  @keyframes toastIn {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+@media (min-width: 768px) {
+  .toastStack {
+    left: auto;
+    right: var(--space-6);
+    bottom: var(--space-6);
+    transform: none;
+    align-items: flex-end;
+  }
+}
+
+/* Empty state (EmptyState.tsx) — replaces the ad hoc <p className="mutedText">
+   pattern flagged in DESIGN_CONSISTENCY.md/COMPONENT_LIBRARY.md as a known,
+   cheap-to-fix inconsistency. */
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-8) var(--space-4);
+  text-align: center;
 }
 
 /* Profile page */
@@ -538,7 +1006,7 @@ html[data-theme="dark"] {
   padding: 0 4px;
   border-radius: 999px;
   background: var(--danger);
-  color: #fff;
+  color: var(--on-danger);
   font-size: 0.65rem;
   font-weight: 700;
   line-height: 1;
@@ -673,6 +1141,9 @@ html[data-theme="dark"] {
 }
 
 .railSectionHeader h2 {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
   font-size: 0.95rem;
   font-weight: 700;
 }
@@ -728,6 +1199,46 @@ html[data-theme="dark"] {
 /* Shared by Sidebar and the mobile dropdown panel (NavLinks/NavAction) */
 .siteHeaderSearch input {
   width: 100%;
+}
+
+/* Nav destination row — shared by the desktop sidebar and the mobile
+   hamburger panel (NavLinks.tsx renders the same markup into both). Replaces
+   the previous per-link inline style={{...}} object (DESIGN_SYSTEM.md's
+   flagged inconsistency) with a real class so hover/active/focus states are
+   defined once. */
+.navLink {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: 10px;
+  font-weight: 600;
+  opacity: 0.75;
+  color: var(--foreground);
+  transition: background-color 0.15s ease, opacity 0.15s ease, color 0.15s ease, transform 0.15s ease;
+  min-height: 44px;
+}
+
+.navLink:hover {
+  opacity: 1;
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+  transform: translateX(2px);
+}
+
+.navLinkActive,
+.navLinkActive:hover {
+  opacity: 1;
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.navLinkIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25em;
+  font-size: 1.05rem;
+  flex-shrink: 0;
 }
 
 /* Desktop top header (>=1024px only — see .desktopTopHeader inside the
@@ -865,7 +1376,7 @@ html[data-theme="dark"] {
   z-index: 20;
   display: flex;
   flex-direction: column;
-  gap: 0.85rem;
+  gap: var(--space-2);
   min-width: 220px;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -888,6 +1399,16 @@ html[data-theme="dark"] {
       "header header"
       "sidebar main";
     align-items: stretch;
+    min-height: 100vh;
+  }
+
+  /* Landing page ("/") and the standalone /login, /signup pages render no
+     SiteHeader/Sidebar (RootLayout skips it for isChromelessPath) — opt out
+     of the grid shell entirely instead of leaving the 240px sidebar column
+     and header row reserved and blank. */
+  body.noChrome {
+    display: flex;
+    flex-direction: column;
     min-height: 100vh;
   }
 
@@ -941,7 +1462,7 @@ html[data-theme="dark"] {
   .sidebarNav {
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: var(--space-1);
   }
 
   .sidebarSpacer {

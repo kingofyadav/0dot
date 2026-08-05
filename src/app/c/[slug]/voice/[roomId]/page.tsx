@@ -3,6 +3,7 @@ import { redirect, notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { getCommunityMember, isCommunityStaff } from "@/lib/communities";
+import { isGatedFromCommunityContent } from "@/lib/organizations";
 import { getVoiceRoom, getSpeakQueue, isFloorFree } from "@/lib/voice-rooms";
 import { startVoiceRoom, endVoiceRoom } from "@/app/actions/voice-rooms";
 import { VoiceRoomView } from "./VoiceRoomView";
@@ -20,7 +21,7 @@ export default async function VoiceRoomPage({
 
   const community = await db.community.findUnique({
     where: { slug },
-    select: { id: true, slug: true, name: true, visibility: true },
+    select: { id: true, slug: true, name: true, visibility: true, restrictedToOrganizationId: true },
   });
   if (!community) notFound();
 
@@ -29,7 +30,7 @@ export default async function VoiceRoomPage({
 
   const membership = await getCommunityMember(community.id, currentUser.id);
   const isActiveMember = membership?.status === "active" || membership?.status === "muted";
-  if (community.visibility === "private" && !isActiveMember) {
+  if (isGatedFromCommunityContent(community, isActiveMember)) {
     return (
       <div className="profileCard">
         <p className="mutedText">This is a private community. Join to see its voice rooms.</p>

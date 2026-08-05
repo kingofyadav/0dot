@@ -56,7 +56,7 @@ export async function addResearchPaper(_prevState: ActionState, formData: FormDa
   let fileUrl: string | null = null;
   const file = formData.get("file");
   if (file instanceof File && file.size > 0) {
-    const result = await saveDocumentFile(file);
+    const result = await saveDocumentFile(file, { uploadedById: user.id });
     if ("error" in result) return { error: result.error };
     fileUrl = result.url;
   }

@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { getRecentNotificationsPreview, getNotificationVerb, getNotificationHref } from "@/lib/notifications";
 import { getSuggestedUsers } from "@/lib/suggested-users";
 import { UserListItem } from "@/components/UserListItem";
+import { EmptyState } from "@/components/EmptyState";
 
 const PREVIEW_COUNT = 5;
 const SUGGESTED_COUNT = 5;
@@ -28,10 +29,12 @@ export async function ContextualRail() {
     <div className="contextualRail">
       <section className="railSection">
         <div className="railSectionHeader">
-          <h2>Notifications</h2>
+          <h2>
+            <span aria-hidden="true">🔔</span> Notifications
+          </h2>
           <Link href="/notifications">See all</Link>
         </div>
-        {notifications.length === 0 && <p className="mutedText">Nothing yet.</p>}
+        {notifications.length === 0 && <EmptyState message="Nothing yet." />}
         <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
           {notifications.map((n) => (
             <Link key={n.id} href={getNotificationHref(n, recipientHandle)} className="railNotificationItem">
@@ -50,7 +53,9 @@ export async function ContextualRail() {
       {suggestedUsers.length > 0 && (
         <section className="railSection">
           <div className="railSectionHeader">
-            <h2>Suggested for you</h2>
+            <h2>
+              <span aria-hidden="true">👥</span> Suggested for you
+            </h2>
             <Link href="/explore">See all</Link>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>

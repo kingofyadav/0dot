@@ -18,6 +18,7 @@ import {
 import { getPaymentProcessor, recordPaymentTransaction } from "@/lib/payments";
 import { canManageCatalog } from "@/lib/businesses";
 import { isCommunityStaff } from "@/lib/communities";
+import { createTrustSafetyCase } from "@/lib/trust-safety";
 import type { ActionState } from "@/app/actions/auth";
 
 const CATEGORY_SET = new Set<string>(MARKETPLACE_CATEGORIES);
@@ -101,6 +102,11 @@ export async function createMarketplaceListing(_prevState: ActionState, formData
     },
   });
 
+  // phase-12 spec §11 step 3: wires the listing review gate into the
+  // unified queue — MarketplaceListing.status stays the source of truth
+  // (§3.3), no reportedById since this is a gate-driven review, not a report.
+  await createTrustSafetyCase({ caseType: "marketplace_listing_review", subjectType: "marketplace_listing", subjectId: listing.id });
+
   revalidatePath("/m");
   redirect(`/m/${listing.id}`);
 }
@@ -148,6 +154,7 @@ export async function updateMarketplaceListing(_prevState: ActionState, formData
     where: { id: listing.id },
     data: { title, description, price, currency, payload: JSON.stringify(validated.payload), status: "pending_review" },
   });
+  await createTrustSafetyCase({ caseType: "marketplace_listing_review", subjectType: "marketplace_listing", subjectId: listing.id });
 
   revalidatePath(`/m/${listing.id}`);
   redirect(`/m/${listing.id}`);
