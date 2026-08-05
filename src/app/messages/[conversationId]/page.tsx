@@ -9,8 +9,13 @@ import {
   getMessageableCandidates,
   markConversationRead,
 } from "@/lib/messaging";
+import { isUserOnline } from "@/lib/presence";
 import { acceptMessageRequest, declineMessageRequest } from "@/app/actions/messages";
 import { GroupParticipantsPanel } from "@/components/GroupParticipantsPanel";
+import { Logo } from "@/components/Logo";
+import { PresenceDot } from "@/components/PresenceDot";
+import { PresenceStatus } from "@/components/PresenceStatus";
+import { ConversationRowMenu } from "@/components/ConversationRowMenu";
 import { ConversationView } from "./ConversationView";
 
 export default async function ConversationPage({
@@ -34,6 +39,7 @@ export default async function ConversationPage({
   if (!conversation) notFound();
 
   const display = getConversationDisplayInfo(conversation, currentUser.id);
+  const isOtherOnline = display.otherUserId ? isUserOnline(display.otherUserId) : false;
   const { items: recentMessages } = await getMessagesForConversation(conversationId, currentUser.id, null);
   const messages = [...recentMessages].reverse(); // oldest-first for chat display
 
@@ -57,16 +63,44 @@ export default async function ConversationPage({
   return (
     <div className="profileCard" style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 8rem)" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.75rem" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", minWidth: 0 }}>
           <Link href="/messages" className="button buttonSecondary iconButton" aria-label="Back to messages">
             ←
           </Link>
-          <div>
-            <h1 style={{ fontSize: "1.05rem", fontWeight: 700 }}>
+          {!isGroup && (
+            <span style={{ position: "relative", flexShrink: 0, display: "inline-flex" }}>
+              {display.avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element -- user-supplied URL, not a local/optimizable asset
+                <img
+                  src={display.avatarUrl}
+                  alt=""
+                  width={36}
+                  height={36}
+                  style={{ borderRadius: "50%", objectFit: "cover" }}
+                />
+              ) : (
+                <span style={{ display: "inline-flex", borderRadius: "50%" }}>
+                  <Logo size={36} />
+                </span>
+              )}
+              <PresenceDot online={isOtherOnline} />
+            </span>
+          )}
+          <div style={{ minWidth: 0 }}>
+            <h1 style={{ fontSize: "1.05rem", fontWeight: 700, margin: 0 }}>
               {display.handle ? <Link href={`/${display.handle}`}>{display.title}</Link> : display.title}
+              {display.handle && (
+                <Link href={`/${display.handle}`} className="verifiedBadge" aria-label="View public profile" title="View public profile">
+                  ✓
+                </Link>
+              )}
             </h1>
+            {!isGroup && display.otherLastActiveAt && (
+              <PresenceStatus online={isOtherOnline} lastActiveAt={display.otherLastActiveAt} />
+            )}
           </div>
         </div>
+        <ConversationRowMenu conversationId={conversationId} />
       </div>
 
       {isGroup && (

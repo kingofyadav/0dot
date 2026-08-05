@@ -7,6 +7,7 @@ import {
   isConversationUnreadFor,
   parseConversationCursor,
 } from "@/lib/messaging";
+import { isUserOnline } from "@/lib/presence";
 import { ConversationListItem } from "@/components/ConversationListItem";
 
 // Primary inbox (phase-2 spec §5.5: "list conversations, cursor-paginated,
@@ -56,6 +57,8 @@ export default async function MessagesPage({
               preview={pendingMine ? "Request sent — waiting for a reply" : conversation.lastMessagePreview ?? ""}
               timestamp={conversation.lastMessageAt}
               isUnread={isConversationUnreadFor(currentUser.id, conversation, myParticipant)}
+              isOnline={display.otherUserId ? isUserOnline(display.otherUserId) : false}
+              showMenu
             />
           );
         })}

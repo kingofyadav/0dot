@@ -6,8 +6,10 @@ import {
   getConversationDisplayInfo,
   parseConversationCursor,
 } from "@/lib/messaging";
+import { isUserOnline } from "@/lib/presence";
 import { acceptMessageRequest, declineMessageRequest } from "@/app/actions/messages";
 import { Logo } from "@/components/Logo";
+import { PresenceDot } from "@/components/PresenceDot";
 
 // Separate from the primary inbox by design (spec §5.2/§5.8): a DM from a
 // non-mutual, non-followed sender lands here, not in /messages, until
@@ -51,22 +53,32 @@ export default async function MessageRequestsPage({
                 href={`/messages/${conversation.id}`}
                 style={{ display: "flex", alignItems: "center", gap: "0.6rem", minWidth: 0 }}
               >
-                {display.avatarUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element -- user-supplied URL, not a local/optimizable asset
-                  <img
-                    src={display.avatarUrl}
-                    alt=""
-                    width={40}
-                    height={40}
-                    style={{ borderRadius: "50%", objectFit: "cover", flexShrink: 0 }}
-                  />
-                ) : (
-                  <span style={{ display: "inline-flex", borderRadius: "50%", flexShrink: 0 }}>
-                    <Logo size={40} />
-                  </span>
-                )}
+                <span style={{ position: "relative", flexShrink: 0, display: "inline-flex" }}>
+                  {display.avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- user-supplied URL, not a local/optimizable asset
+                    <img
+                      src={display.avatarUrl}
+                      alt=""
+                      width={40}
+                      height={40}
+                      style={{ borderRadius: "50%", objectFit: "cover" }}
+                    />
+                  ) : (
+                    <span style={{ display: "inline-flex", borderRadius: "50%" }}>
+                      <Logo size={40} />
+                    </span>
+                  )}
+                  <PresenceDot online={display.otherUserId ? isUserOnline(display.otherUserId) : false} />
+                </span>
                 <span style={{ minWidth: 0 }}>
-                  <span style={{ fontWeight: 600, display: "block" }}>{display.title}</span>
+                  <span style={{ fontWeight: 600, display: "block" }}>
+                    {display.title}
+                    {display.handle && (
+                      <span className="verifiedBadge" aria-label="View public profile" title="View public profile">
+                        ✓
+                      </span>
+                    )}
+                  </span>
                   <span className="mutedText" style={{ display: "block" }}>
                     {conversation.lastMessagePreview}
                   </span>

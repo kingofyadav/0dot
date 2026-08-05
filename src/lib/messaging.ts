@@ -336,6 +336,7 @@ type ParticipantForDisplay = {
   user: {
     username: { handle: string } | null;
     profile: { displayName: string; avatarUrl: string | null } | null;
+    lastActiveAt?: Date;
   };
 };
 
@@ -343,15 +344,30 @@ type ParticipantForDisplay = {
 // we call this conversation" is computed in exactly one place. Direct
 // conversations display the *other* participant; groups display their
 // title (or a participant-count fallback for an untitled group).
+//
+// otherUserId/otherLastActiveAt are null for groups (presence is a direct-
+// conversation concept — a group has no single "other person" to badge) and
+// are the raw ingredients callers combine with presence.ts's isUserOnline
+// for the green dot, rather than this function reaching into presence
+// itself (that'd make a plain data-shaping helper depend on the in-memory
+// connection tracker for no reason).
 export function getConversationDisplayInfo(
   conversation: { kind: string; title: string | null; participants: ParticipantForDisplay[] },
   viewerId: string
-): { title: string; handle: string | null; avatarUrl: string | null } {
+): {
+  title: string;
+  handle: string | null;
+  avatarUrl: string | null;
+  otherUserId: string | null;
+  otherLastActiveAt: Date | null;
+} {
   if (conversation.kind === "group") {
     return {
       title: conversation.title ?? `Group (${conversation.participants.length})`,
       handle: null,
       avatarUrl: null,
+      otherUserId: null,
+      otherLastActiveAt: null,
     };
   }
 
@@ -360,7 +376,29 @@ export function getConversationDisplayInfo(
     title: other?.user.profile?.displayName ?? "Unknown user",
     handle: other?.user.username?.handle ?? null,
     avatarUrl: other?.user.profile?.avatarUrl ?? null,
+    otherUserId: other?.userId ?? null,
+    otherLastActiveAt: other?.user.lastActiveAt ?? null,
   };
+}
+
+// Everyone the given user currently shares a conversation with, across every
+// conversation they're in — the audience for a presence (online/offline)
+// broadcast when their own SSE connection opens or closes. Not filtered by
+// hiddenAt: a conversation you've hidden from your own inbox should still
+// carry your presence to whoever's on the other end.
+export async function getConversationPartnerIds(userId: string): Promise<string[]> {
+  const own = await db.conversationParticipant.findMany({
+    where: { userId },
+    select: { conversationId: true },
+  });
+  if (own.length === 0) return [];
+
+  const others = await db.conversationParticipant.findMany({
+    where: { conversationId: { in: own.map((p) => p.conversationId) }, userId: { not: userId } },
+    select: { userId: true },
+    distinct: ["userId"],
+  });
+  return others.map((p) => p.userId);
 }
 
 // Truncated for the inbox row / notification-free preview — no attachment

@@ -3,12 +3,21 @@ import { toggleLike, toggleBookmark, toggleRepost, deletePost } from "@/app/acti
 import { pinPost, unpinPost, removeCommunityPost } from "@/app/actions/communities";
 import { castVote } from "@/app/actions/polls";
 import { acceptAnswer, unacceptAnswer } from "@/app/actions/qa";
-import { linkifyPostBody } from "@/lib/linkify";
+import { linkifyPostBody, splitPostBody } from "@/lib/linkify";
 import { flairColorStyle } from "@/lib/flair-colors";
+import { formatCount } from "@/lib/format";
 import { ReplyForm } from "@/app/feed/ReplyForm";
 import { QuoteRepostForm } from "@/app/feed/QuoteRepostForm";
 import { ReportButton } from "@/components/ReportButton";
-import { EditPostForm } from "@/app/feed/EditPostForm";
+import { PostOwnerMenu } from "@/app/feed/PostOwnerMenu";
+import { ConfirmButton } from "@/components/ConfirmButton";
+
+// Replies stay flat/inline (phase-1 spec §5.3) but a busy thread shouldn't
+// dump every reply into view the moment "Reply (N)" is opened — the first
+// few render immediately, the rest sit behind their own "View all"
+// disclosure one level deeper (same nested-progressive-disclosure posture
+// as the reply toggle itself).
+const INLINE_REPLY_PREVIEW_COUNT = 3;
 
 // Plain helper, not called directly in a component body — same reasoning
 // as relativeTime just below: react-hooks/purity flags Date.now() called
@@ -193,9 +202,14 @@ function AuthorLine({
             <img src={businessAuthor.logoUrl} alt="" width={20} height={20} style={{ borderRadius: "50%", objectFit: "cover" }} />
           )}
           {businessAuthor.name}
+        </Link>
+        {/* Blue tick button, shown for every business post — single click
+            straight to the business's public profile. */}
+        <Link href={`/b/${businessAuthor.slug}`} className="verifiedBadge" aria-label="View public profile" title="View public profile">
+          ✓
         </Link>{" "}
         <span className="mutedText">
-          0dot.in/b/{businessAuthor.slug} · {relativeTime(createdAt)}
+          {relativeTime(createdAt)}
           {community && (
             <>
               {" "}
@@ -217,9 +231,19 @@ function AuthorLine({
         </Link>
       ) : (
         <span style={{ fontWeight: 700 }}>{displayName}</span>
+      )}
+      {/* Blue tick button, shown for every post — single click straight to
+          the author's public profile. Same treatment as businessAuthor's
+          badge above, and mirrored in the messages section (ConversationListItem,
+          MessagesBadge, the conversation header, and message requests) so the
+          same "go to public profile" button is available everywhere. */}
+      {handle && (
+        <Link href={`/${handle}`} className="verifiedBadge" aria-label="View public profile" title="View public profile">
+          ✓
+        </Link>
       )}{" "}
       <span className="mutedText">
-        {handle ? `0dot.in/${handle}` : ""} · {relativeTime(createdAt)}
+        {relativeTime(createdAt)}
         {community && (
           <>
             {" "}
@@ -227,6 +251,28 @@ function AuthorLine({
           </>
         )}
       </span>
+    </div>
+  );
+}
+
+// <details> rather than a client toggle — same "native element over
+// hand-rolled JS" posture as the rest of this file's disclosures — wrapped
+// in a <div> (not <p>) because <details> is flow content and isn't valid
+// inside a <p>.
+function PostBody({ body }: { body: string }) {
+  const { shown, rest } = splitPostBody(body);
+  return (
+    <div style={{ whiteSpace: "pre-wrap" }}>
+      {linkifyPostBody(shown)}
+      {rest && (
+        <details style={{ display: "inline" }}>
+          <summary style={{ display: "inline", cursor: "pointer", color: "var(--accent)", fontWeight: 600 }}>
+            {" "}
+            Show more
+          </summary>
+          {linkifyPostBody(rest)}
+        </details>
+      )}
     </div>
   );
 }
@@ -270,15 +316,12 @@ function MiniPostCard({
   return (
     <div
       id={`post-${post.id}`}
-      className="profileLinkItem"
+      className="postCardNested"
       style={{
-        flexDirection: "column",
-        alignItems: "stretch",
-        gap: "0.4rem",
         background: variant === "quoted" ? "color-mix(in srgb, var(--foreground) 3%, transparent)" : undefined,
       }}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+      <div className="postHeaderRow">
         <span style={{ display: "flex", alignItems: "baseline" }}>
           <AuthorLine author={post.author} createdAt={post.createdAt} community={post.community} businessAuthor={post.businessAuthor} />
           {isAcceptedAnswer && (
@@ -300,9 +343,15 @@ function MiniPostCard({
           {variant === "reply" && isOwner && (
             <form action={deletePost}>
               <input type="hidden" name="postId" value={post.id} />
-              <button type="submit" className="button buttonSecondary iconButton" aria-label="Delete reply">
+              <ConfirmButton
+                className="button buttonSecondary iconButton"
+                aria-label="Delete reply"
+                title="Delete this reply?"
+                description="This can't be undone. The reply will be permanently removed."
+                confirmLabel="Delete"
+              >
                 ✕
-              </button>
+              </ConfirmButton>
             </form>
           )}
         </span>
@@ -354,11 +403,7 @@ export function PostCard({
     // principle, collide with MiniPostCard rendering the same post inline
     // elsewhere on the same page (e.g. as a quoted original) — accepted,
     // not fixed here; the browser just jumps to the first match.
-    <div
-      id={`post-${post.id}`}
-      className="profileLinkItem"
-      style={{ flexDirection: "column", alignItems: "stretch", gap: "0.5rem" }}
-    >
+    <div id={`post-${post.id}`} className="postCard">
       {isPureRepost && (
         <p className="mutedText" style={{ fontSize: "0.85rem" }}>
           ↻ {post.author.profile?.displayName ?? "Someone"} reposted
@@ -373,7 +418,7 @@ export function PostCard({
 
       {!isPureRepost && (
         <>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+          <div className="postHeaderRow">
             <span style={{ display: "flex", alignItems: "baseline" }}>
               <AuthorLine author={post.author} createdAt={post.createdAt} community={post.community} businessAuthor={post.businessAuthor} />
               {post.flair && <FlairPill flair={post.flair} />}
@@ -402,14 +447,7 @@ export function PostCard({
                   </button>
                 </form>
               )}
-              {isOwner && (
-                <form action={deletePost}>
-                  <input type="hidden" name="postId" value={post.id} />
-                  <button type="submit" className="button buttonSecondary iconButton" aria-label="Delete post">
-                    ✕
-                  </button>
-                </form>
-              )}
+              {isOwner && <PostOwnerMenu postId={post.id} body={post.body} />}
               {canModerate && !isOwner && (
                 <form action={removeCommunityPost}>
                   <input type="hidden" name="communityId" value={post.communityId ?? ""} />
@@ -430,8 +468,7 @@ export function PostCard({
               {currentUserId && !isOwner && <ReportButton subjectType="post" subjectId={post.id} />}
             </span>
           </div>
-          {isOwner && <EditPostForm postId={post.id} body={post.body} />}
-          <p style={{ whiteSpace: "pre-wrap" }}>{linkifyPostBody(post.body)}</p>
+          <PostBody body={post.body} />
           <PostMediaGrid media={post.media} />
           {post.poll && <PollBlock poll={post.poll} votedOptionIds={votedOptionIds ?? new Set()} />}
         </>
@@ -445,7 +482,7 @@ export function PostCard({
         ))}
 
       {!isPureRepost && (
-        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+        <div className="postActionsRow">
           <form action={toggleLike}>
             <input type="hidden" name="postId" value={post.id} />
             <button
@@ -454,7 +491,7 @@ export function PostCard({
               style={isLiked ? { borderColor: "var(--accent)", color: "var(--accent)" } : undefined}
               aria-pressed={isLiked}
             >
-              {isLiked ? "♥" : "♡"} {post.likeCount}
+              {isLiked ? "♥" : "♡"} {formatCount(post.likeCount)}
             </button>
           </form>
 
@@ -466,7 +503,7 @@ export function PostCard({
               style={{ borderColor: "var(--accent-green)", color: "var(--accent-green)" }}
               aria-label="Repost"
             >
-              ↻ {post.repostCount}
+              ↻ {formatCount(post.repostCount)}
             </button>
           </form>
 
@@ -496,24 +533,60 @@ export function PostCard({
 
           <details className="profileEditToggle" style={{ flex: "1 1 100%", minWidth: 0 }}>
             <summary className="button buttonSecondary iconButton" style={{ display: "inline-block" }}>
-              Reply {post.replyCount > 0 ? `(${post.replyCount})` : ""}
+              Reply {post.replyCount > 0 ? `(${formatCount(post.replyCount)})` : ""}
             </summary>
             <ReplyForm replyToId={post.id} />
-            {post.replies.length > 0 && (
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "0.6rem" }}>
-                {post.replies.map((reply) => (
-                  <MiniPostCard
-                    key={reply.id}
-                    post={reply}
-                    currentUserId={currentUserId}
-                    variant="reply"
-                    questionId={post.postType === "question" ? post.id : undefined}
-                    isAcceptedAnswer={post.acceptedAnswerId === reply.id}
-                    canAcceptAnswer={post.postType === "question" && (isOwner || Boolean(canModerate))}
-                  />
-                ))}
-              </div>
-            )}
+            {post.replies.length > 0 && (() => {
+              // A Q&A's accepted answer can land anywhere by createdAt order
+              // — bubble it into the visible preview rather than letting it
+              // hide behind "View all replies" (it's the one reply this
+              // thread is meant to surface).
+              const acceptedIndex = post.acceptedAnswerId
+                ? post.replies.findIndex((r) => r.id === post.acceptedAnswerId)
+                : -1;
+              const orderedReplies =
+                acceptedIndex >= INLINE_REPLY_PREVIEW_COUNT
+                  ? [post.replies[acceptedIndex], ...post.replies.filter((_, i) => i !== acceptedIndex)]
+                  : post.replies;
+              const previewReplies = orderedReplies.slice(0, INLINE_REPLY_PREVIEW_COUNT);
+              const restReplies = orderedReplies.slice(INLINE_REPLY_PREVIEW_COUNT);
+
+              return (
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "0.6rem" }}>
+                  {previewReplies.map((reply) => (
+                    <MiniPostCard
+                      key={reply.id}
+                      post={reply}
+                      currentUserId={currentUserId}
+                      variant="reply"
+                      questionId={post.postType === "question" ? post.id : undefined}
+                      isAcceptedAnswer={post.acceptedAnswerId === reply.id}
+                      canAcceptAnswer={post.postType === "question" && (isOwner || Boolean(canModerate))}
+                    />
+                  ))}
+                  {restReplies.length > 0 && (
+                    <details className="profileEditToggle">
+                      <summary className="mutedText" style={{ fontSize: "0.85rem", cursor: "pointer" }}>
+                        View all {formatCount(post.replies.length)} replies
+                      </summary>
+                      <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "0.6rem" }}>
+                        {restReplies.map((reply) => (
+                          <MiniPostCard
+                            key={reply.id}
+                            post={reply}
+                            currentUserId={currentUserId}
+                            variant="reply"
+                            questionId={post.postType === "question" ? post.id : undefined}
+                            isAcceptedAnswer={post.acceptedAnswerId === reply.id}
+                            canAcceptAnswer={post.postType === "question" && (isOwner || Boolean(canModerate))}
+                          />
+                        ))}
+                      </div>
+                    </details>
+                  )}
+                </div>
+              );
+            })()}
           </details>
         </div>
       )}
