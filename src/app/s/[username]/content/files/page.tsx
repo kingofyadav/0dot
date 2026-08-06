@@ -1,8 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { File as FileIcon, Pencil, Plus } from "lucide-react";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { deletePublishedFile } from "@/app/actions/published-files";
+import { SettingsRow } from "@/components/SettingsRow";
+import { EmptyState } from "@/components/EmptyState";
 import { PublishedFileForm } from "../../PublishedFileForm";
 
 export default async function FilesSettingsPage() {
@@ -18,35 +21,50 @@ export default async function FilesSettingsPage() {
   return (
     <div className="settingsSection">
       <h2 className="settingsSectionHeading">Files</h2>
-      {myFiles.length === 0 && <p className="mutedText">No files yet.</p>}
+      {myFiles.length === 0 && <EmptyState message="No files yet." />}
       {myFiles.map((file) => (
-        <div key={file.id} id={`file-${file.id}`} className="profileLinkItem" style={{ flexDirection: "column", alignItems: "stretch", gap: "0.35rem", marginBottom: "0.5rem" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span>
-              <strong>{file.title}</strong>{" "}
-              <span className="mutedText">{file.visibility} · {file.downloadCount} downloads</span>
-            </span>
-            <span style={{ display: "flex", gap: "0.35rem" }}>
-              {currentUser.username && (
-                <Link href={`/${currentUser.username.handle}/files/${file.slug}`} className="button buttonSecondary buttonSmall">View</Link>
-              )}
-              <form action={deletePublishedFile}>
-                <input type="hidden" name="fileId" value={file.id} />
-                <button type="submit" className="button buttonSecondary buttonSmall">Delete</button>
-              </form>
-            </span>
-          </div>
-          <details className="profileEditToggle">
-            <summary className="mutedText" style={{ fontSize: "0.85rem" }}>Edit details</summary>
-            <div style={{ marginTop: "0.5rem" }}>
+        <div key={file.id} id={`file-${file.id}`} className="settingsGroup" style={{ marginBottom: "var(--space-3)" }}>
+          <SettingsRow
+            icon={FileIcon}
+            label={file.title}
+            description={`${file.visibility} · ${file.downloadCount} downloads`}
+            trailing={
+              <>
+                {currentUser.username && (
+                  <Link href={`/${currentUser.username.handle}/files/${file.slug}`} className="button buttonSecondary buttonSmall">View</Link>
+                )}
+                <form action={deletePublishedFile}>
+                  <input type="hidden" name="fileId" value={file.id} />
+                  <button type="submit" className="button buttonSecondary buttonSmall">Delete</button>
+                </form>
+              </>
+            }
+          />
+          <details>
+            <summary className="settingsRow settingsAddTrigger">
+              <span className="settingsRowIcon" aria-hidden="true">
+                <Pencil size={16} />
+              </span>
+              <span className="settingsRowText">
+                <span className="settingsRowLabel">Edit details</span>
+              </span>
+            </summary>
+            <div className="settingsAddPanelBody">
               <PublishedFileForm file={file} />
             </div>
           </details>
         </div>
       ))}
-      <details className="profileEditToggle" style={{ marginTop: "0.5rem" }}>
-        <summary>Publish a file</summary>
-        <div style={{ marginTop: "0.5rem" }}>
+      <details className="settingsGroup">
+        <summary className="settingsRow settingsAddTrigger">
+          <span className="settingsRowIcon" aria-hidden="true">
+            <Plus size={18} />
+          </span>
+          <span className="settingsRowText">
+            <span className="settingsRowLabel">Publish a file</span>
+          </span>
+        </summary>
+        <div className="settingsAddPanelBody">
           <PublishedFileForm />
         </div>
       </details>

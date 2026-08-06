@@ -1,10 +1,13 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Book as BookIcon, FileText, Pencil, Plus, X } from "lucide-react";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { listAllBookChapters } from "@/lib/wiki";
 import { deleteBook } from "@/app/actions/books";
 import { deleteBookChapter } from "@/app/actions/knowledge-pages";
+import { SettingsRow } from "@/components/SettingsRow";
+import { EmptyState } from "@/components/EmptyState";
 import { BookForm } from "../../BookForm";
 import { BookChapterForm } from "../../BookChapterForm";
 
@@ -32,50 +35,60 @@ export default async function BooksSettingsPage() {
   return (
     <div className="settingsSection">
       <h2 className="settingsSectionHeading">Books</h2>
-      {myBooks.length === 0 && <p className="mutedText">No books yet.</p>}
+      {myBooks.length === 0 && <EmptyState message="No books yet." />}
       {myBooks.map((book) => {
         const chapters = chaptersByBook.get(book.id) ?? [];
         return (
-          <div key={book.id} id={`book-${book.id}`} className="profileLinkItem" style={{ flexDirection: "column", alignItems: "stretch", gap: "0.35rem", marginBottom: "0.5rem" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span>
-                <strong>{book.title}</strong>{" "}
-                <span className="mutedText">{book.status} · {book.visibility}</span>
-              </span>
-              <span style={{ display: "flex", gap: "0.35rem" }}>
-                {currentUser.username && (
-                  <Link href={`/${currentUser.username.handle}/books/${book.slug}`} className="button buttonSecondary buttonSmall">View</Link>
-                )}
-                <form action={deleteBook}>
-                  <input type="hidden" name="bookId" value={book.id} />
-                  <button type="submit" className="button buttonSecondary buttonSmall">Delete</button>
-                </form>
-              </span>
-            </div>
+          <div key={book.id} id={`book-${book.id}`} className="settingsGroup" style={{ marginBottom: "var(--space-3)" }}>
+            <SettingsRow
+              icon={BookIcon}
+              label={book.title}
+              description={`${book.status} · ${book.visibility}`}
+              trailing={
+                <>
+                  {currentUser.username && (
+                    <Link href={`/${currentUser.username.handle}/books/${book.slug}`} className="button buttonSecondary buttonSmall">View</Link>
+                  )}
+                  <form action={deleteBook}>
+                    <input type="hidden" name="bookId" value={book.id} />
+                    <button type="submit" className="button buttonSecondary buttonSmall">Delete</button>
+                  </form>
+                </>
+              }
+            />
 
-            {chapters.length > 0 && (
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.2rem" }}>
-                {chapters.map((chapter) => (
-                  <div key={chapter.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span className="mutedText" style={{ fontSize: "0.85rem" }}>
-                      {chapter.parentPageId ? "— " : ""}{chapter.title}
-                    </span>
-                    <form action={deleteBookChapter}>
-                      <input type="hidden" name="pageId" value={chapter.id} />
-                      <button type="submit" className="button buttonSecondary iconButton" aria-label="Delete chapter">✕</button>
-                    </form>
-                  </div>
-                ))}
-              </div>
-            )}
+            {chapters.map((chapter) => (
+              <SettingsRow
+                key={chapter.id}
+                icon={FileText}
+                label={`${chapter.parentPageId ? "— " : ""}${chapter.title}`}
+                trailing={
+                  <form action={deleteBookChapter}>
+                    <input type="hidden" name="pageId" value={chapter.id} />
+                    <button type="submit" className="button buttonSecondary iconButton" aria-label="Delete chapter"><X size={16} aria-hidden="true" /></button>
+                  </form>
+                }
+              />
+            ))}
 
-            <details className="profileEditToggle">
-              <summary className="mutedText" style={{ fontSize: "0.85rem" }}>Edit chapters</summary>
-              <div style={{ marginTop: "0.5rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+            <details>
+              <summary className="settingsRow settingsAddTrigger">
+                <span className="settingsRowIcon" aria-hidden="true">
+                  <Pencil size={16} />
+                </span>
+                <span className="settingsRowText">
+                  <span className="settingsRowLabel">Edit chapters</span>
+                </span>
+              </summary>
+              <div className="settingsAddPanelBody" style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
                 {chapters.map((chapter) => (
-                  <details key={chapter.id} className="profileEditToggle">
-                    <summary className="mutedText" style={{ fontSize: "0.8rem" }}>{chapter.title}</summary>
-                    <div style={{ marginTop: "0.4rem" }}>
+                  <details key={chapter.id} className="settingsGroup">
+                    <summary className="settingsRow settingsAddTrigger">
+                      <span className="settingsRowText">
+                        <span className="settingsRowLabel">{chapter.title}</span>
+                      </span>
+                    </summary>
+                    <div className="settingsAddPanelBody">
                       <BookChapterForm
                         bookId={book.id}
                         chapter={{ ...chapter, body: chapterBodyById.get(chapter.id) ?? "", visibility: chapter.visibility ?? "public" }}
@@ -84,27 +97,48 @@ export default async function BooksSettingsPage() {
                     </div>
                   </details>
                 ))}
-                <details className="profileEditToggle">
-                  <summary>Add chapter</summary>
-                  <div style={{ marginTop: "0.4rem" }}>
+                <details className="settingsGroup">
+                  <summary className="settingsRow settingsAddTrigger">
+                    <span className="settingsRowIcon" aria-hidden="true">
+                      <Plus size={18} />
+                    </span>
+                    <span className="settingsRowText">
+                      <span className="settingsRowLabel">Add chapter</span>
+                    </span>
+                  </summary>
+                  <div className="settingsAddPanelBody">
                     <BookChapterForm bookId={book.id} otherChapters={chapters.map((c) => ({ id: c.id, title: c.title }))} />
                   </div>
                 </details>
               </div>
             </details>
 
-            <details className="profileEditToggle">
-              <summary className="mutedText" style={{ fontSize: "0.85rem" }}>Edit details</summary>
-              <div style={{ marginTop: "0.5rem" }}>
+            <details>
+              <summary className="settingsRow settingsAddTrigger">
+                <span className="settingsRowIcon" aria-hidden="true">
+                  <Pencil size={16} />
+                </span>
+                <span className="settingsRowText">
+                  <span className="settingsRowLabel">Edit details</span>
+                </span>
+              </summary>
+              <div className="settingsAddPanelBody">
                 <BookForm book={book} />
               </div>
             </details>
           </div>
         );
       })}
-      <details className="profileEditToggle" style={{ marginTop: "0.5rem" }}>
-        <summary>Create a book</summary>
-        <div style={{ marginTop: "0.5rem" }}>
+      <details className="settingsGroup">
+        <summary className="settingsRow settingsAddTrigger">
+          <span className="settingsRowIcon" aria-hidden="true">
+            <Plus size={18} />
+          </span>
+          <span className="settingsRowText">
+            <span className="settingsRowLabel">Create a book</span>
+          </span>
+        </summary>
+        <div className="settingsAddPanelBody">
           <BookForm />
         </div>
       </details>

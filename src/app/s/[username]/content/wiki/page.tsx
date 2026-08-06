@@ -1,9 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { BookOpen, Pencil, Plus } from "lucide-react";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { listAllProfileWikiPages } from "@/lib/wiki";
 import { deleteProfileWikiPage } from "@/app/actions/knowledge-pages";
+import { SettingsRow } from "@/components/SettingsRow";
+import { EmptyState } from "@/components/EmptyState";
 import { WikiPageForm } from "../../WikiPageForm";
 
 const KIND_LABEL: Record<string, string> = { wiki: "Wiki page", documentation: "Documentation" };
@@ -23,30 +26,35 @@ export default async function WikiSettingsPage() {
   return (
     <div className="settingsSection">
       <h2 className="settingsSectionHeading">Wiki &amp; Documentation</h2>
-      {pages.length === 0 && <p className="mutedText">No pages yet.</p>}
+      {pages.length === 0 && <EmptyState message="No pages yet." />}
       {pages.map((page) => (
-        <div key={page.id} id={`wiki-${page.id}`} className="profileLinkItem" style={{ flexDirection: "column", alignItems: "stretch", gap: "0.35rem", marginBottom: "0.5rem" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span>
-              <strong>{page.title}</strong>{" "}
-              <span className="mutedText">
-                {KIND_LABEL[page.kind]} · {page.visibility}
-                {page.parentPageId && " · sub-page"}
+        <div key={page.id} id={`wiki-${page.id}`} className="settingsGroup" style={{ marginBottom: "var(--space-3)" }}>
+          <SettingsRow
+            icon={BookOpen}
+            label={page.title}
+            description={`${KIND_LABEL[page.kind]} · ${page.visibility}${page.parentPageId ? " · sub-page" : ""}`}
+            trailing={
+              <>
+                {currentUser.username && (
+                  <Link href={`/${currentUser.username.handle}/wiki/${page.slug}`} className="button buttonSecondary buttonSmall">View</Link>
+                )}
+                <form action={deleteProfileWikiPage}>
+                  <input type="hidden" name="pageId" value={page.id} />
+                  <button type="submit" className="button buttonSecondary buttonSmall">Delete</button>
+                </form>
+              </>
+            }
+          />
+          <details>
+            <summary className="settingsRow settingsAddTrigger">
+              <span className="settingsRowIcon" aria-hidden="true">
+                <Pencil size={16} />
               </span>
-            </span>
-            <span style={{ display: "flex", gap: "0.35rem" }}>
-              {currentUser.username && (
-                <Link href={`/${currentUser.username.handle}/wiki/${page.slug}`} className="button buttonSecondary buttonSmall">View</Link>
-              )}
-              <form action={deleteProfileWikiPage}>
-                <input type="hidden" name="pageId" value={page.id} />
-                <button type="submit" className="button buttonSecondary buttonSmall">Delete</button>
-              </form>
-            </span>
-          </div>
-          <details className="profileEditToggle">
-            <summary className="mutedText" style={{ fontSize: "0.85rem" }}>Edit details</summary>
-            <div style={{ marginTop: "0.5rem" }}>
+              <span className="settingsRowText">
+                <span className="settingsRowLabel">Edit details</span>
+              </span>
+            </summary>
+            <div className="settingsAddPanelBody">
               <WikiPageForm
                 page={{ ...page, body: bodyById.get(page.id) ?? "", visibility: page.visibility ?? "public" }}
                 otherPages={pages.map((p) => ({ id: p.id, title: p.title }))}
@@ -55,9 +63,16 @@ export default async function WikiSettingsPage() {
           </details>
         </div>
       ))}
-      <details className="profileEditToggle" style={{ marginTop: "0.5rem" }}>
-        <summary>Write a page</summary>
-        <div style={{ marginTop: "0.5rem" }}>
+      <details className="settingsGroup">
+        <summary className="settingsRow settingsAddTrigger">
+          <span className="settingsRowIcon" aria-hidden="true">
+            <Plus size={18} />
+          </span>
+          <span className="settingsRowText">
+            <span className="settingsRowLabel">Write a page</span>
+          </span>
+        </summary>
+        <div className="settingsAddPanelBody">
           <WikiPageForm otherPages={pages.map((p) => ({ id: p.id, title: p.title }))} />
         </div>
       </details>

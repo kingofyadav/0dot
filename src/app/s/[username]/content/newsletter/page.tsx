@@ -1,7 +1,10 @@
 import { redirect } from "next/navigation";
+import { Mail, Pencil, Plus } from "lucide-react";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { sendIssue, deleteIssue } from "@/app/actions/newsletter";
+import { SettingsRow } from "@/components/SettingsRow";
+import { EmptyState } from "@/components/EmptyState";
 import { NewsletterIssueForm } from "../../NewsletterIssueForm";
 
 export default async function NewsletterSettingsPage() {
@@ -17,41 +20,57 @@ export default async function NewsletterSettingsPage() {
   return (
     <div className="settingsSection">
       <h2 className="settingsSectionHeading">Newsletter</h2>
-      <p className="mutedText">{subscriberCount} active subscriber{subscriberCount === 1 ? "" : "s"}</p>
+      <p className="mutedText" style={{ marginBottom: "1rem" }}>{subscriberCount} active subscriber{subscriberCount === 1 ? "" : "s"}</p>
 
-      {issues.length === 0 && <p className="mutedText">No issues yet.</p>}
+      {issues.length === 0 && <EmptyState message="No issues yet." />}
       {issues.map((issue) => (
-        <div key={issue.id} className="profileLinkItem" style={{ flexDirection: "column", alignItems: "stretch", gap: "0.35rem", marginBottom: "0.5rem" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span>
-              <strong>{issue.subject}</strong> <span className="mutedText">· {issue.status}</span>
-            </span>
-            {issue.status === "draft" && (
-              <span style={{ display: "flex", gap: "0.35rem" }}>
-                <form action={sendIssue}>
-                  <input type="hidden" name="issueId" value={issue.id} />
-                  <button type="submit" className="button buttonSmall">Send</button>
-                </form>
-                <form action={deleteIssue}>
-                  <input type="hidden" name="issueId" value={issue.id} />
-                  <button type="submit" className="button buttonSecondary buttonSmall">Delete</button>
-                </form>
-              </span>
-            )}
-          </div>
+        <div key={issue.id} className="settingsGroup" style={{ marginBottom: "var(--space-3)" }}>
+          <SettingsRow
+            icon={Mail}
+            label={issue.subject}
+            description={issue.status}
+            trailing={
+              issue.status === "draft" ? (
+                <>
+                  <form action={sendIssue}>
+                    <input type="hidden" name="issueId" value={issue.id} />
+                    <button type="submit" className="button buttonSmall">Send</button>
+                  </form>
+                  <form action={deleteIssue}>
+                    <input type="hidden" name="issueId" value={issue.id} />
+                    <button type="submit" className="button buttonSecondary buttonSmall">Delete</button>
+                  </form>
+                </>
+              ) : undefined
+            }
+          />
           {issue.status === "draft" && (
-            <details className="profileEditToggle">
-              <summary className="mutedText" style={{ fontSize: "0.85rem" }}>Edit draft</summary>
-              <div style={{ marginTop: "0.5rem" }}>
+            <details>
+              <summary className="settingsRow settingsAddTrigger">
+                <span className="settingsRowIcon" aria-hidden="true">
+                  <Pencil size={16} />
+                </span>
+                <span className="settingsRowText">
+                  <span className="settingsRowLabel">Edit draft</span>
+                </span>
+              </summary>
+              <div className="settingsAddPanelBody">
                 <NewsletterIssueForm issue={issue} ownTiers={myTiers} />
               </div>
             </details>
           )}
         </div>
       ))}
-      <details className="profileEditToggle" style={{ marginTop: "0.5rem" }}>
-        <summary>Write a new issue</summary>
-        <div style={{ marginTop: "0.5rem" }}>
+      <details className="settingsGroup">
+        <summary className="settingsRow settingsAddTrigger">
+          <span className="settingsRowIcon" aria-hidden="true">
+            <Plus size={18} />
+          </span>
+          <span className="settingsRowText">
+            <span className="settingsRowLabel">Write a new issue</span>
+          </span>
+        </summary>
+        <div className="settingsAddPanelBody">
           <NewsletterIssueForm ownTiers={myTiers} />
         </div>
       </details>

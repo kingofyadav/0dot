@@ -1,9 +1,12 @@
 import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
+import { Layers, Pencil, PlayCircle, Plus, X } from "lucide-react";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { deleteModule, deleteLesson } from "@/app/actions/courses";
 import { CourseForm } from "@/app/s/[username]/CourseForm";
+import { SettingsRow } from "@/components/SettingsRow";
+import { EmptyState } from "@/components/EmptyState";
 import { AddModuleForm } from "./AddModuleForm";
 import { AddLessonForm } from "./AddLessonForm";
 import { QuizForm } from "./QuizForm";
@@ -38,57 +41,90 @@ export default async function CourseBuilderPage({
         <Link href={`/s/${handle}`} className="button buttonSecondary">Back to settings</Link>
       </div>
 
-      <details className="profileEditToggle">
-        <summary>Course details</summary>
-        <div style={{ marginTop: "0.5rem" }}>
+      <details className="settingsGroup">
+        <summary className="settingsRow settingsAddTrigger">
+          <span className="settingsRowIcon" aria-hidden="true">
+            <Pencil size={16} />
+          </span>
+          <span className="settingsRowText">
+            <span className="settingsRowLabel">Course details</span>
+          </span>
+        </summary>
+        <div className="settingsAddPanelBody">
           <CourseForm course={course} ownTiers={ownTiers} />
         </div>
       </details>
 
       <div style={{ marginTop: "1.25rem" }}>
-        <p className="sectionHeading">Modules</p>
-        {course.modules.length === 0 && <p className="mutedText">No modules yet.</p>}
+        <p className="settingsGroupLabel">Modules</p>
+        {course.modules.length === 0 && <EmptyState message="No modules yet." />}
         {course.modules.map((courseModule) => (
-          <div key={courseModule.id} className="profileLinkItem" style={{ flexDirection: "column", alignItems: "stretch", gap: "0.5rem", marginBottom: "0.75rem" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <strong>{courseModule.title}</strong>
-              <form action={deleteModule}>
-                <input type="hidden" name="moduleId" value={courseModule.id} />
-                <button type="submit" className="button buttonSecondary buttonSmall">Delete module</button>
-              </form>
-            </div>
-
-            {courseModule.lessons.length === 0 && <p className="mutedText" style={{ fontSize: "0.85rem" }}>No lessons yet.</p>}
-            {courseModule.lessons.map((lesson) => (
-              <div key={lesson.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingInlineStart: "0.5rem" }}>
-                <span className="mutedText" style={{ fontSize: "0.85rem" }}>
-                  {lesson.title} ({lesson.contentType}){lesson.quizzes.length > 0 && " · has quiz"}
-                </span>
-                <form action={deleteLesson}>
-                  <input type="hidden" name="lessonId" value={lesson.id} />
-                  <button type="submit" className="button buttonSecondary iconButton" aria-label="Delete lesson">✕</button>
+          <div key={courseModule.id} className="settingsGroup" style={{ marginBottom: "var(--space-3)" }}>
+            <SettingsRow
+              icon={Layers}
+              label={courseModule.title}
+              trailing={
+                <form action={deleteModule}>
+                  <input type="hidden" name="moduleId" value={courseModule.id} />
+                  <button type="submit" className="button buttonSecondary buttonSmall">Delete module</button>
                 </form>
-              </div>
+              }
+            />
+
+            {courseModule.lessons.length === 0 && (
+              <p className="mutedText" style={{ fontSize: "0.85rem", padding: "0 var(--space-4) var(--space-3)" }}>No lessons yet.</p>
+            )}
+            {courseModule.lessons.map((lesson) => (
+              <SettingsRow
+                key={lesson.id}
+                icon={PlayCircle}
+                label={lesson.title}
+                description={`${lesson.contentType}${lesson.quizzes.length > 0 ? " · has quiz" : ""}`}
+                trailing={
+                  <form action={deleteLesson}>
+                    <input type="hidden" name="lessonId" value={lesson.id} />
+                    <button type="submit" className="button buttonSecondary iconButton" aria-label="Delete lesson"><X size={16} aria-hidden="true" /></button>
+                  </form>
+                }
+              />
             ))}
             {courseModule.lessons.filter((l) => l.quizzes.length === 0).map((lesson) => (
-              <details key={`quiz-${lesson.id}`} className="profileEditToggle">
-                <summary className="mutedText" style={{ fontSize: "0.85rem" }}>+ Add quiz to &ldquo;{lesson.title}&rdquo;</summary>
-                <div style={{ marginTop: "0.5rem" }}>
+              <details key={`quiz-${lesson.id}`}>
+                <summary className="settingsRow settingsAddTrigger">
+                  <span className="settingsRowIcon" aria-hidden="true">
+                    <Plus size={16} />
+                  </span>
+                  <span className="settingsRowText">
+                    <span className="settingsRowLabel">Add quiz to &ldquo;{lesson.title}&rdquo;</span>
+                  </span>
+                </summary>
+                <div className="settingsAddPanelBody">
                   <QuizForm lessonId={lesson.id} />
                 </div>
               </details>
             ))}
 
-            <details className="profileEditToggle">
-              <summary className="mutedText" style={{ fontSize: "0.85rem" }}>+ Add lesson</summary>
-              <div style={{ marginTop: "0.5rem" }}>
+            <details>
+              <summary className="settingsRow settingsAddTrigger">
+                <span className="settingsRowIcon" aria-hidden="true">
+                  <Plus size={16} />
+                </span>
+                <span className="settingsRowText">
+                  <span className="settingsRowLabel">Add lesson</span>
+                </span>
+              </summary>
+              <div className="settingsAddPanelBody">
                 <AddLessonForm moduleId={courseModule.id} />
               </div>
             </details>
           </div>
         ))}
 
-        <AddModuleForm courseId={course.id} />
+        <div className="settingsGroup">
+          <div className="settingsAddPanelBody">
+            <AddModuleForm courseId={course.id} />
+          </div>
+        </div>
       </div>
     </div>
   );

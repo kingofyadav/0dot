@@ -1,7 +1,10 @@
 import { redirect } from "next/navigation";
+import { Mic, Pencil, Plus } from "lucide-react";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { deleteEpisode } from "@/app/actions/podcasts";
+import { SettingsRow } from "@/components/SettingsRow";
+import { EmptyState } from "@/components/EmptyState";
 import { PodcastForm } from "../../PodcastForm";
 import { EpisodeForm } from "../../EpisodeForm";
 
@@ -22,42 +25,68 @@ export default async function PodcastSettingsPage() {
       <h2 className="settingsSectionHeading">Podcast</h2>
       {!podcast ? (
         <>
-          <p className="mutedText">You haven&apos;t created a podcast yet.</p>
+          <p className="mutedText" style={{ marginBottom: "1rem" }}>You haven&apos;t created a podcast yet.</p>
           <PodcastForm />
         </>
       ) : (
         <>
-          <div className="profileLinkItem" style={{ flexDirection: "column", alignItems: "stretch", gap: "0.35rem", marginBottom: "0.5rem" }}>
-            <strong>{podcast.title}</strong>
-            {podcast.description && <span className="mutedText">{podcast.description}</span>}
-            <a href={`/podcast/${podcast.rssSlug}/rss.xml`} target="_blank" rel="noopener noreferrer" className="mutedText" style={{ fontSize: "0.8rem" }}>
-              Public RSS feed
-            </a>
-            <details className="profileEditToggle">
-              <summary className="mutedText" style={{ fontSize: "0.85rem" }}>Edit details</summary>
-              <div style={{ marginTop: "0.5rem" }}>
+          <div className="settingsGroup" style={{ marginBottom: "var(--space-6)" }}>
+            <SettingsRow
+              icon={Mic}
+              label={podcast.title}
+              description={podcast.description ?? undefined}
+              trailing={
+                <a href={`/podcast/${podcast.rssSlug}/rss.xml`} target="_blank" rel="noopener noreferrer" className="button buttonSecondary buttonSmall">
+                  RSS feed
+                </a>
+              }
+            />
+            <details>
+              <summary className="settingsRow settingsAddTrigger">
+                <span className="settingsRowIcon" aria-hidden="true">
+                  <Pencil size={16} />
+                </span>
+                <span className="settingsRowText">
+                  <span className="settingsRowLabel">Edit details</span>
+                </span>
+              </summary>
+              <div className="settingsAddPanelBody">
                 <PodcastForm podcast={podcast} />
               </div>
             </details>
           </div>
 
-          <h3 className="settingsSectionHeading" style={{ fontSize: "0.95rem" }}>Episodes</h3>
-          {podcast.episodes.length === 0 && <p className="mutedText">No episodes yet.</p>}
-          {podcast.episodes.map((episode) => (
-            <div key={episode.id} className="profileLinkItem" style={{ marginBottom: "0.35rem" }}>
-              <span>
-                #{episode.episodeNumber} <strong>{episode.title}</strong>{" "}
-                {episode.requiredTierId && <span className="mutedText">(member-only)</span>}
-              </span>
-              <form action={deleteEpisode}>
-                <input type="hidden" name="episodeId" value={episode.id} />
-                <button type="submit" className="button buttonSecondary buttonSmall">Delete</button>
-              </form>
+          <p className="settingsGroupLabel">Episodes</p>
+          {podcast.episodes.length === 0 ? (
+            <EmptyState message="No episodes yet." />
+          ) : (
+            <div className="settingsGroup">
+              {podcast.episodes.map((episode) => (
+                <SettingsRow
+                  key={episode.id}
+                  icon={Mic}
+                  label={`#${episode.episodeNumber} ${episode.title}`}
+                  description={episode.requiredTierId ? "Member-only" : undefined}
+                  trailing={
+                    <form action={deleteEpisode}>
+                      <input type="hidden" name="episodeId" value={episode.id} />
+                      <button type="submit" className="button buttonSecondary buttonSmall">Delete</button>
+                    </form>
+                  }
+                />
+              ))}
             </div>
-          ))}
-          <details className="profileEditToggle" style={{ marginTop: "0.5rem" }}>
-            <summary>Add an episode</summary>
-            <div style={{ marginTop: "0.5rem" }}>
+          )}
+          <details className="settingsGroup">
+            <summary className="settingsRow settingsAddTrigger">
+              <span className="settingsRowIcon" aria-hidden="true">
+                <Plus size={18} />
+              </span>
+              <span className="settingsRowText">
+                <span className="settingsRowLabel">Add an episode</span>
+              </span>
+            </summary>
+            <div className="settingsAddPanelBody">
               <EpisodeForm podcastId={podcast.id} ownTiers={myTiers} />
             </div>
           </details>

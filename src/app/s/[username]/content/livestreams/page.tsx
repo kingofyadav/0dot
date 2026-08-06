@@ -1,9 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Radio, Plus } from "lucide-react";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { deleteLivestream } from "@/app/actions/livestreams";
 import { ConfirmButton } from "@/components/ConfirmButton";
+import { SettingsRow } from "@/components/SettingsRow";
+import { EmptyState } from "@/components/EmptyState";
 import { LivestreamForm } from "../../LivestreamForm";
 
 export default async function LivestreamsSettingsPage() {
@@ -18,39 +21,48 @@ export default async function LivestreamsSettingsPage() {
   return (
     <div className="settingsSection">
       <h2 className="settingsSectionHeading">Livestreams</h2>
-      {livestreams.length === 0 && <p className="mutedText">No livestreams yet.</p>}
-      {livestreams.map((live) => (
-        <div key={live.id} className="profileLinkItem" style={{ marginBottom: "0.35rem" }}>
-          <span>
-            <strong>{live.title}</strong>{" "}
-            <span className="mutedText">
-              · {live.status}
-              {live.scheduledAt && ` · ${live.scheduledAt.toLocaleString()}`}
-              {live.requiredTierId && " · member-only"}
-            </span>
-          </span>
-          <span style={{ display: "flex", gap: "0.4rem" }}>
-            <Link href={`/live/${live.id}`} className="button buttonSecondary buttonSmall">Manage</Link>
-            {live.status !== "live" && (
-              <form action={deleteLivestream}>
-                <input type="hidden" name="livestreamId" value={live.id} />
-                <ConfirmButton
-                  className="button buttonSecondary iconButton"
-                  aria-label="Delete livestream"
-                  title="Delete this livestream?"
-                  description="Chat history for this livestream will be deleted too. This can't be undone."
-                  confirmLabel="Delete"
-                >
-                  ×
-                </ConfirmButton>
-              </form>
-            )}
-          </span>
+      {livestreams.length === 0 && <EmptyState message="No livestreams yet." />}
+      {livestreams.length > 0 && (
+        <div className="settingsGroup">
+          {livestreams.map((live) => (
+            <SettingsRow
+              key={live.id}
+              icon={Radio}
+              label={live.title}
+              description={`${live.status}${live.scheduledAt ? ` · ${live.scheduledAt.toLocaleString()}` : ""}${live.requiredTierId ? " · member-only" : ""}`}
+              trailing={
+                <>
+                  <Link href={`/live/${live.id}`} className="button buttonSecondary buttonSmall">Manage</Link>
+                  {live.status !== "live" && (
+                    <form action={deleteLivestream}>
+                      <input type="hidden" name="livestreamId" value={live.id} />
+                      <ConfirmButton
+                        className="button buttonSecondary iconButton"
+                        aria-label="Delete livestream"
+                        title="Delete this livestream?"
+                        description="Chat history for this livestream will be deleted too. This can't be undone."
+                        confirmLabel="Delete"
+                      >
+                        ×
+                      </ConfirmButton>
+                    </form>
+                  )}
+                </>
+              }
+            />
+          ))}
         </div>
-      ))}
-      <details className="profileEditToggle" style={{ marginTop: "0.5rem" }}>
-        <summary>Schedule a livestream</summary>
-        <div style={{ marginTop: "0.5rem" }}>
+      )}
+      <details className="settingsGroup" style={{ marginTop: "var(--space-3)" }}>
+        <summary className="settingsRow settingsAddTrigger">
+          <span className="settingsRowIcon" aria-hidden="true">
+            <Plus size={18} />
+          </span>
+          <span className="settingsRowText">
+            <span className="settingsRowLabel">Schedule a livestream</span>
+          </span>
+        </summary>
+        <div className="settingsAddPanelBody">
           <LivestreamForm ownTiers={myTiers} />
         </div>
       </details>

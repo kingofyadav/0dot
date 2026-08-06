@@ -1,8 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { GraduationCap, Pencil, Plus } from "lucide-react";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { archiveCourse } from "@/app/actions/courses";
+import { SettingsRow } from "@/components/SettingsRow";
+import { EmptyState } from "@/components/EmptyState";
 import { CourseForm } from "../../CourseForm";
 
 export default async function CoursesSettingsPage() {
@@ -19,37 +22,50 @@ export default async function CoursesSettingsPage() {
   return (
     <div className="settingsSection">
       <h2 className="settingsSectionHeading">Courses</h2>
-      {myCourses.length === 0 && <p className="mutedText">No courses yet.</p>}
+      {myCourses.length === 0 && <EmptyState message="No courses yet." />}
       {myCourses.map((course) => (
-        <div key={course.id} className="profileLinkItem" style={{ flexDirection: "column", alignItems: "stretch", gap: "0.35rem", marginBottom: "0.5rem" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span>
-              <strong>{course.title}</strong>{" "}
-              <span className="mutedText">
-                {course.price !== null ? `${course.price.toFixed(2)} ${course.currency?.toUpperCase()}` : "Tier-only"} · {course.status}
+        <div key={course.id} className="settingsGroup" style={{ marginBottom: "var(--space-3)" }}>
+          <SettingsRow
+            icon={GraduationCap}
+            label={course.title}
+            description={`${course.price !== null ? `${course.price.toFixed(2)} ${course.currency?.toUpperCase()}` : "Tier-only"} · ${course.status}`}
+            trailing={
+              <>
+                <Link href={`/s/${handle}/content/courses/${course.id}`} className="button buttonSecondary buttonSmall">Manage</Link>
+                {course.status !== "archived" && (
+                  <form action={archiveCourse}>
+                    <input type="hidden" name="courseId" value={course.id} />
+                    <button type="submit" className="button buttonSecondary buttonSmall">Archive</button>
+                  </form>
+                )}
+              </>
+            }
+          />
+          <details>
+            <summary className="settingsRow settingsAddTrigger">
+              <span className="settingsRowIcon" aria-hidden="true">
+                <Pencil size={16} />
               </span>
-            </span>
-            <span style={{ display: "flex", gap: "0.35rem" }}>
-              <Link href={`/s/${handle}/content/courses/${course.id}`} className="button buttonSecondary buttonSmall">Manage</Link>
-              {course.status !== "archived" && (
-                <form action={archiveCourse}>
-                  <input type="hidden" name="courseId" value={course.id} />
-                  <button type="submit" className="button buttonSecondary buttonSmall">Archive</button>
-                </form>
-              )}
-            </span>
-          </div>
-          <details className="profileEditToggle">
-            <summary className="mutedText" style={{ fontSize: "0.85rem" }}>Edit details</summary>
-            <div style={{ marginTop: "0.5rem" }}>
+              <span className="settingsRowText">
+                <span className="settingsRowLabel">Edit details</span>
+              </span>
+            </summary>
+            <div className="settingsAddPanelBody">
               <CourseForm course={course} ownTiers={activeTiersForSelect} />
             </div>
           </details>
         </div>
       ))}
-      <details className="profileEditToggle" style={{ marginTop: "0.5rem" }}>
-        <summary>Create a course</summary>
-        <div style={{ marginTop: "0.5rem" }}>
+      <details className="settingsGroup">
+        <summary className="settingsRow settingsAddTrigger">
+          <span className="settingsRowIcon" aria-hidden="true">
+            <Plus size={18} />
+          </span>
+          <span className="settingsRowText">
+            <span className="settingsRowLabel">Create a course</span>
+          </span>
+        </summary>
+        <div className="settingsAddPanelBody">
           <CourseForm ownTiers={activeTiersForSelect} />
         </div>
       </details>
