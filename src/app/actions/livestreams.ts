@@ -1,10 +1,11 @@
 "use server";
 
+import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { getCurrentUser } from "@/lib/session";
-import { getLivestreamProvider } from "@/lib/livestream-provider";
+import { getLivestreamProvider, createLiveKitToken } from "@/lib/livestream-provider";
 import { hasTierAccess } from "@/lib/tier-access";
 import { notifyLivestreamStarted } from "@/lib/notifications";
 import { publishToLivestreamChat } from "@/lib/livestream-chat-events";
@@ -111,11 +112,13 @@ export async function endLivestream(formData: FormData): Promise<void> {
 }
 
 // spec §8.3's literal criteria: a viewer without qualifying access never
-// gets a valid playback_url, and ingest_key is never returned in any
-// viewer-facing response — these are two separate functions so there's no
-// shared code path that could accidentally leak the ingest key to a
-// viewer-facing call.
-export async function requestPlaybackUrl(livestreamId: string): Promise<{ url: string } | { error: string }> {
+// gets a valid playback token, and the owner's publish-capable token is
+// never returned from this function — these are two separate functions so
+// there's no shared code path that could accidentally hand a viewer a
+// canPublish token. playbackUrl (not ingestKey) supplies the LiveKit room
+// name here, keeping that owner/viewer field split intact even though the
+// LiveKit provider happens to set both to the same string.
+export async function requestViewerToken(livestreamId: string): Promise<{ token: string; url: string } | { error: string }> {
   const user = await getCurrentUser();
 
   const livestream = await db.livestream.findUnique({ where: { id: livestreamId } });
@@ -126,16 +129,28 @@ export async function requestPlaybackUrl(livestreamId: string): Promise<{ url: s
     if (!hasAccess) return { error: "You don't have access to this livestream." };
   }
 
-  return { url: livestream.playbackUrl };
+  const result = await createLiveKitToken({
+    roomName: livestream.playbackUrl,
+    identity: user?.id ?? `anon_${randomUUID()}`,
+    name: user?.username?.handle,
+    canPublish: false,
+  });
+  return result ?? { error: "Playback isn't configured yet." };
 }
 
-export async function requestIngestKey(livestreamId: string): Promise<{ ingestKey: string } | { error: string }> {
+export async function requestBroadcastToken(livestreamId: string): Promise<{ token: string; url: string } | { error: string }> {
   const user = await requireVerifiedUser();
 
   const livestream = await requireOwnedLivestream(livestreamId, user.id);
   if (!livestream) return { error: "You don't have permission to broadcast this livestream." };
 
-  return { ingestKey: livestream.ingestKey };
+  const result = await createLiveKitToken({
+    roomName: livestream.ingestKey,
+    identity: user.id,
+    name: user.username?.handle,
+    canPublish: true,
+  });
+  return result ?? { error: "Broadcasting isn't configured yet." };
 }
 
 // spec §8.3's second criterion: rejected server-side for anyone without a
@@ -165,6 +180,18 @@ export async function sendChatMessage(_prevState: ActionState, formData: FormDat
   publishToLivestreamChat(livestreamId, { type: "new-chat-message" });
   revalidatePath(`/live/${livestreamId}`);
   return undefined;
+}
+
+export async function deleteLivestream(formData: FormData): Promise<void> {
+  const user = await requireVerifiedUser();
+  const livestreamId = String(formData.get("livestreamId") ?? "");
+  if (!livestreamId) return;
+
+  const livestream = await requireOwnedLivestream(livestreamId, user.id);
+  if (!livestream || livestream.status === "live") return;
+
+  await db.livestream.delete({ where: { id: livestreamId } });
+  if (user.username) revalidatePath(`/s/${user.username.handle}/content/livestreams`);
 }
 
 export async function deleteChatMessage(formData: FormData): Promise<void> {

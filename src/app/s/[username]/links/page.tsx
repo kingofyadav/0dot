@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { ChevronDown, ChevronUp, Star, X } from "lucide-react";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { deleteLink, deleteSocialLink, moveLink, toggleFeatured } from "@/app/actions/profile";
@@ -58,7 +59,7 @@ export default async function LinksSettingsPage() {
                 description={`This removes your ${getSocialPlatformLabel(social.platform)} link from your profile. You can add it again anytime.`}
                 confirmLabel="Remove"
               >
-                ✕
+                <X size={16} aria-hidden="true" />
               </ConfirmButton>
             </form>
           </span>
@@ -96,14 +97,14 @@ export default async function LinksSettingsPage() {
                       aria-pressed={link.isFeatured}
                       style={link.isFeatured ? { borderColor: "var(--accent)", color: "var(--accent)" } : undefined}
                     >
-                      {link.isFeatured ? "★" : "☆"}
+                      <Star size={16} aria-hidden="true" fill={link.isFeatured ? "currentColor" : "none"} />
                     </button>
                   </form>
                   <form action={moveLink}>
                     <input type="hidden" name="linkId" value={link.id} />
                     <input type="hidden" name="direction" value="up" />
                     <button type="submit" className="button buttonSecondary iconButton" disabled={index === 0} aria-label="Move up">
-                      ↑
+                      <ChevronUp size={16} aria-hidden="true" />
                     </button>
                   </form>
                   <form action={moveLink}>
@@ -115,7 +116,7 @@ export default async function LinksSettingsPage() {
                       disabled={index === links.length - 1}
                       aria-label="Move down"
                     >
-                      ↓
+                      <ChevronDown size={16} aria-hidden="true" />
                     </button>
                   </form>
                   <form action={deleteLink}>
@@ -127,7 +128,7 @@ export default async function LinksSettingsPage() {
                       description={`"${link.label}" will be permanently removed from your profile, along with its click history.`}
                       confirmLabel="Delete"
                     >
-                      ✕
+                      <X size={16} aria-hidden="true" />
                     </ConfirmButton>
                   </form>
                 </div>

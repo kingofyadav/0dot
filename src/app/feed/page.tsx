@@ -83,37 +83,6 @@ export default async function FeedPage({
 
   return (
     <>
-      {handle && creatorStudio && (
-        <div className="profileCard" style={{ marginBottom: "0.75rem" }}>
-          <p className="sectionHeading">Creator studio</p>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
-            <Link href={`/s/${handle}#monetization`} className="button buttonSecondary buttonSmall">
-              Payouts: {creatorStudio.payoutAccount ? PAYOUT_STATUS_LABEL[creatorStudio.payoutAccount.status] ?? creatorStudio.payoutAccount.status : "Not set up"}
-            </Link>
-            <Link href={`/s/${handle}#memberships`} className="button buttonSecondary buttonSmall">
-              Memberships ({creatorStudio.tierCount})
-            </Link>
-            <Link href={`/s/${handle}#digital-products`} className="button buttonSecondary buttonSmall">
-              Digital products ({creatorStudio.productCount})
-            </Link>
-            <Link href={`/s/${handle}#courses`} className="button buttonSecondary buttonSmall">
-              Courses ({creatorStudio.courseCount})
-            </Link>
-            <Link href={`/s/${handle}#podcasts`} className="button buttonSecondary buttonSmall">
-              {creatorStudio.hasPodcast ? "Podcast" : "Start a podcast"}
-            </Link>
-            <Link href={`/s/${handle}#newsletter`} className="button buttonSecondary buttonSmall">
-              Newsletter ({creatorStudio.newsletterSubscriberCount})
-            </Link>
-            <Link href={`/s/${handle}#affiliate-programs`} className="button buttonSecondary buttonSmall">
-              Affiliate ({creatorStudio.programCount})
-            </Link>
-            <Link href={`/s/${handle}#livestreams`} className="button buttonSecondary buttonSmall">
-              Livestreams ({creatorStudio.livestreamCount})
-            </Link>
-          </div>
-        </div>
-      )}
       <FeedList
         posts={posts}
         currentUser={currentUser}
@@ -125,6 +94,41 @@ export default async function FeedPage({
         postableBusinesses={postableBusinesses}
         ownTiers={ownTiers}
       />
+      {handle && creatorStudio && (
+        <details className="profileEditToggle" style={{ marginTop: "1.5rem" }}>
+          <summary className="sectionHeading" style={{ display: "inline-block" }}>
+            Creator studio
+          </summary>
+          <div className="profileCard" style={{ marginTop: "0.75rem" }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+              <Link href={`/s/${handle}#monetization`} className="button buttonSecondary buttonSmall">
+                Payouts: {creatorStudio.payoutAccount ? PAYOUT_STATUS_LABEL[creatorStudio.payoutAccount.status] ?? creatorStudio.payoutAccount.status : "Not set up"}
+              </Link>
+              <Link href={`/s/${handle}#memberships`} className="button buttonSecondary buttonSmall">
+                Memberships ({creatorStudio.tierCount})
+              </Link>
+              <Link href={`/s/${handle}#digital-products`} className="button buttonSecondary buttonSmall">
+                Digital products ({creatorStudio.productCount})
+              </Link>
+              <Link href={`/s/${handle}#courses`} className="button buttonSecondary buttonSmall">
+                Courses ({creatorStudio.courseCount})
+              </Link>
+              <Link href={`/s/${handle}#podcasts`} className="button buttonSecondary buttonSmall">
+                {creatorStudio.hasPodcast ? "Podcast" : "Start a podcast"}
+              </Link>
+              <Link href={`/s/${handle}#newsletter`} className="button buttonSecondary buttonSmall">
+                Newsletter ({creatorStudio.newsletterSubscriberCount})
+              </Link>
+              <Link href={`/s/${handle}#affiliate-programs`} className="button buttonSecondary buttonSmall">
+                Affiliate ({creatorStudio.programCount})
+              </Link>
+              <Link href={`/s/${handle}#livestreams`} className="button buttonSecondary buttonSmall">
+                Livestreams ({creatorStudio.livestreamCount})
+              </Link>
+            </div>
+          </div>
+        </details>
+      )}
     </>
   );
 }

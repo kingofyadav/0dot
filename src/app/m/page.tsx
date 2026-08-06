@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { EmptyState } from "@/components/EmptyState";
 import {
   BROWSE_CATEGORY_LABELS,
   fetchAllMarketplaceCategories,
@@ -60,7 +61,7 @@ export default async function MarketplacePage({
       </div>
 
       {items.length === 0 ? (
-        <p className="mutedText">Nothing here yet.</p>
+        <EmptyState message="Nothing here yet." />
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
           {items.map((item) => (

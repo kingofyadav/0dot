@@ -11,15 +11,6 @@ export function isProfilePagePath(pathname: string): boolean {
   return firstSegment.length > 0 && validateUsernameFormat(firstSegment) === null;
 }
 
-// The right-side contextual rail is opt-in per route, not a fixed global
-// element (docs/foundations/NAVIGATION.md) — only shown where there's real
-// content for it (notifications preview, suggested users).
-const RAIL_ROUTES = new Set(["/feed", "/explore", "/notifications"]);
-
-export function showsContextualRail(pathname: string): boolean {
-  return RAIL_ROUTES.has(pathname);
-}
-
 // The landing page ("/") and the standalone /login and /signup pages each
 // render their own self-contained hero/auth card with no site chrome at
 // all — matching the classic split-layout marketing pattern (logo/pitch

@@ -22,6 +22,7 @@ export default async function EditProfilePage() {
         avatarUrl={profileRow.avatarUrl}
         coverUrl={profileRow.coverUrl}
         themePreset={profileRow.themePreset}
+        isPrivate={profileRow.isPrivate}
       />
     </div>
   );

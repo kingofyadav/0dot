@@ -1,3 +1,4 @@
+import { Heart, X } from "lucide-react";
 import { toggleReaction, deleteComment } from "@/app/actions/reactions";
 import { SubjectCommentForm } from "./SubjectCommentForm";
 
@@ -41,14 +42,21 @@ export function EngagementSection({
             <button
               type="submit"
               className="button buttonSecondary iconButton"
-              style={isLiked ? { borderColor: "var(--accent)", color: "var(--accent)" } : undefined}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.3rem",
+                ...(isLiked ? { borderColor: "var(--accent)", color: "var(--accent)" } : undefined),
+              }}
               aria-pressed={isLiked}
             >
-              {isLiked ? "♥" : "♡"} {likeCount}
+              <Heart size={16} aria-hidden="true" fill={isLiked ? "currentColor" : "none"} /> {likeCount}
             </button>
           </form>
         ) : (
-          <span className="mutedText" style={{ fontSize: "0.85rem" }}>♡ {likeCount}</span>
+          <span className="mutedText" style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.85rem" }}>
+            <Heart size={14} aria-hidden="true" /> {likeCount}
+          </span>
         )}
       </div>
 
@@ -62,7 +70,9 @@ export function EngagementSection({
               {currentUserId && (currentUserId === comment.authorId || currentUserId === ownerId) && (
                 <form action={deleteComment} style={{ alignSelf: "flex-end" }}>
                   <input type="hidden" name="commentId" value={comment.id} />
-                  <button type="submit" className="button buttonSecondary iconButton" aria-label="Delete comment">✕</button>
+                  <button type="submit" className="button buttonSecondary iconButton" aria-label="Delete comment">
+                    <X size={16} aria-hidden="true" />
+                  </button>
                 </form>
               )}
             </div>

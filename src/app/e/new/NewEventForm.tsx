@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { createEvent } from "@/app/actions/events";
+import { useBrowserTab } from "@/components/BrowserTabProvider";
 
 type HostOption = { id: string; name: string; slug: string };
 
@@ -15,6 +16,21 @@ export function NewEventForm({
   const [state, formAction, pending] = useActionState(createEvent, undefined);
   const [hostType, setHostType] = useState<"self" | "business" | "community">("self");
   const [format, setFormat] = useState<"in_person" | "virtual" | "hybrid">("in_person");
+  const { flash } = useBrowserTab();
+  const wasPending = useRef(false);
+
+  // Success redirects to the new event page before a "success" state would
+  // ever render, so the transition is read off pending flipping back to
+  // false rather than off a success flag.
+  useEffect(() => {
+    if (pending) {
+      flash("saving", "Publishing event");
+    } else if (wasPending.current) {
+      if (state?.error) flash("error", state.error);
+      else flash("success", "Event published");
+    }
+    wasPending.current = pending;
+  }, [pending, state, flash]);
 
   return (
     <form action={formAction} className="authCard" style={{ maxWidth: "none" }}>
@@ -102,6 +118,19 @@ export function NewEventForm({
         <div className="field">
           <label htmlFor="location">Location</label>
           <input id="location" name="location" type="text" maxLength={200} required />
+        </div>
+      )}
+
+      {format !== "virtual" && (
+        <div className="field" style={{ display: "flex", gap: "0.5rem" }}>
+          <div style={{ flex: 1 }}>
+            <label htmlFor="latitude">Latitude (optional, for the map)</label>
+            <input id="latitude" name="latitude" type="text" inputMode="decimal" placeholder="e.g. 37.7749" />
+          </div>
+          <div style={{ flex: 1 }}>
+            <label htmlFor="longitude">Longitude (optional, for the map)</label>
+            <input id="longitude" name="longitude" type="text" inputMode="decimal" placeholder="e.g. -122.4194" />
+          </div>
         </div>
       )}
 

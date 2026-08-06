@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Trash2, X } from "lucide-react";
+import { Modal } from "@/components/Modal";
 
 export type MessageBubbleData = {
   id: string;
@@ -62,6 +64,8 @@ export function MessageBubble({
   isOwn: boolean;
   onDelete?: (messageId: string) => void;
 }) {
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
   if (message.deletedAt) {
     return (
       <div
@@ -92,22 +96,43 @@ export function MessageBubble({
       {message.body && <p style={{ margin: 0 }}>{message.body}</p>}
       <MessageTimestamp date={message.createdAt} />
       {isOwn && onDelete && (
-        <button
-          type="button"
-          className="button buttonSecondary iconButton"
-          aria-label="Delete message"
-          title="Delete message"
-          onClick={() => onDelete(message.id)}
-          style={{
-            position: "absolute",
-            top: "-0.6rem",
-            insetInlineStart: "-0.6rem",
-            fontSize: "0.7rem",
-            padding: "0.15rem 0.35rem",
-          }}
-        >
-          🗑
-        </button>
+        <>
+          <button
+            type="button"
+            className="button buttonSecondary iconButton messageDeleteTrigger"
+            aria-label="Delete message"
+            title="Delete message"
+            onClick={() => setConfirmOpen(true)}
+            style={{
+              position: "absolute",
+              top: "-0.6rem",
+              insetInlineStart: "-0.6rem",
+              padding: "0.25rem",
+            }}
+          >
+            <Trash2 size={13} aria-hidden="true" />
+          </button>
+          <Modal open={confirmOpen} onClose={() => setConfirmOpen(false)} title="Delete this message?">
+            <p>This can&apos;t be undone. It&apos;ll be replaced with &ldquo;Message deleted&rdquo; for everyone in this conversation.</p>
+            <div className="modalActions">
+              <button type="button" className="button buttonSecondary" onClick={() => setConfirmOpen(false)}>
+                <X size={16} aria-hidden="true" />
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="button buttonDanger"
+                onClick={() => {
+                  setConfirmOpen(false);
+                  onDelete(message.id);
+                }}
+              >
+                <Trash2 size={16} aria-hidden="true" />
+                Delete
+              </button>
+            </div>
+          </Modal>
+        </>
       )}
     </div>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
+import { Camera, CircleHelp, X } from "lucide-react";
 import { createPost } from "@/app/actions/posts";
 
 const MAX_MEDIA = 4;
@@ -27,6 +28,7 @@ export function ComposeBox({
 } = {}) {
   const [state, formAction, pending] = useActionState(createPost, undefined);
   const formRef = useRef<HTMLFormElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [files, setFiles] = useState<File[]>([]);
   // Derived during render, not via setState-in-effect (react-hooks/set-state-in-effect)
   // — the effect below only handles revoking the previous URLs, not computing state.
@@ -37,6 +39,22 @@ export function ComposeBox({
       previews.forEach((url) => URL.revokeObjectURL(url));
     };
   }, [previews]);
+
+  // MobileBottomNav's center "+" links here via "/feed#compose-box" — the
+  // browser's native anchor jump scrolls the box into view, this just adds
+  // the focus. hashchange (not just a mount check) also covers tapping "+"
+  // while already on /feed, where the hash changes but the page doesn't
+  // remount.
+  useEffect(() => {
+    function focusIfTargeted() {
+      if (window.location.hash === "#compose-box") {
+        textareaRef.current?.focus();
+      }
+    }
+    focusIfTargeted();
+    window.addEventListener("hashchange", focusIfTargeted);
+    return () => window.removeEventListener("hashchange", focusIfTargeted);
+  }, []);
 
   function addFiles(selected: FileList | null) {
     if (!selected) return;
@@ -50,6 +68,7 @@ export function ComposeBox({
   return (
     <form
       ref={formRef}
+      id="compose-box"
       action={async (formData: FormData) => {
         files.forEach((file) => formData.append("media", file));
         await formAction(formData);
@@ -81,6 +100,7 @@ export function ComposeBox({
         </select>
       )}
       <textarea
+        ref={textareaRef}
         name="body"
         placeholder="What's happening?"
         maxLength={500}
@@ -93,7 +113,7 @@ export function ComposeBox({
           <option value="">Visible to everyone</option>
           {ownTiers.map((t) => (
             <option key={t.id} value={t.id}>
-              🔒 {t.name} subscribers only
+              {t.name} subscribers only
             </option>
           ))}
         </select>
@@ -122,7 +142,7 @@ export function ComposeBox({
                 style={{ position: "absolute", top: "-8px", right: "-8px" }}
                 aria-label="Remove image"
               >
-                ✕
+                <X size={14} aria-hidden="true" />
               </button>
             </div>
           ))}
@@ -141,7 +161,7 @@ export function ComposeBox({
             }}
             aria-label="Attach images"
           >
-            📷
+            <Camera size={16} aria-hidden="true" />
             <input
               type="file"
               accept="image/png,image/jpeg,image/webp,image/gif"
@@ -155,7 +175,8 @@ export function ComposeBox({
             />
           </label>
           <label className="mutedText" style={{ fontSize: "0.8rem", display: "inline-flex", alignItems: "center", gap: "0.3rem" }}>
-            <input type="checkbox" name="postType" value="question" />❓ Question
+            <input type="checkbox" name="postType" value="question" />
+            <CircleHelp size={14} aria-hidden="true" /> Question
           </label>
         </span>
         <button type="submit" className="button" disabled={pending}>

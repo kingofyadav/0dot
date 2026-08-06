@@ -28,9 +28,27 @@ export async function destroySession() {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE)?.value;
   if (token) {
+    const session = await db.session.findUnique({ where: { token }, select: { userId: true } });
     await db.session.deleteMany({ where: { token } });
+    // phase-15 spec §4.4: "revoking/logging out clears the associated
+    // DeviceToken" — delegates to push.ts's own device-token interface
+    // (clearWebPushTokensForUser) rather than reaching into db.deviceToken
+    // directly, so this stays in sync with however push.ts's device-token
+    // cleanup evolves instead of silently drifting from it.
+    if (session) {
+      const { clearWebPushTokensForUser } = await import("@/lib/push");
+      await clearWebPushTokensForUser(session.userId);
+    }
   }
   cookieStore.delete(SESSION_COOKIE);
+}
+
+// Read-only lookup of the caller's own session token, so a mutation that
+// kills a user's *other* sessions (changePassword, auth.ts) knows which one
+// to spare instead of logging the requester out along with everyone else.
+export async function getCurrentSessionToken(): Promise<string | null> {
+  const cookieStore = await cookies();
+  return cookieStore.get(SESSION_COOKIE)?.value ?? null;
 }
 
 export async function getCurrentUser() {

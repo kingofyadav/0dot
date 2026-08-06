@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
+import { EmptyState } from "@/components/EmptyState";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { isCommunityStaff } from "@/lib/communities";
@@ -98,7 +99,7 @@ export default async function CommunityAnalyticsPage({ params }: { params: Promi
 
       <p className="sectionHeading">Top posts</p>
       <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-        {topPosts.length === 0 && <p className="mutedText">No posts yet.</p>}
+        {topPosts.length === 0 && <EmptyState message="No posts yet." />}
         {topPosts.map((post) => {
           const authorName = post.author.profile?.displayName ?? post.author.username?.handle ?? "Unknown";
           const engagement = post.likeCount + post.replyCount + post.repostCount;

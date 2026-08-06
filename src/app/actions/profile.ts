@@ -101,12 +101,14 @@ export async function updateProfile(
     displayName: string;
     bio: string;
     themePreset: string;
+    isPrivate: boolean;
     avatarUrl?: string;
     coverUrl?: string;
   } = {
     displayName,
     bio,
     themePreset: isValidThemePreset(themePresetRaw) ? themePresetRaw : "default",
+    isPrivate: formData.get("isPrivate") === "on",
   };
 
   const avatarFile = formData.get("avatar");

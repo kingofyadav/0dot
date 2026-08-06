@@ -76,6 +76,21 @@ function parseTimestamps(formData: FormData): { startsAt: Date; endsAt: Date | n
   return { startsAt, endsAt };
 }
 
+// phase-16 spec §10.1: optional coordinates, closing the asymmetry with
+// BusinessLocation's real lat/lng — a map can't plot an event that has
+// none. Both-or-neither, same posture as price/currency elsewhere.
+function parseCoordinates(formData: FormData): { latitude: number | null; longitude: number | null } | { error: string } {
+  const latRaw = String(formData.get("latitude") ?? "").trim();
+  const lngRaw = String(formData.get("longitude") ?? "").trim();
+  if (!latRaw && !lngRaw) return { latitude: null, longitude: null };
+
+  const latitude = Number(latRaw);
+  const longitude = Number(lngRaw);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return { error: "Coordinates must be numbers." };
+  if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) return { error: "Coordinates are out of range." };
+  return { latitude, longitude };
+}
+
 // spec §3, build plan §1: the anchor entity. Created as `draft` — only the
 // host/creator can see it (spec §3.4's acceptance criterion) until
 // publishEvent explicitly flips it to `published`.
@@ -117,6 +132,9 @@ export async function createEvent(_prevState: ActionState, formData: FormData): 
   const timestamps = parseTimestamps(formData);
   if ("error" in timestamps) return { error: timestamps.error };
 
+  const coordinates = parseCoordinates(formData);
+  if ("error" in coordinates) return { error: coordinates.error };
+
   const slugError = validateEventSlugFormat(slug);
   if (slugError === "invalid_format") return { error: "Slug must be 3-60 characters: letters, numbers, underscore only." };
   if (slugError === "reserved") return { error: "That slug is reserved." };
@@ -150,6 +168,8 @@ export async function createEvent(_prevState: ActionState, formData: FormData): 
         timezone,
         capacity,
         attendeeListVisibility,
+        latitude: coordinates.latitude,
+        longitude: coordinates.longitude,
       },
     });
   } catch (err) {
@@ -196,6 +216,9 @@ export async function updateEvent(_prevState: ActionState, formData: FormData): 
   const timestamps = parseTimestamps(formData);
   if ("error" in timestamps) return { error: timestamps.error };
 
+  const coordinates = parseCoordinates(formData);
+  if ("error" in coordinates) return { error: coordinates.error };
+
   let coverImageUrl: string | undefined;
   const coverFile = formData.get("coverImage");
   if (coverFile instanceof File && coverFile.size > 0) {
@@ -217,6 +240,8 @@ export async function updateEvent(_prevState: ActionState, formData: FormData): 
       attendeeListVisibility,
       startsAt: timestamps.startsAt,
       endsAt: timestamps.endsAt,
+      latitude: coordinates.latitude,
+      longitude: coordinates.longitude,
       ...(coverImageUrl ? { coverImageUrl } : {}),
     },
   });

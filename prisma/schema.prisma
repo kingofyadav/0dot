@@ -14,6 +14,14 @@ model User {
   id              String    @id @default(uuid())
   email           String    @unique
   emailVerifiedAt DateTime?
+  // E.164 ("+<dialcode><digits>", see country-codes.ts toE164). Required at
+  // signup going forward (auth.ts) but stays nullable in the DB — every
+  // account created before this field existed predates it. Unique so a
+  // future "log in with email, username, or phone" flow (product ask logged
+  // alongside this field) can look one up unambiguously; no verification
+  // step yet, same "collect now, verify later" posture as email's
+  // console-logged dev link.
+  phone           String?   @unique
   passwordHash    String
   status          String    @default("active") // active | suspended | deactivated | deleted
   // phase-4 build plan decision #1: manually granted via direct DB access,
@@ -31,14 +39,25 @@ model User {
   // against content this user posted — a safe-harbor condition, not a
   // cosmetic counter (see enforceDmcaStrikeThreshold in dmca.ts).
   dmcaStrikeCount Int       @default(0)
+  // Chat presence ("online"/"last active X ago" — the messaging inbox's
+  // green-dot indicator): bumped on SSE connect/disconnect (see
+  // src/lib/presence.ts, api/messages/stream/route.ts), not a heartbeat
+  // polled on every request. "Online right now" is answered by the
+  // in-memory connection-count map in presence.ts instead — this column is
+  // only the durable fallback for "last seen" once nobody's connected,
+  // same single-process-for-now posture message-events.ts documents.
+  lastActiveAt    DateTime  @default(now())
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  username Username?
-  profile  Profile?
-  sessions Session[]
+  username                        Username?
+  profile                         Profile?
+  sessions                        Session[]
+  deviceTokens                    DeviceToken[]
+  notificationDeliveryPreferences NotificationDeliveryPreference[]
 
   emailVerificationTokens EmailVerificationToken[]
+  passwordResetTokens     PasswordResetToken[]
   posts                   Post[]
   postLikes               PostLike[]
   bookmarks               Bookmark[]
@@ -154,18 +173,28 @@ model User {
   moderationFlagsHandled ModerationFlag[]
   uploadedFileAssets     FileAsset[]
 
-  trustSafetyStaffRole    TrustSafetyStaffRole?
+  trustSafetyStaffRole     TrustSafetyStaffRole?
   trustSafetyCasesReported TrustSafetyCase[]     @relation("TrustSafetyCaseReporter")
   trustSafetyCasesAssigned TrustSafetyCase[]     @relation("TrustSafetyCaseAssignee")
   reportsFiled             Report[]
-  appealsFiled              Appeal[]              @relation("AppealFiledBy")
-  appealsReviewed           Appeal[]              @relation("AppealReviewedBy")
-  accountRiskSignals        AccountRiskSignal[]
+  appealsFiled             Appeal[]              @relation("AppealFiledBy")
+  appealsReviewed          Appeal[]              @relation("AppealReviewedBy")
+  accountRiskSignals       AccountRiskSignal[]
 
-  contentRevisions     ContentRevision[]
-  dmcaCounterNotices   DMCACounterNotice[]
+  contentRevisions       ContentRevision[]
+  dmcaCounterNotices     DMCACounterNotice[]
   ownershipTransfersFrom OwnershipTransfer[] @relation("OwnershipTransferFrom")
   ownershipTransfersTo   OwnershipTransfer[] @relation("OwnershipTransferTo")
+
+  // phase-16: Future Modules
+  jobAlerts            JobAlert[]
+  shortLinks           ShortLink[]
+  formResponses        FormResponse[]
+  fundraisingCampaigns FundraisingCampaign[] @relation("FundraisingCampaignOrganizerUser")
+  donationsMade        Donation[]
+  learningPaths        LearningPath[]
+  quizAttempts         QuizAttempt[]
+  crmContacts          Contact[]
 }
 
 model Session {
@@ -180,6 +209,22 @@ model Session {
 model EmailVerificationToken {
   id        String    @id @default(uuid())
   token     String    @unique
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+  expiresAt DateTime
+  usedAt    DateTime?
+}
+
+// Account-recovery counterpart to EmailVerificationToken, deliberately not
+// reusing that model: a password-reset token grants account takeover, not
+// just email-ownership confirmation, so it gets two extra precautions that
+// model doesn't need — the token is hashed at rest (tokenHash, never the raw
+// value) so a DB read/backup leak can't be replayed directly, and its TTL
+// (auth.ts's PASSWORD_RESET_TTL_MS) is 1h rather than 24h.
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  tokenHash String    @unique
   userId    String
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime  @default(now())
@@ -206,6 +251,12 @@ model Profile {
   coverUrl    String?
   themePreset String   @default("default") // key into a fixed, curated preset list — never raw CSS
   isVerified  Boolean  @default(false)
+  // Settings-page toggle: a private profile's posts/portfolio/links stay
+  // hidden from any visitor who isn't the owner or an accepted follower
+  // (see the isOwner/isFollowing gate on /[username]/page.tsx) — identity
+  // (name/avatar/bio) and the Follow control itself always stay visible so
+  // a stranger can still find and request to follow the account.
+  isPrivate   Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -251,6 +302,11 @@ model Profile {
   // "Profile is the thing being rendered" reasoning WikiPage/Book's
   // profileId already uses, not an account-level relationship.
   installedApps InstalledApp[]
+
+  // phase-16: Future Modules
+  digitalBusinessCard DigitalBusinessCard?
+  calendarEntries     CalendarEntry[]
+  ownedForms          Form[]
 }
 
 model Follow {
@@ -258,6 +314,14 @@ model Follow {
   follower   User     @relation("Follower", fields: [followerId], references: [id], onDelete: Cascade)
   followeeId String
   followee   User     @relation("Followee", fields: [followeeId], references: [id], onDelete: Cascade)
+  // "pending" | "accepted". A row against a public account is created
+  // "accepted" directly (unchanged prior behavior). A row against a private
+  // account (Profile.isPrivate) starts "pending" and only flips to
+  // "accepted" via acceptFollowRequest — followerCount/followingCount and
+  // canViewFullProfile access both key off "accepted", not row existence,
+  // so a private account's approval gate can't be bypassed by the mere act
+  // of following (src/app/actions/follow.ts).
+  status     String   @default("accepted")
   createdAt  DateTime @default(now())
 
   // followerId != followeeId is enforced at the app layer (followUser in
@@ -297,7 +361,7 @@ model Notification {
   recipient   User      @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
   actorId     String?
   actor       User?     @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
-  type        String // like | comment | mention | new_follower | message | community_update | community_invite | business_review | job_application | application_status | appointment_request | appointment_confirmed | appointment_cancelled | tip_received | new_subscriber | affiliate_conversion | livestream_started
+  type        String // like | comment | mention | new_follower | follow_request | follow_accepted | message | community_update | community_invite | business_review | job_application | application_status | appointment_request | appointment_confirmed | appointment_cancelled | tip_received | new_subscriber | affiliate_conversion | livestream_started | job_alert_match
   subjectType String // post | message | user | community | business | livestream | project | skill | article
   subjectId   String
   readAt      DateTime?
@@ -674,6 +738,9 @@ model Community {
   hostedEvents     Event[]                    @relation("EventHostedByCommunity")
   installedApps    InstalledApp[]
 
+  // phase-16: Future Modules
+  ownedForms Form[]
+
   @@index([restrictedToOrganizationId])
 }
 
@@ -1008,6 +1075,11 @@ model Business {
   // entity back to this public-facing one — kept deliberately separate,
   // see Organization's own model comment.
   organizations Organization[]
+
+  // phase-16: Future Modules
+  ownedForms           Form[]
+  fundraisingCampaigns FundraisingCampaign[]
+  crmContacts          Contact[]
 
   @@index([status])
 }
@@ -1349,13 +1421,13 @@ model CreatorPayoutAccount {
 // recomputed later from a global rate, so a future fee-rate change never
 // rewrites the story of a past transaction (spec §3.2).
 model PaymentTransaction {
-  id                 String    @id @default(uuid())
+  id                 String          @id @default(uuid())
   // phase-9 spec §3.1/§3.2/§4.3: business_purchase/freelance_purchase
   // resolve the Phase 4/5 Store checkout deferral (Offering, either owner
   // kind); marketplace_purchase is MarketplaceListing checkout (§4.3).
-  kind               String // tip | digital_purchase | course_purchase | membership_charge | affiliate_commission | ticket_purchase | business_purchase | freelance_purchase | marketplace_purchase
+  kind               String // tip | digital_purchase | course_purchase | membership_charge | affiliate_commission | ticket_purchase | business_purchase | freelance_purchase | marketplace_purchase | donation
   payerId            String?
-  payer              User?     @relation("PaymentTransactionPayer", fields: [payerId], references: [id], onDelete: SetNull)
+  payer              User?           @relation("PaymentTransactionPayer", fields: [payerId], references: [id], onDelete: SetNull)
   // phase-8 build plan §5: payeeId made nullable, payeeBusinessId added —
   // exactly one set, enforced at the call site (purchaseTicket), not the
   // DB (no partial-index/CHECK support in this Prisma+SQLite setup, same
@@ -1365,17 +1437,27 @@ model PaymentTransaction {
   // row. Every pre-phase-8 call site (tip/digital/course/affiliate) is
   // unaffected — payeeId only, payeeBusinessId always null there.
   payeeId            String?
-  payee              User?     @relation("PaymentTransactionPayee", fields: [payeeId], references: [id], onDelete: Cascade)
+  payee              User?           @relation("PaymentTransactionPayee", fields: [payeeId], references: [id], onDelete: Cascade)
   payeeBusinessId    String?
-  payeeBusiness      Business? @relation("PaymentTransactionPayeeBusiness", fields: [payeeBusinessId], references: [id], onDelete: Cascade)
+  payeeBusiness      Business?       @relation("PaymentTransactionPayeeBusiness", fields: [payeeBusinessId], references: [id], onDelete: Cascade)
   amount             Float
-  currency           String    @default("usd")
+  currency           String          @default("usd")
   platformFee        Float
+  // phase-15 spec §6.2: CreatorPayoutAccount.processor's single-value enum
+  // (phase-5 §3.1) finally gets a second value — a mobile app's native
+  // purchase flow records against the store's own processor instead of
+  // Stripe Connect where store policy requires it (spec §6.1). storeFee is
+  // the store's own cut (historically 15-30%), deducted separately from
+  // platformFee above, never conflated into one figure (§6.4).
+  processor          String          @default("stripe_connect") // stripe_connect | apple_iap | google_play_billing
+  storeFee           Float?
+  iapPayoutBatchId   String?
+  iapPayoutBatch     IapPayoutBatch? @relation(fields: [iapPayoutBatchId], references: [id], onDelete: SetNull)
   processorReference String
   status             String // pending | succeeded | failed | refunded
-  relatedObjectType  String? // tip | digital_product | course | membership_tier | affiliate_link | ticket | offering | marketplace_listing
+  relatedObjectType  String? // tip | digital_product | course | membership_tier | affiliate_link | ticket | offering | marketplace_listing | fundraising_campaign
   relatedObjectId    String?
-  createdAt          DateTime  @default(now())
+  createdAt          DateTime        @default(now())
 
   tip                    Tip?
   digitalProductPurchase DigitalProductPurchase?
@@ -1384,6 +1466,7 @@ model PaymentTransaction {
   ticket                 Ticket?
   offeringPurchase       OfferingPurchase?
   marketplacePurchase    MarketplacePurchase?
+  donation               Donation?
 
   @@index([payeeId, createdAt])
   @@index([payeeBusinessId, createdAt])
@@ -1573,6 +1656,7 @@ model Lesson {
   fileSizeBytes Int?
 
   progress CourseProgress[]
+  quizzes  Quiz[]
 
   @@index([moduleId, position])
 }
@@ -2330,6 +2414,12 @@ model Event {
   coverImageUrl          String?
   format                 String // in_person | virtual | hybrid
   location               String? // required if format != virtual, enforced at the app layer
+  // phase-16 spec §10.1: closes the asymmetry with BusinessLocation's real
+  // lat/lng — a map can't plot an event with location as free text only.
+  // Nullable/optional on every event, same additive-column posture as
+  // Community.restrictedToOrganizationId.
+  latitude               Float?
+  longitude              Float?
   virtualJoinUrl         String? // external meeting link — independent of native livestream/voice-room attachment (§6.1)
   startsAt               DateTime
   endsAt                 DateTime?
@@ -2766,7 +2856,7 @@ model AIGeneration {
 // ai-moderation.ts's explicit note on why that pipeline is a wholly
 // separate, legally-reviewed system.
 model ModerationFlag {
-  id              String    @id @default(uuid())
+  id              String       @id @default(uuid())
   subjectType     String // post | article | comment | marketplace_listing | business | ...
   subjectId       String
   aiGenerationId  String
@@ -2774,11 +2864,11 @@ model ModerationFlag {
   riskCategory    String // spam | harassment | violence | ip_infringement | fraud | other — illustrative, needs real policy/legal taxonomy
   confidence      Float // 0.0-1.0
   suggestedAction String // none | flag_for_review | escalate_urgent
-  status          String    @default("pending_human_review") // pending_human_review | upheld | overridden
+  status          String       @default("pending_human_review") // pending_human_review | upheld | overridden
   reviewedById    String?
-  reviewedBy      User?     @relation(fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewedBy      User?        @relation(fields: [reviewedById], references: [id], onDelete: SetNull)
   reviewedAt      DateTime?
-  createdAt       DateTime  @default(now())
+  createdAt       DateTime     @default(now())
 
   @@index([subjectType, subjectId])
   @@index([status, createdAt])
@@ -2850,7 +2940,7 @@ model MediaAccessibilityMetadata {
 // exactly, checked through the source's own authorization function (see
 // ai-translation.ts), never a separate check that could drift from it.
 model ContentTranslation {
-  id                String   @id @default(uuid())
+  id                String       @id @default(uuid())
   subjectType       String
   subjectId         String
   sourceRevisionKey String
@@ -2858,7 +2948,7 @@ model ContentTranslation {
   translatedText    String
   aiGenerationId    String
   aiGeneration      AIGeneration @relation(fields: [aiGenerationId], references: [id], onDelete: Cascade)
-  createdAt         DateTime @default(now())
+  createdAt         DateTime     @default(now())
 
   @@unique([subjectType, subjectId, sourceRevisionKey, targetLanguage])
 }
@@ -2884,24 +2974,24 @@ model TrustSafetyStaffRole {
 // ModerationFlag's loose string-pair addressing (phase-11) rather than a
 // polymorphic FK, since the subject set spans a dozen+ unrelated tables.
 model TrustSafetyCase {
-  id                  String    @id @default(uuid())
-  caseType            String // content_report | account_report | business_claim_review | marketplace_listing_review | oauth_scope_review | ai_moderation_flag | community_escalation | review_dispute
-  subjectType         String
-  subjectId           String
-  reportedById        String? // null for system/AI-initiated or gate-driven cases — see model comment on Report
-  reportedBy          User?     @relation("TrustSafetyCaseReporter", fields: [reportedById], references: [id], onDelete: SetNull)
+  id                   String        @id @default(uuid())
+  caseType             String // content_report | account_report | business_claim_review | marketplace_listing_review | oauth_scope_review | ai_moderation_flag | community_escalation | review_dispute
+  subjectType          String
+  subjectId            String
+  reportedById         String? // null for system/AI-initiated or gate-driven cases — see model comment on Report
+  reportedBy           User?         @relation("TrustSafetyCaseReporter", fields: [reportedById], references: [id], onDelete: SetNull)
   linkedAiGenerationId String?
-  linkedAiGeneration  AIGeneration? @relation(fields: [linkedAiGenerationId], references: [id], onDelete: SetNull)
-  reason              String?
-  status              String    @default("open") // open | in_review | resolved_upheld | resolved_dismissed | escalated
-  assignedToId        String?
-  assignedTo          User?     @relation("TrustSafetyCaseAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
-  resolutionNotes     String?
-  createdAt           DateTime  @default(now())
-  resolvedAt          DateTime?
+  linkedAiGeneration   AIGeneration? @relation(fields: [linkedAiGenerationId], references: [id], onDelete: SetNull)
+  reason               String?
+  status               String        @default("open") // open | in_review | resolved_upheld | resolved_dismissed | escalated
+  assignedToId         String?
+  assignedTo           User?         @relation("TrustSafetyCaseAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  resolutionNotes      String?
+  createdAt            DateTime      @default(now())
+  resolvedAt           DateTime?
 
-  reports Report[]
-  appeals Appeal[]
+  reports            Report[]
+  appeals            Appeal[]
   dmcaTakedownNotice DMCATakedownNotice?
 
   @@index([status, createdAt])
@@ -2919,16 +3009,16 @@ model TrustSafetyCase {
 // enforced at the query/serialization layer (trust-safety.ts), not by
 // omitting the column (staff still need to see it).
 model Report {
-  id         String   @id @default(uuid())
-  reporterId String
-  reporter   User     @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+  id          String          @id @default(uuid())
+  reporterId  String
+  reporter    User            @relation(fields: [reporterId], references: [id], onDelete: Cascade)
   subjectType String
   subjectId   String
   category    String // spam | harassment | hate_speech | violence | sexual_content | ip_infringement | impersonation | fraud | other
-  details     String   @default("") // 0-2000 chars, validated at the app layer
+  details     String          @default("") // 0-2000 chars, validated at the app layer
   caseId      String
   case        TrustSafetyCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  createdAt   DateTime @default(now())
+  createdAt   DateTime        @default(now())
 
   @@index([subjectType, subjectId])
   @@index([reporterId])
@@ -2939,17 +3029,17 @@ model Report {
 // qualifying second (senior_reviewer+) reviewer is available (§5.2) —
 // enforced in reviewAppeal (trust-safety.ts), not at the schema level.
 model Appeal {
-  id             String    @id @default(uuid())
+  id             String          @id @default(uuid())
   originalCaseId String
   originalCase   TrustSafetyCase @relation(fields: [originalCaseId], references: [id], onDelete: Cascade)
   filedById      String
-  filedBy        User      @relation("AppealFiledBy", fields: [filedById], references: [id], onDelete: Cascade)
+  filedBy        User            @relation("AppealFiledBy", fields: [filedById], references: [id], onDelete: Cascade)
   statement      String // 1-2000 chars, validated at the app layer
-  status         String    @default("pending") // pending | upheld_original | overturned
+  status         String          @default("pending") // pending | upheld_original | overturned
   reviewedById   String?
-  reviewedBy     User?     @relation("AppealReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewedBy     User?           @relation("AppealReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
   decidedAt      DateTime?
-  createdAt      DateTime  @default(now())
+  createdAt      DateTime        @default(now())
 
   @@index([originalCaseId])
   @@index([status, createdAt])
@@ -2960,14 +3050,14 @@ model Appeal {
 // content). aiGenerationId reuses phase-11's audit substrate when
 // ML-derived rather than a second, parallel audit log (§6.4).
 model AccountRiskSignal {
-  id             String   @id @default(uuid())
+  id             String        @id @default(uuid())
   userId         String
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   signalType     String // velocity_anomaly | duplicate_content | coordinated_behavior | device_fingerprint_cluster | other
   score          Float // 0.0-1.0
   aiGenerationId String?
   aiGeneration   AIGeneration? @relation(fields: [aiGenerationId], references: [id], onDelete: SetNull)
-  detectedAt     DateTime @default(now())
+  detectedAt     DateTime      @default(now())
 
   @@index([userId, detectedAt])
 }
@@ -2995,11 +3085,11 @@ model ContentRevision {
 // permissive terms. subjectType is intentionally broad (post, article,
 // project, marketplace listing, business content, ...).
 model ContentLicense {
-  subjectType  String
-  subjectId    String
-  licenseType  String // all_rights_reserved | cc_by | cc_by_sa | cc_by_nc | cc_by_nd | cc0 | custom
-  customTerms  String?
-  declaredAt   DateTime @default(now())
+  subjectType String
+  subjectId   String
+  licenseType String // all_rights_reserved | cc_by | cc_by_sa | cc_by_nc | cc_by_nd | cc0 | custom
+  customTerms String?
+  declaredAt  DateTime @default(now())
 
   @@id([subjectType, subjectId])
 }
@@ -3010,19 +3100,19 @@ model ContentLicense {
 // complainants is legal's to draft, not engineering's; these fields only
 // record that the required attestation was made.
 model DMCATakedownNotice {
-  id                             String    @id @default(uuid())
-  trustSafetyCaseId              String    @unique
-  trustSafetyCase                TrustSafetyCase @relation(fields: [trustSafetyCaseId], references: [id], onDelete: Cascade)
-  complainantName                String
-  complainantContact             String
-  copyrightedWorkDescription     String
-  infringingContentSubjectType   String
-  infringingContentSubjectId     String
-  goodFaithStatementAccepted     Boolean
+  id                               String          @id @default(uuid())
+  trustSafetyCaseId                String          @unique
+  trustSafetyCase                  TrustSafetyCase @relation(fields: [trustSafetyCaseId], references: [id], onDelete: Cascade)
+  complainantName                  String
+  complainantContact               String
+  copyrightedWorkDescription       String
+  infringingContentSubjectType     String
+  infringingContentSubjectId       String
+  goodFaithStatementAccepted       Boolean
   accuracyPerjuryStatementAccepted Boolean
-  signature                      String
-  submittedAt                    DateTime  @default(now())
-  status                         String    @default("received") // received | content_removed | invalid_rejected
+  signature                        String
+  submittedAt                      DateTime        @default(now())
+  status                           String          @default("received") // received | content_removed | invalid_rejected
 
   counterNotice DMCACounterNotice?
 
@@ -3035,17 +3125,17 @@ model DMCATakedownNotice {
 // posture as trending.ts's scheduler), not left to manual staff
 // follow-through.
 model DMCACounterNotice {
-  id                        String    @id @default(uuid())
-  originalNoticeId          String    @unique
-  originalNotice            DMCATakedownNotice @relation(fields: [originalNoticeId], references: [id], onDelete: Cascade)
-  subjectUserId             String
-  subjectUser               User      @relation(fields: [subjectUserId], references: [id], onDelete: Cascade)
+  id                         String             @id @default(uuid())
+  originalNoticeId           String             @unique
+  originalNotice             DMCATakedownNotice @relation(fields: [originalNoticeId], references: [id], onDelete: Cascade)
+  subjectUserId              String
+  subjectUser                User               @relation(fields: [subjectUserId], references: [id], onDelete: Cascade)
   goodFaithStatementAccepted Boolean
-  consentToJurisdiction     Boolean
-  signature                 String
-  submittedAt               DateTime  @default(now())
-  restorationEligibleAt     DateTime
-  status                    String    @default("received") // received | content_restored | notice_forwarded_awaiting_lawsuit
+  consentToJurisdiction      Boolean
+  signature                  String
+  submittedAt                DateTime           @default(now())
+  restorationEligibleAt      DateTime
+  status                     String             @default("received") // received | content_restored | notice_forwarded_awaiting_lawsuit
 
   @@index([status, restorationEligibleAt])
 }
@@ -3055,15 +3145,15 @@ model DMCACounterNotice {
 // — not a full chain-of-title system with transfer-approval workflows
 // (§7's open question on consent model is left to product/legal, §11).
 model OwnershipTransfer {
-  id             String    @id @default(uuid())
-  subjectType    String
-  subjectId      String
-  fromUserId     String?
-  fromUser       User?     @relation("OwnershipTransferFrom", fields: [fromUserId], references: [id], onDelete: SetNull)
-  toUserId       String
-  toUser         User      @relation("OwnershipTransferTo", fields: [toUserId], references: [id], onDelete: Cascade)
-  transferredAt  DateTime  @default(now())
-  reason         String?
+  id            String   @id @default(uuid())
+  subjectType   String
+  subjectId     String
+  fromUserId    String?
+  fromUser      User?    @relation("OwnershipTransferFrom", fields: [fromUserId], references: [id], onDelete: SetNull)
+  toUserId      String
+  toUser        User     @relation("OwnershipTransferTo", fields: [toUserId], references: [id], onDelete: Cascade)
+  transferredAt DateTime @default(now())
+  reason        String?
 
   @@index([subjectType, subjectId])
 }
@@ -3098,13 +3188,13 @@ model JurisdictionRule {
 // pattern as Business's claim gate, Marketplace's listing review, and
 // Phase 10's sensitive-scope review.
 model Organization {
-  id        String @id @default(uuid())
-  name      String
+  id   String @id @default(uuid())
+  name String
 
   businessId String?
   business   Business? @relation(fields: [businessId], references: [id], onDelete: SetNull)
 
-  domain                 String?   @unique
+  domain                  String?   @unique
   // Random token an admin publishes as a DNS TXT record
   // (`0dot-domain-verify=<token>`) under the claimed domain — checked by
   // verifyOrganizationDomain (organizations.ts) via a real DNS TXT lookup.
@@ -3123,6 +3213,10 @@ model Organization {
   ssoConnection         SSOConnection?
   auditLogs             OrganizationAuditLog[]
   restrictedCommunities Community[]
+
+  // phase-16: Future Modules
+  ownedForms           Form[]
+  fundraisingCampaigns FundraisingCampaign[]
 
   @@index([businessId])
 }
@@ -3159,13 +3253,13 @@ model OrganizationMember {
 // it never disables a user's other login methods for their personal
 // account (auth.ts's login() is untouched by this model).
 model SSOConnection {
-  id             String       @id @default(uuid())
-  organizationId String       @unique
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  protocol       String // saml2 | oidc
+  id              String       @id @default(uuid())
+  organizationId  String       @unique
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  protocol        String // saml2 | oidc
   idpMetadataJson String
-  enforced       Boolean      @default(false)
-  createdAt      DateTime     @default(now())
+  enforced        Boolean      @default(false)
+  createdAt       DateTime     @default(now())
 
   identities SSOIdentity[]
 }
@@ -3210,4 +3304,293 @@ model OrganizationAuditLog {
   createdAt      DateTime     @default(now())
 
   @@index([organizationId, createdAt])
+}
+
+// phase-15 spec §4.1: push as a third delivery channel on the existing
+// Notification.type catalog (§4.2) — resolves the push deferrals scattered
+// across Phase 2 §4.3, Phase 5 §12, Phase 8 §8.3. appClientId ties a token
+// to whichever first-party DeveloperApp (§3) registered it, so revoking
+// that app's OAuthAuthorization (revokeOAuthAuthorization, oauth.ts) can
+// also clear its device tokens (§4.4's "revoking/logging out clears the
+// associated DeviceToken" acceptance criterion).
+model DeviceToken {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  platform    String // ios | android | web_push
+  token       String
+  appClientId String
+  createdAt   DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+
+  @@unique([userId, token])
+  @@index([appClientId])
+}
+
+// phase-15 spec §4.1: per-user, per-type, per-channel opt-out — in_app is
+// never actually gated through this (Phase 2's core loop doesn't offer an
+// opt-out), but push/email rows are read by dispatchPushEvent (push.ts)
+// before a send, defaulting to enabled when no row exists (spec: "enabled
+// boolean, default true").
+model NotificationDeliveryPreference {
+  userId           String
+  user             User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notificationType String
+  channel          String // in_app | push | email
+  enabled          Boolean @default(true)
+
+  @@id([userId, notificationType, channel])
+}
+
+// phase-15 spec §6.3: Apple/Google pay out IAP revenue as one aggregated
+// lump sum to 0dot itself, unlike Stripe Connect's direct per-creator
+// payout — this is the reconciliation unit that lump sum is tracked
+// against before per-creator disbursement through CreatorPayoutAccount.
+// Deliberately minimal (status transitions only) — spec §6.3 flags the
+// full reconciliation/finance workflow as its own dedicated undertaking,
+// not something this schema addition alone resolves.
+model IapPayoutBatch {
+  id          String   @id @default(uuid())
+  processor   String // apple_iap | google_play_billing
+  amount      Float // aggregated lump sum received from the store
+  currency    String   @default("usd")
+  periodStart DateTime
+  periodEnd   DateTime
+  status      String   @default("received") // received | reconciled | disbursed
+  createdAt   DateTime @default(now())
+
+  transactions PaymentTransaction[]
+}
+
+// ===== Phase 16: Future Modules =====
+// phase-16 spec §4: a saved search over Phase 4's existing Job table — no
+// new Job-equivalent table, same "query-time union, not a master table"
+// principle as Phase 9 §6.1's Marketplace browse.
+model JobAlert {
+  id             String   @id @default(uuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  filterCriteria String // JSON: {location, remote, employmentType, keywords}
+  createdAt      DateTime @default(now())
+
+  @@index([userId])
+}
+
+// phase-16 spec §6: a thin config layer over Profile/WorkExperience —
+// no second identity representation, same canonical profile URL Phase 1
+// §3.4's QR code already resolves to.
+model DigitalBusinessCard {
+  profileId      String   @id
+  profile        Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  includedFields String // JSON array of Profile/ContactInfo/WorkExperience field keys to show on the card
+  enabled        Boolean  @default(false)
+  updatedAt      DateTime @updatedAt
+}
+
+// phase-16 spec §7: general-purpose shortener, the third instance of the
+// "short code + click analytics" pattern (Link, AffiliateLink). A new
+// primitive, not a retrofit onto either existing one (spec §7.2).
+model ShortLink {
+  id             String   @id @default(uuid())
+  ownerId        String
+  owner          User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  shortCode      String   @unique
+  destinationUrl String // scheme-validated by isSafeUrl, same rule as Phase 1 §4.2's link URLs
+  clickCount     Int      @default(0)
+  createdAt      DateTime @default(now())
+
+  clicks ShortLinkClick[]
+
+  @@index([ownerId])
+}
+
+model ShortLinkClick {
+  id           String    @id @default(uuid())
+  shortLinkId  String
+  shortLink    ShortLink @relation(fields: [shortLinkId], references: [id], onDelete: Cascade)
+  occurredAt   DateTime  @default(now())
+  referrerHost String? // no raw IP/UA, same posture as every click-analytics table since Phase 1 §4.3
+
+  @@index([shortLinkId])
+}
+
+// phase-16 spec §8: the one new entity a personal calendar needs.
+// Appointment/EventRSVP+Ticket are queried live at view time, never copied
+// in here — same query-time-union principle as JobAlert above.
+model CalendarEntry {
+  id        String    @id @default(uuid())
+  profileId String
+  profile   Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  title     String // 1-120 chars, validated at the app layer
+  startsAt  DateTime
+  endsAt    DateTime?
+
+  @@index([profileId, startsAt])
+}
+
+// phase-16 spec §9: forms and surveys share one table (mode is
+// presentation/analytics emphasis only, never a schema difference) — same
+// reasoning Phase 7 §5.2 applied to Documentation vs. Wiki. Four-way owner
+// XOR enforced at the app layer, no partial-index/CHECK support in this
+// Prisma+SQLite setup (same limitation Link/ProjectCollaborator work
+// around).
+model Form {
+  id                  String        @id @default(uuid())
+  ownerType           String // profile | business | organization | community
+  ownerProfileId      String?
+  ownerProfile        Profile?      @relation(fields: [ownerProfileId], references: [id], onDelete: Cascade)
+  ownerBusinessId     String?
+  ownerBusiness       Business?     @relation(fields: [ownerBusinessId], references: [id], onDelete: Cascade)
+  ownerOrganizationId String?
+  ownerOrganization   Organization? @relation(fields: [ownerOrganizationId], references: [id], onDelete: Cascade)
+  ownerCommunityId    String?
+  ownerCommunity      Community?    @relation(fields: [ownerCommunityId], references: [id], onDelete: Cascade)
+  title               String // 1-160 chars, validated at the app layer
+  fieldsJson          String // JSON array: [{label, type: text|choice|rating|date, required, options}]
+  mode                String        @default("form") // form | survey — presentation/analytics emphasis only
+  status              String        @default("draft") // draft | published | closed
+  createdAt           DateTime      @default(now())
+
+  responses FormResponse[]
+
+  @@index([ownerProfileId])
+  @@index([ownerBusinessId])
+  @@index([ownerOrganizationId])
+  @@index([ownerCommunityId])
+}
+
+model FormResponse {
+  id           String   @id @default(uuid())
+  formId       String
+  form         Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
+  respondentId String?
+  respondent   User?    @relation(fields: [respondentId], references: [id], onDelete: SetNull)
+  answersJson  String // JSON object keyed by field label
+  submittedAt  DateTime @default(now())
+
+  @@index([formId])
+}
+
+// phase-16 spec §11: structurally close to Tip (Phase 5 §6), extended with
+// an optional fundraising goal — the fourth reuse of the PaymentTransaction
+// ledger. Three-way organizer XOR, same width as Phase 8's Event hosting.
+model FundraisingCampaign {
+  id                      String        @id @default(uuid())
+  organizerType           String // user | business | organization
+  organizerUserId         String?
+  organizerUser           User?         @relation("FundraisingCampaignOrganizerUser", fields: [organizerUserId], references: [id], onDelete: Cascade)
+  organizerBusinessId     String?
+  organizerBusiness       Business?     @relation(fields: [organizerBusinessId], references: [id], onDelete: Cascade)
+  organizerOrganizationId String?
+  organizerOrganization   Organization? @relation(fields: [organizerOrganizationId], references: [id], onDelete: Cascade)
+  title                   String // 1-160 chars, validated at the app layer
+  goalAmount              Float? // nullable = ongoing, no stated goal
+  currency                String
+  raisedAmount            Float         @default(0) // denormalized, same pattern used throughout
+  endsAt                  DateTime?
+  status                  String        @default("active") // active | completed | cancelled
+  createdAt               DateTime      @default(now())
+
+  donations Donation[]
+
+  @@index([organizerUserId])
+  @@index([organizerBusinessId])
+  @@index([organizerOrganizationId])
+}
+
+// spec §11: is_anonymous hides the donor's identity from *public* display
+// only — the organizer still sees who donated, same "anonymous to whom"
+// distinction Phase 12 §4.2/Phase 13 §4.2 drew for reporter anonymity vs.
+// DMCA complainant disclosure.
+model Donation {
+  id                   String               @id @default(uuid())
+  campaignId           String?
+  campaign             FundraisingCampaign? @relation(fields: [campaignId], references: [id], onDelete: Cascade) // nullable = a direct donation, same shape as a Tip
+  donorId              String
+  donor                User                 @relation(fields: [donorId], references: [id], onDelete: Cascade)
+  amount               Float
+  currency             String
+  message              String?
+  isAnonymous          Boolean              @default(false)
+  paymentTransactionId String               @unique
+  paymentTransaction   PaymentTransaction   @relation(fields: [paymentTransactionId], references: [id], onDelete: Restrict)
+  createdAt            DateTime             @default(now())
+
+  @@index([campaignId])
+  @@index([donorId])
+}
+
+// phase-16 spec §12: extends Phase 5's Course/CourseModule/Lesson with
+// cross-course curricula and assessment — no second Course-equivalent
+// content table.
+model LearningPath {
+  id            String   @id @default(uuid())
+  creatorId     String
+  creator       User     @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  title         String // 1-160 chars, validated at the app layer
+  courseIdsJson String // JSON array of ordered Course id references
+  createdAt     DateTime @default(now())
+
+  @@index([creatorId])
+}
+
+model Quiz {
+  id            String   @id @default(uuid())
+  lessonId      String
+  lesson        Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  questionsJson String // JSON array of question objects
+  passingScore  Int
+  createdAt     DateTime @default(now())
+
+  attempts QuizAttempt[]
+
+  @@index([lessonId])
+}
+
+model QuizAttempt {
+  id          String   @id @default(uuid())
+  quizId      String
+  quiz        Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  score       Int
+  passed      Boolean
+  attemptedAt DateTime @default(now())
+
+  @@index([quizId, userId])
+}
+
+// phase-16 spec §13: deliberately narrow MVP — fixed three-stage pipeline,
+// not business-configurable, same scope-limit posture as this series'
+// other flagged heavy sub-efforts.
+model Contact {
+  id            String   @id @default(uuid())
+  businessId    String
+  business      Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  userId        String?
+  user          User?    @relation(fields: [userId], references: [id], onDelete: SetNull) // linked if this contact already has a 0dot account
+  externalName  String?
+  externalEmail String?
+  stage         String   @default("lead") // lead | customer | churned — fixed pipeline, not configurable
+  notes         String?
+  createdAt     DateTime @default(now())
+
+  activities Activity[]
+
+  @@index([businessId, stage])
+  @@index([userId])
+}
+
+// Most rows are derived automatically from existing touchpoints
+// (ContactMessage/Appointment/OfferingPurchase) rather than manually
+// re-entered — spec §13.2.
+model Activity {
+  id           String   @id @default(uuid())
+  contactId    String
+  contact      Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  activityType String // contact_message | appointment | purchase | manual_note
+  sourceId     String? // the originating ContactMessage/Appointment/OfferingPurchase row id, when derived
+  occurredAt   DateTime @default(now())
+
+  @@index([contactId, occurredAt])
 }

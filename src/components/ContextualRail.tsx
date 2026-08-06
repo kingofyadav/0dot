@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Bell, Bot, Globe, Link2, PenLine, Sparkles, TrendingUp, Palette, Users, BadgeCheck } from "lucide-react";
 import { getCurrentUser } from "@/lib/session";
 import { db } from "@/lib/db";
 import { getRecentNotificationsPreview, getNotificationVerb, getNotificationHref } from "@/lib/notifications";
@@ -30,18 +31,18 @@ export async function ContextualRail() {
       <section className="railSection">
         <div className="railSectionHeader">
           <h2>
-            <span aria-hidden="true">🔔</span> Notifications
+            <Bell size={16} aria-hidden="true" /> Notifications
           </h2>
           <Link href="/notifications">See all</Link>
         </div>
         {notifications.length === 0 && <EmptyState message="Nothing yet." />}
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+        <div className="stack">
           {notifications.map((n) => (
             <Link key={n.id} href={getNotificationHref(n, recipientHandle)} className="railNotificationItem">
               <strong>{n.actor?.profile?.displayName ?? "Someone"}</strong>
               {n.actor?.profile?.isVerified && (
                 <span className="verifiedBadge" title="Verified" aria-label="Verified">
-                  ✓
+                  <BadgeCheck size={14} aria-hidden="true" />
                 </span>
               )}{" "}
               {getNotificationVerb(n.type, n.subjectType)}
@@ -54,11 +55,11 @@ export async function ContextualRail() {
         <section className="railSection">
           <div className="railSectionHeader">
             <h2>
-              <span aria-hidden="true">👥</span> Suggested for you
+              <Users size={16} aria-hidden="true" /> Suggested for you
             </h2>
             <Link href="/explore">See all</Link>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+          <div className="stack">
             {suggestedUsers.map((u) => (
               <UserListItem
                 key={u.id}
@@ -66,13 +67,57 @@ export async function ContextualRail() {
                 handle={u.username?.handle ?? null}
                 displayName={u.profile?.displayName ?? "Unknown"}
                 avatarUrl={u.profile?.avatarUrl ?? null}
-                isVerified={u.profile?.isVerified ?? false}
                 isFollowing={followingSet.has(u.id)}
                 isSelf={false}
                 showFollowButton
+                showHandle={false}
               />
             ))}
           </div>
+        </section>
+      )}
+
+      <section className="railAiCard">
+        <div className="railSectionHeader">
+          <h2>
+            <Bot size={16} aria-hidden="true" /> AI tools
+          </h2>
+        </div>
+        <div className="railAiCardLinks">
+          <Link href={recipientHandle ? `/s/${recipientHandle}` : "/feed"} className="railAiCardLink">
+            <PenLine size={14} aria-hidden="true" /> Write my bio with AI
+          </Link>
+          <Link
+            href={recipientHandle ? `/s/${recipientHandle}/content/articles` : "/feed"}
+            className="railAiCardLink"
+          >
+            <Globe size={14} aria-hidden="true" /> Draft &amp; translate articles
+          </Link>
+        </div>
+      </section>
+
+      {recipientHandle && (
+        <section className="railPlanCard">
+          <div className="railPlanCardHeader">
+            <h2>
+              <Sparkles size={16} aria-hidden="true" /> 0dot Pro
+            </h2>
+            <span className="railPlanCardBadge">Upgrade</span>
+          </div>
+          <div className="railPlanCardPerks">
+            <div className="railPlanCardPerk">
+              <Link2 size={14} aria-hidden="true" /> Custom domain included
+            </div>
+            <div className="railPlanCardPerk">
+              <TrendingUp size={14} aria-hidden="true" /> Full-history link analytics
+            </div>
+            <div className="railPlanCardPerk">
+              <Palette size={14} aria-hidden="true" /> Extra curated themes
+            </div>
+          </div>
+          <Link href={`/s/${recipientHandle}`} className="button buttonSmall railPlanCardCta">
+            See plans
+          </Link>
         </section>
       )}
     </div>

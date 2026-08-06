@@ -52,6 +52,7 @@ export default async function ExplorePage({
       basePath="/explore"
       postableBusinesses={postableBusinesses}
       ownTiers={ownTiers}
+      showComposer={false}
     />
   );
 }

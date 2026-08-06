@@ -1,6 +1,7 @@
 import { Fragment } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import Link from "next/link";
+import { BadgeCheck, Check } from "lucide-react";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
@@ -13,6 +14,7 @@ import { getThemePreset, getSocialPlatformLabel, type SocialPlatform } from "@/l
 import { getFeedPosts, getVotedPollOptionIds } from "@/lib/feed-query";
 import { parseCursor } from "@/lib/pagination";
 import { Avatar } from "@/components/Avatar";
+import { EmptyState } from "@/components/EmptyState";
 import { SocialIcon } from "@/components/SocialIcon";
 import { CopyLinkButton } from "@/components/CopyLinkButton";
 import { PostCard } from "@/components/PostCard";
@@ -24,6 +26,11 @@ import { NewsletterSubscribeForm } from "@/components/NewsletterSubscribeForm";
 import { BecomeAffiliateForm } from "@/components/BecomeAffiliateForm";
 import { endorseSkill } from "@/app/actions/skills";
 import { parsePortfolioLayout } from "@/lib/portfolio-layout";
+
+// Fallback cover photo for any profile that hasn't set its own (replaces
+// the plain gradient .profileCoverPlaceholder) — per explicit direction,
+// same asset already live under kingofyadav's profile.
+const DEFAULT_COVER_URL = "/uploads/8b52a1d822e19f974165b7498189eb36.jpg";
 
 // Small display-only lookup: turns a program's offeringType/offeringId
 // pointer into a human label for BecomeAffiliateForm — the same
@@ -89,21 +96,34 @@ export default async function ProfilePage({
   const currentUser = await getCurrentUser();
   const isOwner = currentUser?.id === username.userId;
 
-  const [isFollowing, blockedByViewer, viewerBlockedByOwner] =
+  const [followRow, blockedByViewer, viewerBlockedByOwner] =
     currentUser && !isOwner
       ? await Promise.all([
-          db.follow
-            .findUnique({
-              where: { followerId_followeeId: { followerId: currentUser.id, followeeId: username.userId } },
-            })
-            .then((row) => row !== null),
+          db.follow.findUnique({
+            where: { followerId_followeeId: { followerId: currentUser.id, followeeId: username.userId } },
+            select: { status: true },
+          }),
           isBlocked(currentUser.id, username.userId),
           isBlocked(username.userId, currentUser.id),
         ])
-      : [false, false, false];
+      : [null, false, false];
+  // Only an "accepted" row counts as isFollowing (see followUser/
+  // acceptFollowRequest, src/app/actions/follow.ts) — a "pending" row (a
+  // request against a private account awaiting approval) must never itself
+  // grant follower-only access, or a private account's whole approval gate
+  // would be moot: anyone could unlock it just by clicking Follow once.
+  const isFollowing = followRow?.status === "accepted";
+  const isFollowRequestPending = followRow?.status === "pending";
   // If the owner has blocked the viewer, no Follow/Block controls render at
   // all — quietly, matching how most platforms don't advertise block state.
   const showViewerControls = currentUser && !isOwner && !viewerBlockedByOwner;
+
+  // Settings-page "Private profile" toggle (§ EditProfileForm): a visitor
+  // who is neither the owner nor an accepted follower only ever sees
+  // identity (avatar/name/bio) plus the Follow control — every content
+  // surface below (posts, links, portfolio, monetization) stays gated
+  // behind this, same posture as Instagram/Twitter private accounts.
+  const canViewFullProfile = isOwner || !profile.isPrivate || isFollowing;
 
   // spec §6: tipping gated on the profile owner having an active payout
   // account (spec §3.5's literal criterion, re-checked here rather than
@@ -119,7 +139,7 @@ export default async function ProfilePage({
       include: { fromUser: { include: { username: true, profile: true } } },
     }),
   ]);
-  const canTip = showViewerControls && payoutAccount?.status === "active";
+  const canTip = showViewerControls && canViewFullProfile && payoutAccount?.status === "active";
 
   // spec §4: only active tiers are ever offered on the public profile
   // (archived tiers stay visible to the owner on /s/[username] for
@@ -128,7 +148,7 @@ export default async function ProfilePage({
   // feature. A tier the viewer already has effectively active access to
   // (see tier-access.ts's same status+currentPeriodEnd check) is excluded
   // from the offer list — no point re-selling it.
-  const canSubscribe = showViewerControls && payoutAccount?.status === "active";
+  const canSubscribe = showViewerControls && canViewFullProfile && payoutAccount?.status === "active";
   const activeTiers = canSubscribe
     ? await db.membershipTier.findMany({ where: { creatorId: username.userId, status: "active" }, orderBy: { level: "asc" } })
     : [];
@@ -152,42 +172,53 @@ export default async function ProfilePage({
   // spec §11: a lightweight discovery list — the course's own page
   // (/[username]/courses/[courseId]) is where purchase/access/lesson
   // content actually lives, this is just "here's what's for sale."
-  const activeCourses = await db.course.findMany({
-    where: { creatorId: username.userId, status: "active" },
-    select: { id: true, title: true, price: true, currency: true },
-    orderBy: { createdAt: "desc" },
-  });
+  const activeCourses = canViewFullProfile
+    ? await db.course.findMany({
+        where: { creatorId: username.userId, status: "active" },
+        select: { id: true, title: true, price: true, currency: true },
+        orderBy: { createdAt: "desc" },
+      })
+    : [];
 
   // phase-9 spec §3.2: a lightweight discovery link to the full storefront/
   // booking page — same "here's what's for sale, full page has the actual
   // checkout/booking flow" posture as activeCourses above.
-  const hasFreelanceServices = (await db.offering.count({ where: { sellerUserId: username.userId, status: "active" } })) > 0;
+  const hasFreelanceServices =
+    canViewFullProfile && (await db.offering.count({ where: { sellerUserId: username.userId, status: "active" } })) > 0;
 
   // spec §3.3: unlisted projects are excluded from this listing (still
   // resolve directly at /p/{slug} — see that page) unless the viewer is the
   // owner, same "owner sees everything, everyone else sees only what's
-  // meant to be public" posture pending businesses use.
-  const visibleProjects = await db.project.findMany({
-    where: {
-      ownerId: username.userId,
-      status: { not: "archived" },
-      ...(isOwner ? {} : { visibility: "public" }),
-    },
-    select: { id: true, slug: true, title: true, summary: true, likeCount: true },
-    orderBy: { createdAt: "desc" },
-  });
+  // meant to be public" posture pending businesses use. A private profile
+  // (canViewFullProfile false) hides the whole list from a non-follower,
+  // same as every other content surface below.
+  const visibleProjects = canViewFullProfile
+    ? await db.project.findMany({
+        where: {
+          ownerId: username.userId,
+          status: { not: "archived" },
+          ...(isOwner ? {} : { visibility: "public" }),
+        },
+        select: { id: true, slug: true, title: true, summary: true, likeCount: true },
+        orderBy: { createdAt: "desc" },
+      })
+    : [];
 
   // spec §4.1/§4.2: any logged-in, non-owner viewer may endorse — this set
   // just drives the endorsed/not-endorsed button state for this viewer.
-  const standaloneRepositories = await db.gitRepository.findMany({
-    where: { profileId: profile.id, projectId: null },
-  });
+  const standaloneRepositories = canViewFullProfile
+    ? await db.gitRepository.findMany({
+        where: { profileId: profile.id, projectId: null },
+      })
+    : [];
 
-  const [publicResearchPapers, publicCertificates, publicAwards] = await Promise.all([
-    db.researchPaper.findMany({ where: { profileId: profile.id }, orderBy: { publishDate: "desc" } }),
-    db.certificate.findMany({ where: { profileId: profile.id }, orderBy: { issueDate: "desc" } }),
-    db.award.findMany({ where: { profileId: profile.id }, orderBy: { awardedDate: "desc" } }),
-  ]);
+  const [publicResearchPapers, publicCertificates, publicAwards] = canViewFullProfile
+    ? await Promise.all([
+        db.researchPaper.findMany({ where: { profileId: profile.id }, orderBy: { publishDate: "desc" } }),
+        db.certificate.findMany({ where: { profileId: profile.id }, orderBy: { issueDate: "desc" } }),
+        db.award.findMany({ where: { profileId: profile.id }, orderBy: { awardedDate: "desc" } }),
+      ])
+    : [[], [], []];
 
   const endorsedSkillIds =
     currentUser && !isOwner && profile.skills.length > 0
@@ -207,9 +238,9 @@ export default async function ProfilePage({
   // renders in the fixed sequence phases 1-5 established, per the plan's
   // narrow scoping of this to just the sections built in this phase).
   const portfolioLayout = parsePortfolioLayout(profile.portfolioLayoutJson);
-  const visiblePortfolioSectionKeys = new Set(
-    portfolioLayout.filter((e) => e.visible).map((e) => e.key)
-  );
+  const visiblePortfolioSectionKeys = canViewFullProfile
+    ? new Set(portfolioLayout.filter((e) => e.visible).map((e) => e.key))
+    : new Set<string>();
   const portfolioSectionOrder = portfolioLayout.map((e) => e.key);
 
   const projectsSection =
@@ -368,7 +399,7 @@ export default async function ProfilePage({
   // has payouts enabled. ownedProductIds marks which active products the
   // viewer already bought, so DigitalProductCard renders a Download control
   // instead of a Buy form for those.
-  const canBuy = showViewerControls && payoutAccount?.status === "active";
+  const canBuy = showViewerControls && canViewFullProfile && payoutAccount?.status === "active";
   const activeProducts = canBuy
     ? await db.digitalProduct.findMany({ where: { creatorId: username.userId, status: "active" }, orderBy: { createdAt: "desc" } })
     : [];
@@ -390,30 +421,36 @@ export default async function ProfilePage({
   // visible-but-locked item rather than disappearing outright... except
   // podcasts have no "locked teaser" UI yet, so PodcastEpisodesList's Play
   // button is what actually enforces the gate server-side, per spec §9.3.
-  const podcast = await db.podcast.findFirst({
-    where: { creatorId: username.userId },
-    include: { episodes: { orderBy: { episodeNumber: "asc" }, include: { requiredTier: { select: { name: true } } } } },
-  });
+  const podcast = canViewFullProfile
+    ? await db.podcast.findFirst({
+        where: { creatorId: username.userId },
+        include: { episodes: { orderBy: { episodeNumber: "asc" }, include: { requiredTier: { select: { name: true } } } } },
+      })
+    : null;
 
   // spec §12: newsletter has no in-app producer of its own (delivered via
   // email), so this section is just the subscribe form — no "recent
   // issues" list here, matching §10.1's subscriber-list privacy (only the
   // creator sees who's subscribed, never public).
-  const hasNewsletter = (await db.newsletterIssue.count({ where: { creatorId: username.userId } })) > 0
-    || (await db.newsletterSubscription.count({ where: { creatorId: username.userId } })) > 0;
+  const hasNewsletter = canViewFullProfile && (
+    (await db.newsletterIssue.count({ where: { creatorId: username.userId } })) > 0
+    || (await db.newsletterSubscription.count({ where: { creatorId: username.userId } })) > 0
+  );
 
-  const liveLivestreams = await db.livestream.findMany({
-    where: { creatorId: username.userId, status: { in: ["live", "scheduled"] } },
-    orderBy: { createdAt: "desc" },
-    include: { requiredTier: { select: { name: true } } },
-  });
+  const liveLivestreams = canViewFullProfile
+    ? await db.livestream.findMany({
+        where: { creatorId: username.userId, status: { in: ["live", "scheduled"] } },
+        orderBy: { createdAt: "desc" },
+        include: { requiredTier: { select: { name: true } } },
+      })
+    : [];
 
   // spec §7.1: a non-owner signed-in visitor can become an affiliate for
   // any of this creator's active programs — the one discovery surface this
   // build gives affiliate programs (no separate marketplace/browse page,
   // out of scope per §7.1's "deliberately narrow" framing).
   const activeAffiliatePrograms =
-    showViewerControls && currentUser
+    showViewerControls && canViewFullProfile && currentUser
       ? await db.affiliateProgram.findMany({
           where: { creatorId: username.userId, status: "active" },
           include: {
@@ -429,11 +466,13 @@ export default async function ProfilePage({
   // same block/private-community/pending-business visibility filtering as
   // Home/Explore/Trending, since this is just as much a public-facing post
   // list as those surfaces are.
-  const { items: posts, nextCursor } = await getFeedPosts({
-    authorFilter: { authorId: { in: [username.userId] } },
-    cursor,
-    viewerId: currentUser?.id ?? null,
-  });
+  const { items: posts, nextCursor } = canViewFullProfile
+    ? await getFeedPosts({
+        authorFilter: { authorId: { in: [username.userId] } },
+        cursor,
+        viewerId: currentUser?.id ?? null,
+      })
+    : { items: [], nextCursor: null };
 
   const postIds = posts.map((p) => p.id);
   const [likedPostIds, bookmarkedPostIds] = currentUser
@@ -449,7 +488,9 @@ export default async function ProfilePage({
   const votedOptionIds = await getVotedPollOptionIds(currentUser?.id, posts);
 
   const now = new Date();
-  const visibleLinks = profile.links
+  const visibleLinks = !canViewFullProfile
+    ? []
+    : profile.links
     .filter((link) => {
       if (isOwner) return true; // owners see scheduled links too, managed at /s/{handle}
       if (link.startsAt && link.startsAt > now) return false;
@@ -483,31 +524,43 @@ export default async function ProfilePage({
       }
     >
       <div className="profileCover">
-        {profile.coverUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element -- user-supplied URL, not a local/optimizable asset
-          <img src={profile.coverUrl} alt="" className="profileCoverImg" />
-        ) : (
-          <div className="profileCoverPlaceholder" />
-        )}
+        {/* eslint-disable-next-line @next/next/no-img-element -- user-supplied URL, not a local/optimizable asset */}
+        <img src={profile.coverUrl ?? DEFAULT_COVER_URL} alt="" className="profileCoverImg" />
       </div>
       <div className="profileHeaderRow">
         <Avatar src={profile.avatarUrl} alt={profile.displayName} size={96} className="profileAvatar" />
         <div className="profileHeaderInfo">
-          {/* Name and primary actions (Follow/Message for a visitor, Edit
-              profile for the owner) share one row — the two things
-              competing hardest for attention here, so they're grouped and
-              given a deliberate gap rather than the name/buttons crowding
-              together with whatever space was left over. Wraps to its own
-              line, still left-aligned under the name, once both can't fit. */}
-          <div className="profileIdentityRow">
+          {/* Name, primary actions (Follow/Message for a visitor, Edit
+              profile for the owner), and the link/follower/following stats
+              are three flex items sharing one wrapping row (.profileIdentityStack,
+              globals.css) rather than two stacked rows — on desktop there's
+              room for name+actions to sit side by side with stats below
+              (.profileMeta's flex-basis:100% forces that line break
+              regardless of remaining space); on mobile (see that class's
+              max-width:639px override) the CSS `order` swaps stats ahead of
+              actions, so the sequence reads name -> stats -> actions instead
+              of name -> actions -> stats once actions no longer fit next to
+              the name and drops to its own line anyway. */}
+          <div className="profileIdentityStack">
             <h1 className="profileName">
               {profile.displayName}
               {profile.isVerified && (
                 <span className="verifiedBadge" title="Verified" aria-label="Verified">
-                  ✓
+                  <BadgeCheck size={14} aria-hidden="true" />
                 </span>
               )}
             </h1>
+            <div className="profileMeta">
+              <span className="profileMetaItem">
+                <strong>{visibleLinks.length}</strong> link{visibleLinks.length === 1 ? "" : "s"}
+              </span>
+              <Link href={`/${username.handle}/followers`} className="profileMetaItem">
+                <strong>{profile.followerCount}</strong> follower{profile.followerCount === 1 ? "" : "s"}
+              </Link>
+              <Link href={`/${username.handle}/following`} className="profileMetaItem">
+                <strong>{profile.followingCount}</strong> following
+              </Link>
+            </div>
             {(isOwner || showViewerControls) && (
               <div className="profileActions">
                 {showResumeLink && (
@@ -522,14 +575,15 @@ export default async function ProfilePage({
                 )}
                 {showViewerControls && (
                   <>
-                    <form action={isFollowing ? unfollowUser : followUser}>
+                    <form action={isFollowing || isFollowRequestPending ? unfollowUser : followUser}>
                       <input type="hidden" name="followeeId" value={username.userId} />
                       <button
                         type="submit"
-                        className={`button${isFollowing ? " buttonSecondary" : ""}`}
+                        className={`button${isFollowing || isFollowRequestPending ? " buttonSecondary" : ""}`}
                         aria-pressed={isFollowing}
+                        title={isFollowRequestPending ? "Cancel follow request" : undefined}
                       >
-                        {isFollowing ? "Following" : "Follow"}
+                        {isFollowing ? "Following" : isFollowRequestPending ? "Requested" : "Follow"}
                       </button>
                     </form>
                     {/* Reachable regardless of follow state — this is the
@@ -549,15 +603,6 @@ export default async function ProfilePage({
                 )}
               </div>
             )}
-          </div>
-          <div className="profileMeta">
-            <span>{visibleLinks.length} link{visibleLinks.length === 1 ? "" : "s"}</span>
-            <Link href={`/${username.handle}/followers`}>
-              {profile.followerCount} follower{profile.followerCount === 1 ? "" : "s"}
-            </Link>
-            <Link href={`/${username.handle}/following`}>
-              {profile.followingCount} following
-            </Link>
           </div>
         </div>
       </div>
@@ -602,8 +647,8 @@ export default async function ProfilePage({
             <div style={{ marginTop: "0.6rem", display: "flex", flexDirection: "column", gap: "0.5rem", maxWidth: "32ch" }}>
               {activeTiers.map((tier) =>
                 viewerTierAccessIds.has(tier.id) ? (
-                  <p key={tier.id} className="mutedText" style={{ fontSize: "0.85rem" }}>
-                    ✓ Subscribed — {tier.name}
+                  <p key={tier.id} className="mutedText" style={{ display: "flex", alignItems: "center", gap: "0.3rem", fontSize: "0.85rem" }}>
+                    <Check size={14} aria-hidden="true" /> Subscribed — {tier.name}
                   </p>
                 ) : (
                   <div key={tier.id}>
@@ -633,8 +678,8 @@ export default async function ProfilePage({
         {orderedPortfolioSections}
 
         {hasFreelanceServices && (
-          <Link href={`/${username.handle}/services`} className="profileEditToggle" style={{ display: "block" }}>
-            <span className="mutedText" style={{ fontSize: "0.85rem" }}>Services →</span>
+          <Link href={`/${username.handle}/services`} className="profileEditToggle">
+            Services →
           </Link>
         )}
 
@@ -718,8 +763,8 @@ export default async function ProfilePage({
             <div style={{ marginTop: "0.6rem", display: "flex", flexDirection: "column", gap: "0.5rem", maxWidth: "32ch" }}>
               {activeAffiliatePrograms.map((program) =>
                 program.links.length > 0 ? (
-                  <p key={program.id} className="mutedText" style={{ fontSize: "0.85rem" }}>
-                    ✓ Your link: /aff/{program.links[0].code}
+                  <p key={program.id} className="mutedText" style={{ display: "flex", alignItems: "center", gap: "0.3rem", fontSize: "0.85rem" }}>
+                    <Check size={14} aria-hidden="true" /> Your link: /aff/{program.links[0].code}
                   </p>
                 ) : (
                   <BecomeAffiliateForm
@@ -737,7 +782,7 @@ export default async function ProfilePage({
         {/* phase-12 spec §4.1: the generic report action, reused here for
             account-level reports the same way PostCard reuses it for
             content reports — one ReportButton, every subjectType. */}
-        {showViewerControls && !blockedByViewer && <ReportButton subjectType="user" subjectId={username.userId} small={false} />}
+        {showViewerControls && !blockedByViewer && <ReportButton subjectType="user" subjectId={username.userId} />}
 
         {showViewerControls && (
           blockedByViewer ? (
@@ -770,7 +815,7 @@ export default async function ProfilePage({
         )}
       </div>
 
-      {recentTips.length > 0 && (
+      {canViewFullProfile && recentTips.length > 0 && (
         <div style={{ marginTop: "0.75rem", display: "flex", flexDirection: "column", gap: "0.4rem" }}>
           <p className="sectionHeading">Recent tips</p>
           {recentTips.map((tip) => (
@@ -790,7 +835,7 @@ export default async function ProfilePage({
         </div>
       )}
 
-      {profile.socialLinks.length > 0 && (
+      {canViewFullProfile && profile.socialLinks.length > 0 && (
         <div className="socialLinksRow">
           {profile.socialLinks.map((social) => (
             <a
@@ -798,16 +843,26 @@ export default async function ProfilePage({
               href={social.url}
               target="_blank"
               rel="noopener noreferrer nofollow"
-              className="button buttonSecondary buttonSmall"
-              style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem" }}
+              className="socialIconLink"
+              aria-label={getSocialPlatformLabel(social.platform)}
+              title={getSocialPlatformLabel(social.platform)}
             >
               <SocialIcon platform={social.platform as SocialPlatform} />
-              {getSocialPlatformLabel(social.platform)}
             </a>
           ))}
         </div>
       )}
 
+      {!canViewFullProfile ? (
+        <EmptyState
+          message={
+            isFollowRequestPending
+              ? `This account is private. Your follow request to @${username.handle} is pending approval.`
+              : `This account is private. Follow @${username.handle} to see their posts and links.`
+          }
+        />
+      ) : (
+        <>
       <div className="linksSection">
         {visibleLinks.length > 0 && <p className="sectionHeading">Links</p>}
         {visibleLinks.length === 0 && (
@@ -830,10 +885,10 @@ export default async function ProfilePage({
         ))}
       </div>
 
-      <div className="linksSection">
+      <div className="postsSection">
         <p className="sectionHeading">Posts</p>
-        {posts.length === 0 && <p className="mutedText">No posts yet.</p>}
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+        {posts.length === 0 && <EmptyState message="No posts yet." />}
+        <div className="itemStack">
           {posts.map((post) => (
             <PostCard
               key={post.id}
@@ -855,6 +910,8 @@ export default async function ProfilePage({
           </Link>
         )}
       </div>
+      </>
+      )}
     </div>
   );
 }

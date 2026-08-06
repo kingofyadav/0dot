@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { BadgeCheck, Calendar, Palette, ShoppingBag } from "lucide-react";
 import { getCurrentUser } from "@/lib/session";
 import { Logo } from "@/components/Logo";
 import { AuthTabs } from "@/components/AuthTabs";
@@ -41,6 +42,47 @@ export default async function Home() {
             </li>
           ))}
         </ul>
+
+        <div className="landingPreview" aria-hidden="true">
+          <div className="landingPreviewChrome">
+            <span className="landingPreviewDot" />
+            <span className="landingPreviewDot" />
+            <span className="landingPreviewDot" />
+            <span className="landingPreviewUrl">0dot.in/priya</span>
+          </div>
+          <div className="landingPreviewBody">
+            <div className="landingPreviewCover" />
+            <div className="landingPreviewHeaderRow">
+              <span className="landingPreviewAvatar" />
+              <div className="landingPreviewIdentity">
+                <div className="landingPreviewName">
+                  Priya Sharma
+                  <span className="verifiedBadge">
+                    <BadgeCheck size={13} aria-hidden="true" />
+                  </span>
+                </div>
+                <div className="landingPreviewHandle">Designer &amp; Creator</div>
+              </div>
+            </div>
+            <div className="landingPreviewStats">
+              <span><strong>12.4k</strong> followers</span>
+              <span><strong>340</strong> following</span>
+              <span><strong>28</strong> links</span>
+            </div>
+            <div className="landingPreviewLinks">
+              <div className="landingPreviewLink">
+                <Palette size={14} aria-hidden="true" /> Portfolio
+              </div>
+              <div className="landingPreviewLink">
+                <ShoppingBag size={14} aria-hidden="true" /> Shop my designs
+              </div>
+              <div className="landingPreviewLink">
+                <Calendar size={14} aria-hidden="true" /> Book a call
+              </div>
+            </div>
+          </div>
+          <span className="landingPreviewBadge">Live preview</span>
+        </div>
       </section>
 
       <AuthTabs />

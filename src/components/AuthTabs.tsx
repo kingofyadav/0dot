@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { signup, login } from "@/app/actions/auth";
 import { Logo } from "./Logo";
 import { AuthTrust } from "./AuthTrust";
+import { COUNTRY_CODES } from "@/lib/country-codes";
 
 export function AuthTabs() {
   const [tab, setTab] = useState<"signup" | "login">("signup");
@@ -16,9 +17,9 @@ export function AuthTabs() {
     undefined
   );
   // Controlled, unlike the login password field below — a failed submit
-  // shouldn't force retyping the email too, only the password that was
+  // shouldn't force retyping the identifier too, only the password that was
   // actually wrong.
-  const [loginEmail, setLoginEmail] = useState("");
+  const [loginIdentifier, setLoginIdentifier] = useState("");
 
   return (
     <div className="authCard">
@@ -88,6 +89,47 @@ export function AuthTabs() {
               />
             </div>
 
+            <div className="field">
+              <label htmlFor="signup-phoneNumber">Mobile number</label>
+              <div style={{ display: "flex", gap: "0.5rem" }}>
+                <select
+                  id="signup-phoneDialCode"
+                  name="phoneDialCode"
+                  autoComplete="tel-country-code"
+                  defaultValue="91"
+                  style={{ flex: "0 0 auto" }}
+                  required
+                >
+                  {COUNTRY_CODES.map((c) => (
+                    <option key={c.iso} value={c.dialCode}>
+                      {c.iso} +{c.dialCode}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  id="signup-phoneNumber"
+                  name="phoneNumber"
+                  type="tel"
+                  inputMode="numeric"
+                  autoComplete="tel-national"
+                  placeholder="9876543210"
+                  style={{ flex: "1 1 0%", minWidth: 0 }}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="field">
+              <label htmlFor="signup-dateOfBirth">Date of birth</label>
+              <input
+                id="signup-dateOfBirth"
+                name="dateOfBirth"
+                type="date"
+                autoComplete="bday"
+                required
+              />
+            </div>
+
             {signupState?.error && (
               <p className="errorText">{signupState.error}</p>
             )}
@@ -112,15 +154,15 @@ export function AuthTabs() {
             style={{ display: "flex", flexDirection: "column", gap: "1rem" }}
           >
             <div className="field">
-              <label htmlFor="login-email">Email</label>
+              <label htmlFor="login-identifier">Email, username, or mobile number</label>
               <input
-                id="login-email"
-                name="email"
-                type="email"
-                autoComplete="email"
+                id="login-identifier"
+                name="identifier"
+                type="text"
+                autoComplete="username"
                 required
-                value={loginEmail}
-                onChange={(e) => setLoginEmail(e.target.value)}
+                value={loginIdentifier}
+                onChange={(e) => setLoginIdentifier(e.target.value)}
               />
             </div>
 

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BadgeCheck } from "lucide-react";
 import { followUser, unfollowUser } from "@/app/actions/follow";
 import { Avatar } from "@/components/Avatar";
 
@@ -10,19 +11,22 @@ export function UserListItem({
   handle,
   displayName,
   avatarUrl,
-  isVerified,
   isFollowing,
   isSelf,
   showFollowButton,
+  showHandle = true,
 }: {
   userId: string;
   handle: string | null;
   displayName: string;
   avatarUrl: string | null;
-  isVerified: boolean;
   isFollowing: boolean;
   isSelf: boolean;
   showFollowButton: boolean;
+  // Compact rail contexts (ContextualRail's "Suggested for you") drop the
+  // "0dot.in/handle" line — not enough width for avatar + name + handle +
+  // Follow button on one row, and the badge already covers "view profile".
+  showHandle?: boolean;
 }) {
   return (
     <div className="profileLinkItem" style={{ justifyContent: "space-between" }}>
@@ -32,16 +36,44 @@ export function UserListItem({
       >
         <Avatar src={avatarUrl} alt="" size={40} />
         <span style={{ minWidth: 0, overflow: "hidden" }}>
-          <span style={{ fontWeight: 600, display: "block" }}>
-            {displayName}
-            {isVerified && (
-              <span className="verifiedBadge" title="Verified" aria-label="Verified">
-                ✓
+          <span style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
+            <span
+              style={{
+                fontWeight: 600,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                minWidth: 0,
+              }}
+            >
+              {displayName}
+            </span>
+            {/* Blue tick badge, same treatment as PostCard's AuthorLine and
+                ConversationListItem — not a separate link here since the
+                whole row is already a Link to this same profile. Sibling of
+                the name (not inline inside it) so it can't wrap onto its
+                own line when the name is close to the available width. */}
+            {handle && (
+              <span
+                className="verifiedBadge"
+                style={{ marginLeft: 0, flexShrink: 0 }}
+                aria-label="View public profile"
+                title="View public profile"
+              >
+                <BadgeCheck size={14} aria-hidden="true" />
               </span>
             )}
           </span>
-          {handle && (
-            <span className="mutedText" style={{ display: "block" }}>
+          {showHandle && handle && (
+            <span
+              className="mutedText"
+              style={{
+                display: "block",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
               0dot.in/{handle}
             </span>
           )}

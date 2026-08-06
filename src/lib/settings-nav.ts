@@ -1,12 +1,11 @@
-"use client";
+export type SettingsNavItem = { href: string; label: string };
+export type SettingsNavGroup = { label: string; items: SettingsNavItem[] };
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-
-type NavItem = { href: string; label: string };
-type NavGroup = { label: string; items: NavItem[] };
-
-function groups(handle: string): NavGroup[] {
+// Single source of truth for the settings section list — shared by
+// NavLinks' Settings accordion (the master left nav's persistent settings
+// nav) and AccountMenu (the header dropdown's Settings submenu) so the two
+// never drift out of sync.
+export function settingsNavGroups(handle: string): SettingsNavGroup[] {
   const base = `/s/${handle}`;
   return [
     {
@@ -15,6 +14,10 @@ function groups(handle: string): NavGroup[] {
         { href: base, label: "Edit profile" },
         { href: `${base}/links`, label: "Links" },
       ],
+    },
+    {
+      label: "Security",
+      items: [{ href: `${base}/security`, label: "Change password" }],
     },
     {
       label: "Portfolio",
@@ -45,9 +48,19 @@ function groups(handle: string): NavGroup[] {
         { href: `${base}/content/books`, label: "Books" },
         { href: `${base}/content/files`, label: "Files" },
         { href: `${base}/content/courses`, label: "Courses" },
+        { href: `${base}/content/learning-paths`, label: "Learning paths" },
         { href: `${base}/content/podcast`, label: "Podcast" },
         { href: `${base}/content/newsletter`, label: "Newsletter" },
         { href: `${base}/content/livestreams`, label: "Livestreams" },
+      ],
+    },
+    {
+      label: "Tools",
+      items: [
+        { href: `${base}/card`, label: "Business card" },
+        { href: `${base}/short-links`, label: "Short links" },
+        { href: `${base}/calendar`, label: "Calendar" },
+        { href: `${base}/forms`, label: "Forms & surveys" },
       ],
     },
     {
@@ -57,41 +70,9 @@ function groups(handle: string): NavGroup[] {
         { href: `${base}/authorized-apps`, label: "Authorized apps" },
       ],
     },
+    {
+      label: "Notifications",
+      items: [{ href: `${base}/notifications`, label: "Push & delivery" }],
+    },
   ];
-}
-
-// GitHub/Stripe/Linear-style persistent grouped sub-nav for the settings
-// area — replaces the flat 918-line single-scroll page's implicit
-// "section order" with real navigation. Client component only for
-// usePathname's active-link highlighting; every actual section is still a
-// plain Server Component page.
-export function SettingsSidebar({ handle }: { handle: string }) {
-  const pathname = usePathname();
-  const indexHref = `/s/${handle}`;
-
-  return (
-    <nav className="settingsSidebar" aria-label="Settings">
-      {groups(handle).map((group) => (
-        <div key={group.label} className="settingsNavGroup">
-          <span className="settingsNavGroupLabel">{group.label}</span>
-          {group.items.map((item) => {
-            // Exact match for the index route (otherwise it'd also light
-            // up as a prefix of every other /s/{handle}/* route); prefix
-            // match for everything else.
-            const isActive = item.href === indexHref ? pathname === indexHref : pathname.startsWith(item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`settingsNavLink${isActive ? " settingsNavLinkActive" : ""}`}
-                aria-current={isActive ? "page" : undefined}
-              >
-                {item.label}
-              </Link>
-            );
-          })}
-        </div>
-      ))}
-    </nav>
-  );
 }

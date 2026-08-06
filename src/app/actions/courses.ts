@@ -6,6 +6,7 @@ import { requireVerifiedUser } from "@/lib/auth-guards";
 import { saveProtectedFile, issueDownloadToken } from "@/lib/protected-storage";
 import { getPaymentProcessor, recordPaymentTransaction } from "@/lib/payments";
 import { hasCourseAccess } from "@/lib/course-access";
+import { checkCourseCompletion } from "@/lib/learning-completion";
 import { getAttributedAffiliateLink, creditAffiliateConversion } from "@/lib/affiliate";
 import { notifyAffiliateConversion } from "@/lib/notifications";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -281,6 +282,8 @@ export async function markLessonComplete(formData: FormData): Promise<void> {
     create: { userId: user.id, lessonId },
     update: {},
   });
+
+  await checkCourseCompletion(user.id, lesson.module.courseId);
 
   const creatorUsername = await db.username.findUnique({ where: { userId: lesson.module.course.creatorId }, select: { handle: true } });
   if (creatorUsername) revalidatePath(`/${creatorUsername.handle}/courses/${lesson.module.courseId}`);

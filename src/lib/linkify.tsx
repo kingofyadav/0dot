@@ -27,6 +27,19 @@ export function extractMentionedHandles(body: string): string[] {
   return [...handles];
 }
 
+// Twitter-style body clipping so one very long post doesn't dominate the
+// feed — cuts at the nearest preceding space so "Show more" never splits a
+// word (or a @mention/#hashtag token) in half. Splitting on the raw string
+// before linkifying means an @mention/link straddling the cut point can
+// still get separated across shown/rest; accepted, same as the pre-
+// existing 500-char createPost/editPost limit already truncating mid-token
+// in the worst case.
+export function splitPostBody(body: string, limit = 280): { shown: string; rest: string | null } {
+  if (body.length <= limit) return { shown: body, rest: null };
+  const cut = body.lastIndexOf(" ", limit);
+  return { shown: body.slice(0, cut > 0 ? cut : limit), rest: body.slice(cut > 0 ? cut : limit) };
+}
+
 export function linkifyPostBody(body: string): ReactNode[] {
   const parts = body.split(TOKEN_PATTERN);
 

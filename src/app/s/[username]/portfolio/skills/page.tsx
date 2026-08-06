@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { ChevronUp, ChevronDown, X } from "lucide-react";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { deleteSkill, moveSkill } from "@/app/actions/skills";
@@ -30,16 +31,16 @@ export default async function SkillsSettingsPage() {
               <form action={moveSkill}>
                 <input type="hidden" name="skillId" value={skill.id} />
                 <input type="hidden" name="direction" value="up" />
-                <button type="submit" className="button buttonSecondary iconButton" disabled={index === 0} aria-label="Move up">↑</button>
+                <button type="submit" className="button buttonSecondary iconButton" disabled={index === 0} aria-label="Move up"><ChevronUp size={16} aria-hidden="true" /></button>
               </form>
               <form action={moveSkill}>
                 <input type="hidden" name="skillId" value={skill.id} />
                 <input type="hidden" name="direction" value="down" />
-                <button type="submit" className="button buttonSecondary iconButton" disabled={index === mySkills.length - 1} aria-label="Move down">↓</button>
+                <button type="submit" className="button buttonSecondary iconButton" disabled={index === mySkills.length - 1} aria-label="Move down"><ChevronDown size={16} aria-hidden="true" /></button>
               </form>
               <form action={deleteSkill}>
                 <input type="hidden" name="skillId" value={skill.id} />
-                <button type="submit" className="button buttonSecondary iconButton" aria-label="Delete skill">✕</button>
+                <button type="submit" className="button buttonSecondary iconButton" aria-label="Delete skill"><X size={16} aria-hidden="true" /></button>
               </form>
             </span>
           </div>

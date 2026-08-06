@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { getCurrentUser } from "@/lib/session";
+import { EmptyState } from "@/components/EmptyState";
 import { PostCard, type FeedPost } from "@/components/PostCard";
 import { ComposeBox } from "@/app/feed/ComposeBox";
 import { PollComposeForm } from "@/app/feed/PollComposeForm";
@@ -78,7 +79,7 @@ export function CommunityFeedList({
       )}
 
       <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-        {pinned.length === 0 && posts.length === 0 && <p className="mutedText">No posts yet.</p>}
+        {pinned.length === 0 && posts.length === 0 && <EmptyState message="No posts yet." />}
         {pinned.map((post) => (
           <PostCard
             key={post.id}

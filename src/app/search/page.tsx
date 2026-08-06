@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { BadgeCheck } from "lucide-react";
+import { EmptyState } from "@/components/EmptyState";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { getPostVisibilityConditions } from "@/lib/post-visibility";
@@ -181,13 +183,13 @@ export default async function SearchPage({
 
       {q.length > 0 && tab === "users" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-          {users.length === 0 && <p className="mutedText">No users found for &ldquo;{q}&rdquo;.</p>}
+          {users.length === 0 && <EmptyState message={`No users found for "${q}".`} />}
           {users.map((row) => (
             <Link key={row.id} href={`/${row.handle}`} className="profileLinkItem" style={{ fontWeight: 600 }}>
               {row.user.profile?.displayName ?? row.handle}
               {row.user.profile?.isVerified && (
                 <span className="verifiedBadge" title="Verified" aria-label="Verified">
-                  ✓
+                  <BadgeCheck size={14} aria-hidden="true" />
                 </span>
               )}
               <span className="mutedText" style={{ marginLeft: "0.5rem" }}>
@@ -200,7 +202,7 @@ export default async function SearchPage({
 
       {q.length > 0 && tab === "posts" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-          {posts.length === 0 && <p className="mutedText">No posts found for &ldquo;{q}&rdquo;.</p>}
+          {posts.length === 0 && <EmptyState message={`No posts found for "${q}".`} />}
           {posts.map((post) => (
             <Link
               key={post.id}
@@ -212,7 +214,7 @@ export default async function SearchPage({
                 {post.author.profile?.displayName ?? "Unknown"}
                 {post.author.profile?.isVerified && (
                   <span className="verifiedBadge" title="Verified" aria-label="Verified">
-                    ✓
+                    <BadgeCheck size={14} aria-hidden="true" />
                   </span>
                 )}
                 {post.author.username ? ` · 0dot.in/${post.author.username.handle}` : ""}
@@ -225,7 +227,7 @@ export default async function SearchPage({
 
       {q.length > 0 && tab === "communities" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-          {communities.length === 0 && <p className="mutedText">No communities found for &ldquo;{q}&rdquo;.</p>}
+          {communities.length === 0 && <EmptyState message={`No communities found for "${q}".`} />}
           {communities.map((community) => (
             <Link
               key={community.id}
@@ -244,13 +246,13 @@ export default async function SearchPage({
 
       {q.length > 0 && tab === "businesses" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-          {businesses.length === 0 && <p className="mutedText">No businesses found for &ldquo;{q}&rdquo;.</p>}
+          {businesses.length === 0 && <EmptyState message={`No businesses found for "${q}".`} />}
           {businesses.map((business) => (
             <Link key={business.id} href={`/b/${business.slug}`} className="profileLinkItem" style={{ fontWeight: 600 }}>
               {business.name}
               {business.isVerified && (
                 <span className="verifiedBadge" title="Verified" aria-label="Verified">
-                  ✓
+                  <BadgeCheck size={14} aria-hidden="true" />
                 </span>
               )}
               <span className="mutedText" style={{ marginLeft: "0.5rem" }}>
@@ -263,7 +265,7 @@ export default async function SearchPage({
       )}
       {q.length > 0 && tab === "projects" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-          {projects.length === 0 && <p className="mutedText">No projects found for &ldquo;{q}&rdquo;.</p>}
+          {projects.length === 0 && <EmptyState message={`No projects found for "${q}".`} />}
           {projects.map((project) => (
             <Link key={project.id} href={`/p/${project.slug}`} className="profileLinkItem" style={{ fontWeight: 600 }}>
               {project.title}
@@ -277,7 +279,7 @@ export default async function SearchPage({
       )}
       {q.length > 0 && tab === "knowledge" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-          {knowledge.length === 0 && <p className="mutedText">No articles or docs found for &ldquo;{q}&rdquo;.</p>}
+          {knowledge.length === 0 && <EmptyState message={`No articles or docs found for "${q}".`} />}
           {knowledge.map((row) => (
             <Link key={`${row.type}-${row.id}`} href={row.href} className="profileLinkItem" style={{ flexDirection: "column", alignItems: "stretch", gap: "0.15rem" }}>
               <span style={{ fontWeight: 600 }}>{row.title}</span>
@@ -308,7 +310,7 @@ export default async function SearchPage({
             </Link>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-            {events.length === 0 && <p className="mutedText">No {eventsWhen} events found for &ldquo;{q}&rdquo;.</p>}
+            {events.length === 0 && <EmptyState message={`No ${eventsWhen} events found for "${q}".`} />}
             {events.map((event) => (
               <Link key={event.id} href={`/e/${event.slug}`} className="profileLinkItem" style={{ flexDirection: "column", alignItems: "stretch", gap: "0.15rem" }}>
                 <span style={{ fontWeight: 600 }}>{event.title}</span>
@@ -322,7 +324,7 @@ export default async function SearchPage({
       )}
       {q.length > 0 && tab === "marketplace" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-          {marketplace.length === 0 && <p className="mutedText">No marketplace results found for &ldquo;{q}&rdquo;.</p>}
+          {marketplace.length === 0 && <EmptyState message={`No marketplace results found for "${q}".`} />}
           {marketplace.map((item) => (
             <Link
               key={`${item.category}-${item.id}`}

@@ -86,6 +86,11 @@ export function getBusinessPayoutAccount(businessId: string) {
 // exclusivity enforced by the caller (purchaseTicket, events.ts), not here.
 // Every pre-phase-8 caller (tip/digital/course/affiliate) keeps passing
 // payeeId only, unaffected.
+// phase-15 spec §6.2: processor/storeFee default to the pre-existing
+// behavior (stripe_connect, no store cut) so every pre-phase-15 call site
+// (tip/digital/course/affiliate/ticket/business/marketplace) is unaffected
+// — only a native app's in-app-purchase flow passes apple_iap/
+// google_play_billing and a storeFee, per §6.1's store-policy requirement.
 export async function recordPaymentTransaction(
   tx: Prisma.TransactionClient,
   params: {
@@ -99,6 +104,8 @@ export async function recordPaymentTransaction(
     status: "pending" | "succeeded" | "failed" | "refunded";
     relatedObjectType?: string;
     relatedObjectId?: string;
+    processor?: "stripe_connect" | "apple_iap" | "google_play_billing";
+    storeFee?: number;
   }
 ) {
   const platformFee = Math.round(params.amount * PLATFORM_FEE_PERCENT * 100) / 100;
@@ -111,10 +118,56 @@ export async function recordPaymentTransaction(
       amount: params.amount,
       currency: params.currency,
       platformFee,
+      processor: params.processor ?? "stripe_connect",
+      storeFee: params.storeFee ?? null,
       processorReference: params.processorReference,
       status: params.status,
       relatedObjectType: params.relatedObjectType,
       relatedObjectId: params.relatedObjectId,
     },
   });
+}
+
+// phase-15 spec §6.3: records the aggregated lump-sum store payout, then
+// attributes it against the per-creator PaymentTransaction rows it covers
+// — the reconciliation step Apple/Google's payout topology requires that
+// Stripe Connect's direct-to-creator model never needed. Flagged in the
+// spec as needing dedicated finance/ops work; this is the schema-level
+// mechanism that work would build on, not a complete reconciliation engine.
+export async function recordIapPayoutBatch(params: {
+  processor: "apple_iap" | "google_play_billing";
+  amount: number;
+  currency: string;
+  periodStart: Date;
+  periodEnd: Date;
+}) {
+  return db.iapPayoutBatch.create({
+    data: {
+      processor: params.processor,
+      amount: params.amount,
+      currency: params.currency,
+      periodStart: params.periodStart,
+      periodEnd: params.periodEnd,
+    },
+  });
+}
+
+// Attributes every succeeded, not-yet-reconciled PaymentTransaction for a
+// processor within the batch's period to that batch, then marks it
+// reconciled — the "before disbursement" step spec §6.4's acceptance
+// criterion requires happen prior to paying creators out through their
+// CreatorPayoutAccount.
+export async function reconcileIapPayoutBatch(batchId: string): Promise<number> {
+  const batch = await db.iapPayoutBatch.findUniqueOrThrow({ where: { id: batchId } });
+  const { count } = await db.paymentTransaction.updateMany({
+    where: {
+      processor: batch.processor,
+      status: "succeeded",
+      iapPayoutBatchId: null,
+      createdAt: { gte: batch.periodStart, lte: batch.periodEnd },
+    },
+    data: { iapPayoutBatchId: batchId },
+  });
+  await db.iapPayoutBatch.update({ where: { id: batchId }, data: { status: "reconciled" } });
+  return count;
 }

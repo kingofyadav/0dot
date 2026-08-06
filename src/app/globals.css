@@ -1,3 +1,22 @@
+/* Tailwind CSS v4 (additive adoption — see DESIGN_SYSTEM.md). Existing
+   hand-written CSS below is untouched; Tailwind utilities are available
+   alongside it for new work. */
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+/* Dark mode here is driven by CSS custom properties that change value
+   across the cascade blocks below (OS media query, then explicit
+   data-theme override), not by Tailwind's default .dark class or a static
+   media-only variant. This custom variant matches the same
+   [data-theme="dark"] attribute the hand-written CSS already keys off of,
+   so `dark:` utilities on new Tailwind-authored components stay consistent
+   with the rest of the app. It only fires on an *explicit* dark override;
+   the OS-preference-only case has no Tailwind equivalent here because it's
+   already handled below for every var()-backed color/shadow utility via
+   the @theme inline aliases, without needing the dark: variant at all. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 /* Brand palette: an Indian-tricolor-inspired accent system — saffron as
    the primary interactive color, India green as a secondary accent used
    sparingly (decorative accents, the avatar ring), navy as a tertiary
@@ -51,8 +70,40 @@
   --space-6: 1.5rem;
   --space-8: 2rem;
 
-  /* Type scale (DESIGN_SYSTEM.md) — dimensional, not themed, same posture
-     as the spacing scale above. --text-3xl was reserved for "future
+  /* shadcn/ui bridge tokens — only what src/components/ui actually
+     references today (npx shadcn init generated a much larger neutral
+     palette, including primary, card, popover, destructive, input, ring,
+     chart (5 of them) and sidebar (8 of them) tokens; those are dropped
+     here and instead aliased straight onto our own tokens in the @theme
+     inline block below, since shadcn's "primary" is our --accent,
+     "card"/"popover" is our --surface, "destructive" is our --danger, etc.
+     — no reason to maintain two parallel palettes for the same concept).
+     --ui-accent is the one exception kept as its own token: shadcn's
+     "accent" is a different concept from ours (a neutral hover/highlight
+     background for menu items, not a primary interactive color) —
+     aliasing it to our --accent would paint every dropdown/select hover
+     state saffron, which is not what "restrained accent system" (above)
+     means. Re-add the chart/sidebar tokens here, following this same
+     pattern, if a future shadcn chart or sidebar component needs them. */
+  --ui-accent: oklch(0.97 0 0);
+  --ui-accent-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+}
+
+/* Dimensional tokens that Tailwind also needs to know about to generate
+   matching utilities (text-lg, rounded-lg, font-sans, ...). @theme (not
+   @theme inline) both emits these onto :root, exactly like the plain
+   :root block above, and registers them as Tailwind's scale — so existing
+   var(--text-lg) usage elsewhere in this file and in components keeps
+   working unchanged, and new code can use text-lg / rounded-lg instead.
+   Not themed (no dark-mode variant needed), same posture as --space-*
+   above, which is why these live here rather than in :root: Tailwind's own
+   default text/radius scale would otherwise win by cascade order. */
+@theme {
+  /* Type scale (DESIGN_SYSTEM.md). --text-3xl was reserved for "future
      marketing/landing headlines"; the landing hero below is that moment. */
   --text-xs: 0.8rem;
   --text-sm: 0.9rem;
@@ -61,6 +112,27 @@
   --text-xl: 1.4rem;
   --text-2xl: 1.6rem;
   --text-3xl: 2.25rem;
+
+  /* Radius scale (DESIGN_SYSTEM.md "Radius" gap) — the existing ad hoc
+     values (8/10/16px, plus 9999px for avatars) already formed a coherent
+     scale; this is the naming exercise the doc called for, not a redesign.
+     --radius-xl/--radius-2xl fall through to Tailwind's own defaults,
+     unused by this project today. */
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-full: 9999px;
+
+  /* Matches next/font's CSS variables set in layout.tsx, so font-sans /
+     font-mono utilities use the same faces as the rest of the app instead
+     of Tailwind's default stack. */
+  --font-sans: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  /* The --space-* scale above already lines up exactly with Tailwind's
+     default --spacing multiplier (0.25rem base: --space-4 = 4 * 0.25rem =
+     1rem, etc.), so p-4 / gap-2 / m-6 already equal --space-4 / --space-2
+     / --space-6 with no override needed here. */
 }
 
 @media (prefers-color-scheme: dark) {
@@ -85,6 +157,12 @@
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 8px 24px rgba(0, 0, 0, 0.35);
     --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3), 0 2px 4px rgba(0, 0, 0, 0.2);
     --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.45), 0 4px 12px rgba(0, 0, 0, 0.3);
+    --ui-accent: oklch(0.269 0 0);
+    --ui-accent-foreground: oklch(0.985 0 0);
+    --secondary: oklch(0.269 0 0);
+    --secondary-foreground: oklch(0.985 0 0);
+    --muted: oklch(0.269 0 0);
+    --muted-foreground: oklch(0.708 0 0);
   }
 }
 
@@ -109,6 +187,12 @@
   --shadow: 0 1px 2px rgba(23, 23, 23, 0.04), 0 8px 24px rgba(23, 23, 23, 0.06);
   --shadow-md: 0 4px 12px rgba(23, 23, 23, 0.08), 0 2px 4px rgba(23, 23, 23, 0.06);
   --shadow-lg: 0 16px 40px rgba(23, 23, 23, 0.14), 0 4px 12px rgba(23, 23, 23, 0.08);
+  --ui-accent: oklch(0.97 0 0);
+  --ui-accent-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
 }
 
 :root[data-theme="dark"] {
@@ -129,6 +213,68 @@
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 8px 24px rgba(0, 0, 0, 0.35);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3), 0 2px 4px rgba(0, 0, 0, 0.2);
   --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.45), 0 4px 12px rgba(0, 0, 0, 0.3);
+  --ui-accent: oklch(0.269 0 0);
+  --ui-accent-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+}
+
+/* Aliases the themed tokens above into Tailwind's utility namespaces.
+   `inline` means Tailwind emits `var(--background)` etc. at each utility's
+   use site instead of copying today's literal value in at build time — so
+   bg-background / text-foreground / shadow-md keep tracking the same
+   cascade (OS media query, then data-theme override) as every hand-written
+   rule in this file, through every future edit to the blocks above. Do not
+   switch this to a plain @theme block or the color/shadow utilities will
+   freeze at whichever theme built last. */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-green: var(--accent-green);
+  --color-accent-green-soft: var(--accent-green-soft);
+  --color-accent-navy: var(--accent-navy);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-on-accent: var(--on-accent);
+  --color-on-danger: var(--on-danger);
+
+  --shadow: var(--shadow);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+
+  /* shadcn/ui's own token names, aliased onto the tokens above rather than
+     kept as a second parallel palette (see the --ui-accent comment in
+     :root for why "accent" specifically isn't a straight alias). This is
+     what makes src/components/ui/button.tsx's bg-primary / border-border /
+     bg-destructive / ring-ring classes render in this app's actual brand
+     colors, in both themes, automatically. */
+  --color-primary: var(--accent);
+  --color-primary-foreground: var(--on-accent);
+  --color-card: var(--surface);
+  --color-card-foreground: var(--foreground);
+  --color-popover: var(--surface);
+  --color-popover-foreground: var(--foreground);
+  --color-destructive: var(--danger);
+  --color-destructive-foreground: var(--on-danger);
+  --color-input: var(--border);
+  --color-ring: var(--accent);
+  /* Deliberately var(--ui-accent), not var(--accent): shadcn's copied
+     components (dropdown/select/command menu highlight states, once
+     added) expect bg-accent to mean a neutral hover background, not this
+     app's saffron brand color. New plain-Tailwind markup wanting the brand
+     color should use bg-primary/text-primary instead (aliased above). */
+  --color-accent: var(--ui-accent);
+  --color-accent-foreground: var(--ui-accent-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
 }
 
 /* overflow-x: hidden lives on html only, not body — setting it on both
@@ -155,10 +301,22 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-* {
-  box-sizing: border-box;
-  padding: 0;
-  margin: 0;
+/* @layer base (matching Tailwind's own theme/base/components/utilities
+   layer order from its @import above) rather than left unlayered like the
+   rest of this file — an unlayered rule always wins over ANY Tailwind
+   utility class regardless of specificity or source order, so this
+   specific reset was silently zeroing out padding/margin on every new
+   shadcn/ui component (e.g. DropdownMenuContent's p-1, PopoverContent's
+   p-2.5) the moment Tailwind utilities started being used for real
+   components rather than just tokens. Nothing else in this file needs the
+   same treatment yet — nothing else here has actually collided with a
+   Tailwind utility on the same element, unlike this blanket `*` selector. */
+@layer base {
+  * {
+    box-sizing: border-box;
+    padding: 0;
+    margin: 0;
+  }
 }
 
 a {
@@ -296,6 +454,21 @@ summary:focus-visible,
   font-weight: 700;
   margin-bottom: 0.25rem;
   text-align: center;
+}
+
+/* Groups multiple .authCard forms (e.g. /login's password card + SSO card)
+   as a single flex item inside .authWrap, so they stack vertically instead
+   of being laid out as siblings in .authWrap's row-flex. */
+.authStack {
+  width: 100%;
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.authStack .authCard {
+  max-width: none;
 }
 
 /* On mobile, the auth card's own box chrome (border/shadow/background) is
@@ -474,6 +647,153 @@ summary:focus-visible,
   .landingFeatures {
     display: flex;
   }
+}
+
+/* Desktop-only decorative mockup of a real profile page (fake data, static
+   markup) — gives the hero a concrete "this is what you get" visual instead
+   of copy alone. aria-hidden since it conveys nothing screen readers need
+   beyond what .landingFeatures already states in text. Hidden below 1024px
+   like the rest of the hero: mobile keeps the auth-form-only view. */
+.landingPreview {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .landingPreview {
+    display: block;
+    position: relative;
+    width: 100%;
+    max-width: 380px;
+    margin-top: 1.75rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    box-shadow: var(--shadow-md);
+    overflow: hidden;
+    /* Slight tilt + the floating badge below read as "a real screenshot
+       propped up on the page" rather than another flat content block. */
+    transform: rotate(-1.5deg);
+  }
+}
+
+.landingPreviewChrome {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.6rem 0.85rem;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--foreground) 3%, transparent);
+}
+
+.landingPreviewDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border);
+}
+
+.landingPreviewUrl {
+  margin-left: 0.5rem;
+  font-size: var(--text-xs);
+  opacity: 0.55;
+  font-family: var(--font-geist-mono, monospace);
+}
+
+.landingPreviewBody {
+  padding: 0 0.85rem 0.85rem;
+}
+
+.landingPreviewCover {
+  height: 56px;
+  margin: 0 -0.85rem;
+  background: linear-gradient(135deg, var(--accent-soft), var(--accent-green-soft));
+}
+
+.landingPreviewHeaderRow {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.65rem;
+  margin-top: -22px;
+}
+
+.landingPreviewAvatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 3px var(--surface);
+  background:
+    linear-gradient(var(--surface), var(--surface)) padding-box,
+    linear-gradient(135deg, var(--accent), var(--accent-green)) border-box;
+  border: 2px solid transparent;
+}
+
+.landingPreviewIdentity {
+  padding-bottom: 0.1rem;
+}
+
+.landingPreviewName {
+  display: flex;
+  align-items: center;
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.landingPreviewName .verifiedBadge {
+  width: 13px;
+  height: 13px;
+  font-size: 0.5rem;
+  margin-left: 0.3rem;
+}
+
+.landingPreviewHandle {
+  font-size: var(--text-xs);
+  opacity: 0.6;
+}
+
+.landingPreviewStats {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.65rem;
+  font-size: var(--text-xs);
+  opacity: 0.7;
+}
+
+.landingPreviewStats strong {
+  font-weight: 700;
+  opacity: 1;
+}
+
+.landingPreviewLinks {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+}
+
+.landingPreviewLink {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.65rem;
+  font-size: var(--text-xs);
+  font-weight: 500;
+}
+
+.landingPreviewBadge {
+  position: absolute;
+  top: -0.6rem;
+  right: 1.25rem;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  padding: 0.3rem 0.7rem;
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow);
+  transform: rotate(3deg);
 }
 
 .field {
@@ -683,6 +1003,15 @@ summary:focus-visible,
   transition: background-color 0.15s ease, transform 0.15s ease;
 }
 
+/* ComposeBox reuses .authCard purely for its card chrome (border/padding/
+   shadow), not as an auth surface — without this, its camera iconButton
+   inherits the 52px auth-submit height above while keeping its own ~30px
+   width, stretching it into a tall pill instead of a square icon button. */
+.authCard .button.iconButton {
+  height: auto;
+  border-radius: 8px;
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .authCard .button:hover:not(:disabled) {
     transform: scale(1.01);
@@ -727,6 +1056,12 @@ summary:focus-visible,
    express). Built on native <dialog>, so most of this just re-themes the
    UA default box rather than positioning it from scratch. */
 .modal {
+  /* The base `* { margin: 0 }` reset (@layer base, above) zeroes out the
+     native <dialog>'s UA `margin: auto`, which is what centers it against
+     its `inset-block:0`/`left:0;right:0` — without this, the dialog
+     collapses to the top-left instead of the middle of the viewport. This
+     rule is unlayered, so it wins back the property regardless. */
+  margin: auto;
   width: calc(100% - 2rem);
   max-width: 420px;
   padding: 0;
@@ -781,16 +1116,52 @@ summary:focus-visible,
   padding: var(--space-6);
 }
 
+.modalHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
 .modalTitle {
   font-size: var(--text-lg);
   font-weight: 700;
 }
 
+.modalClose {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  margin: -0.25rem -0.25rem 0 0;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.modalClose:hover {
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
+  color: var(--foreground);
+}
+
 .modalActions {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
   gap: var(--space-2);
   margin-top: var(--space-2);
+}
+
+.modalActions .button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 /* Toast (Toast.tsx) — fixed stack, bottom-center on mobile (thumb-reachable,
@@ -919,19 +1290,6 @@ summary:focus-visible,
   padding-top: 48px;
 }
 
-/* Name + primary actions (Follow/Message/Edit profile) — the two things
-   that visually compete most for attention, so they share one row with a
-   deliberate gap, wrapping to their own line (actions below name, both
-   left-aligned) once the row can't fit both at full width rather than
-   squeezing. */
-.profileIdentityRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-}
-
 .profileName {
   font-size: var(--text-2xl, 1.6rem);
   font-weight: 700;
@@ -941,6 +1299,79 @@ summary:focus-visible,
   display: flex;
   gap: var(--space-2);
   flex-wrap: wrap;
+}
+
+/* [username]/page.tsx's own header only — .profileName, .profileActions
+   (Follow/Message/Edit profile) and .profileMeta (link/follower/following
+   stats) as three flex items sharing one wrapping row instead of markup-
+   ordered stacked blocks, so `order` below can retarget their visual
+   sequence per breakpoint without touching the DOM. Not the shared
+   .profileIdentityRow (c/[slug] and b/[slug]'s headers use that one, name+
+   actions only, no stats row to reorder) — scoped separately so their
+   layout doesn't inherit this page's reordering. Default (desktop) order
+   is source order: name, actions (sits right next to the name when it
+   fits, wraps below otherwise), stats (always its own full-width line via
+   flex-basis:100%, regardless of remaining space). */
+.profileIdentityStack {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  column-gap: var(--space-3);
+  row-gap: var(--space-2);
+}
+
+.profileIdentityStack .profileName {
+  order: 1;
+}
+
+.profileIdentityStack .profileActions {
+  order: 2;
+}
+
+.profileIdentityStack .profileMeta {
+  order: 3;
+  flex: 1 0 100%;
+  margin-top: 0;
+}
+
+/* Mobile: name+actions no longer fit on one line (see .profileActions
+   .button below), so actions was already dropping to its own line under
+   the name — this just reorders that line to come after stats instead of
+   before, per explicit direction: name -> stats -> actions. */
+@media (max-width: 639px) {
+  .profileIdentityStack .profileMeta {
+    order: 2;
+  }
+  .profileIdentityStack .profileActions {
+    order: 3;
+    flex: 1 0 100%;
+  }
+}
+
+/* Name + primary actions (Follow/Message/Edit profile) — the two things
+   that visually compete most for attention, so they share one row with a
+   deliberate gap, wrapping to their own line (actions below name, both
+   left-aligned) once the row can't fit both at full width rather than
+   squeezing. Shared by c/[slug] and b/[slug]'s headers. */
+.profileIdentityRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+/* Resume/Edit profile/Follow/Message sit right next to the profile name —
+   full-size .button padding crowds that row and pushes it into wrapping
+   onto its own line below the name. Unconditional (not just <640px): the
+   constraint is .profileActions competing with .profileName inside
+   .profileHeaderInfo's fixed ~480px column (avatar + gap eaten out of
+   .profileCard's 640px cap), which is the same on a 1440px desktop as it
+   is on a phone — .profileCard's own max-width, not the viewport, is what
+   makes this row narrow. Same padding/font-size as .buttonSmall. */
+.profileActions .button {
+  padding: 0.4rem 0.7rem;
+  font-size: 0.85rem;
 }
 
 /* Share/Block: real but secondary — demoted below the bio (spec §3.4 calls
@@ -979,6 +1410,16 @@ summary:focus-visible,
   font-size: 0.65rem;
   line-height: 1;
   vertical-align: middle;
+  text-decoration: none;
+}
+
+/* Also used as a clickable link on a post's byline (PostCard's
+   AuthorLine), single click through to the author's public profile —
+   the pointer/hover feedback below only matters for that <a> usage. */
+a.verifiedBadge:hover,
+a.verifiedBadge:focus-visible {
+  opacity: 0.85;
+  cursor: pointer;
 }
 
 /* 44x44 touch target (UX_GUIDELINES.md #4) even though the visible glyph is
@@ -1025,10 +1466,39 @@ summary:focus-visible,
 
 .profileMeta {
   display: flex;
-  gap: var(--space-4);
+  gap: var(--space-3);
   margin-top: var(--space-2);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
+}
+
+/* Each stat is number-first, label-second (spec: text before number reads
+   backwards for a glanceable count) — the number carries full-opacity
+   weight so it's the thing your eye lands on, the label stays muted since
+   it's just naming what the number means. followerCount/followingCount are
+   real links; linkCount isn't, so only the anchors get the hover affordance
+   below — matching .notificationBell's existing hover-background pattern
+   instead of introducing a new one. */
+.profileMetaItem {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  padding: 0.2rem 0.45rem;
+  margin: -0.2rem -0.45rem;
+  border-radius: var(--radius-sm);
+  color: var(--foreground);
   opacity: 0.7;
+  transition: background-color 0.15s ease, opacity 0.15s ease, color 0.15s ease;
+}
+
+.profileMetaItem strong {
+  font-weight: 700;
+  opacity: 1;
+}
+
+a.profileMetaItem:hover {
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+  color: var(--accent);
+  opacity: 1;
 }
 
 .socialLinksRow {
@@ -1037,6 +1507,28 @@ summary:focus-visible,
   align-items: center;
   gap: 0.5rem;
   margin-top: 1rem;
+}
+
+/* Icon-only social link chip (public profile row) — 44px touch target
+   (UX_GUIDELINES.md #4) around a smaller visible badge, same padding trick
+   as .notificationBell/.iconButton, so removing the platform-name label
+   doesn't shrink the tappable area on mobile. */
+.socialIconLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  transition: transform 0.1s ease, opacity 0.15s ease;
+}
+
+.socialIconLink:hover {
+  opacity: 0.85;
+}
+
+.socialIconLink:active {
+  transform: scale(0.94);
 }
 
 .sectionHeading {
@@ -1056,7 +1548,89 @@ summary:focus-visible,
 }
 
 .postsSection {
-  margin-top: 2rem;
+  margin-top: var(--space-8);
+}
+
+/* Generic vertical stack of card-style items with equal spacing — posts
+   list, events list, and any future card-list share this rather than each
+   re-declaring its own ad hoc flex/gap. */
+.itemStack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* Index-style page header: title + a single primary action, right-aligned.
+   Reused across events/jobs/community-style index pages going forward —
+   see COMPONENT_LIBRARY.md's "new layout pattern used more than once
+   becomes a class" rule. */
+.pageHeaderRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.pageHeading {
+  font-size: var(--text-lg);
+  font-weight: 700;
+}
+
+/* A .profileLinkItem specialized for a two-column row (leading media +
+   title/subtitle on the left, a fixed-width meta value on the right) —
+   events index/detail attendee-style rows. Keeps the same hover affordance
+   as a plain link item (this row genuinely is a single navigation target)
+   while fixing the truncation/shrink gaps the ad hoc inline version had. */
+.mediaListItem {
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.mediaListItemLead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.mediaListItemLead > :first-child {
+  flex-shrink: 0;
+}
+
+.mediaListItemTitle {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 0.1rem;
+}
+
+.mediaListItemTitle strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mediaListItemMeta {
+  flex-shrink: 0;
+  text-align: right;
+}
+
+.eventTitle {
+  font-size: var(--text-xl);
+  font-weight: 700;
+}
+
+/* Host/when/format/join-link/RSVP-count lines — previously each carried
+   its own ad hoc marginTop (0.2rem/0.3rem/none/0.2rem/0.3rem), an uneven
+   rhythm with no reason behind the differences. One flex column with a
+   single gap value instead. */
+.eventMeta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
 }
 
 .profileLinkItem {
@@ -1094,6 +1668,45 @@ summary:focus-visible,
   content: "− ";
 }
 
+/* Every toggle in the profile's utility row (.profileEditToggle reused for
+   its <details> collapse mechanics) plus the Services link and the
+   Report/Block buttons should read as one consistent set of small buttons,
+   not a mix of "+ text" links, a full-size Report button, and small
+   buttons — scoped to this row only so the plain "+ text" treatment above
+   still applies everywhere else (comments, filters, etc.) untouched. Placed
+   after the rules above so the shared (0,2,2) specificity on the ::before
+   override resolves by source order in this block's favor. */
+.profileUtilityRow .profileEditToggle > summary,
+.profileUtilityRow a.profileEditToggle {
+  display: inline-flex;
+  align-items: center;
+  opacity: 1;
+  color: var(--foreground);
+  font-weight: 600;
+  font-size: 0.85rem;
+  padding: 0.4rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: transparent;
+  cursor: pointer;
+  list-style: none;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.profileUtilityRow .profileEditToggle > summary::before {
+  content: none;
+}
+
+.profileUtilityRow .profileEditToggle > summary:hover,
+.profileUtilityRow a.profileEditToggle:hover {
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+}
+
+.profileUtilityRow .profileEditToggle[open] > summary {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 /* Featured link (phase-1 spec §4.2): larger card, accent-tinted border,
    rendered first among a profile's links. */
 .featuredLink {
@@ -1120,6 +1733,61 @@ summary:focus-visible,
   object-fit: cover;
 }
 
+/* Post card — deliberately distinct from .profileLinkItem: a post isn't a
+   single-click navigation target (it contains its own links/forms/buttons),
+   so it gets elevation-only hover instead of .profileLinkItem's accent-ring
+   treatment, which would wrongly imply the whole card navigates. */
+.postCard {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-3);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4) var(--space-5);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.postCard:hover {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  box-shadow: var(--shadow);
+}
+
+/* Reply/quoted-original rendering nested one level inside a .postCard
+   (MiniPostCard) — same shape, quieter: no elevation hover of its own
+   (it's already inside a hoverable card), tighter padding to read as a
+   nested block rather than a peer card. */
+.postCardNested {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+}
+
+.postHeaderRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+/* Like/repost/bookmark/quote/reply row — separated from the post body by a
+   hairline so the action bar reads as its own zone, matching the
+   established professional-feed pattern (Twitter/LinkedIn) rather than the
+   actions floating loose under the text. */
+.postActionsRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+
 .loadMoreLink {
   display: block;
   width: fit-content;
@@ -1133,6 +1801,15 @@ summary:focus-visible,
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+}
+
+/* Generic vertical-stack utility (DESIGN_CONSISTENCY.md: a repeated inline
+   style={{display:"flex",flexDirection:"column",gap:...}} object should
+   become a class, not stay copy-pasted per call site). */
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
 .railSectionHeader {
@@ -1172,6 +1849,104 @@ summary:focus-visible,
   background: color-mix(in srgb, var(--foreground) 6%, transparent);
 }
 
+/* Rail's top promo card — same "transparent border + double background"
+   trick as .landingPreviewAvatar's gradient ring, so the tricolor accent
+   reads as a border stroke rather than a flat fill. Not tied to a real
+   PlatformSubscription record (docs/specs/addendum-premium-profiles.md's
+   billing plan hasn't been built yet) — this is the visual placeholder for
+   that upgrade entry point. */
+.railPlanCard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding: 1.1rem 1.2rem;
+  border-radius: 14px;
+  border: 1px solid transparent;
+  background:
+    linear-gradient(160deg, color-mix(in srgb, var(--surface) 92%, var(--accent) 8%), var(--surface)) padding-box,
+    linear-gradient(135deg, var(--accent), var(--accent-navy), var(--accent-green)) border-box;
+  box-shadow: var(--shadow);
+}
+
+.railPlanCardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.railPlanCardHeader h2 {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.railPlanCardBadge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--on-accent);
+  background: linear-gradient(135deg, var(--accent), var(--accent-navy));
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+}
+
+.railPlanCardPerks {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  opacity: 0.85;
+}
+
+.railPlanCardPerk {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+}
+
+.railPlanCardCta {
+  width: 100%;
+  text-align: center;
+  margin-top: 0.15rem;
+}
+
+/* AI tools rail card — plain surface (unlike .railPlanCard) since this
+   points at features that already exist (phase-11 AI platform: profile bio
+   assist, article assist/translate), not an upsell. */
+.railAiCard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1rem 1.2rem;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.railAiCardLinks {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.railAiCardLink {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.6rem;
+  border-radius: 10px;
+  font-size: 0.88rem;
+  transition: background-color 0.15s ease;
+}
+
+.railAiCardLink:hover {
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+}
+
 /* App shell: mobile-first. Base (unqualified, <1024px / --bp-lg) renders the
    sticky top mobileHeader (brand + hamburger); the desktopSidebar is hidden.
    At --bp-lg the two swap: sidebar visible, top header gone entirely. Both
@@ -1192,10 +1967,75 @@ summary:focus-visible,
   flex-direction: column;
 }
 
+/* Reserves scroll space for the fixed .mobileBottomNav (60px + the home
+   indicator inset) so page content's last few rows aren't hidden behind it.
+   Scoped to body.hasBottomNav (set in layout.tsx from the same condition
+   MobileBottomNav itself renders on) rather than applied unconditionally —
+   an anonymous visitor or a chromeless page has no bottom bar to clear. */
+body.hasBottomNav .appMain {
+  padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px));
+}
+
 .siteHeaderBrand {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+}
+
+/* Mobile header's icon cluster (messages/notifications/hamburger) —
+   replaces a repeated inline style={{...}} object literal per
+   COMPONENT_LIBRARY.md's "known inconsistency to fix" note on SiteHeader. */
+.siteHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* AccountMenu's trigger — avatar only, in the right-side icon cluster next
+   to messages/notifications. Same 44x44 tap-target pattern as
+   .notificationBell, just circular (rounded-full) since the visible glyph
+   is already round (the avatar image), not a square icon. */
+.accountMenuTrigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-full);
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.accountMenuTrigger:hover {
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+}
+
+/* PreviewPopover's row list (NotificationBell/MessagesBadge) and its "View
+   all" footer link. Rows themselves reuse existing components/classes
+   (.railNotificationItem, ConversationListItem) — these two are the only
+   bits genuinely new to the popover shell. */
+.previewMenuList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.previewMenuFooter {
+  display: block;
+  text-align: center;
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border);
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--accent);
+}
+
+.previewMenuFooter:hover {
+  text-decoration: underline;
 }
 
 /* Shared by Sidebar and the mobile dropdown panel (NavLinks/NavAction) */
@@ -1243,6 +2083,119 @@ summary:focus-visible,
   flex-shrink: 0;
 }
 
+/* The master nav's Settings entry — a Reddit-style accordion (see
+   SettingsNav in NavLinks.tsx) replacing the old page-local SettingsSidebar.
+   The link and the expand toggle are separate click targets so the row can
+   both navigate (tap the label) and disclose (tap the +/−) without a
+   details/summary fighting an interactive child. */
+.navSettingsRow {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 0;
+}
+
+.navSettingsLink {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  min-height: 44px;
+  color: inherit;
+}
+
+.navSettingsExpand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin-right: var(--space-2);
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: inherit;
+  opacity: 0.6;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 0.15s ease, opacity 0.15s ease;
+}
+
+.navSettingsExpand:hover {
+  opacity: 1;
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
+}
+
+/* One straight accent line ties every settings destination to the master
+   nav it now lives in, instead of the old separate sidebar column. */
+.navSubGroups {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  margin: 0.15rem 0 0.35rem calc(1.25em + var(--space-3) + var(--space-3));
+  padding-left: 0.75rem;
+  border-left: 2px solid var(--accent);
+}
+
+.navSubGroupDetails summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.navSubGroupDetails summary::-webkit-details-marker {
+  display: none;
+}
+
+.navSubGroupSummary {
+  padding: 0.35rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  opacity: 0.55;
+  transition: background-color 0.15s ease, opacity 0.15s ease;
+}
+
+.navSubGroupSummary:hover {
+  opacity: 0.9;
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+}
+
+.navSubGroupItems {
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+  padding-bottom: 0.2rem;
+}
+
+.navSubLink {
+  display: block;
+  padding: 0.32rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--foreground);
+  opacity: 0.72;
+  transition: background-color 0.15s ease, opacity 0.15s ease, color 0.15s ease;
+}
+
+.navSubLink:hover {
+  opacity: 1;
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+}
+
+.navSubLink.navSubLinkActive,
+.navSubLink.navSubLinkActive:hover {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  opacity: 1;
+  font-weight: 700;
+}
+
 /* Desktop top header (>=1024px only — see .desktopTopHeader inside the
    @media block below) and desktop sidebar */
 
@@ -1271,7 +2224,7 @@ summary:focus-visible,
 .mobileHeader {
   position: sticky;
   top: 0;
-  z-index: 10;
+  z-index: 20;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1333,9 +2286,11 @@ summary:focus-visible,
   background: var(--accent-soft);
 }
 
-/* Tricolor hamburger bars — saffron / neutral / green, the same restrained
-   accent system as the header's gradient underline and the avatar ring
-   (DESIGN_SYSTEM.md), applied here since this button only exists on mobile. */
+/* Tricolor hamburger bars — saffron / navy / green, matching the brand
+   logo's own three colors (DESIGN_SYSTEM.md's accent system) rather than a
+   neutral middle bar, so this button reads as "the same brand" as the logo
+   sitting right next to it. Applied here since this button only exists on
+   mobile. */
 .hamburgerIcon {
   display: flex;
   flex-direction: column;
@@ -1355,8 +2310,7 @@ summary:focus-visible,
 }
 
 .hamburgerIcon span:nth-child(2) {
-  background: var(--foreground);
-  opacity: 0.55;
+  background: var(--accent-navy);
 }
 
 .hamburgerIcon span:nth-child(3) {
@@ -1380,11 +2334,94 @@ summary:focus-visible,
   flex-direction: column;
   gap: var(--space-2);
   min-width: 220px;
+  max-width: calc(100vw - 2rem);
+  /* Fits the viewport instead of running off the bottom edge — the Settings
+     accordion inside can get long, and only this panel scrolls for it. */
+  max-height: calc(100vh - 5rem);
+  overflow-y: auto;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 16px;
   box-shadow: var(--shadow);
   padding: 1rem;
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+}
+
+/* On pages with the fixed bottom tab bar, keep the panel's scrollable area
+   (and its last item, Log out) clear of the bar instead of running under it. */
+body.hasBottomNav .mobileNavPanel {
+  max-height: calc(100vh - 5rem - 60px - env(safe-area-inset-bottom, 0px));
+}
+
+/* Mobile bottom tab bar (MobileBottomNav.tsx) — docs/foundations/NAVIGATION.md's
+   "Bottom navigation... 4-5 max" target, with the create action docked into
+   the middle slot instead of a floating FAB. Fixed (not part of body's flex
+   flow, unlike .mobileHeader's sticky), so body.hasBottomNav reserves the
+   matching scroll space on .appMain below rather than this bar overlapping
+   page content. */
+.mobileBottomNav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  height: 60px;
+  padding: 0 0.5rem;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  background: color-mix(in srgb, var(--background) 92%, transparent);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid var(--border);
+}
+
+.bottomNavLink {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  height: 100%;
+  min-width: 44px;
+  font-size: 1.35rem;
+  color: var(--foreground);
+  opacity: 0.6;
+  transition: opacity 0.15s ease, color 0.15s ease, transform 0.1s ease;
+}
+
+.bottomNavLink:active {
+  transform: scale(0.92);
+}
+
+.bottomNavLinkActive {
+  opacity: 1;
+  color: var(--accent);
+}
+
+/* Raised circular "+" — the only bottom-nav slot that isn't a plain
+   destination link, so it gets its own tricolor-gradient treatment (same
+   accent/navy/green trio as .mobileHeader::after and .hamburgerIcon) to read
+   as the primary action rather than a sixth equal tab. */
+.bottomNavCreate {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 50px;
+  height: 50px;
+  margin-top: -22px;
+  border-radius: var(--radius-full);
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-green) 100%);
+  color: var(--on-accent);
+  font-size: 1.6rem;
+  line-height: 1;
+  box-shadow: var(--shadow-md);
+  border: 3px solid var(--background);
+  transition: transform 0.1s ease;
+}
+
+.bottomNavCreate:active {
+  transform: scale(0.94);
 }
 
 @media (min-width: 1024px) {
@@ -1429,16 +2466,46 @@ summary:focus-visible,
     border-bottom: 1px solid var(--border);
   }
 
+  /* Icon cluster (messages/notifications/account avatar) pins to the far
+     right via plain flex; search is pulled out of this flow entirely (see
+     below) so it can center on the *full* header width, not just this
+     wrap's share of it (which sits right of the 240px sidebar column).
+
+     grid-column: 2 / -1 (rather than relying on auto-placement into just
+     column 2) matters on hasRail routes: body.hasRail .desktopTopHeader
+     below adds a 3rd 320px column so the header's grid aligns with the
+     sidebar/main/aside body grid, but the header itself only ever renders
+     two children (brand, this wrap) — with auto-placement this wrap only
+     occupied column 2, leaving that 320px column empty *inside the header*
+     and pinning the icon cluster's flex-end 320px short of the true right
+     edge. Spanning to the last line reclaims that space on every column
+     count (a no-op on the 2-column, no-rail case). */
   .desktopTopHeaderSearchWrap {
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-end;
     gap: 0.75rem;
+    grid-column: 2 / -1;
   }
 
+  /* Absolutely positioned against .desktopTopHeader (the nearest positioned
+     ancestor, via its position:sticky) rather than laid out in the grid —
+     centering it via left/right (not the wrap's own flex box, which also
+     contains the icon cluster and, on hasRail routes, spans main+aside
+     combined) is the only way to keep it centered over .appMain specifically,
+     matching the content column below it.
+     left mirrors the sidebar column (240px) plus the header's own left
+     padding; right reserves the icon cluster's width (~200px, including
+     its gap from search) plus the header's right padding, since without a
+     rail column the icon cluster sits right at main's own right edge. */
   .desktopTopHeaderSearchWrap .siteHeaderSearch {
-    width: 100%;
-    max-width: 440px;
+    position: absolute;
+    top: 50%;
+    left: calc(240px + 1.5rem);
+    right: calc(200px + 1.5rem);
+    transform: translateY(-50%);
+    margin: 0 auto;
+    max-width: 640px;
   }
 
   .desktopSidebar {
@@ -1449,8 +2516,15 @@ summary:focus-visible,
     position: sticky;
     top: var(--desktop-header-h);
     height: calc(100vh - var(--desktop-header-h));
+    /* Own scroll container: with the Settings accordion expanded this can
+       get taller than the viewport, and only this column should scroll for
+       it — .appMain's own scroll (the "middle section") stays independent. */
+    overflow-y: auto;
     padding: 1.5rem 1.25rem;
-    border-right: 1px solid var(--border);
+    /* --accent (saffron) rather than --border, so the sidebar's edge pairs
+       with the contextual rail's --accent-green edge — same tricolor accent
+       system as the header's gradient bar and hamburger icon. */
+    border-right: 1px solid var(--accent);
   }
 
   /* The sidebar's own copy of the search form (rendered via the shared
@@ -1467,24 +2541,28 @@ summary:focus-visible,
     gap: var(--space-1);
   }
 
-  .sidebarSpacer {
-    flex: 1;
-  }
-
   .appMain {
     grid-area: main;
+    /* Base (mobile) rule below reserves scroll space for the fixed bottom
+       bar — irrelevant at this width since .mobileBottomNav is hidden here
+       too. */
+    padding-bottom: 0;
   }
 
   .mobileHeader {
     display: none;
   }
+
+  .mobileBottomNav {
+    display: none;
+  }
 }
 
 @media (min-width: 1280px) {
-  /* Third column, only when the current route opted in (RootLayout sets
-     body.hasRail — see src/lib/route-context.ts's showsContextualRail).
-     Avoids a dead 320px gutter on every route that doesn't render a rail
-     (auth pages, profile pages, bookmarks, search). */
+  /* Third column, present on every page with chrome for a signed-in
+     visitor (RootLayout sets body.hasRail — see layout.tsx). Absent only
+     on chromeless pages (landing/login/signup) and for anonymous
+     visitors, same as ContextualRail's own null-return there. */
   body.hasRail {
     grid-template-columns: 240px 1fr 320px;
     grid-template-areas:
@@ -1492,11 +2570,21 @@ summary:focus-visible,
       "sidebar main aside";
   }
 
-  /* Keeps the header's own internal grid (brand | search) aligned with
-     body's columns so the search bar stays centered over .appMain, not
-     stretched across main+aside combined. */
+  /* Keeps the header's own internal grid (brand | search) column count in
+     sync with body's, for consistency — .desktopTopHeaderSearchWrap
+     .siteHeaderSearch below is what actually keeps the search bar centered
+     over .appMain and not main+aside combined, since it's taken out of grid
+     flow (position: absolute) and ignores these track widths directly. */
   body.hasRail .desktopTopHeader {
     grid-template-columns: 240px 1fr 320px;
+  }
+
+  /* Without this, search's right bound (see the base rule above) reserves
+     only the icon cluster's ~200px, which undershoots the 320px aside
+     column now sitting between main and the icon cluster — search would
+     drift right of .appMain's true center, toward the aside. */
+  body.hasRail .desktopTopHeaderSearchWrap .siteHeaderSearch {
+    right: calc(320px + 1.5rem);
   }
 
   body.hasRail .contextualRail {
@@ -1508,7 +2596,11 @@ summary:focus-visible,
     top: var(--desktop-header-h);
     max-height: calc(100vh - var(--desktop-header-h));
     overflow-y: auto;
-    padding: 1.5rem 1.25rem 1.5rem 0;
+    padding: 1.5rem 1.25rem 1.5rem 1.25rem;
+    /* Mirrors .desktopSidebar's border-right separator on the opposite
+       edge, in --accent-green rather than --border so the rail reads as
+       its own distinct column instead of a borderless afterthought. */
+    border-left: 1px solid var(--accent-green);
   }
 }
 
@@ -1613,6 +2705,22 @@ summary:focus-visible,
   text-decoration: none;
 }
 
+/* Per-message delete trigger (MessageBubble) — same hover-reveal
+   progressive disclosure as .conversationRowMenuTriggerCompact, scoped to
+   its own bubble (a direct descendant selector suffices here, unlike the
+   inbox row's absolutely-positioned sibling menu). */
+.messageDeleteTrigger {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  background: var(--surface);
+}
+
+.messageBubble:hover .messageDeleteTrigger,
+.messageDeleteTrigger:hover,
+.messageDeleteTrigger:focus-visible {
+  opacity: 1;
+}
+
 .messageComposer {
   display: flex;
   align-items: flex-end;
@@ -1627,71 +2735,59 @@ summary:focus-visible,
   max-height: 6.5rem;
 }
 
-/* Settings shell: persistent grouped sub-nav + content, GitHub/Stripe/
-   Linear-style. Wider than .profileCard's 640px cap — the shell now holds
-   a sidebar *and* content, and the app grid's main track has real room
-   for it. Individual sections inside .settingsContent still use
-   .profileCard/.field/.textInput unchanged. */
+/* Presence ("online") indicator — src/lib/presence.ts. A small filled dot
+   overlaid on an avatar's bottom-right corner, ringed in the surrounding
+   surface color so it reads as a badge rather than a stray mark regardless
+   of what's behind it (inbox row background, header, popover). */
+.presenceDot {
+  position: absolute;
+  inset-inline-end: -1px;
+  bottom: -1px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--accent-green);
+  border: 2px solid var(--surface);
+}
+
+/* Inline variant used next to "Active now" text (PresenceStatus) instead of
+   overlaid on an avatar — same color, no absolute positioning/ring needed. */
+.presenceDotInline {
+  position: static;
+  width: 7px;
+  height: 7px;
+  border: none;
+  flex-shrink: 0;
+}
+
+/* Row-level "⋯" trigger for ConversationRowMenu, inbox-row variant only
+   (ConversationRowMenu's compact prop) — invisible until the row is
+   hovered/focused, same progressive-disclosure posture as PostOwnerMenu's
+   trigger, just opt-in via opacity instead of being permanently visible.
+   The conversation-header usage renders without this class and stays
+   plainly visible, same as any other header icon button. */
+.conversationRowMenuTriggerCompact {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  background: var(--surface);
+}
+
+.conversationListItem:hover ~ span .conversationRowMenuTriggerCompact,
+.conversationRowMenuTriggerCompact:hover,
+.conversationRowMenuTriggerCompact:focus-visible,
+.conversationRowMenuTriggerCompact[data-state="open"] {
+  opacity: 1;
+}
+
+/* Settings shell: header + content only now — section-to-section nav lives
+   in the main left nav's Settings accordion (see .navSettingsBlock below),
+   not a second page-local sidebar. Individual sections inside
+   .settingsContent still use .profileCard/.field/.textInput unchanged. */
 .settingsShell {
   width: 100%;
-  max-width: 960px;
+  max-width: 720px;
   margin: 2rem auto;
   padding: 0 1rem;
-}
-
-.settingsShellInner {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-.settingsSidebar {
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
-}
-
-.settingsNavGroup {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-}
-
-.settingsNavGroupLabel {
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  opacity: 0.5;
-  padding: 0 0.6rem;
-  margin-bottom: 0.25rem;
-}
-
-.settingsNavLink {
-  display: block;
-  padding: 0.45rem 0.6rem;
-  border-radius: 8px;
-  font-size: 0.88rem;
-  font-weight: 500;
-  color: var(--foreground);
-  opacity: 0.75;
-  transition: background 0.15s ease, opacity 0.15s ease, color 0.15s ease;
-}
-
-.settingsNavLink:hover {
-  background: color-mix(in srgb, var(--foreground) 6%, transparent);
-  opacity: 1;
-}
-
-/* Same "accent-tinted, no ambiguity about current state" treatment used
-   for aria-pressed buttons elsewhere (like/endorse buttons) — applied to
-   nav-active instead of toggle-active. */
-.settingsNavLinkActive,
-.settingsNavLinkActive:hover {
-  background: var(--accent-soft);
-  color: var(--accent-strong);
-  opacity: 1;
-  font-weight: 700;
 }
 
 .settingsContent {
@@ -1712,53 +2808,22 @@ summary:focus-visible,
   margin-bottom: 1rem;
 }
 
-@media (min-width: 1024px) {
-  .settingsShellInner {
-    flex-direction: row;
-    align-items: flex-start;
-    gap: 2.5rem;
-  }
+/* No .dark { } class block: this app never sets a .dark class (theming is
+   the [data-theme] attribute system declared near the top of this file,
+   plus the @media (prefers-color-scheme: dark) block above it) — shadcn
+   init generates one by default, but it would just be dead CSS here, and
+   duplicating every token into a selector that can never match is worse
+   than not having it. If a future `npx shadcn add` regenerates one,
+   delete it again rather than keeping it. */
 
-  .settingsSidebar {
-    flex: 0 0 200px;
-    position: sticky;
-    top: calc(var(--desktop-header-h) + 1.5rem);
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
   }
-
-  .settingsContent {
-    flex: 1;
+  body {
+    @apply bg-background text-foreground;
   }
-}
-
-/* Below 1024px: the grouped vertical sidebar collapses to a flat,
-   horizontally scrollable pill row — same .button.buttonSecondary pill
-   styling /search's tab row and business page tab links already use,
-   rather than inventing a second mobile nav pattern. */
-@media (max-width: 1023px) {
-  .settingsSidebar {
-    flex-direction: row;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    gap: 0.5rem;
-    padding-bottom: 0.35rem;
-  }
-
-  .settingsNavGroup {
-    flex-direction: row;
-    gap: 0.4rem;
-    flex: 0 0 auto;
-  }
-
-  .settingsNavGroupLabel {
-    display: none;
-  }
-
-  .settingsNavLink {
-    white-space: nowrap;
-    border: 1px solid var(--border);
-  }
-
-  .settingsNavLinkActive {
-    border-color: var(--accent);
+  html {
+    @apply font-sans;
   }
 }

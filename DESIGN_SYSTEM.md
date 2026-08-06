@@ -2,6 +2,16 @@
 
 Status: Foundational document. `src/app/globals.css` is the source of truth for tokens already implemented — this document explains, formalizes, and extends it. When they conflict, fix `globals.css` to match this document (or update this document if the CSS was the more deliberate recent decision) rather than leaving them silently inconsistent.
 
+## Tooling — Tailwind CSS v4 + shadcn/ui
+
+Added 2026-08, additive: Tailwind utility classes and shadcn/ui components are available for new work; no existing page or component was migrated to them. Setup is `postcss.config.mjs` + `@import "tailwindcss"` at the top of `globals.css` — Tailwind v4 is CSS-first, there is no `tailwind.config.js`.
+
+Tailwind is wired directly onto the tokens above, not a second palette. In `globals.css`: a plain `@theme` block registers the non-themed tokens (`--text-*`, `--radius-*`, `--font-sans`/`--font-mono`) as real Tailwind scales, and a separate `@theme inline` block aliases the themed color/shadow tokens via `var()` (`--color-background: var(--background)`, etc.) so `bg-background` / `text-foreground` / `shadow-md` and similar utility classes keep tracking the same light/dark cascade as every hand-written rule below them — change a color in the `:root`/media/`data-theme` blocks and Tailwind utilities pick it up automatically, no separate edit needed.
+
+**shadcn/ui token collision — read before running `npx shadcn add`.** shadcn's copied component source (lands in `src/components/ui/`) is written against its own token names: `bg-primary`, `bg-card`, `bg-popover`, `bg-destructive`, `bg-muted`, `bg-secondary`, `border-input`, `ring-ring`, `bg-accent`. Most are aliased onto our existing tokens rather than kept as a second neutral palette — `primary` → `--accent`, `card`/`popover` → `--surface`, `destructive` → `--danger`, `input`/`ring` → `--border`/`--accent` (see the `@theme inline` block in `globals.css`). The one deliberate exception: shadcn's `accent` means a neutral menu/dropdown hover background, a different concept from our primary brand color, so it's backed by its own `--ui-accent` token instead of aliasing straight to `--accent` — doing that would paint every future dropdown/select hover state saffron, which isn't "restrained accent system." When a new `npx shadcn add` pulls in a token this project doesn't have yet (`chart-*` and `sidebar-*` were dropped as unused during setup), alias it onto an existing token the same way rather than accepting shadcn's generic OKLCH gray defaults — check the `:root` and `@theme inline` blocks in `globals.css` for the pattern first.
+
+`dark:` utilities on shadcn components are backed by a custom `@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *))` matching this project's attribute-based theming, not Tailwind's default `.dark`-class variant. It only fires on an *explicit* theme toggle, not on OS-preference-only dark mode — that path is already covered for every token-backed utility via the `@theme inline` color aliases above, without needing the variant. A `dark:` utility applied to something that isn't token-backed won't respond to OS preference alone; a known, accepted gap rather than an oversight.
+
 ## Color
 
 Indian-tricolor-inspired accent system: saffron primary, India green secondary, navy tertiary — used as a restrained accent system, not a literal flag. Confirmed decision, not open for casual revisiting.
@@ -60,7 +70,7 @@ No formal scale exists yet — current CSS uses direct rem values (`0.35rem`, `0
 
 ## Radius
 
-Currently ad hoc: `8px` (icon buttons), `10px` (buttons, inputs), `12px` (link items), `16px` (cards), `50%` (avatars). Formalize as `--radius-sm: 8px`, `--radius-md: 10px`, `--radius-lg: 16px`, `--radius-full: 9999px`. The existing values already form a coherent scale — this is a naming exercise, not a redesign.
+Implemented: `--radius-sm: 8px`, `--radius-md: 10px`, `--radius-lg: 16px`, `--radius-full: 9999px` (in the `@theme` block in `globals.css`, so Tailwind's `rounded-sm`/`rounded-md`/`rounded-lg`/`rounded-full` resolve to the same values as `var(--radius-*)`). Existing hand-written CSS (icon buttons, buttons/inputs, link items at `12px`, cards, `50%` avatars) hasn't been retrofitted onto these variables — this was a naming/Tailwind-wiring exercise, not a redesign; consuming the tokens in the pre-existing hand-written rules is still open if it's ever worth the diff.
 
 ## Shadow / Elevation
 
@@ -68,11 +78,11 @@ Three tiers, implemented: `--shadow` (cards — the original single token, kept 
 
 ## Grid / Breakpoints
 
-Not yet defined anywhere in the codebase — every page today is effectively a single centered column (`max-width: 380px` auth card, `max-width: 560px` profile/feed card) with no responsive behavior tested at other viewports. This is the single largest gap between the current implementation and "world-class" — see `docs/foundations/RESPONSIVE_LAYOUT.md` for the breakpoint scale and how layouts should adapt. Do not add new fixed-width containers without registering them there.
+Not yet defined anywhere in the codebase — every page today is effectively a single centered column (`max-width: 380px` auth card, `max-width: 560px` profile/feed card) with no responsive behavior tested at other viewports. This is the single largest gap between the current implementation and "world-class" — see `docs/foundations/RESPONSIVE_LAYOUT.md` for the breakpoint scale and how layouts should adapt. Do not add new fixed-width containers without registering them there. Tailwind's default breakpoints (`sm`/`md`/`lg`/`xl`/`2xl`) are available now (see Tooling above) but haven't been reconciled with `RESPONSIVE_LAYOUT.md`'s scale — check that doc before reaching for a `md:`/`lg:` prefix, rather than assuming Tailwind's defaults are this project's breakpoints.
 
 ## Components (current inventory)
 
-See `docs/foundations/COMPONENT_LIBRARY.md` for the full inventory and what's still missing. Summary of what exists today, styled via shared classes in `globals.css`: `.button` / `.buttonSecondary` / `.iconButton`, `.field` / `.textInput`, `.authCard`, `.profileCard` / `.profileHeaderRow` / `.profileAvatar` / `.profileLinkItem` / `.profileEditToggle`, `.siteHeader`, `.errorText` / `.mutedText`, `Modal.tsx` / `ConfirmButton.tsx` (`.modal`), `Toast.tsx` (`.toastStack`/`.toast`), `Avatar.tsx`, `EmptyState.tsx` (`.emptyState`).
+See `docs/foundations/COMPONENT_LIBRARY.md` for the full inventory and what's still missing. Summary of what exists today, styled via shared classes in `globals.css`: `.button` / `.buttonSecondary` / `.iconButton`, `.field` / `.textInput`, `.authCard`, `.profileCard` / `.profileHeaderRow` / `.profileAvatar` / `.profileLinkItem` / `.profileEditToggle`, `.siteHeader`, `.errorText` / `.mutedText`, `Modal.tsx` / `ConfirmButton.tsx` (`.modal`), `Toast.tsx` (`.toastStack`/`.toast`), `Avatar.tsx`, `EmptyState.tsx` (`.emptyState`). `src/components/ui/` (shadcn/ui, see Tooling above) is a second, separate inventory going forward for anything Radix-primitive-shaped (dialogs, dropdowns, popovers, form controls) — `Button` is the only one pulled in so far; prefer it over adding another one-off `.button`-style class once it exists, but the two systems coexist rather than one replacing the other yet.
 
 **Known inconsistency to fix, not perpetuate:** several pages (`SiteHeader.tsx`, `[username]/page.tsx`) use inline `style={{...}}` for layout (flex gaps, margins) instead of a class. This works today because the app is small, but it's already the first crack in "one visual language" — new layout patterns used more than once should become a class (e.g. a `.stack` / `.row` utility) rather than a repeated inline object literal. Don't do a wholesale retrofit unprompted; apply the rule going forward and clean up opportunistically when touching a file anyway.
 

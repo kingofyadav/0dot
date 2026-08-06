@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, type ReactNode } from "react";
+import { X } from "lucide-react";
 
 // Native <dialog> — same "prefer real elements over hand-rolled ARIA"
 // posture as MobileNavMenu's <details>/<summary> (ACCESSIBILITY.md).
@@ -49,9 +50,14 @@ export function Modal({
       }}
     >
       <div className="modalBody">
-        <h2 id={titleId} className="modalTitle">
-          {title}
-        </h2>
+        <div className="modalHeader">
+          <h2 id={titleId} className="modalTitle">
+            {title}
+          </h2>
+          <button type="button" className="modalClose" aria-label="Close" onClick={() => dialogRef.current?.close()}>
+            <X size={18} aria-hidden="true" />
+          </button>
+        </div>
         {children}
       </div>
     </dialog>

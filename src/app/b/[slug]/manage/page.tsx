@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
+import { ChevronUp, ChevronDown, X } from "lucide-react";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { getBusinessMember, isBusinessStaff } from "@/lib/businesses";
@@ -69,6 +70,9 @@ export default async function ManageBusinessPage({ params }: { params: Promise<{
           </Link>
           <Link href={`/b/${business.slug}/manage/contact`} className="button buttonSecondary" style={{ fontSize: "0.85rem", padding: "0.4rem 0.7rem" }}>
             Contact messages{newContactMessageCount > 0 ? ` (${newContactMessageCount})` : ""}
+          </Link>
+          <Link href={`/b/${business.slug}/manage/crm`} className="button buttonSecondary" style={{ fontSize: "0.85rem", padding: "0.4rem 0.7rem" }}>
+            CRM
           </Link>
           <Link href={`/b/${business.slug}`} className="button buttonSecondary" style={{ fontSize: "0.85rem", padding: "0.4rem 0.7rem" }}>
             View business page
@@ -208,18 +212,18 @@ export default async function ManageBusinessPage({ params }: { params: Promise<{
                   <input type="hidden" name="businessId" value={business.id} />
                   <input type="hidden" name="linkId" value={link.id} />
                   <input type="hidden" name="direction" value="up" />
-                  <button type="submit" className="button buttonSecondary iconButton" disabled={index === 0} aria-label="Move up">↑</button>
+                  <button type="submit" className="button buttonSecondary iconButton" disabled={index === 0} aria-label="Move up"><ChevronUp size={16} aria-hidden="true" /></button>
                 </form>
                 <form action={moveBusinessLink}>
                   <input type="hidden" name="businessId" value={business.id} />
                   <input type="hidden" name="linkId" value={link.id} />
                   <input type="hidden" name="direction" value="down" />
-                  <button type="submit" className="button buttonSecondary iconButton" disabled={index === links.length - 1} aria-label="Move down">↓</button>
+                  <button type="submit" className="button buttonSecondary iconButton" disabled={index === links.length - 1} aria-label="Move down"><ChevronDown size={16} aria-hidden="true" /></button>
                 </form>
                 <form action={deleteBusinessLink}>
                   <input type="hidden" name="businessId" value={business.id} />
                   <input type="hidden" name="linkId" value={link.id} />
-                  <button type="submit" className="button buttonSecondary iconButton" aria-label="Delete">✕</button>
+                  <button type="submit" className="button buttonSecondary iconButton" aria-label="Delete"><X size={16} aria-hidden="true" /></button>
                 </form>
               </div>
             </div>

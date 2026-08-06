@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Heart, X } from "lucide-react";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { renderWikiMarkdown } from "@/lib/wiki-markdown";
@@ -113,16 +114,21 @@ export default async function ArticlePage({ params }: { params: Promise<{ userna
             <button
               type="submit"
               className="button buttonSecondary iconButton"
-              style={isLiked ? { borderColor: "var(--accent)", color: "var(--accent)" } : undefined}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.3rem",
+                ...(isLiked ? { borderColor: "var(--accent)", color: "var(--accent)" } : undefined),
+              }}
               aria-pressed={isLiked}
             >
-              {isLiked ? "♥" : "♡"} {article.likeCount}
+              <Heart size={16} aria-hidden="true" fill={isLiked ? "currentColor" : "none"} /> {article.likeCount}
             </button>
           </form>
         )}
         {!currentUser && (
-          <span className="mutedText" style={{ fontSize: "0.85rem" }}>
-            ♡ {article.likeCount}
+          <span className="mutedText" style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.85rem" }}>
+            <Heart size={14} aria-hidden="true" /> {article.likeCount}
           </span>
         )}
       </div>
@@ -140,7 +146,7 @@ export default async function ArticlePage({ params }: { params: Promise<{ userna
                 <form action={deleteComment} style={{ alignSelf: "flex-end" }}>
                   <input type="hidden" name="commentId" value={comment.id} />
                   <button type="submit" className="button buttonSecondary iconButton" aria-label="Delete comment">
-                    ✕
+                    <X size={16} aria-hidden="true" />
                   </button>
                 </form>
               )}

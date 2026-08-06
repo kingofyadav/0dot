@@ -6,6 +6,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { canManageOfferingOwner, isOfferingOwnerStaff, resolveOfferingOwner } from "@/lib/offerings";
 import { notifyAppointmentRequest, notifyAppointmentConfirmed, notifyAppointmentCancelled } from "@/lib/notifications";
+import { recordCrmActivity } from "@/lib/crm";
 import { checkRateLimit } from "@/lib/rate-limit";
 import type { ActionState } from "@/app/actions/auth";
 
@@ -114,6 +115,18 @@ export async function requestAppointment(_prevState: ActionState, formData: Form
   });
 
   if (!result) return { error: "That slot was just taken. Please pick another." };
+
+  // CRM (phase-16 spec §13.2): only businesses have a Contact/Activity
+  // feed in this MVP — an individual seller's offering has no businessId
+  // to attach one to.
+  if (offering.businessId) {
+    await recordCrmActivity({
+      businessId: offering.businessId,
+      activityType: "appointment",
+      sourceId: result.id,
+      identity: { userId: user.id },
+    });
+  }
 
   if (offering.business) {
     const staff = await db.businessMember.findMany({

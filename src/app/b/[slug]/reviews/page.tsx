@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { EmptyState } from "@/components/EmptyState";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { getBusinessMember, isBusinessStaff } from "@/lib/businesses";
@@ -63,7 +64,7 @@ export default async function ReviewsPage({ params }: { params: Promise<{ slug: 
         </details>
       )}
 
-      {reviews.length === 0 && <p className="mutedText">Nothing here yet.</p>}
+      {reviews.length === 0 && <EmptyState message="Nothing here yet." />}
 
       <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
         {reviews.map((review) => {

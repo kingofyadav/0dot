@@ -19,14 +19,44 @@ export default async function FollowingPage({
   const { cursor: rawCursor } = await searchParams;
   const cursor = parseCursor(rawCursor);
 
-  const username = await db.username.findUnique({ where: { handle } });
-  if (!username) notFound();
+  const username = await db.username.findUnique({ where: { handle }, include: { user: { include: { profile: true } } } });
+  if (!username || !username.user.profile) notFound();
+
+  const currentUser = await getCurrentUser();
+  const isOwner = currentUser?.id === username.userId;
+
+  // Same private-account gate as followers/page.tsx — see that file's
+  // comment; the following list is just as much a gated content surface.
+  if (username.user.profile.isPrivate && !isOwner) {
+    const viewerFollowRow = currentUser
+      ? await db.follow.findUnique({
+          where: { followerId_followeeId: { followerId: currentUser.id, followeeId: username.userId } },
+          select: { status: true },
+        })
+      : null;
+    if (viewerFollowRow?.status !== "accepted") {
+      return (
+        <div className="profileCard">
+          <h1 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "1rem" }}>
+            <Link href={`/${handle}`} className="mutedText" style={{ marginRight: "0.5rem" }}>
+              ← @{handle}
+            </Link>
+            Following
+          </h1>
+          <p className="mutedText">This account is private. Follow @{handle} to see who they follow.</p>
+        </div>
+      );
+    }
+  }
 
   // Mirror of followers/page.tsx, filtered/tiebroken the other direction —
   // see that file's comment for why this can't reuse cursorWhere() as-is.
+  // Only "accepted" rows are real follows — a "pending" request against a
+  // private account isn't one yet.
   const rows = await db.follow.findMany({
     where: {
       followerId: username.userId,
+      status: "accepted",
       ...(cursor
         ? {
             OR: [
@@ -44,7 +74,6 @@ export default async function FollowingPage({
   const { items, nextCursor } = paginate(rows.map((r) => ({ ...r, id: r.followeeId })));
   const listedUsers = items.map((r) => r.followee);
 
-  const currentUser = await getCurrentUser();
   const followingSet = currentUser
     ? new Set(
         (
@@ -52,6 +81,7 @@ export default async function FollowingPage({
             where: {
               followerId: currentUser.id,
               followeeId: { in: listedUsers.map((u) => u.id) },
+              status: "accepted",
             },
             select: { followeeId: true },
           })
@@ -76,7 +106,6 @@ export default async function FollowingPage({
             handle={u.username?.handle ?? null}
             displayName={u.profile?.displayName ?? "Unknown"}
             avatarUrl={u.profile?.avatarUrl ?? null}
-            isVerified={u.profile?.isVerified ?? false}
             isFollowing={followingSet.has(u.id)}
             isSelf={currentUser?.id === u.id}
             showFollowButton={Boolean(currentUser)}

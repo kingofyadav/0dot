@@ -2,13 +2,14 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
-import { SettingsSidebar } from "./SettingsSidebar";
 
 // Owner-only settings shell, shared by every /s/[username]/* route. Owns
-// the auth/own-handle checks and the persistent header + sub-nav that used
-// to be duplicated at the top of one 918-line page — every section is now
-// its own route under here, so this is the one place that logic needs to
-// live.
+// the auth/own-handle checks and the persistent header that used to be
+// duplicated at the top of one 918-line page — every section is now its own
+// route under here, so this is the one place that logic needs to live.
+// Section-to-section navigation itself lives one level up, in the main
+// left nav's Settings accordion (NavLinks.tsx) — no second, page-local
+// sidebar competing with this content for width.
 export default async function SettingsLayout({
   children,
   params,
@@ -39,10 +40,7 @@ export default async function SettingsLayout({
           View public profile
         </Link>
       </div>
-      <div className="settingsShellInner">
-        <SettingsSidebar handle={handle} />
-        <div className="settingsContent">{children}</div>
-      </div>
+      <div className="settingsContent">{children}</div>
     </div>
   );
 }

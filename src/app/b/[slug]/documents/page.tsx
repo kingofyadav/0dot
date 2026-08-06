@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { EmptyState } from "@/components/EmptyState";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { getBusinessMember, canManageCatalog } from "@/lib/businesses";
@@ -52,7 +53,7 @@ export default async function DocumentsPage({ params }: { params: Promise<{ slug
         </details>
       )}
 
-      {documents.length === 0 && <p className="mutedText">Nothing here yet.</p>}
+      {documents.length === 0 && <EmptyState message="Nothing here yet." />}
 
       <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
         {documents.map((doc) => (

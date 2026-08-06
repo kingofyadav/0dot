@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ArrowLeft, Heart, Star, X } from "lucide-react";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { renderWikiMarkdown } from "@/lib/wiki-markdown";
@@ -54,8 +55,8 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
   return (
     <div className="profileCard">
       {ownerHandle && (
-        <Link href={`/${ownerHandle}`} className="mutedText" style={{ fontSize: "0.85rem" }}>
-          ← {project.owner.profile?.displayName ?? ownerHandle}
+        <Link href={`/${ownerHandle}`} className="mutedText" style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.85rem" }}>
+          <ArrowLeft size={14} aria-hidden="true" /> {project.owner.profile?.displayName ?? ownerHandle}
         </Link>
       )}
 
@@ -118,9 +119,20 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
       {project.gitRepositories.length > 0 && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", marginTop: "0.5rem" }}>
           {project.gitRepositories.map((repo) => (
-            <a key={repo.id} href={repo.url} target="_blank" rel="noopener noreferrer" className="button buttonSecondary buttonSmall">
+            <a
+              key={repo.id}
+              href={repo.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="button buttonSecondary buttonSmall"
+              style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}
+            >
               {repo.displayName}
-              {repo.starCount !== null && ` · ★ ${repo.starCount}`}
+              {repo.starCount !== null && (
+                <>
+                  · <Star size={12} aria-hidden="true" /> {repo.starCount}
+                </>
+              )}
             </a>
           ))}
         </div>
@@ -157,16 +169,21 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
             <button
               type="submit"
               className="button buttonSecondary iconButton"
-              style={isLiked ? { borderColor: "var(--accent)", color: "var(--accent)" } : undefined}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.3rem",
+                ...(isLiked ? { borderColor: "var(--accent)", color: "var(--accent)" } : undefined),
+              }}
               aria-pressed={isLiked}
             >
-              {isLiked ? "♥" : "♡"} {project.likeCount}
+              <Heart size={16} aria-hidden="true" fill={isLiked ? "currentColor" : "none"} /> {project.likeCount}
             </button>
           </form>
         )}
         {!currentUser && (
-          <span className="mutedText" style={{ fontSize: "0.85rem" }}>
-            ♡ {project.likeCount}
+          <span className="mutedText" style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.85rem" }}>
+            <Heart size={14} aria-hidden="true" /> {project.likeCount}
           </span>
         )}
       </div>
@@ -184,7 +201,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
                 <form action={deleteProjectComment} style={{ alignSelf: "flex-end" }}>
                   <input type="hidden" name="commentId" value={comment.id} />
                   <button type="submit" className="button buttonSecondary iconButton" aria-label="Delete comment">
-                    ✕
+                    <X size={16} aria-hidden="true" />
                   </button>
                 </form>
               )}

@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { isBusinessStaff } from "@/lib/businesses";
+import { recordCrmActivity } from "@/lib/crm";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -53,7 +54,7 @@ export async function sendContactMessage(
     if (!EMAIL_PATTERN.test(senderEmail)) return { error: "A valid email is required." };
   }
 
-  await db.contactMessage.create({
+  const contactMessage = await db.contactMessage.create({
     data: {
       businessId: business.id,
       senderUserId: currentUser?.id ?? null,
@@ -61,6 +62,13 @@ export async function sendContactMessage(
       senderEmail,
       body,
     },
+  });
+
+  await recordCrmActivity({
+    businessId: business.id,
+    activityType: "contact_message",
+    sourceId: contactMessage.id,
+    identity: { userId: currentUser?.id, externalName: senderName, externalEmail: senderEmail },
   });
 
   revalidatePath(`/b/${business.slug}/manage/contact`);

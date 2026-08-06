@@ -4,15 +4,19 @@ import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { hasTierAccess } from "@/lib/tier-access";
 import { LivestreamChatView } from "@/components/LivestreamChatView";
+import { LivestreamBroadcaster } from "@/components/LivestreamBroadcaster";
+import { LivestreamPlayer } from "@/components/LivestreamPlayer";
 import { startLivestream, endLivestream } from "@/app/actions/livestreams";
 
 const chatSenderInclude = { username: true, profile: true } as const;
 
-// spec §8.3: playbackUrl is only ever shown to a viewer who currently
-// passes hasTierAccess — re-checked here at render time, not cached from
-// any earlier state. playbackUrl itself is a stub value (see
-// livestream-provider.ts) — no real video plays, this is the
-// access-control boundary spec §8.3 actually asks for.
+// spec §8.3: a viewer only ever gets a LiveKit join token if they
+// currently pass hasTierAccess — re-checked here at render time (via
+// LivestreamPlayer -> requestViewerToken), not cached from any earlier
+// state. This is the access-control boundary spec §8.3 asks for; whether
+// video actually plays depends on livestream-provider.ts having real
+// LiveKit credentials configured (falls back to the stub placeholder
+// otherwise).
 export default async function LivestreamPage({ params }: { params: Promise<{ livestreamId: string }> }) {
   const { livestreamId } = await params;
 
@@ -79,8 +83,12 @@ export default async function LivestreamPage({ params }: { params: Promise<{ liv
         </p>
       ) : (
         <>
-          <div className="livestreamPlaceholder" style={{ marginTop: "1rem", aspectRatio: "16/9", background: "#000", borderRadius: "12px", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>
-            <span className="mutedText">Live — playback provider not yet connected (stub)</span>
+          <div style={{ marginTop: "1rem" }}>
+            {isOwner ? (
+              <LivestreamBroadcaster livestreamId={livestream.id} />
+            ) : (
+              <LivestreamPlayer livestreamId={livestream.id} />
+            )}
           </div>
           <div style={{ marginTop: "1rem" }}>
             <LivestreamChatView

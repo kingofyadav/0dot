@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BadgeCheck } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { PresenceDot } from "@/components/PresenceDot";
 import { ConversationRowMenu } from "@/components/ConversationRowMenu";
@@ -67,7 +68,7 @@ export function ConversationListItem({
                   the conversation header's own badge is the clickable one. */}
               {handle && (
                 <span className="verifiedBadge" aria-label="View public profile" title="View public profile">
-                  ✓
+                  <BadgeCheck size={14} aria-hidden="true" />
                 </span>
               )}
             </span>

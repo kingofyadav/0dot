@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { canManageCatalog, isBusinessStaff } from "@/lib/businesses";
 import { notifyJobApplication, notifyApplicationStatusChange } from "@/lib/notifications";
+import { notifyMatchingJobAlerts } from "@/lib/job-alerts";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { saveMessageAttachment } from "@/lib/uploads";
 import type { ActionState } from "@/app/actions/auth";
@@ -54,7 +55,7 @@ export async function createJob(_prevState: ActionState, formData: FormData): Pr
   const closesAt = closesAtRaw ? new Date(closesAtRaw) : null;
   if (closesAt && Number.isNaN(closesAt.getTime())) return { error: "Invalid close date." };
 
-  await db.job.create({
+  const job = await db.job.create({
     data: {
       businessId: business.id,
       title,
@@ -67,6 +68,8 @@ export async function createJob(_prevState: ActionState, formData: FormData): Pr
       closesAt,
     },
   });
+
+  await notifyMatchingJobAlerts({ ...job, businessSlug: business.slug });
 
   revalidatePath(`/b/${business.slug}/jobs`);
   redirect(`/b/${business.slug}/jobs`);

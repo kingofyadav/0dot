@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { BadgeCheck } from "lucide-react";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { getBusinessMember, parseBusinessHours } from "@/lib/businesses";
@@ -92,8 +93,8 @@ export default async function BusinessPage({ params }: { params: Promise<{ slug:
             <h1 className="profileName">
               {business.name}
               {business.isVerified && (
-                <span className="mutedText" style={{ fontSize: "0.75rem", marginLeft: "0.4rem" }}>
-                  ✓ Verified
+                <span className="verifiedBadge" title="Verified" aria-label="Verified">
+                  <BadgeCheck size={14} aria-hidden="true" />
                 </span>
               )}
             </h1>

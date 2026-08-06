@@ -4,15 +4,16 @@ import { isProfilePagePath } from "@/lib/route-context";
 import { ThemeToggleLogo } from "./ThemeToggleLogo";
 import { Sidebar } from "./Sidebar";
 import { MobileNavMenu } from "./MobileNavMenu";
+import { MobileBottomNav } from "./MobileBottomNav";
 import { NavLinks } from "./NavLinks";
 import { NavAction } from "./NavAction";
 import { SearchForm } from "./SearchForm";
 import { NotificationBell } from "./NotificationBell";
 import { MessagesBadge } from "./MessagesBadge";
+import { AccountMenu } from "./AccountMenu";
 
 export async function SiteHeader() {
   const user = await getCurrentUser();
-  const greeting = user?.profile ? user.profile.displayName : "Welcome";
   const profileHandle = user?.username?.handle ?? null;
 
   // An anonymous visitor landing on someone's public profile (a common
@@ -27,6 +28,24 @@ export async function SiteHeader() {
   const hasProfile = Boolean(user?.profile);
   const showJoinCta = !hasProfile && isProfilePage;
 
+  // AccountMenu is an avatar-only trigger, no name — grouped with
+  // messages/notifications in one icon cluster that sits at the far right
+  // of the header (per explicit direction). The user's real display name
+  // still shows next to the brand logo on the left (the original greeting),
+  // independently of AccountMenu.
+  const accountMenu =
+    user?.profile && profileHandle ? (
+      <AccountMenu displayName={user.profile.displayName} avatarUrl={user.profile.avatarUrl} profileHandle={profileHandle} />
+    ) : null;
+  const greeting = <span style={{ fontWeight: 600 }}>{user?.profile?.displayName ?? "Welcome"}</span>;
+  const iconCluster = (
+    <>
+      <MessagesBadge />
+      <NotificationBell />
+      {accountMenu}
+    </>
+  );
+
   return (
     <>
       {/* Desktop (>=1024px), and mobile render simultaneously — CSS decides
@@ -35,35 +54,39 @@ export async function SiteHeader() {
       <header className="desktopTopHeader">
         <div className="siteHeaderBrand">
           <ThemeToggleLogo />
-          <span style={{ fontWeight: 600 }}>{greeting}</span>
+          {greeting}
         </div>
         <div className="desktopTopHeaderSearchWrap">
           <SearchForm />
-          <MessagesBadge />
-          <NotificationBell />
+          <div className="siteHeaderActions">{iconCluster}</div>
         </div>
       </header>
 
-      <Sidebar hasProfile={hasProfile} showJoinCta={showJoinCta} profileHandle={profileHandle} />
+      <Sidebar hasProfile={hasProfile} profileHandle={profileHandle} />
 
       <header className="mobileHeader">
         <div className="siteHeaderBrand">
           {/* Desktop and mobile headers both render unconditionally (CSS
-              picks which is visible, see the comment above) — only one of
-              the two logo mounts needs priority-preloading, not both, or
-              every page load eagerly preloads 4 logo images instead of 2. */}
-          <ThemeToggleLogo priority={false} />
-          <span style={{ fontWeight: 600 }}>{greeting}</span>
+              picks which is visible, see the comment above) — this logo is
+              the one actually painted on mobile viewports, so it needs
+              priority too, or the browser's real (viewport-scoped) LCP
+              detector flags it as an eagerly-needed image that loaded lazy
+              (the desktop copy is priority but never painted there, so
+              skipping this one bought nothing). */}
+          <ThemeToggleLogo />
+          {greeting}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-          <MessagesBadge />
-          <NotificationBell />
-          <MobileNavMenu>
-            <NavLinks showBookmarks={hasProfile} profileHandle={profileHandle} />
-            <NavAction hasProfile={hasProfile} showJoinCta={showJoinCta} />
-          </MobileNavMenu>
-        </div>
+        {/* Messages/notifications/account avatar are desktop-only (per
+            explicit direction) — mobile keeps just the nav toggle; Messages
+            and Settings are still reachable via NavLinks inside it, and
+            NavAction still has Log out. */}
+        <MobileNavMenu>
+          <NavLinks showBookmarks={hasProfile} profileHandle={profileHandle} />
+          <NavAction hasProfile={hasProfile} showJoinCta={showJoinCta} />
+        </MobileNavMenu>
       </header>
+
+      <MobileBottomNav profileHandle={profileHandle} />
     </>
   );
 }

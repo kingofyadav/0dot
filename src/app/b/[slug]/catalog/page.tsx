@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { EmptyState } from "@/components/EmptyState";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { getBusinessMember, canManageCatalog } from "@/lib/businesses";
@@ -106,7 +107,7 @@ export default async function CatalogPage({
         </details>
       )}
 
-      {offerings.length === 0 && <p className="mutedText">Nothing here yet.</p>}
+      {offerings.length === 0 && <EmptyState message="Nothing here yet." />}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "0.75rem" }}>
         {offerings.map((offering) => {

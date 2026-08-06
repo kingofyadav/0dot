@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { X } from "lucide-react";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { deleteResearchPaper, deleteCertificate, deleteAward } from "@/app/actions/credentials";
@@ -33,7 +34,7 @@ export default async function CredentialsSettingsPage() {
             </span>
             <form action={deleteResearchPaper}>
               <input type="hidden" name="researchPaperId" value={paper.id} />
-              <button type="submit" className="button buttonSecondary iconButton" aria-label="Delete paper">✕</button>
+              <button type="submit" className="button buttonSecondary iconButton" aria-label="Delete paper"><X size={16} aria-hidden="true" /></button>
             </form>
           </div>
         ))}
@@ -56,7 +57,7 @@ export default async function CredentialsSettingsPage() {
             </span>
             <form action={deleteCertificate}>
               <input type="hidden" name="certificateId" value={cert.id} />
-              <button type="submit" className="button buttonSecondary iconButton" aria-label="Delete certificate">✕</button>
+              <button type="submit" className="button buttonSecondary iconButton" aria-label="Delete certificate"><X size={16} aria-hidden="true" /></button>
             </form>
           </div>
         ))}
@@ -78,7 +79,7 @@ export default async function CredentialsSettingsPage() {
             </span>
             <form action={deleteAward}>
               <input type="hidden" name="awardId" value={award.id} />
-              <button type="submit" className="button buttonSecondary iconButton" aria-label="Delete award">✕</button>
+              <button type="submit" className="button buttonSecondary iconButton" aria-label="Delete award"><X size={16} aria-hidden="true" /></button>
             </form>
           </div>
         ))}

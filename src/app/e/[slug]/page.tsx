@@ -80,36 +80,38 @@ export default async function EventPage({ params }: { params: Promise<{ slug: st
       <div className="profileCard">
         {event.coverImageUrl && (
           // eslint-disable-next-line @next/next/no-img-element -- user-supplied URL, not a local/optimizable asset
-          <img src={event.coverImageUrl} alt="" style={{ width: "100%", maxHeight: 280, objectFit: "cover", borderRadius: "10px", marginBottom: "1rem" }} />
+          <img src={event.coverImageUrl} alt="" style={{ width: "100%", maxHeight: 280, objectFit: "cover", borderRadius: "10px", marginBottom: "var(--space-4)" }} />
         )}
 
-        {event.status === "cancelled" && <p className="errorText">This event has been cancelled.</p>}
-        {event.status === "draft" && <p className="mutedText">Draft — only you can see this.</p>}
+        {event.status === "cancelled" && <p className="errorText" style={{ marginBottom: "var(--space-2)" }}>This event has been cancelled.</p>}
+        {event.status === "draft" && <p className="mutedText" style={{ marginBottom: "var(--space-2)" }}>Draft — only you can see this.</p>}
 
-        <h1 style={{ fontSize: "1.3rem", fontWeight: 700 }}>{event.title}</h1>
-        <p className="mutedText" style={{ marginTop: "0.2rem" }}>
-          Hosted by {host.href ? <Link href={host.href}>{host.label}</Link> : host.label}
-        </p>
-        <p className="mutedText" style={{ fontSize: "0.9rem", marginTop: "0.3rem" }}>
-          {formatWhen(event.startsAt, event.endsAt, event.timezone)}
-        </p>
-        <p className="mutedText" style={{ fontSize: "0.9rem" }}>
-          {FORMAT_LABEL[event.format]}
-          {event.location && ` · ${event.location}`}
-        </p>
-        {event.virtualJoinUrl && (
-          <p style={{ fontSize: "0.9rem", marginTop: "0.2rem" }}>
-            <a href={event.virtualJoinUrl} target="_blank" rel="noopener noreferrer">
-              Join link
-            </a>
+        <h1 className="eventTitle">{event.title}</h1>
+        <div className="eventMeta">
+          <p className="mutedText">
+            Hosted by {host.href ? <Link href={host.href}>{host.label}</Link> : host.label}
           </p>
-        )}
-        <p className="mutedText" style={{ fontSize: "0.85rem", marginTop: "0.3rem" }}>
-          {rsvpCounts.going} going · {rsvpCounts.interested} interested
-          {event.capacity !== null && ` · capacity ${event.capacity}`}
-        </p>
+          <p className="mutedText" style={{ fontSize: "var(--text-sm)" }}>
+            {formatWhen(event.startsAt, event.endsAt, event.timezone)}
+          </p>
+          <p className="mutedText" style={{ fontSize: "var(--text-sm)" }}>
+            {FORMAT_LABEL[event.format]}
+            {event.location && ` · ${event.location}`}
+          </p>
+          {event.virtualJoinUrl && (
+            <p style={{ fontSize: "var(--text-sm)" }}>
+              <a href={event.virtualJoinUrl} target="_blank" rel="noopener noreferrer">
+                Join link
+              </a>
+            </p>
+          )}
+          <p className="mutedText" style={{ fontSize: "var(--text-xs)" }}>
+            {rsvpCounts.going} going · {rsvpCounts.interested} interested
+            {event.capacity !== null && ` · capacity ${event.capacity}`}
+          </p>
+        </div>
 
-        {event.description && <div style={{ marginTop: "0.9rem" }}>{renderWikiMarkdown(event.description)}</div>}
+        {event.description && <div style={{ marginTop: "var(--space-5)" }}>{renderWikiMarkdown(event.description)}</div>}
 
         {currentUser && event.status === "published" && (
           <EventActions
@@ -121,9 +123,9 @@ export default async function EventPage({ params }: { params: Promise<{ slug: st
         )}
 
         {canSeeAttendees && attendees.length > 0 && (
-          <div style={{ marginTop: "1rem" }}>
+          <div style={{ marginTop: "var(--space-5)" }}>
             <p className="sectionHeading">Attendees</p>
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
               {attendees.map((a) => (
                 <span key={a.userId} className="profileLinkItem">
                   {a.user.profile?.displayName ?? a.user.username?.handle ?? "Someone"}

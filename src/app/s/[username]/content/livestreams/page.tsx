@@ -2,6 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
+import { deleteLivestream } from "@/app/actions/livestreams";
+import { ConfirmButton } from "@/components/ConfirmButton";
 import { LivestreamForm } from "../../LivestreamForm";
 
 export default async function LivestreamsSettingsPage() {
@@ -27,7 +29,23 @@ export default async function LivestreamsSettingsPage() {
               {live.requiredTierId && " · member-only"}
             </span>
           </span>
-          <Link href={`/live/${live.id}`} className="button buttonSecondary buttonSmall">Manage</Link>
+          <span style={{ display: "flex", gap: "0.4rem" }}>
+            <Link href={`/live/${live.id}`} className="button buttonSecondary buttonSmall">Manage</Link>
+            {live.status !== "live" && (
+              <form action={deleteLivestream}>
+                <input type="hidden" name="livestreamId" value={live.id} />
+                <ConfirmButton
+                  className="button buttonSecondary iconButton"
+                  aria-label="Delete livestream"
+                  title="Delete this livestream?"
+                  description="Chat history for this livestream will be deleted too. This can't be undone."
+                  confirmLabel="Delete"
+                >
+                  ×
+                </ConfirmButton>
+              </form>
+            )}
+          </span>
         </div>
       ))}
       <details className="profileEditToggle" style={{ marginTop: "0.5rem" }}>

@@ -6,7 +6,7 @@ Status: Foundational document (Priority 8). **Current state: minimal.** Today's 
 
 - **Left sidebar:** primary destinations (Feed/Home, Explore, Notifications, Messages, Communities, Profile) as the app grows past what a single header row can hold. Today's single "Feed" link is the seed of this — it moves into the sidebar wholesale once a second nav destination exists, rather than the header row growing indefinitely wide.
 - **Top search:** global search (Phase 1 named search as a launch feature — users/communities/posts/businesses — not built yet). Belongs in the persistent header, not buried in a sidebar item, since search is a cross-cutting action from anywhere.
-- **Right contextual panel:** page-dependent auxiliary content (suggested users, trending topics, community info) — optional per page, not a fixed global element. Do not build this before there's real content to put in it; an empty contextual panel is worse than no panel.
+- **Right contextual panel:** auxiliary content (0dot Pro upsell, AI tools, notifications preview, suggested users) — a fixed global element for every signed-in visitor, same posture as the left sidebar (shown on every page with chrome; hidden only on chromeless pages and for anonymous visitors, since its content is inherently personalized). Previously opt-in per route; widened to global once its content stopped being feed/explore-specific.
 
 ## Mobile (target — base breakpoint, <1024px)
 

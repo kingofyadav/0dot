@@ -6,6 +6,7 @@ import { deleteModule, deleteLesson } from "@/app/actions/courses";
 import { CourseForm } from "@/app/s/[username]/CourseForm";
 import { AddModuleForm } from "./AddModuleForm";
 import { AddLessonForm } from "./AddLessonForm";
+import { QuizForm } from "./QuizForm";
 
 // spec §11: owner-only course builder, same "/s/ prefix = control panel"
 // split as the rest of settings — modules/lessons are managed here, never
@@ -24,7 +25,7 @@ export default async function CourseBuilderPage({
 
   const course = await db.course.findUnique({
     where: { id: courseId },
-    include: { modules: { orderBy: { position: "asc" }, include: { lessons: { orderBy: { position: "asc" } } } } },
+    include: { modules: { orderBy: { position: "asc" }, include: { lessons: { orderBy: { position: "asc" }, include: { quizzes: true } } } } },
   });
   if (!course || course.creatorId !== currentUser.id) notFound();
 
@@ -61,13 +62,21 @@ export default async function CourseBuilderPage({
             {courseModule.lessons.map((lesson) => (
               <div key={lesson.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingInlineStart: "0.5rem" }}>
                 <span className="mutedText" style={{ fontSize: "0.85rem" }}>
-                  {lesson.title} ({lesson.contentType})
+                  {lesson.title} ({lesson.contentType}){lesson.quizzes.length > 0 && " · has quiz"}
                 </span>
                 <form action={deleteLesson}>
                   <input type="hidden" name="lessonId" value={lesson.id} />
                   <button type="submit" className="button buttonSecondary iconButton" aria-label="Delete lesson">✕</button>
                 </form>
               </div>
+            ))}
+            {courseModule.lessons.filter((l) => l.quizzes.length === 0).map((lesson) => (
+              <details key={`quiz-${lesson.id}`} className="profileEditToggle">
+                <summary className="mutedText" style={{ fontSize: "0.85rem" }}>+ Add quiz to &ldquo;{lesson.title}&rdquo;</summary>
+                <div style={{ marginTop: "0.5rem" }}>
+                  <QuizForm lessonId={lesson.id} />
+                </div>
+              </details>
             ))}
 
             <details className="profileEditToggle">

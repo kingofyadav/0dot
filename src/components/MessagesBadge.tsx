@@ -1,3 +1,4 @@
+import { Mail } from "lucide-react";
 import { getCurrentUser } from "@/lib/session";
 import {
   getUnreadConversationCount,
@@ -30,7 +31,7 @@ export async function MessagesBadge() {
     <PreviewPopover
       trigger={
         <button type="button" className="notificationBell" aria-label={label}>
-          <span aria-hidden="true">✉️</span>
+          <Mail size={20} aria-hidden="true" />
           {count > 0 && (
             <span className="notificationBellBadge" aria-hidden="true">
               {count > 99 ? "99+" : count}

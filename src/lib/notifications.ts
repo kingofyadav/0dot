@@ -29,6 +29,8 @@ type NotificationInput = {
     | "comment"
     | "mention"
     | "new_follower"
+    | "follow_request"
+    | "follow_accepted"
     | "message"
     | "community_update"
     | "community_invite"
@@ -198,13 +200,17 @@ async function createNotification({
   // no client-side changes needed here.
   publishToUsers([recipientId], { type: "notification" });
 
-  // phase-10 spec §7.1: webhooks are a second consumer of this same event,
-  // delivered externally to any app the recipient has authorized for the
-  // corresponding scope (dispatchWebhookEvent, webhooks.ts) — dynamic
-  // import to avoid a load-time cycle (webhooks.ts imports
-  // notifyWebhookDisabled from this module for its own failure path).
-  const { dispatchWebhookEvent } = await import("@/lib/webhooks");
-  await dispatchWebhookEvent({ recipientId, type, subjectType, subjectId });
+  // phase-10 spec §7.1 / phase-15 spec §4.2: webhooks and push are two
+  // independent consumers of this same event (neither depends on the
+  // other's result), so they run concurrently rather than paying both
+  // latencies serially on every notification for every recipient. Dynamic
+  // imports avoid load-time cycles (webhooks.ts imports
+  // notifyWebhookDisabled and push.ts imports getNotificationVerb, both
+  // from this module).
+  await Promise.all([
+    import("@/lib/webhooks").then(({ dispatchWebhookEvent }) => dispatchWebhookEvent({ recipientId, type, subjectType, subjectId })),
+    import("@/lib/push").then(({ dispatchPushEvent }) => dispatchPushEvent({ recipientId, type, subjectType, subjectId })),
+  ]);
 }
 
 export function notifyLike(args: { recipientId: string; actorId: string; subjectId: string }): Promise<void> {
@@ -306,6 +312,22 @@ export function notifyNewFollower(args: { recipientId: string; actorId: string }
   return createNotification({ ...args, type: "new_follower", subjectType: "user", subjectId: args.actorId });
 }
 
+// Private-account counterpart to notifyNewFollower (see followUser,
+// src/app/actions/follow.ts) — fires instead of it when the target's
+// Profile.isPrivate is true, since the Follow row is only "pending" at this
+// point. subjectId is the requester's own id, same shape notifyNewFollower
+// already uses (there's no distinct "follow request" entity to point at).
+export function notifyFollowRequest(args: { recipientId: string; actorId: string }): Promise<void> {
+  return createNotification({ ...args, type: "follow_request", subjectType: "user", subjectId: args.actorId });
+}
+
+// Fires to the original requester once acceptFollowRequest flips their
+// pending row to "accepted" — actorId is the account that just accepted
+// them, subjectId mirrors it, same shape as notifyFollowRequest.
+export function notifyFollowRequestAccepted(args: { recipientId: string; actorId: string }): Promise<void> {
+  return createNotification({ ...args, type: "follow_accepted", subjectType: "user", subjectId: args.actorId });
+}
+
 // phase-14 spec §10 step 8: the three org-scoped producers, sequenced last
 // in that build plan since they describe outcomes of steps built earlier
 // (member add/deactivate, SSO configure). subjectId is the organizationId
@@ -388,6 +410,35 @@ export function notifyBusinessReview(args: {
     subjectType: "business",
     subjectId: args.businessSlug,
   });
+}
+
+// phase-16 spec §4: fires when a newly posted Job matches a saved
+// JobAlert — no human actor (system-generated match), same
+// bypass-createNotification posture as notifyWebhookDisabled above.
+// subjectId is `{businessSlug}/jobs/{jobId}`, same shape as
+// job_application/application_status above, so getNotificationHref can
+// route it the same way.
+export async function notifyJobAlertMatch(args: { recipientId: string; businessSlug: string; jobId: string }): Promise<void> {
+  const subjectId = `${args.businessSlug}/jobs/${args.jobId}`;
+  await db.notification.create({
+    data: {
+      recipientId: args.recipientId,
+      actorId: null,
+      type: "job_alert_match",
+      subjectType: "business",
+      subjectId,
+    },
+  });
+  publishToUsers([args.recipientId], { type: "notification" });
+
+  // Bypasses createNotification (no human actor, same posture as every
+  // other system-generated notifier above), so — like
+  // createSystemEventNotification — it needs its own push dispatch rather
+  // than inheriting createNotification's. This was missing: a user with
+  // push enabled and a saved job alert got the in-app notification but
+  // never a push for a new matching job.
+  const { dispatchPushEvent } = await import("@/lib/push");
+  await dispatchPushEvent({ recipientId: args.recipientId, type: "job_alert_match", subjectType: "business", subjectId });
 }
 
 // spec §9.2: fires to admin+ team members when a new JobApplication is
@@ -569,6 +620,13 @@ async function createSystemEventNotification(args: {
     data: { recipientId: args.recipientId, actorId: null, type: args.type, subjectType: "event", subjectId: args.eventSlug },
   });
   publishToUsers([args.recipientId], { type: "notification" });
+
+  // phase-15 spec §4.4: ticket_purchased/event_reminder are two of the
+  // three deferrals this phase names explicitly (Phase 8 §8.3) — these
+  // bypass createNotification entirely (see comment above), so they need
+  // their own push dispatch rather than inheriting createNotification's.
+  const { dispatchPushEvent } = await import("@/lib/push");
+  await dispatchPushEvent({ recipientId: args.recipientId, type: args.type, subjectType: "event", subjectId: args.eventSlug });
 }
 
 export function notifyTicketPurchased(args: { recipientId: string; eventSlug: string }): Promise<void> {
@@ -631,6 +689,10 @@ export function getNotificationVerb(type: string, subjectType?: string): string 
       return "mentioned you";
     case "new_follower":
       return "followed you";
+    case "follow_request":
+      return "requested to follow you";
+    case "follow_accepted":
+      return "accepted your follow request";
     case "message":
       return "sent you a message";
     // Generic by design — community_update is a spec-defined catch-all
@@ -648,6 +710,8 @@ export function getNotificationVerb(type: string, subjectType?: string): string 
       return "left a review on your business";
     case "job_application":
       return "applied to a job posting";
+    case "job_alert_match":
+      return "A new job posting matches one of your job alerts";
     case "application_status":
       return "updated your application status";
     case "appointment_request":
@@ -742,6 +806,8 @@ export function getNotificationHref(
       return recipientHandle ? `/${recipientHandle}#post-${n.subjectId}` : "/feed";
     case "mention":
     case "new_follower":
+    case "follow_request":
+    case "follow_accepted":
     case "tip_received":
     case "new_subscriber":
     case "affiliate_conversion":
@@ -755,6 +821,8 @@ export function getNotificationHref(
       return `/b/${n.subjectId}/reviews`;
     case "job_application":
       return `/b/${n.subjectId}/applications`;
+    case "job_alert_match":
+      return `/b/${n.subjectId}`;
     case "application_status":
       return `/b/${n.subjectId}`;
     case "appointment_request":

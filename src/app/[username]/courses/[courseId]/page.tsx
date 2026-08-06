@@ -1,11 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ArrowLeft, Check, Lock } from "lucide-react";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { hasCourseAccess } from "@/lib/course-access";
 import { markLessonComplete } from "@/app/actions/courses";
 import { CourseBuyButton } from "@/components/CourseBuyButton";
 import { LessonFileButton } from "@/components/LessonFileButton";
+import { QuizWidget } from "@/components/QuizWidget";
+import type { QuizQuestion } from "@/app/actions/quizzes";
 
 // spec §11: public course landing + lesson content, gated server-side —
 // every lesson's content (video_url/file_url/body) is only ever rendered
@@ -27,7 +30,7 @@ export default async function CoursePage({
     where: { id: courseId },
     include: {
       requiredTier: { select: { id: true, name: true } },
-      modules: { orderBy: { position: "asc" }, include: { lessons: { orderBy: { position: "asc" } } } },
+      modules: { orderBy: { position: "asc" }, include: { lessons: { orderBy: { position: "asc" }, include: { quizzes: true } } } },
     },
   });
   if (!course || course.creatorId !== username.userId) notFound();
@@ -49,13 +52,27 @@ export default async function CoursePage({
       )
     : new Set<string>();
 
+  const quizIds = course.modules.flatMap((m) => m.lessons.flatMap((l) => l.quizzes.map((q) => q.id)));
+  const passedQuizIds = currentUser
+    ? new Set(
+        (
+          await db.quizAttempt.findMany({
+            where: { userId: currentUser.id, quizId: { in: quizIds }, passed: true },
+            select: { quizId: true },
+          })
+        ).map((a) => a.quizId)
+      )
+    : new Set<string>();
+
   const payoutAccount = await db.creatorPayoutAccount.findUnique({ where: { userId: username.userId }, select: { status: true } });
   const canBuy =
     !isOwner && currentUser && !access && course.price !== null && course.currency !== null && payoutAccount?.status === "active";
 
   return (
     <div className="profileCard">
-      <Link href={`/${handle}`} className="mutedText" style={{ fontSize: "0.85rem" }}>← {username.user.profile?.displayName ?? handle}</Link>
+      <Link href={`/${handle}`} className="mutedText" style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.85rem" }}>
+        <ArrowLeft size={14} aria-hidden="true" /> {username.user.profile?.displayName ?? handle}
+      </Link>
       <h1 style={{ fontSize: "1.3rem", fontWeight: 700, marginTop: "0.5rem" }}>{course.title}</h1>
       {course.description && <p className="mutedText" style={{ marginTop: "0.3rem" }}>{course.description}</p>}
 
@@ -66,11 +83,18 @@ export default async function CoursePage({
       </p>
 
       {access ? (
-        <p className="mutedText" style={{ fontSize: "0.85rem" }}>✓ You have access to this course.</p>
+        <p className="mutedText" style={{ display: "flex", alignItems: "center", gap: "0.3rem", fontSize: "0.85rem" }}>
+          <Check size={14} aria-hidden="true" /> You have access to this course.
+        </p>
       ) : canBuy && course.price !== null && course.currency !== null ? (
         <CourseBuyButton courseId={course.id} price={course.price} currency={course.currency} />
       ) : (
-        !access && !isOwner && <p className="mutedText" style={{ fontSize: "0.85rem" }}>🔒 Purchase or subscribe to unlock this course.</p>
+        !access &&
+        !isOwner && (
+          <p className="mutedText" style={{ display: "flex", alignItems: "center", gap: "0.3rem", fontSize: "0.85rem" }}>
+            <Lock size={14} aria-hidden="true" /> Purchase or subscribe to unlock this course.
+          </p>
+        )
       )}
 
       <div style={{ marginTop: "1.25rem", display: "flex", flexDirection: "column", gap: "1rem" }}>
@@ -80,9 +104,14 @@ export default async function CoursePage({
             {courseModule.lessons.map((lesson) => (
               <div key={lesson.id} className="profileLinkItem" style={{ flexDirection: "column", alignItems: "stretch", gap: "0.35rem" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span>
-                    {access ? lesson.title : `🔒 ${lesson.title}`}
-                    {completedLessonIds.has(lesson.id) && <span className="mutedText"> ✓ Completed</span>}
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}>
+                    {!access && <Lock size={13} aria-hidden="true" />}
+                    {lesson.title}
+                    {completedLessonIds.has(lesson.id) && (
+                      <span className="mutedText" style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem" }}>
+                        <Check size={13} aria-hidden="true" /> Completed
+                      </span>
+                    )}
                   </span>
                 </div>
                 {access && (
@@ -97,6 +126,25 @@ export default async function CoursePage({
                         <button type="submit" className="button buttonSecondary buttonSmall">Mark complete</button>
                       </form>
                     )}
+                    {currentUser &&
+                      lesson.quizzes.map((quiz) =>
+                        passedQuizIds.has(quiz.id) ? (
+                          <p
+                            key={quiz.id}
+                            className="mutedText"
+                            style={{ display: "flex", alignItems: "center", gap: "0.3rem", fontSize: "0.85rem" }}
+                          >
+                            <Check size={14} aria-hidden="true" /> Quiz passed
+                          </p>
+                        ) : (
+                          <QuizWidget
+                            key={quiz.id}
+                            quizId={quiz.id}
+                            questions={JSON.parse(quiz.questionsJson) as QuizQuestion[]}
+                            passingScore={quiz.passingScore}
+                          />
+                        )
+                      )}
                   </>
                 )}
               </div>

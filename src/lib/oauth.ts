@@ -165,12 +165,18 @@ export async function exchangeAuthorizationCode(args: { code: string; codeVerifi
 // "and also check the parent isn't revoked" branch to forget on the read
 // path.
 export async function revokeOAuthAuthorization(authorizationId: string, userId: string): Promise<boolean> {
-  const authorization = await db.oAuthAuthorization.findUnique({ where: { id: authorizationId } });
+  const authorization = await db.oAuthAuthorization.findUnique({ where: { id: authorizationId }, include: { app: { select: { clientId: true } } } });
   if (!authorization || authorization.userId !== userId) return false;
   await db.$transaction([
     db.oAuthToken.deleteMany({ where: { authorizationId } }),
     db.oAuthAuthorization.update({ where: { id: authorizationId }, data: { status: "revoked", revokedAt: new Date() } }),
   ]);
+  // phase-15 spec §4.4: revoking a first-party app's access (§3.3's
+  // connected-apps page) must also clear the DeviceToken rows it
+  // registered — a stale token must not keep receiving pushes after
+  // disconnect.
+  const { clearDeviceTokensForApp } = await import("@/lib/push");
+  await clearDeviceTokensForApp(userId, authorization.app.clientId);
   return true;
 }
 

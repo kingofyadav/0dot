@@ -7,6 +7,7 @@ import { requireVerifiedUser } from "@/lib/auth-guards";
 import { saveUploadedImage } from "@/lib/uploads";
 import { canManageOfferingOwner, isOfferingOwnerStaff, resolveOfferingOwner } from "@/lib/offerings";
 import { getPaymentProcessor, recordPaymentTransaction } from "@/lib/payments";
+import { recordCrmActivity } from "@/lib/crm";
 import { checkRateLimit } from "@/lib/rate-limit";
 import type { ActionState } from "@/app/actions/auth";
 
@@ -259,7 +260,7 @@ export async function purchaseOffering(_prevState: ActionState, formData: FormDa
   });
   if (charge.status !== "succeeded") return { error: "The charge failed. Please try again." };
 
-  await db.$transaction(async (tx) => {
+  const purchase = await db.$transaction(async (tx) => {
     const transaction = await recordPaymentTransaction(tx, {
       kind: offering.businessId ? "business_purchase" : "freelance_purchase",
       payerId: user.id,
@@ -272,10 +273,19 @@ export async function purchaseOffering(_prevState: ActionState, formData: FormDa
       relatedObjectType: "offering",
       relatedObjectId: offering.id,
     });
-    await tx.offeringPurchase.create({
+    return tx.offeringPurchase.create({
       data: { offeringId: offering.id, buyerId: user.id, paymentTransactionId: transaction.id, quantity },
     });
   });
+
+  if (offering.businessId) {
+    await recordCrmActivity({
+      businessId: offering.businessId,
+      activityType: "purchase",
+      sourceId: purchase.id,
+      identity: { userId: user.id },
+    });
+  }
 
   revalidatePath(await offeringManagePath(offering));
   return undefined;

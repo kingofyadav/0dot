@@ -34,3 +34,16 @@ export async function markAllNotificationsRead(): Promise<void> {
 
   revalidatePath("/notifications");
 }
+
+// Destructive counterpart to markAllNotificationsRead — removes every row
+// rather than just flagging it read, so it's gated behind ConfirmButton on
+// the page rather than a bare submit button.
+export async function clearAllNotifications(): Promise<void> {
+  const user = await requireVerifiedUser();
+
+  await db.notification.deleteMany({
+    where: { recipientId: user.id },
+  });
+
+  revalidatePath("/notifications");
+}

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
+import { ArrowLeft, BadgeCheck } from "lucide-react";
 import { getCurrentUser } from "@/lib/session";
 import {
   getParticipant,
@@ -65,7 +66,7 @@ export default async function ConversationPage({
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.75rem" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", minWidth: 0 }}>
           <Link href="/messages" className="button buttonSecondary iconButton" aria-label="Back to messages">
-            ←
+            <ArrowLeft size={16} aria-hidden="true" />
           </Link>
           {!isGroup && (
             <span style={{ position: "relative", flexShrink: 0, display: "inline-flex" }}>
@@ -91,7 +92,7 @@ export default async function ConversationPage({
               {display.handle ? <Link href={`/${display.handle}`}>{display.title}</Link> : display.title}
               {display.handle && (
                 <Link href={`/${display.handle}`} className="verifiedBadge" aria-label="View public profile" title="View public profile">
-                  ✓
+                  <BadgeCheck size={14} aria-hidden="true" />
                 </Link>
               )}
             </h1>

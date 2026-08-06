@@ -78,7 +78,7 @@ export function EventActions({
   myTickets: { id: string; qrCodeToken: string; status: string; ticketTypeName: string }[];
 }) {
   return (
-    <div style={{ marginTop: "1rem", display: "flex", flexDirection: "column", gap: "1rem" }}>
+    <div style={{ marginTop: "var(--space-5)", display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
       <RSVPButtons eventId={eventId} currentStatus={currentRsvpStatus} />
 
       {ticketTypes.length > 0 && (

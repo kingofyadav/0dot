@@ -40,6 +40,7 @@ export default async function TrendingPage({
       bookmarkedPostIds={bookmarkedPostIds}
       nextCursor={nextCursor}
       basePath="/trending"
+      showComposer={false}
     />
   );
 }

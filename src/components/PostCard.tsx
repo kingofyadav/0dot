@@ -1,4 +1,17 @@
 import Link from "next/link";
+import {
+  BadgeCheck,
+  Bookmark,
+  Camera,
+  Check,
+  CircleHelp,
+  Heart,
+  Lock,
+  Pin,
+  Repeat2,
+  ShieldX,
+  X,
+} from "lucide-react";
 import { toggleLike, toggleBookmark, toggleRepost, deletePost } from "@/app/actions/posts";
 import { pinPost, unpinPost, removeCommunityPost } from "@/app/actions/communities";
 import { castVote } from "@/app/actions/polls";
@@ -128,8 +141,8 @@ function PollBlock({
                 aria-hidden="true"
                 style={{ position: "absolute", inset: 0, width: `${pct}%`, background: "var(--accent-soft)" }}
               />
-              <span style={{ position: "relative" }}>
-                {voted ? "✓ " : ""}
+              <span style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: "0.3rem" }}>
+                {voted && <Check size={14} aria-hidden="true" />}
                 {option.label}
               </span>
               <span className="mutedText" style={{ position: "relative", fontSize: "0.8rem" }}>
@@ -206,7 +219,7 @@ function AuthorLine({
         {/* Blue tick button, shown for every business post — single click
             straight to the business's public profile. */}
         <Link href={`/b/${businessAuthor.slug}`} className="verifiedBadge" aria-label="View public profile" title="View public profile">
-          ✓
+          <BadgeCheck size={14} aria-hidden="true" />
         </Link>{" "}
         <span className="mutedText">
           {relativeTime(createdAt)}
@@ -235,11 +248,12 @@ function AuthorLine({
       {/* Blue tick button, shown for every post — single click straight to
           the author's public profile. Same treatment as businessAuthor's
           badge above, and mirrored in the messages section (ConversationListItem,
-          MessagesBadge, the conversation header, and message requests) so the
-          same "go to public profile" button is available everywhere. */}
+          MessagesBadge, the conversation header, and message requests) and in
+          follower/following rows (UserListItem) so the same "go to public
+          profile" button is available everywhere a name shows up. */}
       {handle && (
         <Link href={`/${handle}`} className="verifiedBadge" aria-label="View public profile" title="View public profile">
-          ✓
+          <BadgeCheck size={14} aria-hidden="true" />
         </Link>
       )}{" "}
       <span className="mutedText">
@@ -325,8 +339,11 @@ function MiniPostCard({
         <span style={{ display: "flex", alignItems: "baseline" }}>
           <AuthorLine author={post.author} createdAt={post.createdAt} community={post.community} businessAuthor={post.businessAuthor} />
           {isAcceptedAnswer && (
-            <span className="mutedText" style={{ marginInlineStart: "0.4rem", fontSize: "0.8rem", color: "var(--accent-green)" }}>
-              ✓ Accepted answer
+            <span
+              className="mutedText"
+              style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem", marginInlineStart: "0.4rem", fontSize: "0.8rem", color: "var(--accent-green)" }}
+            >
+              <Check size={14} aria-hidden="true" /> Accepted answer
             </span>
           )}
         </span>
@@ -350,7 +367,7 @@ function MiniPostCard({
                 description="This can't be undone. The reply will be permanently removed."
                 confirmLabel="Delete"
               >
-                ✕
+                <X size={16} aria-hidden="true" />
               </ConfirmButton>
             </form>
           )}
@@ -359,7 +376,11 @@ function MiniPostCard({
       <p style={{ whiteSpace: "pre-wrap" }}>
         {linkifyPostBody(post.body)}
         {post.media.length > 0 && (
-          <span className="mutedText"> 📷 {post.media.length} photo{post.media.length === 1 ? "" : "s"}</span>
+          <span className="mutedText">
+            {" "}
+            <Camera size={13} aria-hidden="true" style={{ verticalAlign: "-2px" }} /> {post.media.length} photo
+            {post.media.length === 1 ? "" : "s"}
+          </span>
         )}
       </p>
     </div>
@@ -405,14 +426,14 @@ export function PostCard({
     // not fixed here; the browser just jumps to the first match.
     <div id={`post-${post.id}`} className="postCard">
       {isPureRepost && (
-        <p className="mutedText" style={{ fontSize: "0.85rem" }}>
-          ↻ {post.author.profile?.displayName ?? "Someone"} reposted
+        <p className="mutedText" style={{ display: "flex", alignItems: "center", gap: "0.3rem", fontSize: "0.85rem" }}>
+          <Repeat2 size={14} aria-hidden="true" /> {post.author.profile?.displayName ?? "Someone"} reposted
         </p>
       )}
 
       {isPinned && (
-        <p className="mutedText" style={{ fontSize: "0.85rem" }}>
-          📌 Pinned
+        <p className="mutedText" style={{ display: "flex", alignItems: "center", gap: "0.3rem", fontSize: "0.85rem" }}>
+          <Pin size={14} aria-hidden="true" /> Pinned
         </p>
       )}
 
@@ -423,13 +444,19 @@ export function PostCard({
               <AuthorLine author={post.author} createdAt={post.createdAt} community={post.community} businessAuthor={post.businessAuthor} />
               {post.flair && <FlairPill flair={post.flair} />}
               {post.postType === "question" && (
-                <span className="mutedText" style={{ marginInlineStart: "0.4rem", fontSize: "0.8rem" }}>
-                  ❓ Question
+                <span
+                  className="mutedText"
+                  style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem", marginInlineStart: "0.4rem", fontSize: "0.8rem" }}
+                >
+                  <CircleHelp size={14} aria-hidden="true" /> Question
                 </span>
               )}
               {post.requiredTier && (
-                <span className="mutedText" style={{ marginInlineStart: "0.4rem", fontSize: "0.8rem" }}>
-                  🔒 {post.requiredTier.name} subscribers
+                <span
+                  className="mutedText"
+                  style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem", marginInlineStart: "0.4rem", fontSize: "0.8rem" }}
+                >
+                  <Lock size={14} aria-hidden="true" /> {post.requiredTier.name} subscribers
                 </span>
               )}
             </span>
@@ -443,7 +470,7 @@ export function PostCard({
                     className="button buttonSecondary iconButton"
                     aria-label={isPinned ? "Unpin post" : "Pin post"}
                   >
-                    📌
+                    <Pin size={16} aria-hidden="true" />
                   </button>
                 </form>
               )}
@@ -458,7 +485,7 @@ export function PostCard({
                     aria-label="Remove post (moderator)"
                     title="Remove post (moderator)"
                   >
-                    🛡✕
+                    <ShieldX size={16} aria-hidden="true" />
                   </button>
                 </form>
               )}
@@ -488,10 +515,15 @@ export function PostCard({
             <button
               type="submit"
               className="button buttonSecondary iconButton"
-              style={isLiked ? { borderColor: "var(--accent)", color: "var(--accent)" } : undefined}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.3rem",
+                ...(isLiked ? { borderColor: "var(--accent)", color: "var(--accent)" } : undefined),
+              }}
               aria-pressed={isLiked}
             >
-              {isLiked ? "♥" : "♡"} {formatCount(post.likeCount)}
+              <Heart size={16} aria-hidden="true" fill={isLiked ? "currentColor" : "none"} /> {formatCount(post.likeCount)}
             </button>
           </form>
 
@@ -500,10 +532,16 @@ export function PostCard({
             <button
               type="submit"
               className="button buttonSecondary iconButton"
-              style={{ borderColor: "var(--accent-green)", color: "var(--accent-green)" }}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.3rem",
+                borderColor: "var(--accent-green)",
+                color: "var(--accent-green)",
+              }}
               aria-label="Repost"
             >
-              ↻ {formatCount(post.repostCount)}
+              <Repeat2 size={16} aria-hidden="true" /> {formatCount(post.repostCount)}
             </button>
           </form>
 
@@ -512,11 +550,15 @@ export function PostCard({
             <button
               type="submit"
               className="button buttonSecondary iconButton"
-              style={isBookmarked ? { borderColor: "var(--accent-navy)", color: "var(--accent-navy)" } : undefined}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                ...(isBookmarked ? { borderColor: "var(--accent-navy)", color: "var(--accent-navy)" } : undefined),
+              }}
               aria-pressed={isBookmarked}
               aria-label="Bookmark"
             >
-              {isBookmarked ? "🔖" : "📑"}
+              <Bookmark size={16} aria-hidden="true" fill={isBookmarked ? "currentColor" : "none"} />
             </button>
           </form>
 

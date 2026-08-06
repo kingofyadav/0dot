@@ -14,7 +14,12 @@ import "server-only";
 export type MessageEvent =
   | { type: "new-message"; conversationId: string }
   | { type: "conversation-updated"; conversationId: string }
-  | { type: "notification" };
+  | { type: "notification" }
+  // Fired on SSE connect/disconnect (api/messages/stream/route.ts) to
+  // whoever shares a conversation with userId, so an open inbox/conversation
+  // repaints its green dot live — MessagingProvider refreshes on any event
+  // regardless of payload, this just needs to exist to trigger that.
+  | { type: "presence"; userId: string; online: boolean };
 
 type Subscriber = (event: MessageEvent) => void;
 

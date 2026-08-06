@@ -142,6 +142,14 @@ async function recordMessageAndNotify(args: {
       lastMessagePreview: encryptAtRestNullable(preview),
     },
   });
+  // A new message revives the conversation for anyone who'd deleted/hidden
+  // it from their own inbox (deleteConversation below) — same "it comes
+  // back when something new happens" behavior as every mainstream chat app,
+  // rather than a hide being a silent permanent unsubscribe.
+  await db.conversationParticipant.updateMany({
+    where: { conversationId: args.conversationId, hiddenAt: { not: null } },
+    data: { hiddenAt: null },
+  });
 
   const recipients = await otherParticipantIds(args.conversationId, args.senderId);
   await Promise.all(
@@ -516,6 +524,32 @@ export async function leaveConversation(formData: FormData): Promise<void> {
   if (!participant) return;
 
   await db.conversationParticipant.deleteMany({ where: { conversationId, userId: user.id } });
+  revalidatePath("/messages");
+  redirect("/messages");
+}
+
+// "Delete chat" — per-participant soft hide via the ConversationParticipant.
+// hiddenAt column listInboxConversations/listMessageRequests/
+// getUnreadConversationCount already filter on. Unlike leaveConversation,
+// this works for direct conversations too (it doesn't touch the
+// participant row itself, so the "a direct conversation always has exactly
+// 2 participants" invariant that rules out leaveConversation for DMs never
+// applies here): the conversation and its history are untouched for the
+// other participant, and reappear for this one the moment a new message
+// arrives (recordMessageAndNotify clears hiddenAt on send).
+export async function deleteConversation(formData: FormData): Promise<void> {
+  const user = await requireVerifiedUser();
+  const conversationId = String(formData.get("conversationId") ?? "");
+  if (!conversationId) return;
+
+  const participant = await getParticipant(conversationId, user.id);
+  if (!participant) return; // spec §5.7 query-layer check
+
+  await db.conversationParticipant.update({
+    where: { conversationId_userId: { conversationId, userId: user.id } },
+    data: { hiddenAt: new Date() },
+  });
+
   revalidatePath("/messages");
   redirect("/messages");
 }

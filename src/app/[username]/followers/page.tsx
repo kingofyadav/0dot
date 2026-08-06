@@ -19,17 +19,48 @@ export default async function FollowersPage({
   const { cursor: rawCursor } = await searchParams;
   const cursor = parseCursor(rawCursor);
 
-  const username = await db.username.findUnique({ where: { handle } });
-  if (!username) notFound();
+  const username = await db.username.findUnique({ where: { handle }, include: { user: { include: { profile: true } } } });
+  if (!username || !username.user.profile) notFound();
+
+  const currentUser = await getCurrentUser();
+  const isOwner = currentUser?.id === username.userId;
+
+  // Same private-account gate as the main profile page (canViewFullProfile,
+  // [username]/page.tsx) — the follower list is exactly the kind of content
+  // surface that gate is meant to cover, so it can't be left reachable
+  // directly by URL for a private account's non-followers.
+  if (username.user.profile.isPrivate && !isOwner) {
+    const viewerFollowRow = currentUser
+      ? await db.follow.findUnique({
+          where: { followerId_followeeId: { followerId: currentUser.id, followeeId: username.userId } },
+          select: { status: true },
+        })
+      : null;
+    if (viewerFollowRow?.status !== "accepted") {
+      return (
+        <div className="profileCard">
+          <h1 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "1rem" }}>
+            <Link href={`/${handle}`} className="mutedText" style={{ marginRight: "0.5rem" }}>
+              ← @{handle}
+            </Link>
+            Followers
+          </h1>
+          <p className="mutedText">This account is private. Follow @{handle} to see their followers.</p>
+        </div>
+      );
+    }
+  }
 
   // Follow's composite PK ([followerId, followeeId], no standalone `id`)
   // means it can't reuse cursorWhere() as-is (hardcoded to an `id` field) —
   // same situation src/app/bookmarks/page.tsx already solved: inline the
   // OR-clause against the real tiebreaker column, then relabel to `id`
-  // before calling paginate().
+  // before calling paginate(). Only "accepted" rows are real followers —
+  // a "pending" request against a private account isn't one yet.
   const rows = await db.follow.findMany({
     where: {
       followeeId: username.userId,
+      status: "accepted",
       ...(cursor
         ? {
             OR: [
@@ -47,7 +78,6 @@ export default async function FollowersPage({
   const { items, nextCursor } = paginate(rows.map((r) => ({ ...r, id: r.followerId })));
   const listedUsers = items.map((r) => r.follower);
 
-  const currentUser = await getCurrentUser();
   const followingSet = currentUser
     ? new Set(
         (
@@ -55,6 +85,7 @@ export default async function FollowersPage({
             where: {
               followerId: currentUser.id,
               followeeId: { in: listedUsers.map((u) => u.id) },
+              status: "accepted",
             },
             select: { followeeId: true },
           })
@@ -79,7 +110,6 @@ export default async function FollowersPage({
             handle={u.username?.handle ?? null}
             displayName={u.profile?.displayName ?? "Unknown"}
             avatarUrl={u.profile?.avatarUrl ?? null}
-            isVerified={u.profile?.isVerified ?? false}
             isFollowing={followingSet.has(u.id)}
             isSelf={currentUser?.id === u.id}
             showFollowButton={Boolean(currentUser)}

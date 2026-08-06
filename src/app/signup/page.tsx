@@ -5,6 +5,7 @@ import Link from "next/link";
 import { signup } from "@/app/actions/auth";
 import { Logo } from "@/components/Logo";
 import { AuthTrust } from "@/components/AuthTrust";
+import { COUNTRY_CODES } from "@/lib/country-codes";
 
 export default function SignupPage() {
   const [state, formAction, pending] = useActionState(signup, undefined);
@@ -62,6 +63,41 @@ export default function SignupPage() {
             minLength={8}
             required
           />
+        </div>
+
+        <div className="field">
+          <label htmlFor="phoneNumber">Mobile number</label>
+          <div style={{ display: "flex", gap: "0.5rem" }}>
+            <select
+              id="phoneDialCode"
+              name="phoneDialCode"
+              autoComplete="tel-country-code"
+              defaultValue="91"
+              style={{ flex: "0 0 auto" }}
+              required
+            >
+              {COUNTRY_CODES.map((c) => (
+                <option key={c.iso} value={c.dialCode}>
+                  {c.iso} +{c.dialCode}
+                </option>
+              ))}
+            </select>
+            <input
+              id="phoneNumber"
+              name="phoneNumber"
+              type="tel"
+              inputMode="numeric"
+              autoComplete="tel-national"
+              placeholder="9876543210"
+              style={{ flex: "1 1 0%", minWidth: 0 }}
+              required
+            />
+          </div>
+        </div>
+
+        <div className="field">
+          <label htmlFor="dateOfBirth">Date of birth</label>
+          <input id="dateOfBirth" name="dateOfBirth" type="date" autoComplete="bday" required />
         </div>
 
         {state?.error && <p className="errorText">{state.error}</p>}

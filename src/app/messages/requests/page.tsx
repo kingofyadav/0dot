@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { BadgeCheck } from "lucide-react";
 import { getCurrentUser } from "@/lib/session";
 import {
   listMessageRequests,
@@ -75,7 +76,7 @@ export default async function MessageRequestsPage({
                     {display.title}
                     {display.handle && (
                       <span className="verifiedBadge" aria-label="View public profile" title="View public profile">
-                        ✓
+                        <BadgeCheck size={14} aria-hidden="true" />
                       </span>
                     )}
                   </span>

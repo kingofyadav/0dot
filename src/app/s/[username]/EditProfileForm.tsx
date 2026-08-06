@@ -1,10 +1,11 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { updateProfile } from "@/app/actions/profile";
 import { suggestProfileBio } from "@/app/actions/ai-content";
 import { AISuggestButton } from "@/components/AISuggestButton";
 import { THEME_PRESETS } from "@/lib/theme-presets";
+import { useBrowserTab } from "@/components/BrowserTabProvider";
 
 export function EditProfileForm({
   displayName,
@@ -12,18 +13,48 @@ export function EditProfileForm({
   avatarUrl,
   coverUrl,
   themePreset,
+  isPrivate,
 }: {
   displayName: string;
   bio: string;
   avatarUrl: string | null;
   coverUrl: string | null;
   themePreset: string;
+  isPrivate: boolean;
 }) {
   const [state, formAction, pending] = useActionState(updateProfile, undefined);
   const [bioValue, setBioValue] = useState(bio);
+  const { setUnsaved, flash, resolveStaleSaving } = useBrowserTab();
+  const wasPending = useRef(false);
+
+  // Success redirects back to this same URL (see updateProfile), which
+  // makes Next.js remount this whole form with the freshly saved data —
+  // so on mount, claim any "saving" flash left behind by the instance
+  // that's about to be replaced, rather than waiting for its own
+  // pending->false transition that will never get a chance to run here.
+  useEffect(() => {
+    resolveStaleSaving("Profile saved");
+  }, [resolveStaleSaving]);
+
+  useEffect(() => {
+    if (pending) {
+      flash("saving", "Saving profile");
+    } else if (wasPending.current) {
+      if (state?.error) flash("error", state.error);
+      else flash("success", "Profile saved");
+    }
+    wasPending.current = pending;
+  }, [pending, state, flash]);
+
+  useEffect(() => () => setUnsaved(false), [setUnsaved]);
 
   return (
-    <form action={formAction} className="authCard" style={{ maxWidth: "none" }}>
+    <form
+      action={formAction}
+      onChange={() => setUnsaved(true)}
+      className="authCard"
+      style={{ maxWidth: "none" }}
+    >
       <div className="field">
         <label htmlFor="displayName">Display name</label>
         <input
@@ -83,6 +114,18 @@ export function EditProfileForm({
             </option>
           ))}
         </select>
+      </div>
+
+      <div className="field">
+        <label htmlFor="isPrivate" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <input id="isPrivate" name="isPrivate" type="checkbox" defaultChecked={isPrivate} style={{ width: "auto" }} />
+          Private profile
+        </label>
+        <p className="mutedText" style={{ fontSize: "0.8rem", margin: "0.25rem 0 0" }}>
+          When private, only your name, avatar, and bio are visible to
+          people who don&apos;t follow you — your posts, links, and
+          portfolio stay hidden until they follow you.
+        </p>
       </div>
 
       {state?.error && <p className="errorText">{state.error}</p>}

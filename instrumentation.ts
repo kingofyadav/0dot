@@ -26,5 +26,12 @@ export async function register() {
     startDmcaRestorationScheduler();
     const { startWatermarkScheduler } = await import("@/lib/watermarking");
     startWatermarkScheduler();
+    // Phase-15 spec §3.1/§9 step 1: the platform-owned account + first-party
+    // DeveloperApp registrations must exist before any client can authorize
+    // through them — idempotent, same "ensure the fixed catalog exists"
+    // idiom as seedOAuthScopes, run once at boot rather than lazily from a
+    // page render since nothing here is user-specific.
+    const { ensureFirstPartyApps } = await import("@/lib/first-party-apps");
+    await ensureFirstPartyApps();
   }
 }

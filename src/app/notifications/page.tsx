@@ -1,10 +1,13 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { BadgeCheck } from "lucide-react";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { parseCursor, cursorWhere, POST_PAGE_SIZE } from "@/lib/pagination";
 import { getNotificationVerb, getNotificationHref, AGGREGATION_WINDOW_MS } from "@/lib/notifications";
-import { markAllNotificationsRead } from "@/app/actions/notifications";
+import { markAllNotificationsRead, clearAllNotifications } from "@/app/actions/notifications";
+import { acceptFollowRequest, rejectFollowRequest } from "@/app/actions/follow";
+import { ConfirmButton } from "@/components/ConfirmButton";
 
 const actorInclude = { username: true, profile: true } as const;
 
@@ -30,6 +33,10 @@ type DisplayGroup = {
   subjectId: string;
   subjectType: string;
   actorNames: string[];
+  // Only needed to build the Accept/Reject forms for a follow_request group
+  // below — follow_request is never dedupable (DEDUPABLE_TYPES), so this is
+  // always the single actor of that one row, not "the first of several."
+  actorId: string | null;
   firstActorVerified: boolean;
   createdAt: Date;
   href: string;
@@ -72,6 +79,7 @@ function groupRows(rows: NotificationRow[], recipientHandle: string | null): Dis
       subjectId: row.subjectId,
       subjectType: row.subjectType,
       actorNames: [row.actor?.profile?.displayName ?? "Someone"],
+      actorId: row.actorId,
       // Only the first actor's badge is shown (spec §3.2's "renders in...
       // notifications") — matches the same "one badge per row" precedent
       // follow lists already set (UserListItem), even when a group has
@@ -99,7 +107,7 @@ function GroupDescription({ group }: { group: DisplayGroup }) {
       {first}
       {group.firstActorVerified && (
         <span className="verifiedBadge" title="Verified" aria-label="Verified">
-          ✓
+          <BadgeCheck size={14} aria-hidden="true" />
         </span>
       )}
       {rest.length > 0 && ` and ${rest.length} other${rest.length === 1 ? "" : "s"}`}
@@ -149,36 +157,108 @@ export default async function NotificationsPage({
     });
   }
 
+  // A follow_request notification row is never deleted once acted on (only
+  // the underlying Follow row is), so this page's history can contain a
+  // follow_request group for a request that's already been accepted or
+  // rejected — re-check which of this page's follow_request actors still
+  // have a genuinely "pending" row before showing Accept/Reject, or a
+  // long-stale request would keep re-offering an action that's a no-op.
+  const pendingRequesterIds = new Set(
+    (
+      await db.follow.findMany({
+        where: {
+          followeeId: currentUser.id,
+          status: "pending",
+          followerId: { in: groups.filter((g) => g.type === "follow_request" && g.actorId).map((g) => g.actorId!) },
+        },
+        select: { followerId: true },
+      })
+    ).map((f) => f.followerId)
+  );
+
   return (
     <div className="profileCard">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
         <h1 style={{ fontSize: "1.1rem", fontWeight: 700 }}>Notifications</h1>
-        <form action={markAllNotificationsRead}>
-          <button
-            type="submit"
-            className="button buttonSecondary"
-            style={{ fontSize: "0.85rem", padding: "0.4rem 0.7rem" }}
-          >
-            Mark all read
-          </button>
-        </form>
+        <div style={{ display: "flex", gap: "0.5rem" }}>
+          <form action={markAllNotificationsRead}>
+            <button
+              type="submit"
+              className="button buttonSecondary"
+              style={{ fontSize: "0.85rem", padding: "0.4rem 0.7rem" }}
+            >
+              Mark all read
+            </button>
+          </form>
+          <form action={clearAllNotifications}>
+            <ConfirmButton
+              className="button buttonSecondary"
+              style={{ fontSize: "0.85rem", padding: "0.4rem 0.7rem" }}
+              title="Clear all notifications?"
+              description="This permanently deletes every notification in this list. This can't be undone."
+              confirmLabel="Clear all"
+            >
+              Clear all
+            </ConfirmButton>
+          </form>
+        </div>
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
         {groups.length === 0 && <p className="mutedText">No notifications yet.</p>}
-        {groups.map((group) => (
-          <Link
-            key={group.rowIds[0]}
-            href={group.href}
-            className="profileLinkItem"
-            style={{
-              justifyContent: "flex-start",
-              background: group.isUnread ? "var(--accent-soft)" : undefined,
-            }}
-          >
-            <GroupDescription group={group} />
-          </Link>
-        ))}
+        {groups.map((group) => {
+          // A still-pending follow_request gets Accept/Reject controls
+          // instead of a plain navigate-away Link — see pendingRequesterIds
+          // above for why "still" needs its own re-check.
+          const isPendingFollowRequest =
+            group.type === "follow_request" && group.actorId !== null && pendingRequesterIds.has(group.actorId);
+
+          if (isPendingFollowRequest) {
+            return (
+              <div
+                key={group.rowIds[0]}
+                className="profileLinkItem"
+                style={{
+                  justifyContent: "space-between",
+                  gap: "0.75rem",
+                  background: group.isUnread ? "var(--accent-soft)" : undefined,
+                }}
+              >
+                <Link href={group.href} style={{ flex: 1 }}>
+                  <GroupDescription group={group} />
+                </Link>
+                <div style={{ display: "flex", gap: "0.4rem" }}>
+                  <form action={acceptFollowRequest}>
+                    <input type="hidden" name="followerId" value={group.actorId!} />
+                    <button type="submit" className="button buttonSmall" style={{ fontSize: "0.8rem", padding: "0.3rem 0.6rem" }}>
+                      Accept
+                    </button>
+                  </form>
+                  <form action={rejectFollowRequest}>
+                    <input type="hidden" name="followerId" value={group.actorId!} />
+                    <button type="submit" className="button buttonSecondary buttonSmall" style={{ fontSize: "0.8rem", padding: "0.3rem 0.6rem" }}>
+                      Reject
+                    </button>
+                  </form>
+                </div>
+              </div>
+            );
+          }
+
+          return (
+            <Link
+              key={group.rowIds[0]}
+              href={group.href}
+              className="profileLinkItem"
+              style={{
+                justifyContent: "flex-start",
+                background: group.isUnread ? "var(--accent-soft)" : undefined,
+              }}
+            >
+              <GroupDescription group={group} />
+            </Link>
+          );
+        })}
       </div>
 
       {nextCursor && (

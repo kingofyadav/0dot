@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { ChevronUp, ChevronDown } from "lucide-react";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { movePortfolioSection, togglePortfolioSectionVisibility } from "@/app/actions/portfolio-layout";
@@ -28,12 +29,12 @@ export default async function PortfolioLayoutSettingsPage() {
               <form action={movePortfolioSection}>
                 <input type="hidden" name="key" value={entry.key} />
                 <input type="hidden" name="direction" value="up" />
-                <button type="submit" className="button buttonSecondary iconButton" disabled={index === 0} aria-label="Move up">↑</button>
+                <button type="submit" className="button buttonSecondary iconButton" disabled={index === 0} aria-label="Move up"><ChevronUp size={16} aria-hidden="true" /></button>
               </form>
               <form action={movePortfolioSection}>
                 <input type="hidden" name="key" value={entry.key} />
                 <input type="hidden" name="direction" value="down" />
-                <button type="submit" className="button buttonSecondary iconButton" disabled={index === portfolioLayout.length - 1} aria-label="Move down">↓</button>
+                <button type="submit" className="button buttonSecondary iconButton" disabled={index === portfolioLayout.length - 1} aria-label="Move down"><ChevronDown size={16} aria-hidden="true" /></button>
               </form>
               <form action={togglePortfolioSectionVisibility}>
                 <input type="hidden" name="key" value={entry.key} />
