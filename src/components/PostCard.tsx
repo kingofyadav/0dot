@@ -341,7 +341,7 @@ function MiniPostCard({
           {isAcceptedAnswer && (
             <span
               className="mutedText"
-              style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem", marginInlineStart: "0.4rem", fontSize: "0.8rem", color: "var(--accent-green)" }}
+              style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem", marginInlineStart: "0.4rem", fontSize: "0.8rem", color: "var(--accent)" }}
             >
               <Check size={14} aria-hidden="true" /> Accepted answer
             </span>
@@ -536,8 +536,8 @@ export function PostCard({
                 display: "inline-flex",
                 alignItems: "center",
                 gap: "0.3rem",
-                borderColor: "var(--accent-green)",
-                color: "var(--accent-green)",
+                borderColor: "var(--accent-orange)",
+                color: "var(--accent-orange)",
               }}
               aria-label="Repost"
             >

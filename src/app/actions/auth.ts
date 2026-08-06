@@ -9,6 +9,7 @@ import { createSession, destroySession, getCurrentUser, getCurrentSessionToken }
 import { validateUsernameFormat } from "@/lib/reserved-usernames";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { toE164 } from "@/lib/country-codes";
+import { getEmailSender, getAppOrigin } from "@/lib/email";
 
 export type ActionState = { error?: string; success?: boolean } | undefined;
 
@@ -39,6 +40,16 @@ export async function signup(
   _prevState: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  // Honeypot: a field styled off-screen (see .honeypotField in globals.css)
+  // and never exposed to autofill, so only a script filling every input
+  // blindly ever populates it. Redirect straight to the same success
+  // destination a real signup hits — same response shape either way, no
+  // "invalid" signal a bot could learn from — without touching the DB or
+  // spending a rate-limit slot on it.
+  if (String(formData.get("website") ?? "").trim()) {
+    redirect("/verify/sent");
+  }
+
   const displayName = String(formData.get("displayName") ?? "").trim();
   const handle = String(formData.get("username") ?? "").trim().toLowerCase();
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
@@ -142,13 +153,21 @@ export async function signup(
     },
   });
 
-  // No transactional email provider is wired up yet (flagged in Phase 1
-  // spec open questions elsewhere) — log the verification link for local
-  // dev/testing rather than silently dropping it.
-  const verifyUrl = `/verify?token=${token}`;
-  console.log(`[dev] Verification link for ${email}: ${verifyUrl}`);
+  // getEmailSender() falls back to a console-log stub until SMTP_HOST is
+  // configured (see src/lib/email.ts) — same dev/prod seam as payments.
+  const sender = getEmailSender();
+  const verifyUrl = `${getAppOrigin()}/verify?token=${token}`;
+  await sender.send({
+    to: email,
+    subject: "Verify your 0dot.in email",
+    html: `<p>Confirm your email to finish setting up your account:</p><p><a href="${verifyUrl}">${verifyUrl}</a></p><p>This link expires in 24 hours.</p>`,
+  });
 
-  redirect(`/verify/sent?token=${token}`);
+  // Only the console stub needs the token surfaced back on the page — once
+  // a real sender is configured, an account-verification token has no
+  // business appearing in a URL that can land in browser history, a
+  // Referer header, or a screenshot.
+  redirect(sender.name === "console-stub" ? `/verify/sent?token=${token}` : "/verify/sent");
 }
 
 export async function login(
@@ -256,12 +275,17 @@ export async function requestPasswordReset(
     },
   });
 
-  // Same "no transactional email provider yet" posture as signup's
-  // verification link above.
-  const resetUrl = `/reset-password?token=${token}`;
-  console.log(`[dev] Password reset link for ${email}: ${resetUrl}`);
+  const sender = getEmailSender();
+  const resetUrl = `${getAppOrigin()}/reset-password?token=${token}`;
+  await sender.send({
+    to: email,
+    subject: "Reset your 0dot.in password",
+    html: `<p>Reset your password using the link below:</p><p><a href="${resetUrl}">${resetUrl}</a></p><p>This link expires in 1 hour. If you didn't request this, you can ignore this email.</p>`,
+  });
 
-  redirect(`/forgot-password/sent?token=${token}`);
+  // Same account-takeover-token-in-a-URL concern as signup verification
+  // above — only the console stub needs it echoed back on the page.
+  redirect(sender.name === "console-stub" ? `/forgot-password/sent?token=${token}` : "/forgot-password/sent");
 }
 
 export async function resetPassword(

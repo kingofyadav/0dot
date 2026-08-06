@@ -62,7 +62,7 @@ export async function SiteHeader() {
         </div>
       </header>
 
-      <Sidebar hasProfile={hasProfile} profileHandle={profileHandle} />
+      <Sidebar profileHandle={profileHandle} />
 
       <header className="mobileHeader">
         <div className="siteHeaderBrand">
@@ -81,7 +81,7 @@ export async function SiteHeader() {
             and Settings are still reachable via NavLinks inside it, and
             NavAction still has Log out. */}
         <MobileNavMenu>
-          <NavLinks showBookmarks={hasProfile} profileHandle={profileHandle} />
+          <NavLinks profileHandle={profileHandle} />
           <NavAction hasProfile={hasProfile} showJoinCta={showJoinCta} />
         </MobileNavMenu>
       </header>

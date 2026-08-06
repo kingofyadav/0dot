@@ -67,7 +67,7 @@ npx prisma migrate dev
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). Signup sends a verification link — in local dev, without a transactional email provider configured, it's logged to the server console (`[dev] Verification link for ...`) instead of emailed.
+Open [http://localhost:3000](http://localhost:3000). Signup sends a verification link — in local dev, without `SMTP_HOST` set, `src/lib/email.ts` falls back to a console-log stub and the link is also surfaced directly on the "check your email" page. Set `SMTP_HOST`/`SMTP_PORT`/`SMTP_USER`/`SMTP_PASS`/`EMAIL_FROM` (any SMTP relay — SES, Postmark, Mailgun, Resend's SMTP endpoint, a self-hosted MTA) and `APP_ORIGIN` before launch so real email goes out instead.
 
 ### Other useful commands
 

@@ -1,9 +1,12 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import Link from "next/link";
 import { signup, login } from "@/app/actions/auth";
-import { Logo } from "./Logo";
+import { ThemeToggleLogo } from "./ThemeToggleLogo";
 import { AuthTrust } from "./AuthTrust";
+import { PasswordField } from "./PasswordField";
+import { UsernameField } from "./UsernameField";
 import { COUNTRY_CODES } from "@/lib/country-codes";
 
 export function AuthTabs() {
@@ -24,20 +27,26 @@ export function AuthTabs() {
   return (
     <div className="authCard">
       <div className="authHeader">
-        <Logo size={48} />
+        <ThemeToggleLogo size={48} />
         <p>Welcome</p>
       </div>
 
       {tab === "signup" ? (
-        <>
+        <div className="authTabPanel" key="signup">
           <h1>Create your account</h1>
-          <p className="mutedText" style={{ textAlign: "center", marginTop: "-0.75rem" }}>
-            One identity. One profile.
-          </p>
           <form
             action={signupAction}
             style={{ display: "flex", flexDirection: "column", gap: "1rem" }}
           >
+            <input
+              type="text"
+              name="website"
+              className="honeypotField"
+              tabIndex={-1}
+              autoComplete="off"
+              aria-hidden="true"
+            />
+
             <div className="field">
               <label htmlFor="displayName">Full name</label>
               <input
@@ -50,21 +59,7 @@ export function AuthTabs() {
               />
             </div>
 
-            <div className="field">
-              <label htmlFor="username">Username</label>
-              <input
-                id="username"
-                name="username"
-                type="text"
-                placeholder="yourname"
-                autoComplete="username"
-                pattern="[a-zA-Z0-9_]{3,30}"
-                minLength={3}
-                maxLength={30}
-                required
-              />
-              <span className="mutedText">0dot.in/yourname — this is permanent.</span>
-            </div>
+            <UsernameField id="username" />
 
             <div className="field">
               <label htmlFor="signup-email">Email</label>
@@ -77,17 +72,15 @@ export function AuthTabs() {
               />
             </div>
 
-            <div className="field">
-              <label htmlFor="signup-password">Password</label>
-              <input
-                id="signup-password"
-                name="password"
-                type="password"
-                autoComplete="new-password"
-                minLength={8}
-                required
-              />
-            </div>
+            <PasswordField
+              id="signup-password"
+              name="password"
+              label="Password"
+              autoComplete="new-password"
+              minLength={8}
+              required
+              showStrength
+            />
 
             <div className="field">
               <label htmlFor="signup-phoneNumber">Mobile number</label>
@@ -145,9 +138,9 @@ export function AuthTabs() {
               Log in
             </button>
           </p>
-        </>
+        </div>
       ) : (
-        <>
+        <div className="authTabPanel" key="login">
           <h1>Log in</h1>
           <form
             action={loginAction}
@@ -166,16 +159,13 @@ export function AuthTabs() {
               />
             </div>
 
-            <div className="field">
-              <label htmlFor="login-password">Password</label>
-              <input
-                id="login-password"
-                name="password"
-                type="password"
-                autoComplete="current-password"
-                required
-              />
-            </div>
+            <PasswordField
+              id="login-password"
+              name="password"
+              label="Password"
+              autoComplete="current-password"
+              required
+            />
 
             {loginState?.error && (
               <p className="errorText">{loginState.error}</p>
@@ -187,12 +177,15 @@ export function AuthTabs() {
           </form>
 
           <p className="authFooter">
+            <Link href="/forgot-password">Forgot password?</Link>
+          </p>
+          <p className="authFooter">
             New here?{" "}
             <button type="button" className="linkButton" onClick={() => setTab("signup")}>
               Create an account
             </button>
           </p>
-        </>
+        </div>
       )}
 
       <AuthTrust />

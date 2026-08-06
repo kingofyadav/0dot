@@ -2,10 +2,12 @@
 
 import { useActionState, useState } from "react";
 import Link from "next/link";
+import { ArrowUpRight } from "lucide-react";
 import { login } from "@/app/actions/auth";
 import { startSsoLogin } from "@/app/actions/sso";
-import { Logo } from "@/components/Logo";
+import { ThemeToggleLogo } from "@/components/ThemeToggleLogo";
 import { AuthTrust } from "@/components/AuthTrust";
+import { PasswordField } from "@/components/PasswordField";
 
 export default function LoginPage() {
   const [state, formAction, pending] = useActionState(login, undefined);
@@ -16,11 +18,25 @@ export default function LoginPage() {
   const [identifier, setIdentifier] = useState("");
 
   return (
-    <div className="authWrap">
+    <div className="landingWrap">
+      <div className="landingLogo">
+        <ThemeToggleLogo size={40} />
+      </div>
+
+      <section className="landingHero">
+        <h1>Welcome back.</h1>
+        <p>Your one link, always exactly where you left it.</p>
+        <Link href="/explore" className="exploreLiveButton">
+          <span className="exploreLiveDot" aria-hidden="true" />
+          Explore live
+          <ArrowUpRight size={16} aria-hidden="true" />
+        </Link>
+      </section>
+
       <div className="authStack">
         <form action={formAction} className="authCard">
           <div className="authHeader">
-            <Logo size={48} />
+            <ThemeToggleLogo size={48} />
             <p>Welcome</p>
           </div>
           <h1>Log in</h1>
@@ -38,16 +54,13 @@ export default function LoginPage() {
             />
           </div>
 
-          <div className="field">
-            <label htmlFor="password">Password</label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              autoComplete="current-password"
-              required
-            />
-          </div>
+          <PasswordField
+            id="password"
+            name="password"
+            label="Password"
+            autoComplete="current-password"
+            required
+          />
 
           {state?.error && <p className="errorText">{state.error}</p>}
 
@@ -63,6 +76,10 @@ export default function LoginPage() {
           </p>
           <AuthTrust />
         </form>
+
+        <div className="authDivider">
+          <span>or</span>
+        </div>
 
         {/* phase-14 spec §5: a separate form/action, deliberately not merged
             into the password login above — a work email here only ever

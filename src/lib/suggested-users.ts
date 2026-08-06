@@ -107,3 +107,24 @@ export async function getSuggestedUsers(viewerId: string, limit: number) {
 
   return scored.map((s) => s.user);
 }
+
+// Anonymous-visitor variant of the rail's "Suggested for you" — no viewerId
+// to score mutual-follows or bio-similarity against, so this is just the
+// same "recently active" pool from above, ranked by verified-first. Good
+// enough for a logged-out visitor who has no graph yet; they get the real
+// personalized ranking once they sign up.
+export async function getPublicSuggestedUsers(limit: number) {
+  const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const candidates = await db.user.findMany({
+    where: { profile: { isNot: null }, username: { isNot: null }, posts: { some: { createdAt: { gte: since7d }, deletedAt: null } } },
+    include: { username: true, profile: true },
+    take: SUGGESTION_POOL_SIZE,
+  });
+  const eligible = candidates.filter((u) => u.username && u.profile);
+
+  return eligible
+    .map((u) => ({ user: u, score: u.profile!.isVerified ? 1 : 0 }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map((s) => s.user);
+}

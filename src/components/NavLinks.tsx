@@ -92,11 +92,16 @@ function SettingsNav({ pathname, profileHandle }: { pathname: string; profileHan
 // highlighted — SiteHeader's server-side x-pathname header tells the page
 // shell whether a route is a profile page, but per-link active-state needs
 // the exact current path, which only the client router knows on navigation.
+//
+// Every destination is listed regardless of auth state (an anonymous
+// visitor should be able to see the full nav, same as a logged-in one) —
+// the account-only destinations (Messages/Organizations/Notifications/
+// Bookmarks) already redirect an anonymous visitor to /login server-side
+// (see each page.tsx's own getCurrentUser()/requireVerifiedUser() guard),
+// so there's nothing extra to gate here.
 export function NavLinks({
-  showBookmarks,
   profileHandle,
 }: {
-  showBookmarks: boolean;
   profileHandle: string | null;
 }) {
   const pathname = usePathname();
@@ -106,21 +111,17 @@ export function NavLinks({
     { href: "/feed", label: "Feed", icon: Home },
     { href: "/explore", label: "Explore", icon: Search },
     { href: "/trending", label: "Trending", icon: Flame },
-    ...(showBookmarks ? [{ href: "/messages", label: "Messages", icon: MessageCircle }] : []),
+    { href: "/messages", label: "Messages", icon: MessageCircle },
     { href: "/b", label: "Businesses", icon: Briefcase },
     { href: "/c", label: "Communities", icon: Users },
-    ...(showBookmarks
-      ? [
-          { href: "/org", label: "Organizations", icon: Building2 },
-          // Desktop reaches this via SiteHeader's icon cluster
-          // (NotificationBell), which is deliberately hidden on mobile — but
-          // that left mobile with no path to /notifications at all (the
-          // comment in SiteHeader.tsx claims "still reachable via NavLinks",
-          // which wasn't actually true until this entry existed).
-          { href: "/notifications", label: "Notifications", icon: Bell },
-          { href: "/bookmarks", label: "Bookmarks", icon: Bookmark },
-        ]
-      : []),
+    { href: "/org", label: "Organizations", icon: Building2 },
+    // Desktop reaches this via SiteHeader's icon cluster (NotificationBell),
+    // which is deliberately hidden on mobile — but that left mobile with no
+    // path to /notifications at all (the comment in SiteHeader.tsx claims
+    // "still reachable via NavLinks", which wasn't actually true until this
+    // entry existed).
+    { href: "/notifications", label: "Notifications", icon: Bell },
+    { href: "/bookmarks", label: "Bookmarks", icon: Bookmark },
   ];
 
   return (

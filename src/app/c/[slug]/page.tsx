@@ -91,43 +91,6 @@ export default async function CommunityPage({
           <div className="profileHeaderInfo">
             <div className="profileIdentityRow">
               <h1 className="profileName">{community.name}</h1>
-              <div className="profileActions">
-                <Link href={`/c/${community.slug}/voice`} className="button buttonSecondary">
-                  Voice
-                </Link>
-                <Link href={`/c/${community.slug}/chat`} className="button buttonSecondary">
-                  Chat
-                </Link>
-                <Link href={`/c/${community.slug}/wiki`} className="button buttonSecondary">
-                  Wiki
-                </Link>
-                {isStaff && (
-                  <Link href={`/c/${community.slug}/manage`} className="button buttonSecondary">
-                    Manage
-                  </Link>
-                )}
-                {currentUser && !isOwner && isActiveMember && (
-                  <form action={leaveCommunity}>
-                    <input type="hidden" name="communityId" value={community.id} />
-                    <button type="submit" className="button buttonSecondary">
-                      Leave
-                    </button>
-                  </form>
-                )}
-                {currentUser && !membership && (
-                  <form action={joinCommunity}>
-                    <input type="hidden" name="communityId" value={community.id} />
-                    <button type="submit" className="button">
-                      Join
-                    </button>
-                  </form>
-                )}
-                {isPending && (
-                  <span className="button buttonSecondary" aria-disabled="true" style={{ cursor: "default", opacity: 0.7 }}>
-                    Request pending
-                  </span>
-                )}
-              </div>
             </div>
             <div className="profileMeta">
               <span>{VISIBILITY_LABEL[community.visibility] ?? community.visibility}</span>
@@ -159,6 +122,44 @@ export default async function CommunityPage({
             ))}
           </div>
         )}
+
+        <div className="profileActionsGrid">
+          <Link href={`/c/${community.slug}/voice`} className="button buttonSecondary">
+            Voice
+          </Link>
+          <Link href={`/c/${community.slug}/chat`} className="button buttonSecondary">
+            Chat
+          </Link>
+          <Link href={`/c/${community.slug}/wiki`} className="button buttonSecondary">
+            Wiki
+          </Link>
+          {isStaff && (
+            <Link href={`/c/${community.slug}/manage`} className="button buttonSecondary">
+              Manage
+            </Link>
+          )}
+          {currentUser && !isOwner && isActiveMember && (
+            <form action={leaveCommunity}>
+              <input type="hidden" name="communityId" value={community.id} />
+              <button type="submit" className="button buttonSecondary">
+                Leave
+              </button>
+            </form>
+          )}
+          {currentUser && !membership && (
+            <form action={joinCommunity}>
+              <input type="hidden" name="communityId" value={community.id} />
+              <button type="submit" className="button">
+                Join
+              </button>
+            </form>
+          )}
+          {isPending && (
+            <span className="button buttonSecondary" aria-disabled="true" style={{ cursor: "default", opacity: 0.7 }}>
+              Request pending
+            </span>
+          )}
+        </div>
 
         {rules.length > 0 && (
           <details className="profileEditToggle" style={{ marginTop: "0.75rem" }}>

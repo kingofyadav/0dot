@@ -67,11 +67,13 @@ export default async function RootLayout({
   const pathname = headersList.get("x-pathname") ?? "";
   const chromeless = isChromelessPath(pathname);
   const currentUser = await getCurrentUser();
-  // The rail is a fixed global element now, same posture as the left
-  // sidebar (SiteHeader) — shown on every page that has chrome at all, for
-  // every signed-in visitor (ContextualRail's own content is inherently
-  // personalized, so it stays hidden for anonymous visitors regardless).
-  const showRail = !chromeless && Boolean(currentUser);
+  // The rail is a fixed global element, same posture as the left sidebar
+  // (SiteHeader) — shown on every page that has chrome at all, for every
+  // visitor. ContextualRail branches internally on currentUser: signed-in
+  // visitors get the full personalized rail, anonymous visitors get a
+  // sign-in prompt plus non-personalized suggestions (see
+  // AnonymousContextualRail in ContextualRail.tsx) rather than nothing.
+  const showRail = !chromeless;
   // Mirrors MobileBottomNav's own visibility condition (profileHandle
   // truthy, see SiteHeader.tsx/MobileBottomNav.tsx) — a body class rather
   // than plumbing the same boolean through props, since this only exists to

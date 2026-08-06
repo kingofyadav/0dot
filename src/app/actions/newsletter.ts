@@ -5,24 +5,12 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { requireVerifiedUser } from "@/lib/auth-guards";
-import { getEmailSender } from "@/lib/email";
+import { getEmailSender, getAppOrigin } from "@/lib/email";
 import { hasTierAccess } from "@/lib/tier-access";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import type { ActionState } from "@/app/actions/auth";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-// spec §10.2: the one-click unsubscribe link is a legal requirement
-// (CAN-SPAM/GDPR), so it must be a real, absolute URL a mail client can
-// follow — a relative path (this codebase's pre-existing convention for
-// the verify-email link in auth.ts) means nothing outside a browser
-// "current page" context. No app-origin env var existed anywhere in this
-// codebase yet; falls back to localhost for dev, same "flag it, don't
-// silently pretend it's production-grade" posture as
-// DOWNLOAD_TOKEN_SECRET's fallback in protected-storage.ts.
-function getAppOrigin(): string {
-  return process.env.APP_ORIGIN ?? "http://localhost:3000";
-}
 
 // Same "user id when logged in, IP when not" convention as
 // business-contact.ts's checkContactRateLimit — this form is unauthenticated

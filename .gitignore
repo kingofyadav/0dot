@@ -45,6 +45,10 @@ next-env.d.ts
 # local sqlite dev database
 /dev.db
 /prisma/dev.db
+/prisma/vitest-test.db*
+
+# scripts/backup-db.js output (runtime artifact, not source)
+/backups
 
 # user-uploaded content (runtime, not source)
 /public/uploads

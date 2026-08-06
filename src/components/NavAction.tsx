@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { LogOut } from "lucide-react";
 import { logout } from "@/app/actions/auth";
 
 // The bottom-of-nav action: log out for a signed-in user, or a join CTA for
@@ -13,12 +14,9 @@ export function NavAction({
 }) {
   if (hasProfile) {
     return (
-      <form action={logout}>
-        <button
-          type="submit"
-          className="button buttonSecondary"
-          style={{ width: "100%" }}
-        >
+      <form action={logout} className="navLogoutForm">
+        <button type="submit" className="button buttonSecondary navLogoutButton">
+          <LogOut size={16} aria-hidden="true" />
           Log out
         </button>
       </form>

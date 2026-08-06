@@ -13,16 +13,14 @@ import { NavLinks } from "./NavLinks";
 // free" CTA doesn't apply to the sidebar (it only shows on a visited
 // profile page, not globally).
 export function Sidebar({
-  hasProfile,
   profileHandle,
 }: {
-  hasProfile: boolean;
   profileHandle: string | null;
 }) {
   return (
     <aside className="desktopSidebar">
       <nav className="sidebarNav">
-        <NavLinks showBookmarks={hasProfile} profileHandle={profileHandle} />
+        <NavLinks profileHandle={profileHandle} />
       </nav>
     </aside>
   );

@@ -58,7 +58,7 @@ export function linkifyPostBody(body: string): ReactNode[] {
     }
     if (part.startsWith("#")) {
       return (
-        <span key={index} style={{ color: "var(--accent-green)", fontWeight: 600 }}>
+        <span key={index} style={{ color: "var(--accent-orange)", fontWeight: 600 }}>
           {part}
         </span>
       );

@@ -120,7 +120,7 @@ function loadImage(href: string): Promise<HTMLImageElement> {
 }
 
 const BADGE_FILL: Record<"check" | "warning" | "count", string> = {
-  check: "#16a34a",
+  check: "#148104",
   warning: "#dc2626",
   count: "#dc2626",
 };

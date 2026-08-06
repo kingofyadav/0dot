@@ -98,42 +98,6 @@ export default async function BusinessPage({ params }: { params: Promise<{ slug:
                 </span>
               )}
             </h1>
-            <div className="profileActions">
-              <Link href={`/b/${business.slug}/posts`} className="button buttonSecondary">
-                Posts
-              </Link>
-              <Link href={`/b/${business.slug}/catalog`} className="button buttonSecondary">
-                Catalog
-              </Link>
-              <Link href={`/b/${business.slug}/store`} className="button buttonSecondary">
-                Store
-              </Link>
-              <Link href={`/b/${business.slug}/reviews`} className="button buttonSecondary">
-                Reviews
-              </Link>
-              <Link href={`/b/${business.slug}/jobs`} className="button buttonSecondary">
-                Jobs
-              </Link>
-              <Link href={`/b/${business.slug}/appointments`} className="button buttonSecondary">
-                Appointments
-              </Link>
-              <Link href={`/b/${business.slug}/documents`} className="button buttonSecondary">
-                Documents
-              </Link>
-              {isStaff && (
-                <Link href={`/b/${business.slug}/manage`} className="button buttonSecondary">
-                  Manage
-                </Link>
-              )}
-              {membership && !isOwner && (
-                <form action={leaveBusinessTeam}>
-                  <input type="hidden" name="businessId" value={business.id} />
-                  <button type="submit" className="button buttonSecondary">
-                    Leave team
-                  </button>
-                </form>
-              )}
-            </div>
           </div>
           {business.tagline && <p className="mutedText">{business.tagline}</p>}
           <div className="profileMeta">
@@ -162,6 +126,49 @@ export default async function BusinessPage({ params }: { params: Promise<{ slug:
           {business.contactInfo.phone && <span className="mutedText">{business.contactInfo.phone}</span>}
         </div>
       )}
+
+      <div className="profileActionsGrid">
+        <Link href={`/b/${business.slug}/posts`} className="button buttonSecondary">
+          Posts
+        </Link>
+        <Link href={`/b/${business.slug}/catalog`} className="button buttonSecondary">
+          Catalog
+        </Link>
+        <Link href={`/b/${business.slug}/store`} className="button buttonSecondary">
+          Store
+        </Link>
+        <Link href={`/b/${business.slug}/reviews`} className="button buttonSecondary">
+          Reviews
+        </Link>
+        <Link href={`/b/${business.slug}/jobs`} className="button buttonSecondary">
+          Jobs
+        </Link>
+        <Link href={`/b/${business.slug}/appointments`} className="button buttonSecondary">
+          Appointments
+        </Link>
+        <Link href={`/b/${business.slug}/documents`} className="button buttonSecondary">
+          Documents
+        </Link>
+        {isStaff && (
+          <Link href={`/b/${business.slug}/manage`} className="button buttonSecondary">
+            Manage
+          </Link>
+        )}
+        {membership && !isOwner && (
+          <form action={leaveBusinessTeam}>
+            <input type="hidden" name="businessId" value={business.id} />
+            <button type="submit" className="button buttonSecondary">
+              Leave team
+            </button>
+          </form>
+        )}
+        <details className="profileActionsToggle">
+          <summary className="button buttonSecondary">Message</summary>
+          <div className="profileActionsExpand">
+            <BusinessContactForm businessId={business.id} isLoggedIn={Boolean(currentUser)} />
+          </div>
+        </details>
+      </div>
 
       {business.locations.length > 0 && (
         <div style={{ marginTop: "0.75rem" }}>
@@ -204,11 +211,6 @@ export default async function BusinessPage({ params }: { params: Promise<{ slug:
           ))}
         </div>
       )}
-
-      <div style={{ marginTop: "0.75rem" }}>
-        <p className="sectionHeading">Contact</p>
-        <BusinessContactForm businessId={business.id} isLoggedIn={Boolean(currentUser)} />
-      </div>
 
       {publicTeam.length > 0 && (
         <details className="profileEditToggle" style={{ marginTop: "0.75rem" }}>
