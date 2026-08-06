@@ -1,8 +1,10 @@
 import { redirect } from "next/navigation";
-import { X } from "lucide-react";
+import { Award as AwardIcon, FileText, Plus, ShieldCheck, X } from "lucide-react";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { deleteResearchPaper, deleteCertificate, deleteAward } from "@/app/actions/credentials";
+import { SettingsRow } from "@/components/SettingsRow";
+import { EmptyState } from "@/components/EmptyState";
 import { ResearchPaperForm, CertificateForm, AwardForm } from "../../CredentialForms";
 
 // spec §7.4/§7.5: three independent, structurally-identical self-attested
@@ -24,69 +26,108 @@ export default async function CredentialsSettingsPage() {
     <div className="settingsSection">
       <h2 className="settingsSectionHeading">Credentials</h2>
 
-      <p className="sectionHeading">Research papers</p>
-      {myResearchPapers.length === 0 && <p className="mutedText">No papers yet.</p>}
-      <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-        {myResearchPapers.map((paper) => (
-          <div key={paper.id} className="profileLinkItem" style={{ justifyContent: "space-between" }}>
-            <span>
-              {paper.title} <span className="mutedText">— {paper.authors}</span>
-            </span>
-            <form action={deleteResearchPaper}>
-              <input type="hidden" name="researchPaperId" value={paper.id} />
-              <button type="submit" className="button buttonSecondary iconButton" aria-label="Delete paper"><X size={16} aria-hidden="true" /></button>
-            </form>
-          </div>
-        ))}
-      </div>
-      <details className="profileEditToggle" style={{ marginTop: "0.5rem" }}>
-        <summary>Add a paper</summary>
-        <div style={{ marginTop: "0.5rem" }}>
+      <p className="settingsGroupLabel">Research papers</p>
+      {myResearchPapers.length === 0 ? (
+        <EmptyState message="No papers yet." />
+      ) : (
+        <div className="settingsGroup">
+          {myResearchPapers.map((paper) => (
+            <SettingsRow
+              key={paper.id}
+              icon={FileText}
+              label={paper.title}
+              description={paper.authors}
+              trailing={
+                <form action={deleteResearchPaper}>
+                  <input type="hidden" name="researchPaperId" value={paper.id} />
+                  <button type="submit" className="button buttonSecondary iconButton" aria-label="Delete paper"><X size={16} aria-hidden="true" /></button>
+                </form>
+              }
+            />
+          ))}
+        </div>
+      )}
+      <details className="settingsGroup">
+        <summary className="settingsRow settingsAddTrigger">
+          <span className="settingsRowIcon" aria-hidden="true">
+            <Plus size={18} />
+          </span>
+          <span className="settingsRowText">
+            <span className="settingsRowLabel">Add a paper</span>
+          </span>
+        </summary>
+        <div className="settingsAddPanelBody">
           <ResearchPaperForm ownProjects={myProjects.map((p) => ({ id: p.id, title: p.title }))} />
         </div>
       </details>
 
-      <p className="sectionHeading" style={{ marginTop: "1.5rem" }}>Certificates</p>
-      <p className="mutedText" style={{ fontSize: "0.8rem" }}>Self-reported — not verified by 0dot. Add a verification link so viewers can check independently.</p>
-      {myCertificates.length === 0 && <p className="mutedText">No certificates yet.</p>}
-      <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-        {myCertificates.map((cert) => (
-          <div key={cert.id} className="profileLinkItem" style={{ justifyContent: "space-between" }}>
-            <span>
-              {cert.title} <span className="mutedText">— {cert.issuingOrg}</span>
-            </span>
-            <form action={deleteCertificate}>
-              <input type="hidden" name="certificateId" value={cert.id} />
-              <button type="submit" className="button buttonSecondary iconButton" aria-label="Delete certificate"><X size={16} aria-hidden="true" /></button>
-            </form>
-          </div>
-        ))}
-      </div>
-      <details className="profileEditToggle" style={{ marginTop: "0.5rem" }}>
-        <summary>Add a certificate</summary>
-        <div style={{ marginTop: "0.5rem" }}>
+      <p className="settingsGroupLabel">Certificates</p>
+      <p className="mutedText" style={{ fontSize: "0.8rem", marginBottom: "var(--space-2)" }}>Self-reported — not verified by 0dot. Add a verification link so viewers can check independently.</p>
+      {myCertificates.length === 0 ? (
+        <EmptyState message="No certificates yet." />
+      ) : (
+        <div className="settingsGroup">
+          {myCertificates.map((cert) => (
+            <SettingsRow
+              key={cert.id}
+              icon={ShieldCheck}
+              label={cert.title}
+              description={cert.issuingOrg}
+              trailing={
+                <form action={deleteCertificate}>
+                  <input type="hidden" name="certificateId" value={cert.id} />
+                  <button type="submit" className="button buttonSecondary iconButton" aria-label="Delete certificate"><X size={16} aria-hidden="true" /></button>
+                </form>
+              }
+            />
+          ))}
+        </div>
+      )}
+      <details className="settingsGroup">
+        <summary className="settingsRow settingsAddTrigger">
+          <span className="settingsRowIcon" aria-hidden="true">
+            <Plus size={18} />
+          </span>
+          <span className="settingsRowText">
+            <span className="settingsRowLabel">Add a certificate</span>
+          </span>
+        </summary>
+        <div className="settingsAddPanelBody">
           <CertificateForm />
         </div>
       </details>
 
-      <p className="sectionHeading" style={{ marginTop: "1.5rem" }}>Awards</p>
-      {myAwards.length === 0 && <p className="mutedText">No awards yet.</p>}
-      <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-        {myAwards.map((award) => (
-          <div key={award.id} className="profileLinkItem" style={{ justifyContent: "space-between" }}>
-            <span>
-              {award.title} {award.issuingOrg && <span className="mutedText">— {award.issuingOrg}</span>}
-            </span>
-            <form action={deleteAward}>
-              <input type="hidden" name="awardId" value={award.id} />
-              <button type="submit" className="button buttonSecondary iconButton" aria-label="Delete award"><X size={16} aria-hidden="true" /></button>
-            </form>
-          </div>
-        ))}
-      </div>
-      <details className="profileEditToggle" style={{ marginTop: "0.5rem" }}>
-        <summary>Add an award</summary>
-        <div style={{ marginTop: "0.5rem" }}>
+      <p className="settingsGroupLabel">Awards</p>
+      {myAwards.length === 0 ? (
+        <EmptyState message="No awards yet." />
+      ) : (
+        <div className="settingsGroup">
+          {myAwards.map((award) => (
+            <SettingsRow
+              key={award.id}
+              icon={AwardIcon}
+              label={award.title}
+              description={award.issuingOrg ?? undefined}
+              trailing={
+                <form action={deleteAward}>
+                  <input type="hidden" name="awardId" value={award.id} />
+                  <button type="submit" className="button buttonSecondary iconButton" aria-label="Delete award"><X size={16} aria-hidden="true" /></button>
+                </form>
+              }
+            />
+          ))}
+        </div>
+      )}
+      <details className="settingsGroup">
+        <summary className="settingsRow settingsAddTrigger">
+          <span className="settingsRowIcon" aria-hidden="true">
+            <Plus size={18} />
+          </span>
+          <span className="settingsRowText">
+            <span className="settingsRowLabel">Add an award</span>
+          </span>
+        </summary>
+        <div className="settingsAddPanelBody">
           <AwardForm />
         </div>
       </details>

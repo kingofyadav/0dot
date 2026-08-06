@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ChevronUp, ChevronDown, X } from "lucide-react";
+import { Briefcase, ChevronUp, ChevronDown, GraduationCap, Pencil, Plus, X } from "lucide-react";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { deleteWorkExperience, moveWorkExperience, deleteEducation, moveEducation } from "@/app/actions/resume";
+import { SettingsRow } from "@/components/SettingsRow";
 import { WorkExperienceForm } from "../../WorkExperienceForm";
 import { EducationForm } from "../../EducationForm";
 import { ResumePdfForm } from "../../ResumePdfForm";
@@ -31,79 +32,117 @@ export default async function ResumeSettingsPage() {
         Education, Skills, and projects marked &ldquo;Feature on resume&rdquo; elsewhere in Portfolio.
       </p>
 
-      <p className="mutedText" style={{ fontSize: "0.85rem", marginTop: "0.6rem" }}>Resume PDF (optional)</p>
-      <ResumePdfForm resumePdfUrl={profileRow.resumePdfUrl} />
+      <p className="settingsGroupLabel">Resume PDF (optional)</p>
+      <div className="settingsGroup">
+        <div className="settingsAddPanelBody">
+          <ResumePdfForm resumePdfUrl={profileRow.resumePdfUrl} />
+        </div>
+      </div>
 
-      <p className="mutedText" style={{ fontSize: "0.85rem", marginTop: "0.9rem" }}>Work experience</p>
+      <p className="settingsGroupLabel">Work experience</p>
       {myWorkExperiences.map((item, index) => (
-        <div key={item.id} className="profileLinkItem" style={{ flexDirection: "column", alignItems: "stretch", gap: "0.35rem", marginBottom: "0.5rem" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <strong>{item.title} — {item.company}</strong>
-            <span style={{ display: "flex", gap: "0.25rem" }}>
-              <form action={moveWorkExperience}>
-                <input type="hidden" name="workExperienceId" value={item.id} />
-                <input type="hidden" name="direction" value="up" />
-                <button type="submit" className="button buttonSecondary iconButton" disabled={index === 0} aria-label="Move up"><ChevronUp size={16} aria-hidden="true" /></button>
-              </form>
-              <form action={moveWorkExperience}>
-                <input type="hidden" name="workExperienceId" value={item.id} />
-                <input type="hidden" name="direction" value="down" />
-                <button type="submit" className="button buttonSecondary iconButton" disabled={index === myWorkExperiences.length - 1} aria-label="Move down"><ChevronDown size={16} aria-hidden="true" /></button>
-              </form>
-              <form action={deleteWorkExperience}>
-                <input type="hidden" name="workExperienceId" value={item.id} />
-                <button type="submit" className="button buttonSecondary iconButton" aria-label="Delete"><X size={16} aria-hidden="true" /></button>
-              </form>
-            </span>
-          </div>
-          <details className="profileEditToggle">
-            <summary className="mutedText" style={{ fontSize: "0.85rem" }}>Edit</summary>
-            <div style={{ marginTop: "0.5rem" }}>
+        <div key={item.id} className="settingsGroup" style={{ marginBottom: "var(--space-3)" }}>
+          <SettingsRow
+            icon={Briefcase}
+            label={`${item.title} — ${item.company}`}
+            trailing={
+              <>
+                <form action={moveWorkExperience}>
+                  <input type="hidden" name="workExperienceId" value={item.id} />
+                  <input type="hidden" name="direction" value="up" />
+                  <button type="submit" className="button buttonSecondary iconButton" disabled={index === 0} aria-label="Move up"><ChevronUp size={16} aria-hidden="true" /></button>
+                </form>
+                <form action={moveWorkExperience}>
+                  <input type="hidden" name="workExperienceId" value={item.id} />
+                  <input type="hidden" name="direction" value="down" />
+                  <button type="submit" className="button buttonSecondary iconButton" disabled={index === myWorkExperiences.length - 1} aria-label="Move down"><ChevronDown size={16} aria-hidden="true" /></button>
+                </form>
+                <form action={deleteWorkExperience}>
+                  <input type="hidden" name="workExperienceId" value={item.id} />
+                  <button type="submit" className="button buttonSecondary iconButton" aria-label="Delete"><X size={16} aria-hidden="true" /></button>
+                </form>
+              </>
+            }
+          />
+          <details>
+            <summary className="settingsRow settingsAddTrigger">
+              <span className="settingsRowIcon" aria-hidden="true">
+                <Pencil size={16} />
+              </span>
+              <span className="settingsRowText">
+                <span className="settingsRowLabel">Edit</span>
+              </span>
+            </summary>
+            <div className="settingsAddPanelBody">
               <WorkExperienceForm item={item} />
             </div>
           </details>
         </div>
       ))}
-      <details className="profileEditToggle" style={{ marginTop: "0.5rem" }}>
-        <summary>Add work experience</summary>
-        <div style={{ marginTop: "0.5rem" }}>
+      <details className="settingsGroup">
+        <summary className="settingsRow settingsAddTrigger">
+          <span className="settingsRowIcon" aria-hidden="true">
+            <Plus size={18} />
+          </span>
+          <span className="settingsRowText">
+            <span className="settingsRowLabel">Add work experience</span>
+          </span>
+        </summary>
+        <div className="settingsAddPanelBody">
           <WorkExperienceForm />
         </div>
       </details>
 
-      <p className="mutedText" style={{ fontSize: "0.85rem", marginTop: "0.9rem" }}>Education</p>
+      <p className="settingsGroupLabel">Education</p>
       {myEducation.map((item, index) => (
-        <div key={item.id} className="profileLinkItem" style={{ flexDirection: "column", alignItems: "stretch", gap: "0.35rem", marginBottom: "0.5rem" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <strong>{item.institution}{item.degree ? ` — ${item.degree}` : ""}</strong>
-            <span style={{ display: "flex", gap: "0.25rem" }}>
-              <form action={moveEducation}>
-                <input type="hidden" name="educationId" value={item.id} />
-                <input type="hidden" name="direction" value="up" />
-                <button type="submit" className="button buttonSecondary iconButton" disabled={index === 0} aria-label="Move up"><ChevronUp size={16} aria-hidden="true" /></button>
-              </form>
-              <form action={moveEducation}>
-                <input type="hidden" name="educationId" value={item.id} />
-                <input type="hidden" name="direction" value="down" />
-                <button type="submit" className="button buttonSecondary iconButton" disabled={index === myEducation.length - 1} aria-label="Move down"><ChevronDown size={16} aria-hidden="true" /></button>
-              </form>
-              <form action={deleteEducation}>
-                <input type="hidden" name="educationId" value={item.id} />
-                <button type="submit" className="button buttonSecondary iconButton" aria-label="Delete"><X size={16} aria-hidden="true" /></button>
-              </form>
-            </span>
-          </div>
-          <details className="profileEditToggle">
-            <summary className="mutedText" style={{ fontSize: "0.85rem" }}>Edit</summary>
-            <div style={{ marginTop: "0.5rem" }}>
+        <div key={item.id} className="settingsGroup" style={{ marginBottom: "var(--space-3)" }}>
+          <SettingsRow
+            icon={GraduationCap}
+            label={`${item.institution}${item.degree ? ` — ${item.degree}` : ""}`}
+            trailing={
+              <>
+                <form action={moveEducation}>
+                  <input type="hidden" name="educationId" value={item.id} />
+                  <input type="hidden" name="direction" value="up" />
+                  <button type="submit" className="button buttonSecondary iconButton" disabled={index === 0} aria-label="Move up"><ChevronUp size={16} aria-hidden="true" /></button>
+                </form>
+                <form action={moveEducation}>
+                  <input type="hidden" name="educationId" value={item.id} />
+                  <input type="hidden" name="direction" value="down" />
+                  <button type="submit" className="button buttonSecondary iconButton" disabled={index === myEducation.length - 1} aria-label="Move down"><ChevronDown size={16} aria-hidden="true" /></button>
+                </form>
+                <form action={deleteEducation}>
+                  <input type="hidden" name="educationId" value={item.id} />
+                  <button type="submit" className="button buttonSecondary iconButton" aria-label="Delete"><X size={16} aria-hidden="true" /></button>
+                </form>
+              </>
+            }
+          />
+          <details>
+            <summary className="settingsRow settingsAddTrigger">
+              <span className="settingsRowIcon" aria-hidden="true">
+                <Pencil size={16} />
+              </span>
+              <span className="settingsRowText">
+                <span className="settingsRowLabel">Edit</span>
+              </span>
+            </summary>
+            <div className="settingsAddPanelBody">
               <EducationForm item={item} />
             </div>
           </details>
         </div>
       ))}
-      <details className="profileEditToggle" style={{ marginTop: "0.5rem" }}>
-        <summary>Add education</summary>
-        <div style={{ marginTop: "0.5rem" }}>
+      <details className="settingsGroup">
+        <summary className="settingsRow settingsAddTrigger">
+          <span className="settingsRowIcon" aria-hidden="true">
+            <Plus size={18} />
+          </span>
+          <span className="settingsRowText">
+            <span className="settingsRowLabel">Add education</span>
+          </span>
+        </summary>
+        <div className="settingsAddPanelBody">
           <EducationForm />
         </div>
       </details>

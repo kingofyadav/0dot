@@ -1,8 +1,10 @@
 import { redirect } from "next/navigation";
-import { ChevronUp, ChevronDown, X } from "lucide-react";
+import { ChevronUp, ChevronDown, Sparkles, X } from "lucide-react";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { deleteSkill, moveSkill } from "@/app/actions/skills";
+import { SettingsRow } from "@/components/SettingsRow";
+import { EmptyState } from "@/components/EmptyState";
 import { AddSkillForm } from "../../AddSkillForm";
 
 export default async function SkillsSettingsPage() {
@@ -17,37 +19,43 @@ export default async function SkillsSettingsPage() {
   return (
     <div className="settingsSection">
       <h2 className="settingsSectionHeading">Skills</h2>
-      {mySkills.length === 0 && <p className="mutedText">No skills listed yet.</p>}
-      <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-        {mySkills.map((skill, index) => (
-          <div key={skill.id} className="profileLinkItem" style={{ justifyContent: "space-between" }}>
-            <span>
-              {skill.name}{" "}
-              <span className="mutedText">
-                {skill.endorsementCount} endorsement{skill.endorsementCount === 1 ? "" : "s"}
-              </span>
-            </span>
-            <span style={{ display: "flex", gap: "0.25rem" }}>
-              <form action={moveSkill}>
-                <input type="hidden" name="skillId" value={skill.id} />
-                <input type="hidden" name="direction" value="up" />
-                <button type="submit" className="button buttonSecondary iconButton" disabled={index === 0} aria-label="Move up"><ChevronUp size={16} aria-hidden="true" /></button>
-              </form>
-              <form action={moveSkill}>
-                <input type="hidden" name="skillId" value={skill.id} />
-                <input type="hidden" name="direction" value="down" />
-                <button type="submit" className="button buttonSecondary iconButton" disabled={index === mySkills.length - 1} aria-label="Move down"><ChevronDown size={16} aria-hidden="true" /></button>
-              </form>
-              <form action={deleteSkill}>
-                <input type="hidden" name="skillId" value={skill.id} />
-                <button type="submit" className="button buttonSecondary iconButton" aria-label="Delete skill"><X size={16} aria-hidden="true" /></button>
-              </form>
-            </span>
-          </div>
-        ))}
-      </div>
-      <div style={{ marginTop: "0.5rem" }}>
-        <AddSkillForm />
+      {mySkills.length === 0 ? (
+        <EmptyState message="No skills listed yet." />
+      ) : (
+        <div className="settingsGroup">
+          {mySkills.map((skill, index) => (
+            <SettingsRow
+              key={skill.id}
+              icon={Sparkles}
+              label={skill.name}
+              description={`${skill.endorsementCount} endorsement${skill.endorsementCount === 1 ? "" : "s"}`}
+              trailing={
+                <>
+                  <form action={moveSkill}>
+                    <input type="hidden" name="skillId" value={skill.id} />
+                    <input type="hidden" name="direction" value="up" />
+                    <button type="submit" className="button buttonSecondary iconButton" disabled={index === 0} aria-label="Move up"><ChevronUp size={16} aria-hidden="true" /></button>
+                  </form>
+                  <form action={moveSkill}>
+                    <input type="hidden" name="skillId" value={skill.id} />
+                    <input type="hidden" name="direction" value="down" />
+                    <button type="submit" className="button buttonSecondary iconButton" disabled={index === mySkills.length - 1} aria-label="Move down"><ChevronDown size={16} aria-hidden="true" /></button>
+                  </form>
+                  <form action={deleteSkill}>
+                    <input type="hidden" name="skillId" value={skill.id} />
+                    <button type="submit" className="button buttonSecondary iconButton" aria-label="Delete skill"><X size={16} aria-hidden="true" /></button>
+                  </form>
+                </>
+              }
+            />
+          ))}
+        </div>
+      )}
+      <p className="settingsGroupLabel">Add a skill</p>
+      <div className="settingsGroup">
+        <div className="settingsAddPanelBody">
+          <AddSkillForm />
+        </div>
       </div>
     </div>
   );
