@@ -298,16 +298,17 @@ summary:focus-visible,
   text-align: center;
 }
 
-/* Landing page only (AuthTabs's .authCard, nested in .landingWrap) — on
-   mobile the page shows the auth form only, no hero (see .landingHero
-   below), so the card's own box chrome is redundant on top of that: just
-   bare form fields on the page background. Scoped to .landingWrap
-   .authCard specifically, not .authCard itself, so the standalone
-   /login and /signup cards (still a real centered card on every size)
-   are unaffected. Restored at the 1024px breakpoint below, where the
-   card sits beside the hero as a genuine two-column layout and needs to
-   read as a distinct card again. */
-.landingWrap .authCard {
+/* On mobile, the auth card's own box chrome (border/shadow/background) is
+   redundant on top of the page background — just bare form fields reads
+   cleaner on a small screen. Covers both the landing page ("/", AuthTabs's
+   .authCard nested in .landingWrap) and the standalone /login and /signup
+   pages (.authCard nested in .authWrap), so all three entry points look
+   consistent on mobile instead of only the landing page getting the
+   boxless treatment. Restored at the 1024px breakpoint below, where each
+   card needs to read as a distinct surface again (beside the hero on the
+   landing page, or simply as a centered card on /login and /signup). */
+.landingWrap .authCard,
+.authWrap .authCard {
   border: none;
   box-shadow: none;
   background: none;
@@ -315,7 +316,8 @@ summary:focus-visible,
 }
 
 @media (min-width: 1024px) {
-  .landingWrap .authCard {
+  .landingWrap .authCard,
+  .authWrap .authCard {
     border: 1px solid var(--border);
     box-shadow: var(--shadow);
     background: var(--surface);
