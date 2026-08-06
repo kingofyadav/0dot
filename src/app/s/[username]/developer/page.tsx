@@ -1,8 +1,10 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
+import { AppWindow, Plus } from "lucide-react";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { CreateDeveloperAppForm } from "@/components/CreateDeveloperAppForm";
+import { SettingsRow } from "@/components/SettingsRow";
+import { EmptyState } from "@/components/EmptyState";
 
 // phase-10 spec §9: primarily a rendering surface over DeveloperApp/
 // OAuthAuthorization/WebhookSubscription, same "view over existing data,
@@ -28,23 +30,32 @@ export default async function DeveloperAppsPage() {
         consumer — including your own internal automation — registers here.
       </p>
 
-      <div style={{ marginBottom: "1.5rem" }}>
-        {ownApps.length === 0 && <p className="mutedText">No apps registered yet.</p>}
-        {ownApps.map((app) => (
-          <Link key={app.id} href={`developer/${app.id}`} className="profileLinkItem" style={{ justifyContent: "space-between" }}>
-            <span>
-              <strong>{app.name}</strong>{" "}
-              <span className="mutedText" style={{ fontSize: "0.8rem" }}>
-                {app.ownerBusiness ? `owned by ${app.ownerBusiness.name}` : "owned by you"} · {app.status}
-              </span>
-            </span>
-          </Link>
-        ))}
-      </div>
+      {ownApps.length === 0 ? (
+        <EmptyState message="No apps registered yet." />
+      ) : (
+        <div className="settingsGroup">
+          {ownApps.map((app) => (
+            <SettingsRow
+              key={app.id}
+              href={`developer/${app.id}`}
+              icon={AppWindow}
+              label={app.name}
+              description={`${app.ownerBusiness ? `Owned by ${app.ownerBusiness.name}` : "Owned by you"} · ${app.status}`}
+            />
+          ))}
+        </div>
+      )}
 
-      <details className="profileEditToggle">
-        <summary>Register a new app</summary>
-        <div style={{ marginTop: "0.5rem" }}>
+      <details className="settingsGroup">
+        <summary className="settingsRow settingsAddTrigger">
+          <span className="settingsRowIcon" aria-hidden="true">
+            <Plus size={18} />
+          </span>
+          <span className="settingsRowText">
+            <span className="settingsRowLabel">Register a new app</span>
+          </span>
+        </summary>
+        <div className="settingsAddPanelBody">
           <CreateDeveloperAppForm businesses={ownedBusinesses} />
         </div>
       </details>

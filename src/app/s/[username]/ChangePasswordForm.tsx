@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useRef } from "react";
 import { changePassword } from "@/app/actions/auth";
+import { PasswordField } from "@/components/PasswordField";
 
 export function ChangePasswordForm() {
   const [state, formAction, pending] = useActionState(changePassword, undefined);
@@ -13,40 +14,26 @@ export function ChangePasswordForm() {
 
   return (
     <form ref={formRef} action={formAction} className="authCard" style={{ maxWidth: "none" }}>
-      <div className="field">
-        <label htmlFor="currentPassword">Current password</label>
-        <input
-          id="currentPassword"
-          name="currentPassword"
-          type="password"
-          autoComplete="current-password"
-          required
-        />
-      </div>
+      <PasswordField id="currentPassword" name="currentPassword" label="Current password" autoComplete="current-password" required />
 
-      <div className="field">
-        <label htmlFor="newPassword">New password</label>
-        <input
-          id="newPassword"
-          name="newPassword"
-          type="password"
-          autoComplete="new-password"
-          minLength={8}
-          required
-        />
-      </div>
+      <PasswordField
+        id="newPassword"
+        name="newPassword"
+        label="New password"
+        autoComplete="new-password"
+        minLength={8}
+        required
+        showStrength
+      />
 
-      <div className="field">
-        <label htmlFor="confirmNewPassword">Confirm new password</label>
-        <input
-          id="confirmNewPassword"
-          name="confirmNewPassword"
-          type="password"
-          autoComplete="new-password"
-          minLength={8}
-          required
-        />
-      </div>
+      <PasswordField
+        id="confirmNewPassword"
+        name="confirmNewPassword"
+        label="Confirm new password"
+        autoComplete="new-password"
+        minLength={8}
+        required
+      />
 
       {state?.error && <p className="errorText">{state.error}</p>}
       {state?.success && <p className="mutedText">Password updated. Your other sessions have been signed out.</p>}

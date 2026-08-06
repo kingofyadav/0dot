@@ -1,8 +1,24 @@
 import { redirect } from "next/navigation";
+import {
+  AtSign,
+  CalendarClock,
+  CalendarX,
+  Gift,
+  Heart,
+  MessageCircle,
+  MessageSquare,
+  Radio,
+  Ticket,
+  UserPlus,
+  Users,
+  UserCheck,
+  type LucideIcon,
+} from "lucide-react";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { getNotificationVerb } from "@/lib/notifications";
 import { PushDeliveryToggle } from "@/components/PushDeliveryToggle";
+import { SettingsRow } from "@/components/SettingsRow";
 
 // phase-15 spec §4.1: NotificationDeliveryPreference is per (user, type,
 // channel) — this surfaces the "push" channel only (in_app has no opt-out
@@ -26,6 +42,21 @@ const PUSH_NOTIFICATION_TYPES = [
   "appointment_request",
 ] as const;
 
+const PUSH_NOTIFICATION_ICONS: Record<(typeof PUSH_NOTIFICATION_TYPES)[number], LucideIcon> = {
+  like: Heart,
+  comment: MessageCircle,
+  mention: AtSign,
+  new_follower: UserPlus,
+  message: MessageSquare,
+  community_update: Users,
+  tip_received: Gift,
+  new_subscriber: UserCheck,
+  livestream_started: Radio,
+  event_cancelled: CalendarX,
+  ticket_purchased: Ticket,
+  appointment_request: CalendarClock,
+};
+
 export default async function NotificationSettingsPage({ params }: { params: Promise<{ username: string }> }) {
   const { username } = await params;
   const currentUser = await getCurrentUser();
@@ -44,12 +75,15 @@ export default async function NotificationSettingsPage({ params }: { params: Pro
           : "No devices registered for push yet — install the 0dot app to receive push notifications."}
       </p>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+      <p className="settingsGroupLabel">Push notifications</p>
+      <div className="settingsGroup">
         {PUSH_NOTIFICATION_TYPES.map((type) => (
-          <div key={type} className="profileLinkItem" style={{ justifyContent: "space-between" }}>
-            <span>{getNotificationVerb(type) || type}</span>
-            <PushDeliveryToggle notificationType={type} channel="push" enabled={prefByType.get(type) ?? true} />
-          </div>
+          <SettingsRow
+            key={type}
+            icon={PUSH_NOTIFICATION_ICONS[type]}
+            label={getNotificationVerb(type) || type}
+            trailing={<PushDeliveryToggle notificationType={type} channel="push" enabled={prefByType.get(type) ?? true} />}
+          />
         ))}
       </div>
     </div>

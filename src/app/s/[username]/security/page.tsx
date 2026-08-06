@@ -9,6 +9,9 @@ export default async function SecuritySettingsPage() {
   return (
     <div className="settingsSection">
       <h2 className="settingsSectionHeading">Change password</h2>
+      <p className="mutedText" style={{ marginBottom: "1rem" }}>
+        Choose a strong, unique password. Changing it signs you out of every other device.
+      </p>
       <ChangePasswordForm />
     </div>
   );

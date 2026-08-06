@@ -10,13 +10,18 @@ export function PushDeliveryToggle({ notificationType, channel, enabled }: { not
     <form action={setNotificationDeliveryPreferenceAction}>
       <input type="hidden" name="notificationType" value={notificationType} />
       <input type="hidden" name="channel" value={channel} />
-      <input
-        type="checkbox"
-        name="enabled"
-        defaultChecked={enabled}
-        onChange={(e) => e.currentTarget.form?.requestSubmit()}
-        aria-label={`Push notifications for ${notificationType}`}
-      />
+      <label className="switch">
+        <input
+          type="checkbox"
+          name="enabled"
+          defaultChecked={enabled}
+          onChange={(e) => e.currentTarget.form?.requestSubmit()}
+          aria-label={`Push notifications for ${notificationType}`}
+        />
+        <span className="switchTrack">
+          <span className="switchThumb" />
+        </span>
+      </label>
     </form>
   );
 }

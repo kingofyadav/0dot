@@ -1,7 +1,10 @@
 import { redirect } from "next/navigation";
+import { KeyRound } from "lucide-react";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { revokeOwnAuthorization } from "@/app/actions/developer-apps";
+import { SettingsRow } from "@/components/SettingsRow";
+import { EmptyState } from "@/components/EmptyState";
 
 // spec §4.4's literal acceptance criterion: every user gets an
 // account-settings view listing active OAuthAuthorizations with their
@@ -24,25 +27,28 @@ export default async function AuthorizedAppsPage() {
         Apps you&apos;ve signed in with or granted access to your 0dot account.
       </p>
 
-      {authorizations.length === 0 && <p className="mutedText">No apps authorized.</p>}
-      <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-        {authorizations.map((authorization) => (
-          <div key={authorization.id} className="profileLinkItem" style={{ flexDirection: "column", alignItems: "stretch", gap: "0.3rem" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <strong>{authorization.app.name}</strong>
-              <form action={revokeOwnAuthorization}>
-                <input type="hidden" name="authorizationId" value={authorization.id} />
-                <button type="submit" className="button buttonDanger buttonSmall">
-                  Revoke
-                </button>
-              </form>
-            </div>
-            <span className="mutedText" style={{ fontSize: "0.8rem" }}>
-              Scopes: {(JSON.parse(authorization.grantedScopesJson) as string[]).join(", ")}
-            </span>
-          </div>
-        ))}
-      </div>
+      {authorizations.length === 0 ? (
+        <EmptyState message="No apps authorized." />
+      ) : (
+        <div className="settingsGroup">
+          {authorizations.map((authorization) => (
+            <SettingsRow
+              key={authorization.id}
+              icon={KeyRound}
+              label={authorization.app.name}
+              description={`Scopes: ${(JSON.parse(authorization.grantedScopesJson) as string[]).join(", ")}`}
+              trailing={
+                <form action={revokeOwnAuthorization}>
+                  <input type="hidden" name="authorizationId" value={authorization.id} />
+                  <button type="submit" className="button buttonDanger buttonSmall">
+                    Revoke
+                  </button>
+                </form>
+              }
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
