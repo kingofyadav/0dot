@@ -1,7 +1,10 @@
 import { redirect } from "next/navigation";
+import { Package, Pencil, Plus } from "lucide-react";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { archiveProduct } from "@/app/actions/digital-products";
+import { SettingsRow } from "@/components/SettingsRow";
+import { EmptyState } from "@/components/EmptyState";
 import { ProductForm } from "../../ProductForm";
 
 export default async function DigitalProductsSettingsPage() {
@@ -16,34 +19,47 @@ export default async function DigitalProductsSettingsPage() {
   return (
     <div className="settingsSection">
       <h2 className="settingsSectionHeading">Digital products</h2>
-      {myProducts.length === 0 && <p className="mutedText">No digital products yet.</p>}
+      {myProducts.length === 0 && <EmptyState message="No digital products yet." />}
       {myProducts.map((product) => (
-        <div key={product.id} className="profileLinkItem" style={{ flexDirection: "column", alignItems: "stretch", gap: "0.35rem", marginBottom: "0.5rem" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span>
-              <strong>{product.title}</strong>{" "}
-              <span className="mutedText">
-                {product.price.toFixed(2)} {product.currency.toUpperCase()} · {product.status}
+        <div key={product.id} className="settingsGroup" style={{ marginBottom: "var(--space-3)" }}>
+          <SettingsRow
+            icon={Package}
+            label={product.title}
+            description={`${product.price.toFixed(2)} ${product.currency.toUpperCase()} · ${product.status}`}
+            trailing={
+              product.status !== "archived" ? (
+                <form action={archiveProduct}>
+                  <input type="hidden" name="productId" value={product.id} />
+                  <button type="submit" className="button buttonSecondary buttonSmall">Archive</button>
+                </form>
+              ) : undefined
+            }
+          />
+          <details>
+            <summary className="settingsRow settingsAddTrigger">
+              <span className="settingsRowIcon" aria-hidden="true">
+                <Pencil size={16} />
               </span>
-            </span>
-            {product.status !== "archived" && (
-              <form action={archiveProduct}>
-                <input type="hidden" name="productId" value={product.id} />
-                <button type="submit" className="button buttonSecondary buttonSmall">Archive</button>
-              </form>
-            )}
-          </div>
-          <details className="profileEditToggle">
-            <summary className="mutedText" style={{ fontSize: "0.85rem" }}>Edit</summary>
-            <div style={{ marginTop: "0.5rem" }}>
+              <span className="settingsRowText">
+                <span className="settingsRowLabel">Edit</span>
+              </span>
+            </summary>
+            <div className="settingsAddPanelBody">
               <ProductForm product={product} />
             </div>
           </details>
         </div>
       ))}
-      <details className="profileEditToggle" style={{ marginTop: "0.5rem" }}>
-        <summary>Add a product</summary>
-        <div style={{ marginTop: "0.5rem" }}>
+      <details className="settingsGroup">
+        <summary className="settingsRow settingsAddTrigger">
+          <span className="settingsRowIcon" aria-hidden="true">
+            <Plus size={18} />
+          </span>
+          <span className="settingsRowText">
+            <span className="settingsRowLabel">Add a product</span>
+          </span>
+        </summary>
+        <div className="settingsAddPanelBody">
           <ProductForm />
         </div>
       </details>

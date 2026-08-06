@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
+import { Wallet } from "lucide-react";
 import { getCurrentUser } from "@/lib/session";
 import { getMyPayoutAccount } from "@/lib/payments";
+import { SettingsRow } from "@/components/SettingsRow";
 import { PayoutOnboardingForm } from "../../PayoutOnboardingForm";
 
 export default async function PayoutsSettingsPage() {
@@ -12,7 +14,13 @@ export default async function PayoutsSettingsPage() {
   return (
     <div className="settingsSection">
       <h2 className="settingsSectionHeading">Payouts</h2>
-      <PayoutOnboardingForm status={payoutAccount?.status ?? null} />
+      <div className="settingsGroup">
+        <SettingsRow
+          icon={Wallet}
+          label="Payout account"
+          trailing={<PayoutOnboardingForm status={payoutAccount?.status ?? null} />}
+        />
+      </div>
     </div>
   );
 }

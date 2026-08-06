@@ -13,13 +13,13 @@ export function PayoutOnboardingForm({ status }: { status: string | null }) {
   const [, formAction, pending] = useActionState(startCreatorOnboarding, undefined);
 
   if (status === "active") {
-    return <p className="mutedText">{STATUS_LABEL.active} — you can now receive tips.</p>;
+    return <span className="mutedText">{STATUS_LABEL.active} — you can now receive tips.</span>;
   }
 
   return (
     <form action={formAction} style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
-      {status && <p className="mutedText" style={{ margin: 0 }}>{STATUS_LABEL[status] ?? status}</p>}
-      <button type="submit" className="button" disabled={pending}>
+      {status && <span className="mutedText">{STATUS_LABEL[status] ?? status}</span>}
+      <button type="submit" className="button buttonSmall" disabled={pending}>
         {pending ? "Enabling…" : status === "restricted" ? "Retry payout setup" : "Enable payouts"}
       </button>
     </form>

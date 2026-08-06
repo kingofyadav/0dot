@@ -1,8 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Layers, Pencil, Plus } from "lucide-react";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { archiveTier, cancelSubscription } from "@/app/actions/memberships";
+import { SettingsRow } from "@/components/SettingsRow";
+import { EmptyState } from "@/components/EmptyState";
 import { TierForm } from "../../TierForm";
 
 export default async function MembershipsSettingsPage() {
@@ -27,62 +30,79 @@ export default async function MembershipsSettingsPage() {
   return (
     <div className="settingsSection">
       <h2 className="settingsSectionHeading">Memberships</h2>
-      {myTiers.length === 0 && <p className="mutedText">No membership tiers yet.</p>}
+      {myTiers.length === 0 && <EmptyState message="No membership tiers yet." />}
       {myTiers.map((tier) => (
-        <div key={tier.id} className="profileLinkItem" style={{ flexDirection: "column", alignItems: "stretch", gap: "0.35rem", marginBottom: "0.5rem" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span>
-              <strong>{tier.name}</strong>{" "}
-              <span className="mutedText">
-                Level {tier.level} · {tier.price.toFixed(2)} {tier.currency.toUpperCase()}/{tier.billingInterval === "yearly" ? "yr" : "mo"} · {tier.status}
+        <div key={tier.id} className="settingsGroup" style={{ marginBottom: "var(--space-3)" }}>
+          <SettingsRow
+            icon={Layers}
+            label={tier.name}
+            description={`Level ${tier.level} · ${tier.price.toFixed(2)} ${tier.currency.toUpperCase()}/${tier.billingInterval === "yearly" ? "yr" : "mo"} · ${tier.status}`}
+            trailing={
+              tier.status === "active" ? (
+                <form action={archiveTier}>
+                  <input type="hidden" name="tierId" value={tier.id} />
+                  <button type="submit" className="button buttonSecondary buttonSmall">Archive</button>
+                </form>
+              ) : undefined
+            }
+          />
+          <details>
+            <summary className="settingsRow settingsAddTrigger">
+              <span className="settingsRowIcon" aria-hidden="true">
+                <Pencil size={16} />
               </span>
-            </span>
-            {tier.status === "active" && (
-              <form action={archiveTier}>
-                <input type="hidden" name="tierId" value={tier.id} />
-                <button type="submit" className="button buttonSecondary buttonSmall">Archive</button>
-              </form>
-            )}
-          </div>
-          <details className="profileEditToggle">
-            <summary className="mutedText" style={{ fontSize: "0.85rem" }}>Edit</summary>
-            <div style={{ marginTop: "0.5rem" }}>
+              <span className="settingsRowText">
+                <span className="settingsRowLabel">Edit</span>
+              </span>
+            </summary>
+            <div className="settingsAddPanelBody">
               <TierForm tier={tier} />
             </div>
           </details>
         </div>
       ))}
-      <details className="profileEditToggle" style={{ marginTop: "0.5rem" }}>
-        <summary>Add a tier</summary>
-        <div style={{ marginTop: "0.5rem" }}>
+      <details className="settingsGroup">
+        <summary className="settingsRow settingsAddTrigger">
+          <span className="settingsRowIcon" aria-hidden="true">
+            <Plus size={18} />
+          </span>
+          <span className="settingsRowText">
+            <span className="settingsRowLabel">Add a tier</span>
+          </span>
+        </summary>
+        <div className="settingsAddPanelBody">
           <TierForm />
         </div>
       </details>
 
       {mySubscriptions.length > 0 && (
-        <div style={{ marginTop: "1rem" }}>
-          <p className="mutedText" style={{ fontSize: "0.85rem", fontWeight: 600 }}>My subscriptions</p>
-          {mySubscriptions.map((sub) => (
-            <div key={sub.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.35rem 0" }}>
-              <span className="mutedText" style={{ fontSize: "0.85rem" }}>
-                {sub.tier.creator.username ? (
-                  <Link href={`/${sub.tier.creator.username.handle}`}>{sub.tier.creator.profile?.displayName ?? sub.tier.creator.username.handle}</Link>
-                ) : (
-                  "Unknown creator"
-                )}
-                {" — "}
-                {sub.tier.name} ({sub.status}
-                {sub.status === "cancelled" && sub.currentPeriodEnd > new Date() ? `, access until ${sub.currentPeriodEnd.toLocaleDateString()}` : ""})
-              </span>
-              {sub.status === "active" && (
-                <form action={cancelSubscription}>
-                  <input type="hidden" name="subscriptionId" value={sub.id} />
-                  <button type="submit" className="button buttonSecondary buttonSmall">Cancel</button>
-                </form>
-              )}
-            </div>
-          ))}
-        </div>
+        <>
+          <p className="settingsGroupLabel">My subscriptions</p>
+          <div className="settingsGroup">
+            {mySubscriptions.map((sub) => (
+              <SettingsRow
+                key={sub.id}
+                icon={Layers}
+                label={
+                  sub.tier.creator.username ? (
+                    <Link href={`/${sub.tier.creator.username.handle}`}>{sub.tier.creator.profile?.displayName ?? sub.tier.creator.username.handle}</Link>
+                  ) : (
+                    "Unknown creator"
+                  )
+                }
+                description={`${sub.tier.name} (${sub.status}${sub.status === "cancelled" && sub.currentPeriodEnd > new Date() ? `, access until ${sub.currentPeriodEnd.toLocaleDateString()}` : ""})`}
+                trailing={
+                  sub.status === "active" ? (
+                    <form action={cancelSubscription}>
+                      <input type="hidden" name="subscriptionId" value={sub.id} />
+                      <button type="submit" className="button buttonSecondary buttonSmall">Cancel</button>
+                    </form>
+                  ) : undefined
+                }
+              />
+            ))}
+          </div>
+        </>
       )}
     </div>
   );
