@@ -1,6 +1,7 @@
 "use client";
 
 import { setNotificationDeliveryPreferenceAction } from "@/app/actions/push";
+import { Switch } from "@/components/Switch";
 
 // Same "checkbox auto-submits its own form on change" shape as
 // SsoEnforcementToggle (org/[orgId]/manage) — one independent form per
@@ -10,18 +11,13 @@ export function PushDeliveryToggle({ notificationType, channel, enabled }: { not
     <form action={setNotificationDeliveryPreferenceAction}>
       <input type="hidden" name="notificationType" value={notificationType} />
       <input type="hidden" name="channel" value={channel} />
-      <label className="switch">
-        <input
-          type="checkbox"
-          name="enabled"
-          defaultChecked={enabled}
-          onChange={(e) => e.currentTarget.form?.requestSubmit()}
-          aria-label={`Push notifications for ${notificationType}`}
-        />
-        <span className="switchTrack">
-          <span className="switchThumb" />
-        </span>
-      </label>
+      <Switch
+        name="enabled"
+        value="on"
+        defaultChecked={enabled}
+        onChange={(e) => e.currentTarget.form?.requestSubmit()}
+        aria-label={`Push notifications for ${notificationType}`}
+      />
     </form>
   );
 }

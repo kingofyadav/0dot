@@ -1,14 +1,16 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
+import { CalendarClock, CalendarDays, User } from "lucide-react";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { getCalendarItems } from "@/lib/calendar";
 import { deleteCalendarEntry } from "@/app/actions/calendar";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { EmptyState } from "@/components/EmptyState";
+import { SettingsRow } from "@/components/SettingsRow";
 import { CalendarEntryForm } from "./CalendarEntryForm";
 
 const KIND_LABEL: Record<string, string> = { appointment: "Appointment", event: "Event", personal: "Personal" };
+const KIND_ICON: Record<string, typeof CalendarClock> = { appointment: CalendarClock, event: CalendarDays, personal: User };
 
 export default async function CalendarSettingsPage() {
   const currentUser = await getCurrentUser();
@@ -30,37 +32,37 @@ export default async function CalendarSettingsPage() {
         <CalendarEntryForm />
       </div>
 
-      <div style={{ marginTop: "1.5rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-        {items.length === 0 && <EmptyState message="Nothing on your calendar yet." />}
-        {items.map((item) => (
-          <div key={item.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.5rem", border: "1px solid var(--border)", borderRadius: "8px", padding: "0.6rem 0.8rem" }}>
-            <div>
-              <span className="mutedText" style={{ fontSize: "0.75rem" }}>{KIND_LABEL[item.kind]}</span>
-              <p style={{ margin: 0 }}>
-                {item.href ? <Link href={item.href}>{item.title}</Link> : item.title}
-              </p>
-              <p className="mutedText" style={{ margin: 0, fontSize: "0.8rem" }}>
-                {item.startsAt.toLocaleString()}
-                {item.endsAt && ` – ${item.endsAt.toLocaleString()}`}
-              </p>
-            </div>
-            {item.kind === "personal" && (
-              <form action={deleteCalendarEntry}>
-                <input type="hidden" name="entryId" value={item.id.replace("entry:", "")} />
-                <ConfirmButton
-                  className="button buttonSecondary iconButton"
-                  aria-label="Delete calendar entry"
-                  title="Delete this entry?"
-                  description="This removes it from your calendar."
-                  confirmLabel="Delete"
-                >
-                  ×
-                </ConfirmButton>
-              </form>
-            )}
-          </div>
-        ))}
-      </div>
+      {items.length === 0 ? (
+        <EmptyState message="Nothing on your calendar yet." />
+      ) : (
+        <div className="settingsGroup" style={{ marginTop: "1.5rem" }}>
+          {items.map((item) => (
+            <SettingsRow
+              key={item.id}
+              href={item.href ?? undefined}
+              icon={KIND_ICON[item.kind]}
+              label={item.title}
+              description={`${KIND_LABEL[item.kind]} · ${item.startsAt.toLocaleString()}${item.endsAt ? ` – ${item.endsAt.toLocaleString()}` : ""}`}
+              trailing={
+                item.kind === "personal" ? (
+                  <form action={deleteCalendarEntry}>
+                    <input type="hidden" name="entryId" value={item.id.replace("entry:", "")} />
+                    <ConfirmButton
+                      className="button buttonSecondary iconButton"
+                      aria-label="Delete calendar entry"
+                      title="Delete this entry?"
+                      description="This removes it from your calendar."
+                      confirmLabel="Delete"
+                    >
+                      ×
+                    </ConfirmButton>
+                  </form>
+                ) : undefined
+              }
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

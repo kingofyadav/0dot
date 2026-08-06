@@ -21,13 +21,13 @@ export default async function CardSettingsPage() {
         A shareable, quick-contact-exchange view of your profile — same QR code and URL as your profile page.
       </p>
       {card?.enabled && (
-        <p style={{ marginTop: "0.4rem" }}>
+        <p style={{ margin: "0.6rem 0 1rem" }}>
           <Link href={`/${currentUser.username!.handle}/card`} className="button buttonSecondary buttonSmall">
             View public card
           </Link>
         </p>
       )}
-      <div style={{ marginTop: "1rem" }}>
+      <div style={{ marginTop: card?.enabled ? 0 : "1rem" }}>
         <CardForm enabled={card?.enabled ?? false} includedFields={includedFields} />
       </div>
     </div>

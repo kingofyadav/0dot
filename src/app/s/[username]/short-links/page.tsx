@@ -1,9 +1,11 @@
 import { redirect } from "next/navigation";
+import { Link2 } from "lucide-react";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { deleteShortLink } from "@/app/actions/short-links";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { EmptyState } from "@/components/EmptyState";
+import { SettingsRow } from "@/components/SettingsRow";
 import { ShortLinkForm } from "./ShortLinkForm";
 
 export default async function ShortLinksSettingsPage() {
@@ -26,36 +28,41 @@ export default async function ShortLinksSettingsPage() {
         <ShortLinkForm />
       </div>
 
-      <div style={{ marginTop: "1.5rem", display: "flex", flexDirection: "column", gap: "0.6rem" }}>
-        {shortLinks.length === 0 && <EmptyState message="No short links yet." />}
-        {shortLinks.map((link) => (
-          <div key={link.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.5rem", border: "1px solid var(--border)", borderRadius: "8px", padding: "0.6rem 0.8rem" }}>
-            <div style={{ overflow: "hidden" }}>
-              <a href={`/l/${link.shortCode}`} target="_blank" rel="noopener noreferrer">
-                /l/{link.shortCode}
-              </a>
-              <p className="mutedText" style={{ margin: 0, fontSize: "0.8rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                → {link.destinationUrl}
-              </p>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", flexShrink: 0 }}>
-              <span className="mutedText" style={{ fontSize: "0.8rem" }}>{link.clickCount} clicks</span>
-              <form action={deleteShortLink}>
-                <input type="hidden" name="shortLinkId" value={link.id} />
-                <ConfirmButton
-                  className="button buttonSecondary iconButton"
-                  aria-label="Delete short link"
-                  title="Delete this short link?"
-                  description="Anyone who has this link will get redirected to the 0dot homepage instead."
-                  confirmLabel="Delete"
-                >
-                  ×
-                </ConfirmButton>
-              </form>
-            </div>
-          </div>
-        ))}
-      </div>
+      {shortLinks.length === 0 ? (
+        <EmptyState message="No short links yet." />
+      ) : (
+        <div className="settingsGroup" style={{ marginTop: "1.5rem" }}>
+          {shortLinks.map((link) => (
+            <SettingsRow
+              key={link.id}
+              icon={Link2}
+              label={
+                <a href={`/l/${link.shortCode}`} target="_blank" rel="noopener noreferrer">
+                  /l/{link.shortCode}
+                </a>
+              }
+              description={link.destinationUrl}
+              trailing={
+                <>
+                  <span>{link.clickCount} clicks</span>
+                  <form action={deleteShortLink}>
+                    <input type="hidden" name="shortLinkId" value={link.id} />
+                    <ConfirmButton
+                      className="button buttonSecondary iconButton"
+                      aria-label="Delete short link"
+                      title="Delete this short link?"
+                      description="Anyone who has this link will get redirected to the 0dot homepage instead."
+                      confirmLabel="Delete"
+                    >
+                      ×
+                    </ConfirmButton>
+                  </form>
+                </>
+              }
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
