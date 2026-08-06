@@ -8,13 +8,18 @@ import {
   Bookmark,
   Briefcase,
   Building2,
+  Code2,
+  FileText,
   Flame,
   Home,
   MessageCircle,
   Search,
   Settings as SettingsIcon,
+  Shield,
   User,
   Users,
+  Wallet,
+  Wrench,
   type LucideIcon,
 } from "lucide-react";
 import { SearchForm } from "./SearchForm";
@@ -24,6 +29,20 @@ import { settingsNavGroups } from "@/lib/settings-nav";
 export function isPathActive(pathname: string, href: string) {
   return href === "/" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
 }
+
+// One icon per settingsNavGroups() label — purely a display concern (the
+// nav accordion), so it lives here rather than teaching settings-nav.ts's
+// shared data shape about lucide-react.
+const SETTINGS_GROUP_ICONS: Record<string, LucideIcon> = {
+  Profile: User,
+  Security: Shield,
+  Portfolio: Briefcase,
+  Monetization: Wallet,
+  Content: FileText,
+  Tools: Wrench,
+  Developer: Code2,
+  Notifications: Bell,
+};
 
 // The one master nav's settings entry — a Reddit-style accordion instead of
 // a flat link, so every settings destination (previously a separate
@@ -59,9 +78,13 @@ function SettingsNav({ pathname, profileHandle }: { pathname: string; profileHan
         <div className="navSubGroups">
           {settingsNavGroups(profileHandle).map((group) => {
             const groupHasActive = group.items.some((item) => isPathActive(pathname, item.href));
+            const GroupIcon = SETTINGS_GROUP_ICONS[group.label];
             return (
               <details key={group.label} className="navSubGroupDetails" open={groupHasActive}>
-                <summary className="navSubGroupSummary">{group.label}</summary>
+                <summary className="navSubGroupSummary">
+                  {GroupIcon && <GroupIcon size={13} aria-hidden="true" />}
+                  {group.label}
+                </summary>
                 <div className="navSubGroupItems">
                   {group.items.map((item) => {
                     const itemActive = isPathActive(pathname, item.href);
