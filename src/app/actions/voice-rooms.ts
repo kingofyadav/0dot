@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { getCommunityMember, isCommunityStaff, logModAction } from "@/lib/communities";
@@ -20,6 +21,23 @@ function requireParticipant(roomId: string, userId: string) {
   return db.voiceRoomParticipant.findUnique({
     where: { voiceRoomId_userId: { voiceRoomId: roomId, userId } },
   });
+}
+
+// joinVoiceRoom/requestToSpeak are the only places a user *enters* a role
+// (listener/queued), so they're the only ones that originally re-checked
+// community membership — every action below that only *transitions* an
+// existing role (take the floor, release it, cancel a request, signal a
+// peer) trusted the participant row alone. That leaves a gap: a member who
+// requested to speak (or already holds the floor) and then gets banned
+// keeps every one of those powers, since their VoiceRoomParticipant row is
+// untouched by banMember (communities.ts) — this closes that gap by having
+// every state-transition action re-verify active membership too, not just
+// entry points. Not folded into requireParticipant itself since some
+// callers (e.g. leaveVoiceRoom) deliberately let a banned/departed member
+// still tear down their own row.
+async function isActiveCommunityMember(communityId: string, userId: string): Promise<boolean> {
+  const membership = await getCommunityMember(communityId, userId);
+  return !!membership && membership.status === "active";
 }
 
 // Any active community member may start a room — spec §12.2 doesn't
@@ -130,13 +148,34 @@ export async function joinVoiceRoom(formData: FormData): Promise<void> {
   const membership = await getCommunityMember(room.communityId, user.id);
   if (!membership || membership.status !== "active") return;
 
-  const existing = await requireParticipant(roomId, user.id);
-  if (existing) return; // idempotent
+  // The existing-check, capacity count, and create are one transaction, not
+  // three separate round-trips — a plain check-then-act here (like the
+  // *soft*, product-number caps elsewhere, e.g. GROUP_PARTICIPANT_CAP) would
+  // let two concurrent joins both read a stale count/absence before either
+  // write commits. MAX_VOICE_ROOM_PARTICIPANTS is a real ceiling (mesh
+  // WebRTC bandwidth, see voice-rooms.ts), not a soft one, so it's worth the
+  // extra transaction here. The P2002 catch below is defense-in-depth for a
+  // true double-submit slipping past the in-transaction check (e.g. on a
+  // database where writer transactions aren't fully serialized).
+  let outcome: "joined" | "already-joined" | "full";
+  try {
+    outcome = await db.$transaction(async (tx) => {
+      const existing = await tx.voiceRoomParticipant.findUnique({
+        where: { voiceRoomId_userId: { voiceRoomId: roomId, userId: user.id } },
+      });
+      if (existing) return "already-joined";
 
-  const count = await db.voiceRoomParticipant.count({ where: { voiceRoomId: roomId } });
-  if (count >= MAX_VOICE_ROOM_PARTICIPANTS) return; // quiet no-op — real ceiling of the mesh approach, see voice-rooms.ts
+      const count = await tx.voiceRoomParticipant.count({ where: { voiceRoomId: roomId } });
+      if (count >= MAX_VOICE_ROOM_PARTICIPANTS) return "full";
 
-  await db.voiceRoomParticipant.create({ data: { voiceRoomId: roomId, userId: user.id, role: "listener" } });
+      await tx.voiceRoomParticipant.create({ data: { voiceRoomId: roomId, userId: user.id, role: "listener" } });
+      return "joined";
+    });
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") return; // idempotent double-submit
+    throw err;
+  }
+  if (outcome !== "joined") return; // "already-joined": idempotent. "full": quiet no-op, real ceiling of the mesh approach.
 
   broadcastRoomUpdate(roomId);
   revalidatePath(`/c/${room.community.slug}/voice/${roomId}`);
@@ -196,6 +235,9 @@ export async function cancelSpeakRequest(formData: FormData): Promise<void> {
   const roomId = String(formData.get("voiceRoomId") ?? "");
   if (!roomId) return;
 
+  const room = await requireRoom(roomId);
+  if (!room || !(await isActiveCommunityMember(room.communityId, user.id))) return;
+
   const participant = await requireParticipant(roomId, user.id);
   if (!participant || participant.role !== "requesting_to_speak") return;
 
@@ -220,6 +262,7 @@ export async function startSpeaking(formData: FormData): Promise<void> {
 
   const room = await requireRoom(roomId);
   if (!room || room.status !== "live" || !isFloorFree(room)) return;
+  if (!(await isActiveCommunityMember(room.communityId, user.id))) return;
 
   const participants = await db.voiceRoomParticipant.findMany({ where: { voiceRoomId: roomId } });
   const me = participants.find((p) => p.userId === user.id);
@@ -305,6 +348,39 @@ export async function forceStopSpeaker(formData: FormData): Promise<void> {
   broadcastRoomUpdate(roomId);
 }
 
+// Called from banMember (communities.ts) right after a ban takes effect.
+// The membership re-checks above close the security hole (a banned member
+// can no longer take/keep the floor or signal), but on their own they'd
+// leave a banned user's participant row parked in the room forever —
+// stuck at the front of the speak queue (blocking everyone behind them,
+// since startSpeaking's FIFO check never advances past a queue entry that
+// can't pass its own membership check) if they were queued, or stuck
+// broadcasting as speaker until someone force-stops them if they already
+// had the floor. Removing the row outright (and releasing the floor if
+// they held it) is what actually ends their presence, not just their
+// ability to act.
+export async function evictBannedUserFromVoiceRooms(communityId: string, userId: string): Promise<void> {
+  const rooms = await db.voiceRoom.findMany({
+    where: { communityId, status: "live", participants: { some: { userId } } },
+    select: { id: true, currentSpeakerId: true },
+  });
+  if (rooms.length === 0) return;
+
+  await db.voiceRoomParticipant.deleteMany({
+    where: { voiceRoomId: { in: rooms.map((r) => r.id) }, userId },
+  });
+
+  const roomsWhereSpeaking = rooms.filter((r) => r.currentSpeakerId === userId).map((r) => r.id);
+  if (roomsWhereSpeaking.length > 0) {
+    await db.voiceRoom.updateMany({
+      where: { id: { in: roomsWhereSpeaking } },
+      data: { currentSpeakerId: null, currentSpeakerSince: null },
+    });
+  }
+
+  for (const room of rooms) broadcastRoomUpdate(room.id);
+}
+
 // Relays a WebRTC offer/answer/ICE-candidate payload to one specific peer
 // (src/lib/voice-signal-events.ts's sendSignal) — verifies both ends are
 // current room participants first, so signaling can't be used to probe or
@@ -318,11 +394,13 @@ export async function sendVoiceSignal(formData: FormData): Promise<void> {
   const payloadRaw = String(formData.get("payload") ?? "");
   if (!roomId || !targetUserId || !payloadRaw) return;
 
-  const [me, target] = await Promise.all([
+  const [room, me, target] = await Promise.all([
+    requireRoom(roomId),
     requireParticipant(roomId, user.id),
     requireParticipant(roomId, targetUserId),
   ]);
-  if (!me || !target) return;
+  if (!room || !me || !target) return;
+  if (!(await isActiveCommunityMember(room.communityId, user.id))) return;
 
   let payload: unknown;
   try {

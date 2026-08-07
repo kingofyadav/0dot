@@ -32,14 +32,21 @@ export default async function LivestreamPage({ params }: { params: Promise<{ liv
     ? isOwner || (await hasTierAccess(currentUser?.id ?? null, livestream.creatorId, livestream.requiredTierId))
     : true;
 
-  const messages = hasAccess
+  // Most-recent-200, not oldest-200 (orderBy desc + take, then reverse for
+  // display) — same posture as community-chat.ts's getRecentChatMessages.
+  // "asc + take 200" with no cursor would return the same fixed oldest
+  // slice on every fetch: once a stream passed 200 chat messages, every
+  // later message would be written to the DB and broadcast over SSE but
+  // never actually appear here, since this exact query never advances.
+  const recentMessages = hasAccess
     ? await db.livestreamChatMessage.findMany({
         where: { livestreamId, deletedAt: null },
-        orderBy: { createdAt: "asc" },
+        orderBy: { createdAt: "desc" },
         take: 200,
         include: { sender: { include: chatSenderInclude } },
       })
     : [];
+  const messages = [...recentMessages].reverse();
 
   const creatorName = livestream.creator.profile?.displayName ?? livestream.creator.username?.handle ?? "Unknown";
 

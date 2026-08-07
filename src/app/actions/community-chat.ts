@@ -6,6 +6,7 @@ import { requireVerifiedUser } from "@/lib/auth-guards";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getCommunityMember, isCommunityStaff, logModAction } from "@/lib/communities";
 import { publishToCommunityChat } from "@/lib/community-chat-events";
+import type { ActionState } from "@/app/actions/auth";
 
 // Flood guard, same shape as messages.ts's checkSendMessageRateLimit —
 // keyed per user per community so one chatty community can't burn a
@@ -15,23 +16,33 @@ function checkChatRateLimit(userId: string, communityId: string): boolean {
 }
 
 // spec §11.2: chat messages from a muted member are rejected server-side —
-// the literal acceptance criterion this action exists to satisfy.
-export async function sendChatMessage(formData: FormData): Promise<void> {
+// the literal acceptance criterion this action exists to satisfy. Returns
+// ActionState (not void) so a rejection — rate limit, mute/ban, message too
+// long — reaches CommunityChatView instead of the composer silently
+// swallowing it: with a void return, the caller couldn't tell "sent" apart
+// from "rejected" and always cleared the input either way.
+export async function sendChatMessage(formData: FormData): Promise<ActionState> {
   const user = await requireVerifiedUser();
   const communityId = String(formData.get("communityId") ?? "");
   const body = String(formData.get("body") ?? "").trim();
-  if (!communityId || body.length < 1 || body.length > 500) return;
+  if (!communityId) return { error: "Invalid request." };
+  if (body.length < 1 || body.length > 500) return { error: "Message must be 1-500 characters." };
 
-  if (!checkChatRateLimit(user.id, communityId)) return;
+  if (!checkChatRateLimit(user.id, communityId)) {
+    return { error: "You're sending messages too fast. Please slow down." };
+  }
 
   const membership = await getCommunityMember(communityId, user.id);
-  if (!membership || membership.status !== "active") return;
+  if (!membership || membership.status !== "active") {
+    return { error: "You don't have permission to send messages here." };
+  }
 
   await db.communityChatMessage.create({ data: { communityId, senderId: user.id, body } });
   publishToCommunityChat(communityId, { type: "new-chat-message" });
 
   const community = await db.community.findUnique({ where: { id: communityId }, select: { slug: true } });
   if (community) revalidatePath(`/c/${community.slug}/chat`);
+  return undefined;
 }
 
 // spec §11.2: moderator-deleted messages are removed from the live view

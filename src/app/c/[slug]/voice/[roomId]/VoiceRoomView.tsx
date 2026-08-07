@@ -238,6 +238,34 @@ export function VoiceRoomView({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- deliberately keyed only on currentSpeakerId; participants/isBroadcasting are read fresh via refs/closures, re-running on every prop change would restart connections
   }, [currentSpeakerId]);
 
+  // Leaving the room (the button below, or getting removed) doesn't unmount
+  // this component — it just flips isParticipant and re-renders the "Join
+  // room" branch below, which renders no <audio> element at all. Without
+  // this, the RTCPeerConnection(s) in peerConnectionsRef keep running
+  // regardless: a listener who left keeps *receiving* the current speaker's
+  // audio (just with nowhere visible to play it) until they navigate away
+  // entirely, and a speaker who left without stopping first keeps
+  // broadcasting their mic. The speaker-transition effect below only reacts
+  // to currentSpeakerId changing, which "I left" alone doesn't necessarily
+  // trigger, so this needs its own effect keyed on isParticipant.
+  useEffect(() => {
+    if (isParticipant) return;
+    closeAllPeers();
+    if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
+    localStreamRef.current?.getTracks().forEach((t) => t.stop());
+    localStreamRef.current = null;
+    // Same justified case as startBroadcasting's disable below: this effect
+    // exists specifically to synchronize React state with the external
+    // WebRTC/mic system when the server tells us we've left, not to derive
+    // state from props/state React already has.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setIsBroadcasting(false);
+    if (autoStopTimerRef.current) {
+      clearTimeout(autoStopTimerRef.current);
+      autoStopTimerRef.current = null;
+    }
+  }, [isParticipant]);
+
   // Full teardown on unmount (navigating away, closing the tab).
   useEffect(() => {
     return () => {

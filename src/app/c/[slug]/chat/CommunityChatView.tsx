@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { sendChatMessage, deleteChatMessage } from "@/app/actions/community-chat";
 
@@ -42,6 +42,7 @@ export function CommunityChatView({
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const pendingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -70,7 +71,15 @@ export function CommunityChatView({
     const formData = new FormData(e.currentTarget);
     if (!String(formData.get("body") ?? "").trim()) return;
     startTransition(async () => {
-      await sendChatMessage(formData);
+      // A rejected send (rate limit, mute/ban, etc.) must not clear the
+      // composer — that reads as "sent" when the message never landed,
+      // silently losing what the user typed.
+      const result = await sendChatMessage(formData);
+      if (result?.error) {
+        setError(result.error);
+        return;
+      }
+      setError(null);
       formRef.current?.reset();
     });
   }
@@ -115,6 +124,7 @@ export function CommunityChatView({
           <button type="submit" className="button" disabled={isPending}>
             {isPending ? "Sending…" : "Send"}
           </button>
+          {error && <p className="errorText">{error}</p>}
         </form>
       ) : (
         <p className="mutedText" style={{ padding: "0.75rem 0" }}>

@@ -9,6 +9,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { saveUploadedImage } from "@/lib/uploads";
 import { validateCommunitySlugFormat } from "@/lib/reserved-community-slugs";
 import { getCommunityMember, isCommunityOwner, isCommunityStaff, logModAction, logMembershipEvent } from "@/lib/communities";
+import { evictBannedUserFromVoiceRooms } from "@/app/actions/voice-rooms";
 import { isOrgAdmin, logOrgAudit, isEligibleForOrgRestrictedCommunity } from "@/lib/organizations";
 import { softDeletePostAndDecrementCounts } from "@/lib/post-moderation";
 import { notifyCommunityUpdate } from "@/lib/notifications";
@@ -452,6 +453,7 @@ export async function banMember(formData: FormData): Promise<void> {
     targetType: "user",
     targetId: targetUserId,
   });
+  await evictBannedUserFromVoiceRooms(communityId, targetUserId);
 
   const community = await db.community.findUnique({ where: { id: communityId }, select: { slug: true } });
   if (community) {
