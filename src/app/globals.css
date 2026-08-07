@@ -2138,6 +2138,7 @@ a.verifiedBadge:focus-visible {
 
 .profileMeta {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-3);
   margin-top: var(--space-2);
   font-size: var(--text-sm);
