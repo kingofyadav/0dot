@@ -181,3 +181,35 @@ export async function renderFaviconDataUrl(baseHref: string, spec: FaviconSpec):
 
   return canvas.toDataURL("image/png");
 }
+
+// Mirrors the in-tab unread badge onto the OS-level app icon (taskbar/dock/
+// home screen) via the Badging API — supported only in installed/standalone
+// contexts on some platforms, so a no-op silent-fail is correct behavior
+// here, not an error to surface.
+export function syncAppBadge(count: number): void {
+  if (!("setAppBadge" in navigator)) return;
+  (count > 0 ? navigator.setAppBadge(count) : navigator.clearAppBadge()).catch(() => {});
+}
+
+const UNREAD_CHANNEL_NAME = "0dot-unread-sync";
+let unreadChannel: BroadcastChannel | null = null;
+
+function getUnreadChannel(): BroadcastChannel | null {
+  if (typeof BroadcastChannel === "undefined") return null;
+  return (unreadChannel ??= new BroadcastChannel(UNREAD_CHANNEL_NAME));
+}
+
+// Lets every open tab of the same logged-in user learn a count the instant
+// any one of them does, instead of each tab's own MessagingProvider having
+// to independently catch up via its own SSE event or visibility change.
+export function broadcastUnreadCount(count: number): void {
+  getUnreadChannel()?.postMessage(count);
+}
+
+export function subscribeUnreadCount(onCount: (count: number) => void): () => void {
+  const channel = getUnreadChannel();
+  if (!channel) return () => {};
+  const handler = (event: MessageEvent<number>) => onCount(event.data);
+  channel.addEventListener("message", handler);
+  return () => channel.removeEventListener("message", handler);
+}

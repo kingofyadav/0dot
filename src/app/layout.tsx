@@ -6,6 +6,7 @@ import { SiteHeader } from "@/components/SiteHeader";
 import { ContextualRail } from "@/components/ContextualRail";
 import { MessagingProvider } from "@/components/MessagingProvider";
 import { BrowserTabProvider } from "@/components/BrowserTabProvider";
+import { KeyboardShortcutProvider } from "@/components/KeyboardShortcutProvider";
 import { ToastProvider } from "@/components/Toast";
 import { AgeGatePrompt } from "@/components/AgeGatePrompt";
 import { PwaServiceWorker } from "@/components/PwaServiceWorker";
@@ -106,24 +107,30 @@ export default async function RootLayout({
         </a>
         <PwaServiceWorker />
         <BrowserTabProvider initialUnreadCount={initialUnreadCount}>
-          <MessagingProvider userId={currentUser?.id ?? null}>
-            <ToastProvider>
-              {!chromeless && <SiteHeader />}
-              <main id="main-content" tabIndex={-1} className="appMain">
-                {/* Rendered inside .appMain, not as a body-level sibling —
-                    body is a CSS grid with named areas at desktop width
-                    (header/sidebar/main/aside), and an unassigned grid-area
-                    child gets auto-placed into whatever cell is next,
-                    overlapping the sidebar instead of appearing above the
-                    page content. */}
-                {!chromeless && currentUser && !currentUser.dateOfBirth && <AgeGatePrompt />}
-                {children}
-              </main>
-              {/* Sibling of .appMain, not nested inside it — grid-area only
-                  applies to direct children of the body grid container. */}
-              {showRail && <ContextualRail />}
-            </ToastProvider>
-          </MessagingProvider>
+          {/* Inside BrowserTabProvider (not outside) so CommandPalette's
+              theme-toggle command hits the real useBrowserTab() context
+              instead of BrowserTabProvider's own outside-the-tree NOOP
+              fallback. */}
+          <KeyboardShortcutProvider profileHandle={currentUser?.username?.handle ?? null}>
+            <MessagingProvider userId={currentUser?.id ?? null}>
+              <ToastProvider>
+                {!chromeless && <SiteHeader />}
+                <main id="main-content" tabIndex={-1} className="appMain">
+                  {/* Rendered inside .appMain, not as a body-level sibling —
+                      body is a CSS grid with named areas at desktop width
+                      (header/sidebar/main/aside), and an unassigned grid-area
+                      child gets auto-placed into whatever cell is next,
+                      overlapping the sidebar instead of appearing above the
+                      page content. */}
+                  {!chromeless && currentUser && !currentUser.dateOfBirth && <AgeGatePrompt />}
+                  {children}
+                </main>
+                {/* Sibling of .appMain, not nested inside it — grid-area only
+                    applies to direct children of the body grid container. */}
+                {showRail && <ContextualRail />}
+              </ToastProvider>
+            </MessagingProvider>
+          </KeyboardShortcutProvider>
         </BrowserTabProvider>
       </body>
     </html>

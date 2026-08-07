@@ -30,7 +30,15 @@ export function PostOwnerMenu({ postId, body }: { postId: string; body: string }
 
   return (
     <>
-      <DropdownMenu>
+      {/* modal={false}: this is a lightweight owner-actions menu over a feed
+          of many posts, not an app-blocking dialog — the default modal={true}
+          hands the trigger's scroll lock (react-remove-scroll) to <body>,
+          which is also the CSS Grid shell holding the sticky header/sidebar/
+          rail (see globals.css "@media (min-width: 1024px) body"). Opening a
+          second menu before the first one's lock/unlock settles desyncs that
+          lock and the sticky header/sidebar/rail lose their pinned position
+          until the next scroll. Non-modal skips the lock entirely. */}
+      <DropdownMenu modal={false}>
         <DropdownMenuTrigger asChild>
           <button type="button" className="button buttonSecondary iconButton" aria-label="Post options">
             ⋯

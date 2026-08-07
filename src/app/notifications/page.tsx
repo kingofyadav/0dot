@@ -8,6 +8,7 @@ import { getNotificationVerb, getNotificationHref, AGGREGATION_WINDOW_MS } from 
 import { markAllNotificationsRead, clearAllNotifications } from "@/app/actions/notifications";
 import { acceptFollowRequest, rejectFollowRequest } from "@/app/actions/follow";
 import { ConfirmButton } from "@/components/ConfirmButton";
+import { ListKeyNav } from "@/components/ListKeyNav";
 
 const actorInclude = { username: true, profile: true } as const;
 
@@ -204,62 +205,67 @@ export default async function NotificationsPage({
         </div>
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-        {groups.length === 0 && <p className="mutedText">No notifications yet.</p>}
-        {groups.map((group) => {
-          // A still-pending follow_request gets Accept/Reject controls
-          // instead of a plain navigate-away Link — see pendingRequesterIds
-          // above for why "still" needs its own re-check.
-          const isPendingFollowRequest =
-            group.type === "follow_request" && group.actorId !== null && pendingRequesterIds.has(group.actorId);
+      <ListKeyNav helpTitle="Notifications">
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+          {groups.length === 0 && <p className="mutedText">No notifications yet.</p>}
+          {groups.map((group) => {
+            // A still-pending follow_request gets Accept/Reject controls
+            // instead of a plain navigate-away Link — see pendingRequesterIds
+            // above for why "still" needs its own re-check.
+            const isPendingFollowRequest =
+              group.type === "follow_request" && group.actorId !== null && pendingRequesterIds.has(group.actorId);
 
-          if (isPendingFollowRequest) {
+            if (isPendingFollowRequest) {
+              return (
+                <div
+                  key={group.rowIds[0]}
+                  className="profileLinkItem"
+                  data-nav-item
+                  style={{
+                    justifyContent: "space-between",
+                    gap: "0.75rem",
+                    background: group.isUnread ? "var(--accent-soft)" : undefined,
+                  }}
+                >
+                  <Link href={group.href} data-nav-open style={{ flex: 1 }}>
+                    <GroupDescription group={group} />
+                  </Link>
+                  <div style={{ display: "flex", gap: "0.4rem" }}>
+                    <form action={acceptFollowRequest}>
+                      <input type="hidden" name="followerId" value={group.actorId!} />
+                      <button type="submit" className="button buttonSmall" style={{ fontSize: "0.8rem", padding: "0.3rem 0.6rem" }}>
+                        Accept
+                      </button>
+                    </form>
+                    <form action={rejectFollowRequest}>
+                      <input type="hidden" name="followerId" value={group.actorId!} />
+                      <button type="submit" className="button buttonSecondary buttonSmall" style={{ fontSize: "0.8rem", padding: "0.3rem 0.6rem" }}>
+                        Reject
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              );
+            }
+
             return (
-              <div
+              <Link
                 key={group.rowIds[0]}
+                href={group.href}
                 className="profileLinkItem"
+                data-nav-item
+                data-nav-open
                 style={{
-                  justifyContent: "space-between",
-                  gap: "0.75rem",
+                  justifyContent: "flex-start",
                   background: group.isUnread ? "var(--accent-soft)" : undefined,
                 }}
               >
-                <Link href={group.href} style={{ flex: 1 }}>
-                  <GroupDescription group={group} />
-                </Link>
-                <div style={{ display: "flex", gap: "0.4rem" }}>
-                  <form action={acceptFollowRequest}>
-                    <input type="hidden" name="followerId" value={group.actorId!} />
-                    <button type="submit" className="button buttonSmall" style={{ fontSize: "0.8rem", padding: "0.3rem 0.6rem" }}>
-                      Accept
-                    </button>
-                  </form>
-                  <form action={rejectFollowRequest}>
-                    <input type="hidden" name="followerId" value={group.actorId!} />
-                    <button type="submit" className="button buttonSecondary buttonSmall" style={{ fontSize: "0.8rem", padding: "0.3rem 0.6rem" }}>
-                      Reject
-                    </button>
-                  </form>
-                </div>
-              </div>
+                <GroupDescription group={group} />
+              </Link>
             );
-          }
-
-          return (
-            <Link
-              key={group.rowIds[0]}
-              href={group.href}
-              className="profileLinkItem"
-              style={{
-                justifyContent: "flex-start",
-                background: group.isUnread ? "var(--accent-soft)" : undefined,
-              }}
-            >
-              <GroupDescription group={group} />
-            </Link>
-          );
-        })}
-      </div>
+          })}
+        </div>
+      </ListKeyNav>
 
       {nextCursor && (
         <Link

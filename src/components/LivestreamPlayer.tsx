@@ -44,10 +44,7 @@ export function LivestreamPlayer({ livestreamId }: { livestreamId: string }) {
 
   if (error) {
     return (
-      <div
-        className="livestreamPlaceholder"
-        style={{ aspectRatio: "16/9", background: "#000", borderRadius: "12px", display: "flex", alignItems: "center", justifyContent: "center" }}
-      >
+      <div className="livestreamPlaceholder">
         <p className="errorText" style={{ padding: "0 1rem", textAlign: "center" }}>{error}</p>
       </div>
     );

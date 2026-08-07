@@ -424,7 +424,7 @@ export function PostCard({
     // principle, collide with MiniPostCard rendering the same post inline
     // elsewhere on the same page (e.g. as a quoted original) — accepted,
     // not fixed here; the browser just jumps to the first match.
-    <div id={`post-${post.id}`} className="postCard">
+    <div id={`post-${post.id}`} className="postCard" data-nav-item>
       {isPureRepost && (
         <p className="mutedText" style={{ display: "flex", alignItems: "center", gap: "0.3rem", fontSize: "0.85rem" }}>
           <Repeat2 size={14} aria-hidden="true" /> {post.author.profile?.displayName ?? "Someone"} reposted
@@ -515,6 +515,7 @@ export function PostCard({
             <button
               type="submit"
               className="button buttonSecondary iconButton"
+              data-nav-like
               style={{
                 display: "inline-flex",
                 alignItems: "center",
@@ -574,7 +575,7 @@ export function PostCard({
           </details>
 
           <details className="profileEditToggle" style={{ flex: "1 1 100%", minWidth: 0 }}>
-            <summary className="button buttonSecondary iconButton" style={{ display: "inline-block" }}>
+            <summary className="button buttonSecondary iconButton" data-nav-reply style={{ display: "inline-block" }}>
               Reply {post.replyCount > 0 ? `(${formatCount(post.replyCount)})` : ""}
             </summary>
             <ReplyForm replyToId={post.id} />

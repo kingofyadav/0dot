@@ -3,11 +3,14 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import {
+  broadcastUnreadCount,
   getEffectiveTheme,
   iconHrefFor,
   renderFaviconDataUrl,
   resolveTabState,
   setFaviconHref,
+  subscribeUnreadCount,
+  syncAppBadge,
   type FlashState,
   type FlashStatus,
   type Theme,
@@ -86,6 +89,35 @@ export function BrowserTabProvider({
     },
     [pathname]
   );
+
+  // Reports a locally-learned count (from MessagingProvider's SSE-driven
+  // fetch) to sibling tabs of the same account, so they don't have to wait
+  // on their own SSE event or visibility change to catch up.
+  const reportUnreadCount = useCallback((count: number) => {
+    setUnreadCount(count);
+    broadcastUnreadCount(count);
+  }, []);
+
+  // Applies a count learned by another tab directly to local state — no
+  // re-broadcast here, or every tab would echo it back and forth forever.
+  useEffect(() => subscribeUnreadCount(setUnreadCount), []);
+
+  useEffect(() => {
+    syncAppBadge(unreadCount);
+  }, [unreadCount]);
+
+  // Only a native close/refresh/URL-bar navigation trips this (via the
+  // browser's own confirm prompt) — in-app <Link> navigation isn't covered,
+  // that would need a separate router-level guard.
+  useEffect(() => {
+    if (!effectiveDirty) return;
+    const handler = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [effectiveDirty]);
 
   // Re-anchor the "resting" title to whatever the server/Next.js just
   // rendered for this route, so unread/unsaved prefixes stack on the real
@@ -166,8 +198,8 @@ export function BrowserTabProvider({
   );
 
   const value = useMemo<BrowserTabContextValue>(
-    () => ({ setUnreadCount, setUnsaved, flash, setTheme, resolveStaleSaving }),
-    [setUnsaved, flash, resolveStaleSaving]
+    () => ({ setUnreadCount: reportUnreadCount, setUnsaved, flash, setTheme, resolveStaleSaving }),
+    [reportUnreadCount, setUnsaved, flash, resolveStaleSaving]
   );
 
   return <BrowserTabContext.Provider value={value}>{children}</BrowserTabContext.Provider>;

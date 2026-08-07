@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { getCurrentUser } from "@/lib/session";
 import { EmptyState } from "@/components/EmptyState";
 import { PostCard, type FeedPost } from "@/components/PostCard";
+import { ListKeyNav } from "@/components/ListKeyNav";
 import { ComposeBox } from "./ComposeBox";
 import { PollComposeForm } from "./PollComposeForm";
 
@@ -55,20 +56,22 @@ export function FeedList({
         </>
       )}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-        {posts.length === 0 && <EmptyState message="No posts yet." />}
-        {posts.map((post) => (
-          <PostCard
-            key={post.id}
-            post={post}
-            isLiked={likedPostIds.has(post.id)}
-            isBookmarked={bookmarkedPostIds.has(post.id)}
-            isOwner={currentUser?.id === post.authorId}
-            currentUserId={currentUser?.id}
-            votedOptionIds={votedOptionIds}
-          />
-        ))}
-      </div>
+      <ListKeyNav helpTitle="Feed" supportsLike supportsReply>
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+          {posts.length === 0 && <EmptyState message="No posts yet." />}
+          {posts.map((post) => (
+            <PostCard
+              key={post.id}
+              post={post}
+              isLiked={likedPostIds.has(post.id)}
+              isBookmarked={bookmarkedPostIds.has(post.id)}
+              isOwner={currentUser?.id === post.authorId}
+              currentUserId={currentUser?.id}
+              votedOptionIds={votedOptionIds}
+            />
+          ))}
+        </div>
+      </ListKeyNav>
       {nextCursor && (
         <Link
           href={`${basePath}?cursor=${encodeURIComponent(nextCursor)}`}

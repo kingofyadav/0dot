@@ -26,7 +26,7 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
     const linkUrl = parts[i + 2];
     if (linkLabel !== undefined && linkUrl !== undefined) {
       nodes.push(
-        <a key={`${keyPrefix}-l${i}`} href={linkUrl} target="_blank" rel="noopener noreferrer">
+        <a key={`${keyPrefix}-l${i}`} href={linkUrl} target="_blank" rel="noopener noreferrer" className="wikiLink">
           {linkLabel}
         </a>
       );

@@ -32,7 +32,11 @@ export function AccountMenu({
   profileHandle: string;
 }) {
   return (
-    <DropdownMenu>
+    // modal={false}: same "don't hand the scroll lock to <body>" fix as
+    // PostOwnerMenu — this trigger lives in the sticky header itself, so a
+    // desynced lock (from a fast reopen) is the most visible place this bug
+    // can show up.
+    <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <button type="button" className="accountMenuTrigger" aria-label={`Account menu for ${displayName}`}>
           <Avatar src={avatarUrl} alt="" size={32} />

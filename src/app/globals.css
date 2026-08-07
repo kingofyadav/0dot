@@ -60,6 +60,13 @@
      against near-black, so white button text on it drops to ~2.8:1. White
      stays correct in light mode (danger is a saturated dark red there). */
   --on-danger: #ffffff;
+  /* Text color for content on an --accent-navy surface (.verifiedBadge).
+     --accent-navy is tuned as a *foreground* color per theme like --danger
+     above, not as a button background — its dark-mode value (#6b7fd7) is a
+     light lavender-blue meant to read against near-black, so white text on
+     it drops to ~3.7:1, failing WCAG AA. White stays correct in light mode
+     (navy is a saturated dark blue there). */
+  --on-accent-navy: #ffffff;
   --shadow: 0 1px 2px rgba(23, 23, 23, 0.04), 0 8px 24px rgba(23, 23, 23, 0.06);
   --shadow-md: 0 4px 12px rgba(23, 23, 23, 0.08), 0 2px 4px rgba(23, 23, 23, 0.06);
   --shadow-lg: 0 16px 40px rgba(23, 23, 23, 0.14), 0 4px 12px rgba(23, 23, 23, 0.08);
@@ -151,14 +158,24 @@
     --background: #0a0a0a;
     --foreground: #ededed;
     --surface: #131313;
+    /* Popovers/dropdowns (DropdownMenuContent, etc.) render with no backdrop
+       behind them, unlike .modal — border/shadow alone has to read as
+       "raised" over a .postCard, which already sits at --surface. Mixing in
+       a bit of --foreground (rather than a fixed hex) keeps it one step
+       lighter than --surface automatically in dark mode and one step darker
+       in light mode, instead of matching the card behind it exactly and
+       disappearing into it. */
+    --popover: color-mix(in srgb, var(--foreground) 6%, var(--surface));
     --border: rgba(237, 237, 237, 0.12);
-    /* public/0dot.png's own green fill (#046a38) is only ~3:1 against this
-       page background — too dim to read as a button. Brightened toward the
-       same hue instead of used raw, so it stays legible while still
-       visibly "the logo's green", not a different color. */
-    --accent: #4f9774;
-    --accent-strong: #438063;
-    --accent-soft: rgba(79, 151, 116, 0.18);
+    /* #06402B (deep forest green, more "depth" than the old brighter/more
+       desaturated #4f9774) is only ~1.7:1 against this page background —
+       too dim to read as a button. Kept at its own hue (158°) and
+       saturation (83%) and lightened just enough to clear contrast, rather
+       than desaturated toward pastel, so it still reads as the same rich
+       green rather than a washed-out tint. */
+    --accent: #0e9a67;
+    --accent-strong: #0d875b;
+    --accent-soft: rgba(14, 154, 103, 0.18);
     /* Exact pixel match to public/0dot.png's orange fill. */
     --accent-orange: #ff671d;
     --accent-orange-soft: rgba(255, 103, 29, 0.18);
@@ -172,8 +189,10 @@
     --on-accent: #171717;
     /* Dark mode's --danger (#f87171) is a light red tuned for text-on-dark
        use, not a button background — white text on it fails AA (~2.8:1);
-       near-black clears 7:1+. */
+       near-black clears 7:1+. Same reasoning applies to dark mode's
+       brightened --accent-navy (#6b7fd7). */
     --on-danger: #171717;
+    --on-accent-navy: #171717;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 8px 24px rgba(0, 0, 0, 0.35);
     --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3), 0 2px 4px rgba(0, 0, 0, 0.2);
     --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.45), 0 4px 12px rgba(0, 0, 0, 0.3);
@@ -193,6 +212,7 @@
   --background: #f5f4f1;
   --foreground: #171717;
   --surface: #fbfaf8;
+  --popover: color-mix(in srgb, var(--foreground) 6%, var(--surface));
   --border: rgba(23, 23, 23, 0.12);
   --accent: #148104;
   --accent-strong: #116e03;
@@ -204,6 +224,7 @@
   --danger-soft: rgba(220, 38, 38, 0.14);
   --on-accent: #ffffff;
   --on-danger: #ffffff;
+  --on-accent-navy: #ffffff;
   --shadow: 0 1px 2px rgba(23, 23, 23, 0.04), 0 8px 24px rgba(23, 23, 23, 0.06);
   --shadow-md: 0 4px 12px rgba(23, 23, 23, 0.08), 0 2px 4px rgba(23, 23, 23, 0.06);
   --shadow-lg: 0 16px 40px rgba(23, 23, 23, 0.14), 0 4px 12px rgba(23, 23, 23, 0.08);
@@ -219,10 +240,11 @@
   --background: #0a0a0a;
   --foreground: #ededed;
   --surface: #131313;
+  --popover: color-mix(in srgb, var(--foreground) 6%, var(--surface));
   --border: rgba(237, 237, 237, 0.12);
-  --accent: #4f9774;
-  --accent-strong: #438063;
-  --accent-soft: rgba(79, 151, 116, 0.18);
+  --accent: #0e9a67;
+  --accent-strong: #0d875b;
+  --accent-soft: rgba(14, 154, 103, 0.18);
   --accent-orange: #ff671d;
   --accent-orange-soft: rgba(255, 103, 29, 0.18);
   --accent-navy: #6b7fd7;
@@ -230,6 +252,7 @@
   --danger-soft: rgba(248, 113, 113, 0.18);
   --on-accent: #171717;
   --on-danger: #171717;
+  --on-accent-navy: #171717;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 8px 24px rgba(0, 0, 0, 0.35);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3), 0 2px 4px rgba(0, 0, 0, 0.2);
   --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.45), 0 4px 12px rgba(0, 0, 0, 0.3);
@@ -263,6 +286,7 @@
   --color-danger-soft: var(--danger-soft);
   --color-on-accent: var(--on-accent);
   --color-on-danger: var(--on-danger);
+  --color-on-accent-navy: var(--on-accent-navy);
 
   --shadow: var(--shadow);
   --shadow-md: var(--shadow-md);
@@ -278,7 +302,7 @@
   --color-primary-foreground: var(--on-accent);
   --color-card: var(--surface);
   --color-card-foreground: var(--foreground);
-  --color-popover: var(--surface);
+  --color-popover: var(--popover);
   --color-popover-foreground: var(--foreground);
   --color-destructive: var(--danger);
   --color-destructive-foreground: var(--on-danger);
@@ -1231,6 +1255,17 @@ summary:focus-visible,
   font-size: 0.9rem;
 }
 
+/* Links inside user-authored wiki/markdown content (wiki-markdown.tsx) —
+   the global `a { color: inherit; text-decoration: none }` reset above
+   makes a plain <a> visually indistinguishable from surrounding text, which
+   is fine for chrome (nav links, buttons) but leaves genuine in-content
+   links with no affordance that they're clickable. Same color language as
+   .authFooter a. */
+.wikiLink {
+  color: var(--accent-navy);
+  text-decoration: underline;
+}
+
 /* Username field's live URL-preview hint (UsernameField.tsx) — same base
    look as .mutedText plus room for the checkmark icon that appears once
    the typed value passes the format check. */
@@ -1623,6 +1658,183 @@ summary:focus-visible,
   }
 }
 
+/* Keyboard-key chip (ShortcutsHelp.tsx, CommandPalette.tsx) — first use of
+   <kbd> in this codebase, styled as a small physical-looking key rather than
+   its unstyled UA monospace default. */
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.4rem;
+  height: 1.4rem;
+  padding: 0 0.35rem;
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--foreground) 4%, transparent);
+  font-family: var(--font-geist-mono, monospace);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--muted-foreground);
+}
+
+/* Command palette (CommandPalette.tsx) — same native-<dialog> mechanics as
+   .modal (see its own comment above), but its own layout: a search input up
+   top instead of a title bar, and a taller/wider box since it's a results
+   list, not a confirmation prompt. */
+.commandPalette {
+  margin: auto;
+  margin-top: 12vh;
+  width: calc(100% - 2rem);
+  max-width: 560px;
+  max-height: 70vh;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+  color: var(--foreground);
+  box-shadow: var(--shadow-lg);
+}
+
+.commandPalette::backdrop {
+  background: color-mix(in srgb, var(--foreground) 45%, transparent);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .commandPalette {
+    animation: modalIn 180ms ease-out;
+  }
+
+  .commandPalette::backdrop {
+    animation: modalBackdropIn 180ms ease-out;
+  }
+}
+
+.commandPaletteBody {
+  display: flex;
+  flex-direction: column;
+  max-height: 70vh;
+}
+
+.commandPaletteInputRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.commandPaletteInputIcon {
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+}
+
+.commandPaletteInput {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: var(--text-base);
+  color: inherit;
+  background: none;
+  border: none;
+}
+
+.commandPaletteInput:focus {
+  outline: none;
+}
+
+.commandPaletteList {
+  overflow-y: auto;
+  padding: var(--space-2);
+}
+
+.commandPaletteEmpty {
+  padding: var(--space-4);
+  color: var(--muted-foreground);
+  font-size: var(--text-sm);
+  text-align: center;
+}
+
+.commandPaletteItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: 0.6rem var(--space-3);
+  border: none;
+  border-radius: 10px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.commandPaletteItemActive {
+  background: var(--accent-soft);
+}
+
+.commandPaletteItemLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.commandPaletteItemGroup {
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+  font-size: var(--text-xs);
+}
+
+/* Shortcuts help (ShortcutsHelp.tsx) — rendered inside Modal's own
+   .modalBody, so this only needs to lay out its groups/rows, not its own
+   dialog chrome. */
+.shortcutGroups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.shortcutGroup {
+  display: flex;
+  flex-direction: column;
+}
+
+.shortcutGroupTitle {
+  margin-bottom: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--muted-foreground);
+}
+
+.shortcutRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 0.3rem 0;
+  font-size: var(--text-sm);
+}
+
+.shortcutKeys {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+/* List-navigation selection (ListKeyNav.tsx) — applied via classList.toggle
+   to whichever [data-nav-item] row is currently selected, same accent-ring
+   language as the global :focus-visible rule rather than a new color. */
+[data-nav-item].navSelected {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 10px;
+}
+
 /* Empty state (EmptyState.tsx) — replaces the ad hoc <p className="mutedText">
    pattern flagged in DESIGN_CONSISTENCY.md/COMPONENT_LIBRARY.md as a known,
    cheap-to-fix inconsistency. */
@@ -1816,7 +2028,7 @@ summary:focus-visible,
   margin-left: 0.35rem;
   border-radius: 50%;
   background: var(--accent-navy);
-  color: #fff;
+  color: var(--on-accent-navy);
   font-size: 0.65rem;
   line-height: 1;
   vertical-align: middle;
@@ -2193,6 +2405,20 @@ a.profileMetaItem:hover {
   object-fit: cover;
 }
 
+/* Livestream error/empty state (LivestreamBroadcaster.tsx,
+   LivestreamPlayer.tsx) — same box as the <video> element it replaces, so
+   swapping between them causes no layout shift. Pure black, not a themed
+   surface: this matches the letterboxing of the <video> element itself,
+   which also stays #000 in both themes. */
+.livestreamPlaceholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 16 / 9;
+  background: #000;
+  border-radius: 12px;
+}
+
 /* Post card — deliberately distinct from .profileLinkItem: a post isn't a
    single-click navigation target (it contains its own links/forms/buttons),
    so it gets elevation-only hover instead of .profileLinkItem's accent-ring
@@ -2547,7 +2773,13 @@ body.hasBottomNav .appMain {
    SettingsNav in NavLinks.tsx) replacing the old page-local SettingsSidebar.
    The link and the expand toggle are separate click targets so the row can
    both navigate (tap the label) and disclose (tap the +/−) without a
-   details/summary fighting an interactive child. */
+   details/summary fighting an interactive child. .navSettingsBlock is the
+   outer wrapper around the row + its disclosed .navSubGroups. */
+.navSettingsBlock {
+  display: flex;
+  flex-direction: column;
+}
+
 .navSettingsRow {
   display: flex;
   align-items: center;
@@ -2781,10 +3013,6 @@ body.hasBottomNav .appMain {
 
 .mobileNavToggle::-webkit-details-marker {
   display: none;
-}
-
-.mobileNavToggle:hover {
-  background: color-mix(in srgb, var(--foreground) 6%, transparent);
 }
 
 .mobileNavPanel {
@@ -3273,6 +3501,15 @@ body.hasBottomNav .mobileNavPanel {
   flex-shrink: 0;
 }
 
+/* Wraps PresenceStatus.tsx's "Active now" / "Active 5m ago" text so
+   .presenceDotInline sits inline with it instead of stacking below. */
+.presenceStatusLine {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+}
+
 /* Row-level "⋯" trigger for ConversationRowMenu, inbox-row variant only
    (ConversationRowMenu's compact prop) — invisible until the row is
    hovered/focused, same progressive-disclosure posture as PostOwnerMenu's
@@ -3293,7 +3530,7 @@ body.hasBottomNav .mobileNavPanel {
 }
 
 /* Settings shell: header + content only now — section-to-section nav lives
-   in the main left nav's Settings accordion (see .navSettingsBlock below),
+   in the main left nav's Settings accordion (see .navSettingsBlock above),
    not a second page-local sidebar. Individual sections inside
    .settingsContent still use .profileCard/.field/.textInput unchanged. */
 .settingsShell {

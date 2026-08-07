@@ -9,6 +9,7 @@ import {
 } from "@/lib/messaging";
 import { isUserOnline } from "@/lib/presence";
 import { ConversationListItem } from "@/components/ConversationListItem";
+import { ListKeyNav } from "@/components/ListKeyNav";
 
 // Primary inbox (phase-2 spec §5.5: "list conversations, cursor-paginated,
 // most recent activity first"). Unsolicited requests live at
@@ -41,28 +42,30 @@ export default async function MessagesPage({
         </div>
       </div>
 
-      <div className="conversationList">
-        {conversations.length === 0 && <p className="mutedText">No conversations yet.</p>}
-        {conversations.map((conversation) => {
-          const display = getConversationDisplayInfo(conversation, currentUser.id);
-          const myParticipant = conversation.participants.find((p) => p.userId === currentUser.id);
-          const pendingMine = conversation.requestState?.status === "pending";
-          return (
-            <ConversationListItem
-              key={conversation.id}
-              conversationId={conversation.id}
-              title={display.title}
-              handle={display.handle}
-              avatarUrl={display.avatarUrl}
-              preview={pendingMine ? "Request sent — waiting for a reply" : conversation.lastMessagePreview ?? ""}
-              timestamp={conversation.lastMessageAt}
-              isUnread={isConversationUnreadFor(currentUser.id, conversation, myParticipant)}
-              isOnline={display.otherUserId ? isUserOnline(display.otherUserId) : false}
-              showMenu
-            />
-          );
-        })}
-      </div>
+      <ListKeyNav helpTitle="Messages">
+        <div className="conversationList">
+          {conversations.length === 0 && <p className="mutedText">No conversations yet.</p>}
+          {conversations.map((conversation) => {
+            const display = getConversationDisplayInfo(conversation, currentUser.id);
+            const myParticipant = conversation.participants.find((p) => p.userId === currentUser.id);
+            const pendingMine = conversation.requestState?.status === "pending";
+            return (
+              <ConversationListItem
+                key={conversation.id}
+                conversationId={conversation.id}
+                title={display.title}
+                handle={display.handle}
+                avatarUrl={display.avatarUrl}
+                preview={pendingMine ? "Request sent — waiting for a reply" : conversation.lastMessagePreview ?? ""}
+                timestamp={conversation.lastMessageAt}
+                isUnread={isConversationUnreadFor(currentUser.id, conversation, myParticipant)}
+                isOnline={display.otherUserId ? isUserOnline(display.otherUserId) : false}
+                showMenu
+              />
+            );
+          })}
+        </div>
+      </ListKeyNav>
 
       {nextCursor && (
         <Link

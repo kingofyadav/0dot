@@ -31,10 +31,11 @@ export function ConversationListItem({
   showMenu = false,
 }: ConversationListItemProps) {
   return (
-    <div style={{ position: "relative" }}>
+    <div style={{ position: "relative" }} data-nav-item>
       <Link
         href={`/messages/${conversationId}`}
         className="profileLinkItem conversationListItem"
+        data-nav-open
         style={{
           justifyContent: "space-between",
           paddingInlineEnd: showMenu ? "2.75rem" : undefined,

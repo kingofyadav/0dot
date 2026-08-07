@@ -5,7 +5,7 @@ const nextConfig: NextConfig = {
   // directly on top of the left sidebar's bottom edge — disabled so it
   // doesn't obscure sidebar content during development.
   devIndicators: false,
-  allowedDevOrigins: ["192.168.0.114"],
+  allowedDevOrigins: ["192.168.0.114", "192.168.0.122"],
   experimental: {
     serverActions: {
       // Default is 1MB. Raised for post composing: up to 4 images per

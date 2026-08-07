@@ -33,7 +33,10 @@ export function ConversationRowMenu({
 
   return (
     <>
-      <DropdownMenu>
+      {/* modal={false}: same "don't hand the scroll lock to <body>" fix as
+          PostOwnerMenu — a conversation list can render many of these rows,
+          so a fast reopen between two rows hits the same desync. */}
+      <DropdownMenu modal={false}>
         <DropdownMenuTrigger asChild>
           <button
             type="button"

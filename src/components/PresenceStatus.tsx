@@ -29,7 +29,7 @@ export function PresenceStatus({ online, lastActiveAt }: { online: boolean; last
 
   if (!text) return null;
   return (
-    <span className="mutedText presenceStatusLine" style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", gap: "0.35rem" }}>
+    <span className="mutedText presenceStatusLine">
       {online && <span className="presenceDot presenceDotInline" aria-hidden="true" />}
       {text}
     </span>
