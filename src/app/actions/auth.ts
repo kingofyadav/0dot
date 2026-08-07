@@ -10,6 +10,7 @@ import { validateUsernameFormat } from "@/lib/reserved-usernames";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { toE164 } from "@/lib/country-codes";
 import { getEmailSender, getAppOrigin } from "@/lib/email";
+import { isInternalSystemAccountEmail } from "@/lib/first-party-apps";
 
 export type ActionState = { error?: string; success?: boolean } | undefined;
 
@@ -207,7 +208,7 @@ export async function login(
   // approximately as long as a wrong-password one, closing the timing
   // side-channel a short-circuited `!user ||` would otherwise leave open.
   const passwordValid = await bcrypt.compare(password, user?.passwordHash ?? DUMMY_HASH);
-  if (!user || !passwordValid) {
+  if (!user || !passwordValid || isInternalSystemAccountEmail(user.email)) {
     return { error: "Incorrect email/username/mobile number or password." };
   }
 
@@ -253,8 +254,10 @@ export async function requestPasswordReset(
 
   // Same enumeration posture as /verify/sent: no error branch for "no such
   // account" — the confirmation page's copy stays generic either way, and a
-  // dev-only link only ever appears when a token was actually created.
-  if (!user) {
+  // dev-only link only ever appears when a token was actually created. An
+  // internal system account (e.g. platform-apps@0dot.internal) is treated
+  // identically to a nonexistent one — it must never become loggable-into.
+  if (!user || isInternalSystemAccountEmail(user.email)) {
     redirect("/forgot-password/sent");
   }
 

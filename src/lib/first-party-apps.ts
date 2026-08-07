@@ -11,6 +11,16 @@ import { OAUTH_SCOPES, seedOAuthScopes } from "@/lib/oauth";
 // that happens a handful of times total, not per-customer.
 const PLATFORM_ACCOUNT_EMAIL = "platform-apps@0dot.internal";
 
+// This account (and any future "@0dot.internal" system account) only ever
+// exists to own DeveloperApp rows via ownerUserId — its password hash is an
+// unrecoverable random value set at creation, but nothing previously stopped
+// the normal password-reset flow from overwriting that hash and making it a
+// real, loggable-into account. auth.ts checks this before login and before
+// issuing a reset token.
+export function isInternalSystemAccountEmail(email: string): boolean {
+  return email.toLowerCase().endsWith("@0dot.internal");
+}
+
 // Custom URL schemes for the native apps' redirect (native PKCE, §3.2) plus
 // an https callback for the PWA/desktop surface — parseRedirectUris
 // (developer-apps.ts) rejects non-https/non-localhost URIs since that
