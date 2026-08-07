@@ -61,6 +61,7 @@ export function settingsNavGroups(handle: string): SettingsNavGroup[] {
         { href: `${base}/short-links`, label: "Short links" },
         { href: `${base}/calendar`, label: "Calendar" },
         { href: `${base}/forms`, label: "Forms & surveys" },
+        { href: `${base}/cross-post`, label: "Auto-post" },
       ],
     },
     {

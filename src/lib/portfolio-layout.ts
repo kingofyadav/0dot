@@ -9,6 +9,7 @@ export const PORTFOLIO_SECTION_KEYS = [
   "papers",
   "certificates",
   "awards",
+  "connectedContent",
 ] as const;
 
 export type PortfolioSectionKey = (typeof PORTFOLIO_SECTION_KEYS)[number];
@@ -23,6 +24,7 @@ export const PORTFOLIO_SECTION_LABELS: Record<PortfolioSectionKey, string> = {
   papers: "Research papers",
   certificates: "Certificates",
   awards: "Awards",
+  connectedContent: "Connected content",
 };
 
 function isPortfolioSectionKey(value: unknown): value is PortfolioSectionKey {

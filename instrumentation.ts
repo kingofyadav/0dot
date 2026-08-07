@@ -33,5 +33,16 @@ export async function register() {
     // page render since nothing here is user-specific.
     const { ensureFirstPartyApps } = await import("@/lib/first-party-apps");
     await ensureFirstPartyApps();
+    // Cross-post: publishes ScheduledCrossPost rows once their scheduledFor
+    // arrives and retries failed CrossPostTargets on their backoff window —
+    // same "never synchronously during a request" posture as the schedulers
+    // above.
+    const { startSocialPublishScheduler } = await import("@/lib/social-publish");
+    startSocialPublishScheduler();
+    // Connected content: the reverse direction of the scheduler above —
+    // pulls each connected account's content in and caches it for the
+    // public profile's "Connected content" section (social-content-sync.ts).
+    const { startSocialContentSyncScheduler } = await import("@/lib/social-content-sync");
+    startSocialContentSyncScheduler();
   }
 }

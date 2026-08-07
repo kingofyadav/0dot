@@ -307,6 +307,12 @@ model Profile {
   digitalBusinessCard DigitalBusinessCard?
   calendarEntries     CalendarEntry[]
   ownedForms          Form[]
+
+  // Cross-post: schedule-once publishing to external social platforms —
+  // ExternalSocialAccount/ScheduledCrossPost/CrossPostTarget below, same
+  // profileId-scoped ownership as Link/SocialLink.
+  externalSocialAccounts ExternalSocialAccount[]
+  scheduledCrossPosts    ScheduledCrossPost[]
 }
 
 model Follow {
@@ -380,6 +386,98 @@ model SocialLink {
   url       String
   position  Int
   createdAt DateTime @default(now())
+}
+
+// Cross-post: an OAuth-connected external social platform account a user
+// can publish to. No live OAuth app credentials exist for any of these
+// platforms yet (same posture as ai-provider.ts's model provider and
+// payments.ts's payment processor) — see social-publish-provider.ts's
+// stub connect flow. accessTokenEnc/refreshTokenEnc are encrypted at rest
+// via message-crypto.ts's encryptAtRest/decryptAtRest, reused as-is since
+// that helper is already generic (not message-specific) under the hood.
+model ExternalSocialAccount {
+  id                String    @id @default(uuid())
+  profileId         String
+  profile           Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  platform          String // key into a fixed allowlist, same posture as SocialLink.platform
+  externalAccountId String // the platform's own user/page id
+  displayName       String
+  accessTokenEnc    String
+  refreshTokenEnc   String?
+  tokenExpiresAt    DateTime?
+  status            String    @default("connected") // connected | expired | revoked
+  connectedAt       DateTime  @default(now())
+  // Connected content: stamped on every sync attempt regardless of outcome
+  // (same "mark the attempt done" posture as GitRepository.lastSyncedAt),
+  // so a failing account isn't retried every scheduler tick.
+  lastContentSyncAt DateTime?
+
+  targets      CrossPostTarget[]
+  contentItems ExternalContentItem[]
+
+  @@unique([profileId, platform, externalAccountId])
+}
+
+// Connected content: cached items pulled FROM a connected external account
+// for display on the public profile (social-content-sync.ts) — the mirror
+// image of CrossPostTarget, which pushes content TO the same accounts.
+// Upserted on [externalAccountId, externalItemId] so a re-sync updates in
+// place instead of duplicating.
+model ExternalContentItem {
+  id                String                @id @default(uuid())
+  externalAccountId String
+  externalAccount   ExternalSocialAccount @relation(fields: [externalAccountId], references: [id], onDelete: Cascade)
+  externalItemId    String
+  title             String
+  thumbnailUrl      String?
+  contentUrl        String
+  publishedAt       DateTime?
+
+  @@unique([externalAccountId, externalItemId])
+  @@index([externalAccountId, publishedAt])
+}
+
+// Cross-post: a single user-composed post scheduled to fire once, at
+// scheduledFor, to one or more connected external accounts. One row here
+// fans out into one CrossPostTarget per selected platform below — status
+// is a rollup of those targets' terminal states (see social-publish.ts).
+model ScheduledCrossPost {
+  id            String   @id @default(uuid())
+  profileId     String
+  profile       Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  content       String
+  mediaUrlsJson String   @default("[]")
+  scheduledFor  DateTime
+  status        String   @default("scheduled") // scheduled | publishing | completed | failed | partially_failed | canceled
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  targets CrossPostTarget[]
+
+  @@index([status, scheduledFor])
+}
+
+// Cross-post: one platform's publish attempt within a ScheduledCrossPost,
+// tracked independently so one platform failing doesn't block another —
+// same status/attemptCount/lastAttemptedAt/nextRetryAt retry-with-backoff
+// shape as WebhookDelivery/WebhookSubscription, fanned out per-target here
+// instead of per-subscription.
+model CrossPostTarget {
+  id                String                @id @default(uuid())
+  scheduledPostId   String
+  scheduledPost     ScheduledCrossPost    @relation(fields: [scheduledPostId], references: [id], onDelete: Cascade)
+  externalAccountId String
+  externalAccount   ExternalSocialAccount @relation(fields: [externalAccountId], references: [id], onDelete: Cascade)
+  status            String                @default("pending") // pending | publishing | published | failed
+  externalPostId    String?
+  externalPostUrl   String?
+  errorMessage      String?
+  attemptCount      Int                   @default(0)
+  lastAttemptedAt   DateTime?
+  nextRetryAt       DateTime?
+
+  @@index([scheduledPostId])
+  @@index([status, nextRetryAt])
 }
 
 // phase-4 gap-fill, spec §3.2: businessId is additive alongside the

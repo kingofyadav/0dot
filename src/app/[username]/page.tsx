@@ -212,6 +212,18 @@ export default async function ProfilePage({
       })
     : [];
 
+  // Connected content: cached items pulled in from the owner's connected
+  // external accounts (social-content-sync.ts) — the mirror image of
+  // standaloneRepositories above, same canViewFullProfile gate.
+  const connectedContentItems = canViewFullProfile
+    ? await db.externalContentItem.findMany({
+        where: { externalAccount: { profileId: profile.id } },
+        include: { externalAccount: { select: { platform: true } } },
+        orderBy: { publishedAt: "desc" },
+        take: 24,
+      })
+    : [];
+
   const [publicResearchPapers, publicCertificates, publicAwards] = canViewFullProfile
     ? await Promise.all([
         db.researchPaper.findMany({ where: { profileId: profile.id }, orderBy: { publishDate: "desc" } }),
@@ -310,6 +322,33 @@ export default async function ProfilePage({
       </details>
     ) : null;
 
+  const connectedContentSection =
+    connectedContentItems.length > 0 && visiblePortfolioSectionKeys.has("connectedContent") ? (
+      <details className="profileEditToggle">
+        <summary className="mutedText" style={{ fontSize: "0.85rem" }}>
+          Connected content
+        </summary>
+        <div style={{ marginTop: "0.6rem", display: "flex", flexWrap: "wrap", gap: "0.6rem" }}>
+          {connectedContentItems.map((item) => (
+            <a key={item.id} href={item.contentUrl} target="_blank" rel="noopener noreferrer" style={{ width: "120px" }}>
+              {item.thumbnailUrl && (
+                // eslint-disable-next-line @next/next/no-img-element -- stub/external thumbnail, not an optimizable local asset
+                <img
+                  src={item.thumbnailUrl}
+                  alt=""
+                  style={{ width: "120px", height: "68px", objectFit: "cover", borderRadius: "8px", border: "1px solid var(--border)" }}
+                />
+              )}
+              <span style={{ display: "flex", alignItems: "center", gap: "0.3rem", marginTop: "0.3rem", fontSize: "0.8rem" }}>
+                <SocialIcon platform={item.externalAccount.platform as SocialPlatform} />
+                {item.title}
+              </span>
+            </a>
+          ))}
+        </div>
+      </details>
+    ) : null;
+
   const papersSection =
     publicResearchPapers.length > 0 && visiblePortfolioSectionKeys.has("papers") ? (
       <details className="profileEditToggle">
@@ -383,6 +422,7 @@ export default async function ProfilePage({
     papers: papersSection,
     certificates: certificatesSection,
     awards: awardsSection,
+    connectedContent: connectedContentSection,
   };
   const orderedPortfolioSections = portfolioSectionOrder
     .filter((key) => key !== "resume")
