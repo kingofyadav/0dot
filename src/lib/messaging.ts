@@ -1,4 +1,5 @@
 import "server-only";
+import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { parseCursor, cursorWhere, paginate, POST_PAGE_SIZE, type PostCursor } from "@/lib/pagination";
 import { decryptAtRestNullable } from "@/lib/message-crypto";
@@ -103,9 +104,21 @@ export async function isConversationAdmin(conversationId: string, userId: string
   return participant?.role === "admin";
 }
 
+// Order-independent so both members of a pair always compute the same key
+// regardless of who's userA/userB in a given call.
+function directKeyFor(userAId: string, userBId: string): string {
+  return [userAId, userBId].sort().join(":");
+}
+
 // Idempotent lookup across existing direct conversations between exactly
 // these two users before creating a new one — prevents duplicate DM threads
 // from accumulating every time either user starts a fresh conversation.
+//
+// The findFirst below is a check-then-act race on its own (two concurrent
+// calls for the same pair can both see "nothing yet" before either create
+// commits) — the directKey unique index is the actual guarantee. A losing
+// create's P2002 is caught and turned into a lookup of whichever row won,
+// rather than surfacing as an error or letting a duplicate slip through.
 export async function getOrCreateDirectConversation(userAId: string, userBId: string) {
   const existing = await db.conversation.findFirst({
     where: {
@@ -118,14 +131,24 @@ export async function getOrCreateDirectConversation(userAId: string, userBId: st
   });
   if (existing) return { conversation: existing, isNew: false };
 
-  const conversation = await db.conversation.create({
-    data: {
-      kind: "direct",
-      createdBy: userAId,
-      participants: { create: [{ userId: userAId }, { userId: userBId }] },
-    },
-  });
-  return { conversation, isNew: true };
+  const directKey = directKeyFor(userAId, userBId);
+  try {
+    const conversation = await db.conversation.create({
+      data: {
+        kind: "direct",
+        createdBy: userAId,
+        directKey,
+        participants: { create: [{ userId: userAId }, { userId: userBId }] },
+      },
+    });
+    return { conversation, isNew: true };
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      const winner = await db.conversation.findUnique({ where: { directKey } });
+      if (winner) return { conversation: winner, isNew: false };
+    }
+    throw err;
+  }
 }
 
 // phase-2 spec §5.2: a DM starts accepted when either side already follows

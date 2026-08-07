@@ -712,6 +712,17 @@ model Conversation {
   lastMessageSenderId String?
   lastMessagePreview  String? // truncated body, or an attachment-type label
 
+  // Set only for kind == "direct", to the two participant ids sorted and
+  // joined (see messaging.ts's directKeyFor) — turns "at most one direct
+  // conversation per pair" from a check-then-act race (a findFirst lookup
+  // racing a create) into a DB-enforced guarantee: two concurrent creates
+  // for the same pair compute the identical key, so the unique index lets
+  // exactly one commit and the loser's P2002 is caught and turned into a
+  // lookup of the winner. Null (not enforced) for group conversations and
+  // any legacy row created before this column existed — SQLite's unique
+  // index treats multiple NULLs as distinct, so those never collide.
+  directKey String? @unique
+
   participants ConversationParticipant[]
   messages     Message[]
   requestState MessageRequestState?

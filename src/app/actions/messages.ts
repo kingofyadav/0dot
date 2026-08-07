@@ -10,6 +10,7 @@ import {
   getParticipant,
   isConversationAdmin,
   getOrCreateDirectConversation,
+  getMessagesForConversation,
   determineInitialRequestStatus,
   markConversationRead,
   buildMessagePreview,
@@ -19,6 +20,7 @@ import { notifyMessage } from "@/lib/notifications";
 import { publishToUsers } from "@/lib/message-events";
 import { saveMessageAttachment, type MessageAttachmentKind } from "@/lib/uploads";
 import { encryptAtRestNullable, decryptAtRestNullable } from "@/lib/message-crypto";
+import { parseCursor } from "@/lib/pagination";
 import type { ActionState } from "@/app/actions/auth";
 
 type ResolvedAttachment = {
@@ -58,6 +60,12 @@ async function resolveMessageAttachment(
 
 const RATE_LIMIT_ERROR = "You're sending messages too fast. Please slow down.";
 const START_RATE_LIMIT_ERROR = "Too many new conversations started. Please slow down.";
+
+// Mirrors the textarea's maxLength (NewMessageForm.tsx, ConversationView.tsx)
+// — that's a UX hint, not enforcement, since a raw POST can skip the client
+// entirely. This is the actual boundary: an oversized body shouldn't reach
+// encryption, the DB, or every recipient's SSE fan-out.
+const MAX_MESSAGE_LENGTH = 4000;
 
 // New-thread starts are the real spam vector (unsolicited DMs to strangers),
 // same reasoning follow.ts gives for rate-limiting follows more tightly than
@@ -180,6 +188,7 @@ export async function startDirectConversation(
 
   if (!recipientId || recipientId === user.id) return { error: "Invalid recipient." };
   if (body.length < 1) return { error: "Message can't be empty." };
+  if (body.length > MAX_MESSAGE_LENGTH) return { error: `Messages are limited to ${MAX_MESSAGE_LENGTH} characters.` };
   if (!checkStartConversationRateLimit(user.id)) return { error: START_RATE_LIMIT_ERROR };
   if (await isBlockedEitherWay(user.id, recipientId)) return { error: "You can't message this user." };
 
@@ -223,6 +232,9 @@ export async function sendMessage(formData: FormData): Promise<SendMessageResult
   // spec §5.1: body is "nullable if attachment-only" — an attachment alone
   // is a valid message, only reject when there's neither.
   if (trimmedBody.length < 1 && !attachment) return { error: "Message can't be empty." };
+  if (trimmedBody.length > MAX_MESSAGE_LENGTH) {
+    return { error: `Messages are limited to ${MAX_MESSAGE_LENGTH} characters.` };
+  }
 
   const participant = await getParticipant(conversationId, user.id);
   if (!participant) return { error: "Conversation not found." }; // spec §5.7 query-layer check
@@ -259,6 +271,27 @@ export async function sendMessage(formData: FormData): Promise<SendMessageResult
 
   revalidatePath("/messages");
   return { message };
+}
+
+export type LoadOlderMessagesResult = { error: string } | { items: SentMessage[]; nextCursor: string | null };
+
+// ConversationView only ever renders the most recent POST_PAGE_SIZE messages
+// from the server-rendered initial page — anything older needs this to be
+// reachable at all. getMessagesForConversation re-enforces the participant
+// check itself (same query-layer posture as every other read here), so an
+// invalid/foreign cursor or conversation just yields an empty page rather
+// than leaking whether either exists.
+export async function loadOlderMessages(formData: FormData): Promise<LoadOlderMessagesResult> {
+  const user = await requireVerifiedUser();
+  const conversationId = String(formData.get("conversationId") ?? "");
+  const cursor = parseCursor(String(formData.get("cursor") ?? ""));
+  if (!conversationId || !cursor) return { error: "Invalid request." };
+
+  const { items, nextCursor } = await getMessagesForConversation(conversationId, user.id, cursor);
+  // getMessagesForConversation returns newest-first (its own pagination
+  // direction); the view wants oldest-first so an older page can be
+  // prepended directly onto the top of the already-ascending list.
+  return { items: [...items].reverse(), nextCursor };
 }
 
 // spec §5.1: sender-only soft delete. Clears content columns immediately

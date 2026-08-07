@@ -41,7 +41,7 @@ export default async function ConversationPage({
 
   const display = getConversationDisplayInfo(conversation, currentUser.id);
   const isOtherOnline = display.otherUserId ? isUserOnline(display.otherUserId) : false;
-  const { items: recentMessages } = await getMessagesForConversation(conversationId, currentUser.id, null);
+  const { items: recentMessages, nextCursor } = await getMessagesForConversation(conversationId, currentUser.id, null);
   const messages = [...recentMessages].reverse(); // oldest-first for chat display
 
   const requestState = conversation.requestState;
@@ -161,6 +161,7 @@ export default async function ConversationPage({
         conversationId={conversationId}
         currentUserId={currentUser.id}
         initialMessages={messages}
+        initialOlderCursor={nextCursor}
         canReply={canReply}
       />
     </div>

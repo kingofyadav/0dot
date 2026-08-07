@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { sendMessage, deleteMessage } from "@/app/actions/messages";
+import { sendMessage, deleteMessage, loadOlderMessages } from "@/app/actions/messages";
 import { MessageBubble, type MessageBubbleData } from "@/components/MessageBubble";
 
 // phase-2 spec §5.3's voice-note duration cap suggestion ("recommend 2
@@ -24,11 +24,13 @@ export function ConversationView({
   conversationId,
   currentUserId,
   initialMessages,
+  initialOlderCursor,
   canReply,
 }: {
   conversationId: string;
   currentUserId: string;
   initialMessages: MessageBubbleData[];
+  initialOlderCursor: string | null;
   canReply: boolean;
 }) {
   // React's documented "adjusting state when a prop changes" pattern
@@ -36,19 +38,30 @@ export function ConversationView({
   // guarded by a reference comparison, rather than in a useEffect (which
   // would cause an extra visible re-render pass and trips
   // react-hooks/set-state-in-effect). Bails out after one immediate re-run
-  // when initialMessages actually changes, not on every render.
+  // when initialMessages actually changes, not on every render. olderCursor
+  // resets alongside messages since both come from the same server fetch —
+  // a stale cursor from before a refresh would either re-fetch messages
+  // already in view or skip a gap, depending on how the boundary landed.
   const [prevInitialMessages, setPrevInitialMessages] = useState(initialMessages);
   const [messages, setMessages] = useState(initialMessages);
+  const [olderCursor, setOlderCursor] = useState(initialOlderCursor);
   if (initialMessages !== prevInitialMessages) {
     setPrevInitialMessages(initialMessages);
     setMessages(initialMessages);
+    setOlderCursor(initialOlderCursor);
   }
 
   const [body, setBody] = useState("");
   const [pendingAttachment, setPendingAttachment] = useState<PendingAttachment | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [isLoadingOlder, startLoadOlderTransition] = useTransition();
   const listRef = useRef<HTMLDivElement>(null);
+  // Set right before an older-messages prepend, read (and cleared) by the
+  // scroll effect below — lets that one effect tell "history was prepended
+  // above the fold" apart from "a message arrived/was sent", which need
+  // opposite scroll behavior (restore position vs. jump to bottom).
+  const pendingScrollRestoreRef = useRef<{ height: number; top: number } | null>(null);
 
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
@@ -57,7 +70,15 @@ export function ConversationView({
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
+    const container = listRef.current;
+    if (!container) return;
+    const restore = pendingScrollRestoreRef.current;
+    if (restore) {
+      pendingScrollRestoreRef.current = null;
+      container.scrollTop = container.scrollHeight - restore.height + restore.top;
+      return;
+    }
+    container.scrollTo({ top: container.scrollHeight });
   }, [messages]);
 
   // Stop any in-progress recording/timer if the user navigates away mid-recording.
@@ -120,6 +141,28 @@ export function ConversationView({
 
   function stopRecording() {
     mediaRecorderRef.current?.stop();
+  }
+
+  function handleLoadOlder() {
+    if (!olderCursor || isLoadingOlder) return;
+    const container = listRef.current;
+    const cursor = olderCursor;
+
+    startLoadOlderTransition(async () => {
+      const formData = new FormData();
+      formData.set("conversationId", conversationId);
+      formData.set("cursor", cursor);
+      const result = await loadOlderMessages(formData);
+      if ("error" in result) {
+        setError(result.error);
+        return;
+      }
+      if (container) {
+        pendingScrollRestoreRef.current = { height: container.scrollHeight, top: container.scrollTop };
+      }
+      setMessages((prev) => [...result.items, ...prev]);
+      setOlderCursor(result.nextCursor);
+    });
   }
 
   function handleDelete(messageId: string) {
@@ -188,6 +231,17 @@ export function ConversationView({
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <div ref={listRef} role="log" aria-live="polite" aria-label="Messages" className="messageList">
+        {olderCursor && (
+          <button
+            type="button"
+            className="button buttonSecondary"
+            onClick={handleLoadOlder}
+            disabled={isLoadingOlder}
+            style={{ alignSelf: "center", marginBottom: "0.5rem" }}
+          >
+            {isLoadingOlder ? "Loading…" : "Load older messages"}
+          </button>
+        )}
         {messages.length === 0 && <p className="mutedText">No messages yet — say hello.</p>}
         {messages.map((message) => (
           <MessageBubble
