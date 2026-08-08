@@ -10,6 +10,7 @@ import { KeyboardShortcutProvider } from "@/components/KeyboardShortcutProvider"
 import { ToastProvider } from "@/components/Toast";
 import { AgeGatePrompt } from "@/components/AgeGatePrompt";
 import { PwaServiceWorker } from "@/components/PwaServiceWorker";
+import { SafariInstallPrompt } from "@/components/SafariInstallPrompt";
 import { ThemeInitScript } from "@/components/ThemeInitScript";
 import { getCurrentUser } from "@/lib/session";
 import { getUnreadConversationCount } from "@/lib/messaging";
@@ -29,8 +30,12 @@ const geistMono = Geist_Mono({
 // viewport-fit=cover so env(safe-area-inset-bottom) resolves to the actual
 // home-indicator inset (iOS PWA standalone mode, per manifest.json's
 // "display": "standalone") instead of 0 — MobileBottomNav pads against it.
+// themeColor matches manifest.json's theme_color so Safari's chrome (and the
+// status bar once added to the iOS home screen) tints consistently even
+// before a user has installed anything.
 export const viewport: Viewport = {
   viewportFit: "cover",
+  themeColor: "#000000",
 };
 
 // Dynamic (not a static `metadata` export) specifically so the tab title
@@ -49,11 +54,38 @@ export async function generateMetadata(): Promise<Metadata> {
         { url: "/1dot.png", media: "(prefers-color-scheme: light)" },
         { url: "/0dot.png", media: "(prefers-color-scheme: dark)" },
       ],
+      // Flattened onto solid black (public/apple-touch-icon.png, generated
+      // from 1dot.png) rather than reusing the transparent source icon —
+      // iOS composites a transparent apple-touch-icon onto its own white
+      // square, which would show a mismatched white tile on the home
+      // screen instead of matching manifest.json's black theme.
+      apple: "/apple-touch-icon.png",
     },
     // phase-15 spec §5.1/§9 step 5: "desktop app" is this same web app,
     // installed via standard PWA installability (manifest + service
     // worker) rather than a sixth native codebase.
     manifest: "/manifest.json",
+    // iOS/iPadOS Safari never fires `beforeinstallprompt` (Apple doesn't
+    // implement it on any WebKit-based browser, including Chrome-for-iOS),
+    // so there's no native "Install" affordance there — only the manual
+    // Share -> Add to Home Screen path IosInstallPrompt below walks users
+    // through. These tags are what make that manual add behave like a real
+    // app (standalone, no Safari chrome) instead of just a bookmark.
+    // `statusBarStyle: "black"` (not "black-translucent") deliberately,
+    // since black-translucent draws content under the status bar/notch and
+    // this app only has bottom safe-area-inset handling (MobileBottomNav)
+    // today, not top.
+    appleWebApp: {
+      title: "0dot",
+      statusBarStyle: "black",
+    },
+    // This Next.js version's `appleWebApp` only emits the unprefixed
+    // `mobile-web-app-capable` tag (see node_modules/next/dist/docs) — add
+    // the Apple-prefixed one directly too, since older iOS Safari versions
+    // only ever honored that one.
+    other: {
+      "apple-mobile-web-app-capable": "yes",
+    },
   };
 }
 
@@ -106,6 +138,7 @@ export default async function RootLayout({
           Skip to content
         </a>
         <PwaServiceWorker />
+        <SafariInstallPrompt />
         <BrowserTabProvider initialUnreadCount={initialUnreadCount}>
           {/* Inside BrowserTabProvider (not outside) so CommandPalette's
               theme-toggle command hits the real useBrowserTab() context
