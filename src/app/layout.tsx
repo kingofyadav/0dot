@@ -17,6 +17,7 @@ import { getUnreadConversationCount } from "@/lib/messaging";
 import { getUnreadNotificationCount } from "@/lib/notifications";
 import { isChromelessPath } from "@/lib/route-context";
 import { SpeedInsights } from "@vercel/speed-insights/next"
+import { Analytics } from "@vercel/analytics/next"
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -167,6 +168,7 @@ export default async function RootLayout({
           </KeyboardShortcutProvider>
          </BrowserTabProvider>
         <SpeedInsights/>
+       <Analytics/> 
       </body>
     </html>
   );
