@@ -171,6 +171,37 @@ export async function signup(
   redirect(sender.name === "console-stub" ? `/verify/sent?token=${token}` : "/verify/sent");
 }
 
+export type UsernameAvailability = "available" | "taken" | "invalid" | "reserved";
+
+// Exposes the same authoritative checks signup() already runs
+// (validateUsernameFormat + db.username.findUnique) ahead of submission, so
+// the signup form can show availability while typing (spec §11) instead of
+// only discovering a conflict on submit — signup() above remains the actual
+// authority and re-runs both checks itself; this is a preview, not a second
+// source of truth. IP-rate-limited like every other unauthenticated write/
+// read here, generous enough for a debounced typeahead (UsernameField
+// debounces ~400ms) without allowing a scripted enumeration sweep.
+export async function checkUsernameAvailability(handle: string): Promise<UsernameAvailability> {
+  const normalized = handle.trim().toLowerCase();
+
+  const ip = await getClientIp();
+  const ok = checkRateLimit(`username-check:ip:${ip}`, { max: 30, windowMs: 60 * 1000 });
+  if (!ok) {
+    // Treated as "invalid" by the caller (no distinct rate-limit UI state
+    // for a background typeahead check) rather than surfacing a dedicated
+    // error — the field's own required/pattern attributes still catch a bad
+    // final submission, and signup() re-validates regardless.
+    return "invalid";
+  }
+
+  const formatError = validateUsernameFormat(normalized);
+  if (formatError === "invalid_format") return "invalid";
+  if (formatError === "reserved") return "reserved";
+
+  const existing = await db.username.findUnique({ where: { handle: normalized } });
+  return existing ? "taken" : "available";
+}
+
 export async function login(
   _prevState: ActionState,
   formData: FormData

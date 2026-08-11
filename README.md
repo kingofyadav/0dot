@@ -31,14 +31,15 @@ Everything above is server-rendered, permission-checked server-side (never just 
 
 ### Known gaps
 
-This is an actively developed reference build, not a finished product. See [`BUGS.md`](BUGS.md) for the current open-findings list from an internal code review (mostly Phase 1–4 feed-visibility filtering edge cases, tracked as fixed/open per item) and [`docs/foundations/ENGINEERING_ARCHITECTURE.md`](docs/foundations/ENGINEERING_ARCHITECTURE.md) for architectural decisions and their tradeoffs (e.g. SQLite as a conscious pre-scale choice, stub payment processor, no CDN/media pipeline).
+This is an actively developed reference build, not a finished product. See [`BUGS.md`](BUGS.md) for the current open-findings list from an internal code review (mostly Phase 1–4 feed-visibility filtering edge cases, tracked as fixed/open per item) and [`docs/foundations/ENGINEERING_ARCHITECTURE.md`](docs/foundations/ENGINEERING_ARCHITECTURE.md) for architectural decisions and their tradeoffs (e.g. single-writer libSQL as a conscious pre-scale choice, stub payment processor, uploaded media served at original size with no resize/format pipeline, no server-side error tracking).
 
 ## Tech stack
 
 - **[Next.js 16](https://nextjs.org)** (App Router, Turbopack, Server Actions) + **React 19**, TypeScript throughout
-- **[Prisma 7](https://www.prisma.io)** + **SQLite** (`@prisma/adapter-better-sqlite3`) — 148 models spanning identity, social, community, business, creator monetization, portfolio, knowledge, events, marketplace, developer-platform, AI, trust & safety, copyright/IP, enterprise, mobile/PWA, and CRM/short-link/forms/calendar domains
+- **[Prisma 7](https://www.prisma.io)** over the SQLite wire protocol via **`@prisma/adapter-libsql`** — local dev is a plain `file:./dev.db`, production points at a Turso-hosted libSQL database — 148 models spanning identity, social, community, business, creator monetization, portfolio, knowledge, events, marketplace, developer-platform, AI, trust & safety, copyright/IP, enterprise, mobile/PWA, and CRM/short-link/forms/calendar domains
 - **Server Components by default**; client components only at real interactivity boundaries (`useActionState` forms, live SSE consumers)
-- No external services required to run locally — auth, sessions, encryption, and file storage are all self-contained (see [Known gaps](#known-gaps) for what that trades off)
+- **Media storage:** avatars, post images, business/community assets, and documents upload to **Vercel Blob** (`@vercel/blob`, private access) — see [Known gaps](#known-gaps) for the pipeline's current limits
+- No database or auth service to stand up locally — SQLite/libSQL defaults to a local file, auth/sessions/encryption are self-contained. File uploads are the one feature that needs a real external credential even in dev (see below)
 
 ## Getting started
 
@@ -54,10 +55,20 @@ Create a `.env` file:
 
 ```bash
 DATABASE_URL="file:./dev.db"
+# Production only — points DATABASE_URL at a Turso-hosted libSQL database
+# instead of a local file; omit entirely for local dev.
+# DATABASE_AUTH_TOKEN="..."
 
 # 256-bit key, base64-encoded — encrypts direct-message content at rest.
 # Generate a fresh one per environment; never reuse a dev key in production.
 MESSAGE_ENCRYPTION_KEY="<run: node -e \"console.log(require('crypto').randomBytes(32).toString('base64'))\">"
+
+# Required for any upload flow (avatar, post images, documents, message
+# attachments) to work locally — `@vercel/blob`'s put() reads this
+# automatically. Get one from a Vercel Blob store linked to this project
+# (`vercel env pull` if the project is already linked), or uploads will
+# fail with an auth error while everything else in the app still works.
+BLOB_READ_WRITE_TOKEN="..."
 ```
 
 Apply the schema and start the dev server:
@@ -74,9 +85,12 @@ Open [http://localhost:3000](http://localhost:3000). Signup sends a verification
 ```bash
 npx tsc --noEmit     # typecheck
 npm run lint         # ESLint
-npx prisma generate  # regenerate the Prisma client after a schema change
+npm test             # vitest
+npx prisma generate  # regenerate the Prisma client after a schema change (also runs automatically via postinstall)
 npm run build        # production build
 ```
+
+CI (`.github/workflows/ci.yml`) runs all of the above on every push to `main` and every PR.
 
 ## Project structure
 

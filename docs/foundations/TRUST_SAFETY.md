@@ -1,38 +1,34 @@
 # Trust & Safety
 
-Status: Foundational document (Priority 11). The full feature spec is `docs/specs/phase-12-trust-safety.md` — this document is the standing summary + an honest flag of what's missing *today*, since Phase 1–2 surfaces are already live without any of this.
+Status: Foundational document (Priority 11). The full feature spec is `docs/specs/phase-12-trust-safety.md`. Phase 12 is now built (see `README.md`'s "What's built" table) — this document used to describe a Phase-1-only MVP with zero safety affordances; that state no longer exists. It's now the standing summary + an honest flag of what's *still* missing.
 
 ## Scope (per Phase 12 spec)
 
-- Content reporting (report center)
-- Moderation queues
-- Appeals process
-- Privacy controls
-- Account recovery
-- Session management
-- Block / mute controls
+- Content reporting (report center) — **Live**
+- Moderation queues — **Live**
+- Appeals process — **Live**
+- Privacy controls — **Live** (partial, see below)
+- Account recovery — **Live**
+- Session management — **Still missing**
+- Block / mute controls — **Live** (block; mute is community-scoped only, see below)
+
+## What's live today
+
+- **Reporting:** `ReportButton` (`src/components/ReportButton.tsx`) → `fileReport` (`src/app/actions/reports.ts`) is wired into `PostCard` (posts) and `/{username}` profiles, hidden for the content's own owner. Feeds `Report`/`TrustSafetyCase` (`prisma/schema.prisma`).
+- **Moderation queue:** `TrustSafetyCase` unifies review across every surface that previously had ad hoc review (community, business, marketplace, OAuth scopes, AI flags), worked via `/admin`.
+- **Appeals:** `Appeal` model + workflow — a case decision can be appealed, not just accepted silently.
+- **Account recovery:** `/forgot-password` → `/forgot-password/sent`, `/reset-password` → `/reset-password/success` (`src/app/actions/auth.ts`). The gap this document used to flag ("there isn't even a forgot-password flow") is closed.
+- **Block:** `blockUser`/`unblockUser` (`src/app/actions/block.ts`), live on `/{username}`. **Mute exists too, but only as a community-moderation action** (`muteMember`, `src/app/actions/communities.ts`) — there is no general profile-level "mute this user everywhere" control distinct from block.
+- **Privacy controls, partial:** `Profile.isPrivate` gates posts/portfolio/links behind follow-approval (name/avatar/bio and the Follow control itself stay visible regardless). Age gating (`src/app/actions/age.ts`, `AgeGatePrompt`) is also live. Narrower controls (who can message/mention you, per-post visibility) are not built.
+- **Spam/bot detection:** `AccountRiskSignal` (`src/lib/account-risk.ts`) exists (e.g. duplicate-post-pattern detection, referenced from `posts.ts`).
+- **DMCA / copyright:** full takedown/counter-notice workflow (`/dmca`, Phase 13) — adjacent to, and reachable from, the same trust & safety surface.
 
 ## Current Gap (real, not hypothetical)
 
-Every live surface today — `/feed`, `/{username}` profiles, posts, likes — has **zero** safety affordances:
-
-- No way to report a post, profile, or user.
-- No block or mute.
-- No moderation queue exists (nor could it, with nothing feeding it).
-- No account recovery path at all (flagged also in `USER_JOURNEYS.md` — there isn't even a "forgot password" flow yet, let alone account-takeover recovery).
-- Session management exists at the infrastructure level (DB-backed sessions, 30-day TTL, `destroySession` on logout) but has no user-facing surface — a user can't view or revoke their own active sessions today.
-- Privacy controls: none. Profiles are public by default with no visibility settings.
-
-This is a normal state for an MVP still inside Phase 1, but it means the platform currently has a live, publicly-postable feed with **no abuse-handling mechanism whatsoever**. Worth surfacing explicitly rather than letting it stay implicit: this is the biggest gap between "world-class foundation" and current reality, more so than any visual/design gap.
-
-## Recommended Sequencing (not a decision, a suggestion for when this is picked up)
-
-1. **Report + block/mute** first — the minimum viable safety net, and the cheapest to build (no queue/appeals infrastructure required, just a report record and a personal block list).
-2. **Session management UI** — cheap (infrastructure already exists), high trust value, closes part of the "account recovery" gap by letting a user kick out a stolen session.
-3. **Password recovery** — arguably should happen even before #1, since it's not really a "trust & safety" feature so much as a basic account-access primitive missing from Phase 1 itself.
-4. **Moderation queue + appeals** — only valuable once reports exist to queue (#1).
-5. **Privacy controls** (profile visibility, who can message/mention) — sequence relative to Phase 2 (Follow/Messaging), since most privacy controls only matter once those surfaces exist.
+- **No session-management UI.** Sessions exist at the infrastructure level (DB-backed, 30-day TTL, `destroySession` on logout) but a user still can't view or revoke their own active sessions — the one item from the original Phase 12 scope that's genuinely still missing. Checked directly: no route or component anywhere under `/s/{username}/security` (or elsewhere) lists or revokes sessions.
+- **No account-deletion flow.** Not originally scoped as part of this document's list, but a closely related gap — see `USER_JOURNEYS.md`'s "Delete an account" entry.
+- **Privacy controls are narrower than "full."** `Profile.isPrivate` is binary (public/follow-gated); there's no granular per-post visibility or messaging/mention permission model yet.
 
 ## Rule
 
-No new user-generated-content surface (comments, media posts, messages, community posts) ships without at least a report action attached, once #1 above exists as a shared component. Until then, this is a known, accepted gap — not a silent one.
+No new user-generated-content surface (comments, media posts, messages, community posts) ships without at least a report action attached — this is no longer aspirational; `ReportButton` is the existing shared component to reuse (`COMPONENT_LIBRARY.md`), not infrastructure to build from scratch.

@@ -2,31 +2,36 @@
 
 import { useActionState } from "react";
 import Link from "next/link";
-import { ArrowUpRight } from "lucide-react";
 import { signup } from "@/app/actions/auth";
-import { ThemeToggleLogo } from "@/components/ThemeToggleLogo";
+import { AuthTopBar } from "@/components/AuthTopBar";
 import { AuthTrust } from "@/components/AuthTrust";
+import { DigitalHomeVisual } from "@/components/DigitalHomeVisual";
+import { ExploreLiveLink } from "@/components/ExploreLiveLink";
 import { PasswordField } from "@/components/PasswordField";
+import { ThemeToggleLogo } from "@/components/ThemeToggleLogo";
 import { UsernameField } from "@/components/UsernameField";
 import { COUNTRY_CODES } from "@/lib/country-codes";
 
 export default function SignupPage() {
   const [state, formAction, pending] = useActionState(signup, undefined);
 
+  // The "Profile" node has nothing to navigate to on a logged-out visitor
+  // (spec §16 step-1 "identity node appears") — here on the actual signup
+  // page, activating it jumps straight to the form's first field instead.
+  function focusFirstField() {
+    document.getElementById("displayName")?.focus();
+  }
+
   return (
     <div className="landingWrap">
-      <div className="landingLogo">
-        <ThemeToggleLogo size={40} />
-      </div>
+      <AuthTopBar />
 
       <section className="landingHero">
         <h1>Claim your permanent link.</h1>
         <p>0dot.in/yourname — one identity for everything you make.</p>
-        <Link href="/explore" className="exploreLiveButton">
-          <span className="exploreLiveDot" aria-hidden="true" />
-          Explore live
-          <ArrowUpRight size={16} aria-hidden="true" />
-        </Link>
+        <ExploreLiveLink />
+
+        <DigitalHomeVisual variant="calm" onProfileActivate={focusFirstField} />
       </section>
 
       <form action={formAction} className="authCard">

@@ -74,6 +74,12 @@
      shared by .desktopTopHeader's height and .desktopSidebar's sticky
      offset so the two never overlap. */
   --desktop-header-h: 72px;
+  /* .marketingNavInner's rendered height ("/" only) — 1rem vertical padding
+     (32px) + a 32-40px logo/button row. Used so .landingWrap--solo can fill
+     exactly the remaining viewport below the nav, letting the hero center
+     itself in real leftover space instead of relying on the ambient
+     min-height:100% cascade further up the tree. */
+  --marketing-nav-h: 72px;
 
   /* Spacing scale (DESIGN_SYSTEM.md) — dimensional, not themed, so this
      lives only here, not duplicated in the dark-mode/data-theme blocks
@@ -87,6 +93,16 @@
   --space-5: 1.25rem;
   --space-6: 1.5rem;
   --space-8: 2rem;
+
+  /* Motion scale (DESIGN_SYSTEM.md "Motion" gap) — the existing 0.15s/0.05s
+     ad hoc values already in use (inputs/buttons hover, press feedback)
+     become --transition-base/--transition-fast below; --transition-slow is
+     new, for the marketing sections' panel/section-level transitions.
+     Dimensional, not themed, so — like --space-* above — this lives once
+     here rather than duplicated per theme block. */
+  --transition-fast: 0.05s ease;
+  --transition-base: 0.15s ease;
+  --transition-slow: 0.25s ease;
 
   /* shadcn/ui bridge tokens — only what src/components/ui actually
      references today (npx shadcn init generated a much larger neutral
@@ -345,15 +361,17 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* The 3 chromeless pages (isChromelessPath: "/", /login, /signup — see
-   route-context.ts) pin to exactly one viewport, at every width, so the
-   page itself never scrolls. dvh (not vh) so mobile browser chrome
-   collapsing/expanding doesn't leave a stale gap or clip content. Nothing
-   else carries body.noChrome as a fixed height, so this can't affect any
-   other route. .authWrap/.landingWrap below are the actual scroll
-   fallback if content still doesn't fit — see their min-height: 0 +
-   overflow-y: auto. */
-body.noChrome {
+/* Only /login and /signup (isFixedViewportPath — route-context.ts) pin to
+   exactly one viewport, at every width, so the page itself never scrolls.
+   dvh (not vh) so mobile browser chrome collapsing/expanding doesn't leave a
+   stale gap or clip content. .authWrap/.landingWrap below are the actual
+   scroll fallback if content still doesn't fit on those two pages — see
+   their min-height: 0 + overflow-y: auto. "/" used to carry this same class
+   (all 3 were "chromeless"), but the marketing-page redesign gave it real
+   below-the-fold content (nav/product-story/features/footer) that needs the
+   page to scroll normally — it keeps body.noChrome just below (no
+   SiteHeader/Sidebar grid) without this fixed-height lock. */
+body.fixedViewport {
   height: 100dvh;
   overflow: hidden;
 }
@@ -461,8 +479,8 @@ summary:focus-visible,
   position: relative;
   flex: 1;
   /* Without this, a flex child's default auto min-height refuses to
-     shrink below its content size, so body.noChrome's fixed 100dvh above
-     would just get pushed taller by an oversized card instead of this
+     shrink below its content size, so body.fixedViewport's fixed 100dvh
+     above would just get pushed taller by an oversized card instead of this
      element becoming the thing that scrolls. */
   min-height: 0;
   overflow-y: auto;
@@ -512,11 +530,13 @@ summary:focus-visible,
   padding: 2rem;
 }
 
-/* Compact vertical spacing so the auth card fits within body.noChrome's
-   fixed 100dvh (see above) without needing its own internal scroll on
-   ordinary laptop/desktop heights. Scoped to .authWrap/.landingWrap
-   specifically — .authCard's base rule above stays untouched because 20+
-   unrelated forms across the app (community/event/business creation,
+/* Compact vertical spacing so the auth card fits within a single screen —
+   body.fixedViewport's fixed 100dvh on /login and /signup (see above)
+   without needing its own internal scroll on ordinary laptop/desktop
+   heights, and keeps "/"'s hero+auth reading as one above-the-fold screen
+   even though the page as a whole scrolls now. Scoped to
+   .authWrap/.landingWrap specifically — .authCard's base rule above stays
+   untouched because 20+ unrelated forms across the app (community/event/business creation,
    profile editing, ComposeBox, …) also reuse .authCard purely for its
    card chrome and were never meant to shrink with viewport height. */
 .authWrap .authCard,
@@ -640,8 +660,12 @@ summary:focus-visible,
   position: relative;
   flex: 1;
   /* Same reasoning as .authWrap's min-height: 0 + overflow-y: auto above —
-     this is the actual scroll fallback under body.noChrome's fixed
-     100dvh, if content ever doesn't fit. */
+     on /login and /signup this is the actual scroll fallback under
+     body.fixedViewport's fixed 100dvh, if content ever doesn't fit. On "/"
+     there's no fixedViewport ancestor anymore (see body.fixedViewport
+     above), so this rule is simply inert there — the hero section takes its
+     natural height and the page scrolls normally through the marketing
+     sections below it. */
   min-height: 0;
   overflow-y: auto;
   display: flex;
@@ -658,8 +682,7 @@ summary:focus-visible,
    auth card toward the right edge. justify-content: space-between (not
    center) is what actually finishes that push on very wide viewports —
    center balances the hero+card group as a whole and leaves equal dead
-   margin on both sides, so the card only ever reads as "right of center",
-   not pinned to the right edge like the top-left .landingLogo below. */
+   margin on both sides, so the card only ever reads as "right of center". */
 @media (min-width: 1024px) {
   .landingWrap {
     flex-direction: row;
@@ -670,30 +693,11 @@ summary:focus-visible,
   }
 }
 
-/* Pinned to the section's top-left corner on desktop, separate from the
-   hero column so it reads as a persistent brand mark rather than sitting
-   inline above the headline. Hidden on mobile — the mobile view shows the
-   auth form only (see .landingHero below), and that form already carries
-   its own logo above "Welcome". top/left are set to the same values as
-   .landingWrap's own padding (3rem / clamp(2rem, 5vw, 6rem)) above, not
-   0/0 — the containing block for an absolutely positioned element is the
-   ancestor's padding box, so top:0/left:0 lines up with that box's OUTER
-   edge (i.e. flush with the viewport corner, ignoring the padding
-   entirely), not the inset content edge. Matching the padding values
-   explicitly is what actually aligns the logo with the rest of the
-   inset content instead of overlapping the corner. */
-.landingLogo {
-  display: none;
-}
-
-@media (min-width: 1024px) {
-  .landingLogo {
-    display: flex;
-    position: absolute;
-    top: 3rem;
-    left: clamp(2rem, 5vw, 6rem);
-  }
-}
+/* .landingLogo (a standalone top-left-pinned brand mark, previously shared
+   by all 3 pages here) was removed once "/" gained MarketingNav (which
+   already renders the logo) and /login·/signup gained AuthTopBar
+   (AuthTopBar.tsx — same logo, plus a "Back to 0dot" link) — nothing
+   renders that class anymore. */
 
 /* position: fixed, not absolute — see the matching note on .authWrap::before.
    .landingWrap is capped at max-width: 980px on desktop, so an
@@ -765,31 +769,64 @@ summary:focus-visible,
     max-width: 760px;
   }
 
-  /* Shifts the whole hero block right as one unit — headline and
-     .landingPreview below share this same left edge (the preview no
-     longer carries its own separate margin-left), so the two stay
-     aligned instead of the card sitting further right than the text
-     above it. Scoped to :has(.landingPreview) — home page only. /login
-     and /signup reuse .landingHero for their own shorter pitch text but
-     never render .landingPreview, and without a card to fill the gap this
-     shift just left dead space between their logo and headline instead of
-     closing anything. */
-  .landingHero:has(.landingPreview) {
-    margin-left: clamp(3rem, 28vw, 24rem);
-  }
-
   .landingHero p {
     max-width: none;
   }
 }
 
+/* "/" only (page.tsx) — the minimal, button-driven landing hero has no
+   .authCard/AuthTabs sibling anymore (removed per explicit direction: no
+   embedded form, no paragraph-heavy sections, buttons to navigate instead).
+   Two consequences that only apply here, not to /login or /signup which
+   still pair .landingHero with a real auth card:
+   1. The base .landingHero rule above is display:none below 1024px
+      (mobile shows "the auth form only" there) — with no form to fall back
+      to on "/", that would render a blank page on mobile. Force it visible
+      at every width instead.
+   2. At 1024px+, .landingWrap's row layout (justify-content: space-between,
+      further up this file) exists to push a second flex child (the auth
+      card) to the far side — with only .landingHero as a child now, that
+      just left it flush left with dead space on the right. Center the
+      whole hero as a single column instead, capped narrower than the old
+      760px two-column max so it doesn't stretch edge-to-edge alone. */
+.landingWrap--solo .landingHero {
+  display: flex;
+}
+
+/* Fills exactly the viewport height left over below MarketingNav (there's
+   no footer anymore either — see page.tsx), so the existing
+   justify-content: center above actually has real leftover space to center
+   the hero within, instead of the box just shrink-wrapping its content and
+   sitting flush under the nav. overflow-y: auto (inherited from the base
+   .landingWrap rule) is still the safety valve if a very small viewport
+   plus the DigitalHomeVisual can't fit — scrolls rather than clips. */
+.landingWrap--solo {
+  min-height: calc(100dvh - var(--marketing-nav-h));
+}
+
+@media (min-width: 1024px) {
+  .landingWrap--solo {
+    justify-content: center;
+  }
+
+  .landingWrap--solo .landingHero {
+    align-items: center;
+    text-align: center;
+    flex: 0 1 640px;
+    max-width: 640px;
+  }
+
+  .landingWrap--solo .landingHero p {
+    max-width: 48ch;
+  }
+}
+
 /* Desktop-only mockup of a real profile page (LandingLiveShowcase.tsx) —
-   gives the hero a concrete "this is what you get" visual instead of a
-   wall of feature copy, and rotates through a few example profiles every
-   few seconds so it reads as "live" rather than a single frozen
-   screenshot. aria-hidden since it's decorative — the headline/subhead
-   above already state the pitch in text. Hidden below 1024px like the
-   rest of the hero: mobile keeps the auth-form-only view. */
+   not currently rendered anywhere (the landing page was simplified to just
+   MarketingNav + a centered hero: headline, subtext, DigitalHomeVisual — no
+   footer, no embedded form or preview card). Left in place, unused, rather
+   than deleted — pre-existing component, not something this rule's history
+   should force out. */
 .landingPreview {
   display: none;
 }
@@ -976,6 +1013,178 @@ summary:focus-visible,
   100% {
     box-shadow: 0 0 0 0 transparent;
   }
+}
+
+/* DigitalHomeVisual — the "identity -> home -> links/content/community/
+   business" product metaphor (spec §4/§5), built as themed CSS/SVG-free DOM
+   rather than WebGL: every node below is a real <a>/<button>, so keyboard
+   reachability and screen-reader equivalence (spec §46/§47) come for free
+   instead of needing a separate fallback tree. Idle keyframe animations and
+   the hover/press transform rules are both left un-guarded by
+   prefers-reduced-motion here on purpose: the file's blanket rule above
+   (zeroing animation/transition *duration*) is enough to freeze the
+   keyframes, and no hover-only rule in this block changes `transform`
+   outside of a :hover/:focus-visible state (unlike .authCard .button,
+   which needed an explicit no-preference guard because its scale changes
+   are not driven by an animation/transition property at all) — so nothing
+   here needs the extra guard that pattern requires. Pointer parallax is
+   JS-driven (see the component), gated by its own matchMedia check. */
+.dhVisual {
+  --dh-radius: clamp(96px, 13vw, 160px);
+  --dh-px: 0px;
+  --dh-py: 0px;
+  position: relative;
+  width: clamp(240px, 30vw, 380px);
+  aspect-ratio: 1;
+  /* The circle's top nodes sit well inside the box's own top edge (their
+     vertical offset is radius * cos(30deg), not the full radius), so the
+     box's natural bounding height leaves dead space above them on top of
+     .landingHero's own gap. Pull the box up to close that gap without
+     shrinking the circle itself. */
+  margin: -2rem auto 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  translate: var(--dh-px) var(--dh-py);
+  transition: translate 0.4s ease-out;
+}
+
+.dhRing {
+  position: absolute;
+  inset: 12%;
+  border: 1px dashed var(--border);
+  border-radius: 50%;
+  animation: dhSpin 90s linear infinite;
+}
+
+.dhGlow {
+  position: absolute;
+  inset: -10%;
+  z-index: -1;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--accent-soft), transparent 70%);
+}
+
+@keyframes dhSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Just the logo now (no "Your 0dot" text label) — a fixed-size circular
+   badge rather than the old pill shape that sized itself around the label
+   text. */
+.dhCenter {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-md);
+}
+
+/* Each node is placed on the circle via rotate+translate+counter-rotate
+   (keeps the wrapper itself upright, since the icon/label inside must not
+   spin), then given a small idle vertical bob via its own keyframes — never
+   the physical orbit angle, since animating that would drag a focused
+   interactive element around the screen while a keyboard/AT user is on it,
+   exactly the "aggressive continuous animation" spec §5/§21 warns against. */
+.dhNodeWrap {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(var(--dh-angle)) translate(var(--dh-radius)) rotate(calc(-1 * var(--dh-angle)));
+  animation: dhFloat 5s ease-in-out infinite;
+}
+
+@keyframes dhFloat {
+  0%,
+  100% {
+    margin-top: 0;
+  }
+  50% {
+    margin-top: -4px;
+  }
+}
+
+.dhNode {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0.4rem 0.6rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  color: var(--foreground);
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform var(--transition-base), box-shadow var(--transition-base), border-color var(--transition-base), opacity var(--transition-base);
+}
+
+.dhNode:hover,
+.dhNode:focus-visible {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-md);
+  transform: scale(1.08);
+}
+
+/* Other nodes read slightly quieter while one is focused/hovered, per spec
+   §6's hover behavior ("other nodes become slightly quieter") — :has() on
+   the shared parent avoids needing per-node JS state. */
+.dhVisual:has(.dhNodeWrap:hover) .dhNodeWrap:not(:hover),
+.dhVisual:has(.dhNode:focus-visible) .dhNodeWrap:not(:focus-within) {
+  opacity: 0.6;
+}
+
+.dhNodeLabel {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.dhNodeCard {
+  position: absolute;
+  bottom: calc(100% + 0.4rem);
+  left: 50%;
+  transform: translate(-50%, 4px);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 3;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-md);
+  padding: 0.35rem 0.6rem;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+  transition: opacity var(--transition-base), transform var(--transition-base);
+}
+
+.dhNodeWrap:hover .dhNodeCard,
+.dhNodeWrap:focus-within .dhNodeCard {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* calm variant (login) — spec §16: "your home is waiting for you", not a
+   demo to play with. Keeps the idle ring/float motion (already slow/subtle)
+   but drops hover expansion and the pointer-parallax translate the hero
+   variant applies (the component itself skips attaching the pointermove
+   listener for this variant, so --dh-px/--dh-py simply stay at 0px). */
+.dhVisual--calm .dhNode:hover,
+.dhVisual--calm .dhNode:focus-visible {
+  transform: none;
 }
 
 .field {
@@ -1281,6 +1490,24 @@ summary:focus-visible,
 .usernameHintValid {
   color: var(--accent);
   opacity: 1;
+}
+
+/* taken/reserved/network-error states (checkUsernameAvailability, spec §13's
+   explicit state list) — reuses .errorText's color rather than inventing a
+   new hex so it stays in sync with any future --danger retune. */
+.usernameHintError {
+  color: var(--danger);
+  opacity: 1;
+}
+
+.usernameHintChecking svg {
+  animation: usernameCheckingSpin 0.8s linear infinite;
+}
+
+@keyframes usernameCheckingSpin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .authFooter {
@@ -3821,6 +4048,113 @@ details:not([open]) > .settingsAddTrigger {
    duplicating every token into a selector that can never match is worse
    than not having it. If a future `npx shadcn add` regenerates one,
    delete it again rather than keeping it. */
+
+/* ==========================================================================
+   Marketing landing sections (src/components/marketing/*) — "/" only.
+   Literal breakpoints below (480/768/1024/1280/1536), not var() tokens, per
+   RESPONSIVE_LAYOUT.md's own note that CSS custom properties can't be used
+   inside @media conditions; this is the first place in the file that
+   actually uses that full scale (the rest of the app still only branches at
+   1024px). Mobile-first throughout, per that doc's rule.
+   ========================================================================== */
+
+.marketingNavInner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 1rem clamp(1rem, 4vw, 3rem);
+}
+
+.marketingNavActions {
+  display: none;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+@media (min-width: 768px) {
+  .marketingNavActions {
+    display: flex;
+  }
+}
+
+.marketingNavMobileMenu {
+  position: relative;
+}
+
+@media (min-width: 768px) {
+  .marketingNavMobileMenu {
+    display: none;
+  }
+}
+
+.marketingNavMobileMenu summary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  list-style: none;
+}
+
+.marketingNavMobileMenu summary::-webkit-details-marker {
+  display: none;
+}
+
+.marketingNavMobilePanel {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  min-width: 220px;
+  padding: 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+
+/* Auth pages' (login/signup) small top bar — logo + "Back to 0dot", not the
+   full MarketingNav (spec §15: these stay single-purpose task pages). */
+.authTopBar {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .authTopBar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: absolute;
+    top: 2rem;
+    left: clamp(2rem, 5vw, 6rem);
+    right: clamp(2rem, 5vw, 6rem);
+  }
+
+  .authTopBarBack {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    color: var(--foreground);
+    opacity: 0.7;
+    font-size: var(--text-sm);
+    font-weight: 600;
+    text-decoration: none;
+    transition: opacity var(--transition-base);
+  }
+
+  .authTopBarBack:hover {
+    opacity: 1;
+  }
+}
 
 @layer base {
   * {

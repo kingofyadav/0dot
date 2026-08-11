@@ -1,10 +1,7 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
-import { ArrowUpRight } from "lucide-react";
 import { getCurrentUser } from "@/lib/session";
-import { ThemeToggleLogo } from "@/components/ThemeToggleLogo";
-import { AuthTabs } from "@/components/AuthTabs";
-import { LandingLiveShowcase } from "@/components/LandingLiveShowcase";
+import { DigitalHomeVisual } from "@/components/DigitalHomeVisual";
+import { MarketingNav } from "@/components/marketing/MarketingNav";
 
 export default async function Home() {
   const user = await getCurrentUser();
@@ -12,26 +9,19 @@ export default async function Home() {
     redirect("/feed");
   }
 
+  // Minimal, button-driven landing (explicit user direction): no embedded
+  // signup/login form, no paragraph-heavy sections, no footer, no duplicate
+  // CTA buttons in the hero — MarketingNav's Log in / Create your 0dot are
+  // the only navigation. Just header + one centered hero screen.
   return (
-    <div className="landingWrap">
-      <div className="landingLogo">
-        <ThemeToggleLogo size={40} />
+    <>
+      <MarketingNav />
+
+      <div className="landingWrap landingWrap--solo">
+        <section className="landingHero">
+          <DigitalHomeVisual />
+        </section>
       </div>
-
-      <section className="landingHero">
-        <h1>One Identity. One Profile. Infinite Possibilities.</h1>
-        <p>Your permanent home on the internet.</p>
-        <p className="landingHeroTrust">Free to join · No ads · Yours, permanently</p>
-        <Link href="/explore" className="exploreLiveButton">
-          <span className="exploreLiveDot" aria-hidden="true" />
-          Explore live
-          <ArrowUpRight size={16} aria-hidden="true" />
-        </Link>
-
-        <LandingLiveShowcase />
-      </section>
-
-      <AuthTabs />
-    </div>
+    </>
   );
 }

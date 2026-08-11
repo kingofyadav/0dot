@@ -9,7 +9,7 @@ Before adding a new top-level route, check it against `src/lib/reserved-username
 ```text
 0dot.in
 │
-├── / ................................ Live — landing (signup/login, or redirect → /feed if authed)
+├── / ................................ Live — marketing landing (MarketingNav + DigitalHomeVisual hero, no embedded form; redirect → /feed if authed)
 ├── /login ........................... Live — standalone login page
 ├── /signup .......................... Live — standalone signup page
 ├── /verify, /verify/sent ............ Live — email verification Route Handler + "check your email" holding page

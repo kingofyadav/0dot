@@ -12,8 +12,11 @@ Status: Foundational document (Priority 7). Inventory of what exists today plus 
 | Text input / textarea | `.field`, `.textInput` | Shared focus-ring styling |
 | Logo (static) | `src/components/Logo.tsx` | Theme-aware image swap, used as avatar fallback |
 | Theme toggle logo | `src/components/ThemeToggleLogo.tsx` | Interactive; header-only; owns the `data-theme`/favicon/localStorage logic |
-| Site header | `src/components/SiteHeader.tsx` | Sticky, tricolor gradient underline, auth-state-aware |
-| Auth tabs | `src/components/AuthTabs.tsx` | Signup/login single-view switcher |
+| Site header | `src/components/SiteHeader.tsx` | Sticky, tricolor gradient underline, auth-state-aware; explicitly skips `/`, `/login`, `/signup` (see `isChromelessPath`, `route-context.ts`) |
+| Marketing nav | `src/components/marketing/MarketingNav.tsx` | Landing-page-only (`"/"`) header: logo, Log in / Create your 0dot, `<details>`-based mobile menu. Not `SiteHeader` — this sits above the hero on the one page that doesn't already have its own auth form front and center |
+| Auth top bar | `src/components/AuthTopBar.tsx` | `/login` and `/signup`'s own small top bar: logo + "Back to 0dot" link. Replaces the old standalone `.landingLogo` on those two pages; deliberately not the full `MarketingNav` — these stay single-purpose task pages |
+| Digital home visual | `src/components/DigitalHomeVisual.tsx` | The "identity → home → links/content/community/business" product metaphor: a themed CSS/DOM radial layout of real `<a>`/`<button>` nodes (no WebGL/SVG), `hero` variant (pointer parallax, hover expansion, on `"/"`) vs. `calm` variant (idle motion only, on `/login`/`/signup`) |
+| Explore live link | `src/components/ExploreLiveLink.tsx` | The `/explore` CTA link+dot, extracted once the same JSX was duplicated identically across `"/"`, `/login`, `/signup` |
 | Profile card / avatar ring | `.profileCard`, `.profileAvatar` | Gradient-ring border trick |
 | Link item (link-in-bio row) | `.profileLinkItem` | Used only on profile page currently |
 | Post card | `src/components/PostCard.tsx` | Used on both `/feed` and profile Posts section — good example of the "avoid page-specific components" rule already being followed |
@@ -25,6 +28,10 @@ Status: Foundational document (Priority 7). Inventory of what exists today plus 
 | Avatar | `src/components/Avatar.tsx` | Extracted from the profile page's avatar-with-fallback branching, also adopted by `UserListItem.tsx`. ~17 other `avatarUrl` call sites (messages, community members, etc.) still have their own inline version — migrate opportunistically, not in one sweep. |
 | Empty state | `src/components/EmptyState.tsx` (`.emptyState`) | Replaces the ad hoc `<p className="mutedText">` pattern on the profile Links page (both the social-links and links empty states); most other empty states across the app haven't been migrated yet. |
 
+## Superseded, left in place
+
+`src/components/AuthTabs.tsx` and `src/components/LandingLiveShowcase.tsx` were the previous `"/"`/`login`/`signup` implementation — `AuthTabs` a signup/login single-view switcher embedded directly in the landing page, `LandingLiveShowcase` a rotating mockup-profile preview. Neither is imported anywhere anymore since the landing-page redesign (`MarketingNav` + `DigitalHomeVisual` replaced them; `.landingPreview` in `globals.css` is the matching dead CSS, also left in place). Not deleted — pre-existing components, not something to force out as a side effect of an unrelated rule. Delete outright if a future pass confirms nothing will ever reuse them.
+
 ## Missing (needed before the next few phases)
 
 | Component | Needed for | Priority |
@@ -32,10 +39,12 @@ Status: Foundational document (Priority 7). Inventory of what exists today plus 
 | **Tabs** | Profile sub-sections once Media/Articles/Projects/Store land (Phases 6/7/9) | Medium — needed once IA's profile sub-navigation grows past Posts+Links |
 | **Menu / dropdown** | Overflow actions once primary-action space runs out (`UX_GUIDELINES.md` #3 — only for genuinely secondary actions) | Low for now — `MobileNavMenu.tsx` already covers the one place a dropdown-like disclosure is needed today; deliberately not generalized into a standalone `Dropdown` component without a second concrete caller (would be unused infra, not "written to be reused"). |
 | **List** (generic, virtualized-ready) | Feed and profile Posts currently render full unpaginated lists (`take: 50`, no cursor) — needs to become a real paginated/virtualized list before performance targets in `PERFORMANCE.md` are at risk | High — tied to infinite scroll |
-| **Media viewer** | Image/video posts (Phase 1 named "image/video posts" as a Feed feature — not yet built; current `Post` model is text-only) | High — blocks a named Phase 1 feature |
 | **Rich text editor** | Articles (Phase 7) | Low — not until Phase 7 |
-| **Comment thread** | Post comments (Phase 1 named "comment" as a Feed feature — not yet built; `PostLike` exists, no `Comment` model yet) | High — blocks a named Phase 1 feature |
 | **Form field variants** (select, checkbox, radio, toggle switch) | Settings (Phase 1/12), any future preference UI | Medium |
+
+**Comment thread — closed.** Comments are live, implemented as `Post.replyToId` self-relation (not a separate `Comment` model) — a reply is structurally a `Post`, rendered inline under its parent via `PostCard`'s own reply handling. `MiniPostCard` (`PostCard.tsx`) is the flattened one-level-deep rendering for a reply/repost, per phase-1 spec §5.3.
+
+**Media viewer — closed, partially.** Image posts now ship: `Post.media` (up to 4 images, `saveUploadedImage`/`@vercel/blob`), rendered by `PostMediaGrid` inside `PostCard.tsx`. Still a real gap against `PERFORMANCE.md` Rule 2 though — `PostMediaGrid` renders a plain `<img>` with no explicit width/height and no lazy-loading strategy, and `alt=""` (decorative) rather than meaningful alt text. Video posts remain unbuilt.
 
 ## Rule
 

@@ -6,8 +6,8 @@ Legend: **Live** (works today, verified in Chrome), **Planned** (has a phase spe
 
 ## New user onboarding — Live
 
-1. Visitor lands on `/` → sees signup form by default (Logo + "Welcome" heading, per `AuthTabs`).
-2. Fills displayName + username + email + password in one step (no separate "claim username" step — collapsed intentionally to reduce friction).
+1. Visitor lands on `/` → a minimal marketing hero (`MarketingNav` + `DigitalHomeVisual`), not an embedded form. `MarketingNav`'s "Create your 0dot" (or clicking any `DigitalHomeVisual` node) is the only path onward — no signup form on this page anymore (see `INFORMATION_ARCHITECTURE.md`'s `"/"` row; `AuthTabs`/`LandingLiveShowcase` are superseded, see `COMPONENT_LIBRARY.md`).
+2. On `/signup`: fills displayName + username + email + password in one step (no separate "claim username" step — collapsed intentionally to reduce friction). While typing the username, `UsernameField` debounces (~400ms) a call to `checkUsernameAvailability` (`auth.ts`) and shows live checking/available/taken/reserved/invalid/network-error states — a preview only, `signup()` re-validates format and availability itself regardless of what the field reported.
 3. Submits → account + username + profile created in one transaction, verification email logged (no email provider wired yet — dev-mode console log), redirected to `/verify/sent?token=...`.
 4. Clicks the (dev-mode) verification link → `/verify` Route Handler validates token, creates session, redirects to the user's own new profile (`/{username}`) — the "here's your new page" moment, deliberately not `/feed`.
 5. Friction points to watch as this becomes real: no actual email delivery yet (blocks real-world testing of this journey end-to-end), no resend-verification-email action yet.
@@ -22,7 +22,7 @@ Single "Log out" button in header (only visible when authenticated) → `destroy
 
 ## Create/edit a profile — Live
 
-Profile fields (displayName, bio) editable inline via a collapsed `<details>` disclosure on the owner's own profile page — no separate "settings" page yet. Avatar upload not yet built (falls back to the `Logo` mark).
+Profile fields (displayName, bio) editable inline via a collapsed `<details>` disclosure on the owner's own profile page, plus a full account/creator dashboard at `/s/{username}`. Avatar upload is built (`saveUploadedImage`/`@vercel/blob`, wired in `profile.ts`) — falls back to the `Logo` mark only when no avatar has been set.
 
 ## Add / reorder / remove a link — Live
 
@@ -42,32 +42,32 @@ Owner-only button on `PostCard` → soft-delete (`deletedAt` set, not a hard del
 
 ## View a public profile as an anonymous visitor — Live
 
-`/{username}` renders fully for logged-out visitors (bio, links, posts) with owner-only controls hidden. Header shows a "Join for free" CTA instead of the logout button, specifically only on profile pages (checked via `validateUsernameFormat` against the current path segment) — not shown on the landing page itself, which already has its own signup form front and center.
+`/{username}` renders fully for logged-out visitors (bio, links, posts) with owner-only controls hidden. Header shows a "Join for free" CTA instead of the logout button, specifically only on profile pages (checked via `validateUsernameFormat` against the current path segment) — not shown on `/`, `/login`, or `/signup` themselves, which are chromeless (no `SiteHeader`, see `isChromelessPath`/`route-context.ts`) and carry their own "Create your 0dot"/"Log in" navigation instead (`MarketingNav`, `AuthTopBar`).
 
-## Follow a user — Planned (Phase 2)
+## Follow a user — Live (Phase 2)
 
-Target: a Follow button on another user's profile (not shown on your own), follower/following counts visible on the profile, `/feed` eventually becomes follow-based "Home" with `/explore` taking over the current global-chronological behavior (per `phase-2-social-platform.md` §6). Not started.
+Follow button on another user's profile (`followUser`/`unfollowUser`, `src/app/actions/follow.ts`; `acceptFollowRequest`/`rejectFollowRequest` for private-account follow requests), follower/following counts on the profile. `/feed` is follow-based Home, `/explore` is the separate global-chronological feed, `/trending` is a third, velocity-ranked feed — three distinct implementations, not one component with a filter (see `INFORMATION_ARCHITECTURE.md`).
 
-## Send a direct message — Planned (Phase 2)
+## Send a direct message — Live (Phase 2)
 
-Target: `/messages`, 1:1 and group threads, file sharing, voice notes per the phase spec. Not started — no messaging schema exists yet.
+`/messages`, `/messages/requests` — end-to-end-encrypted 1:1 and group DMs (`src/lib/messaging.ts`) with live SSE delivery, message requests for first-contact-from-a-stranger, file/voice-note attachments.
 
-## Join a community — Planned (Phase 3)
+## Join a community — Live (Phase 3)
 
-Target: `/c/{community}`, join/leave, moderator roles, rules acceptance on join. Not started.
+`/c/{slug}` — join/leave, moderator roles (ban/mute/promote/transfer ownership), rules, discovery tags, post flair, wiki, live chat, voice rooms, polls, Q&A.
 
-## Create a business page — Planned (Phase 4)
+## Create a business page — Live (Phase 4)
 
-Target: `/b/{business}`, distinct ownership model from personal profiles (a business page has member/admin roles, not a single `authorId`). Not started.
+`/b/{slug}` — distinct ownership model from personal profiles (`BusinessMember` roles, not a single `authorId`), weak-signal claim/verification gate (auto-approve on domain match, otherwise a platform-admin review queue), products/services catalog, jobs board, appointment scheduling.
 
-## Report abuse — Planned (Phase 12)
+## Report abuse — Live (Phase 12)
 
-Target: report action available on any post, profile, comment, or message; feeds a moderation queue; reporter gets a status update; reported user can appeal. **Currently not built anywhere in the product, including Phase 1 surfaces that already ship (posts, profiles).** This is a real gap worth flagging now: every live surface today (feed, profile) has zero abuse-reporting affordance. See `docs/foundations/TRUST_SAFETY.md`.
+`ReportButton` (`src/components/ReportButton.tsx`) → `fileReport` (`src/app/actions/reports.ts`) is wired into `PostCard` (posts, hidden for the post's own author) and `/{username}` profiles (hidden for the profile owner), feeding the shared `TrustSafetyCase`/`Report` queue and the `Appeal` workflow. Block/unblock (`blockUser`/`unblockUser`, `src/app/actions/block.ts`) is likewise live on the profile page. See `docs/foundations/TRUST_SAFETY.md` for the full moderation surface.
 
 ## Delete an account — Planned (Phase 12)
 
-Target: self-service, no dark patterns, clear explanation of what happens to the username (reclaimed after a grace period, per "long-term stable URLs" in `VISION.md` — the exact grace period is an open question for the Phase 12 spec, not decided here). **Not built today** — there is no account-deletion action anywhere in `src/app/actions/`.
+Target: self-service, no dark patterns, clear explanation of what happens to the username (reclaimed after a grace period, per "long-term stable URLs" in `VISION.md` — the exact grace period is an open question, not decided here). **Still not built** — no account-deletion action exists anywhere in `src/app/actions/`, despite the rest of Phase 12 (report/block/appeal/moderation/age-gating/privacy) having shipped. See `docs/foundations/TRUST_SAFETY.md`.
 
-## Recover a forgotten password — Future
+## Recover a forgotten password — Live
 
-Not specced anywhere yet. A real gap: today, a user who forgets their password has no recovery path at all (only signup/login exist). Worth prioritizing ahead of most Phase 2+ social features, since it's a basic account-access primitive, not a social feature.
+`/forgot-password` → `/forgot-password/sent`, `/reset-password` → `/reset-password/success` (`src/app/actions/auth.ts`). No longer the gap flagged in earlier revisions of this document.

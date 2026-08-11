@@ -1,6 +1,6 @@
 # Responsive Layout
 
-Status: Foundational document (Priority 6). **Current state: not implemented.** Every page today (`authWrap`/`authCard` max-width 380px, `profileCard` max-width 560px) is a single centered column with no tested behavior at other viewports, and no breakpoints exist anywhere in `globals.css`. This document defines the target scale so the next round of UI work builds it in rather than retrofitting later. Design mobile-first, per the product brief — never desktop-first.
+Status: Foundational document (Priority 6). **Current state: first real implementation landed, most of the app still doesn't use it.** The marketing landing sections (`src/components/marketing/*`, `"/"` only — `MarketingNav`) are the first component in the codebase to actually implement the breakpoint scale below, mobile-first, at every listed width. Everywhere else (`authWrap`/`authCard` max-width 380px, `profileCard` max-width 560px, and effectively the entire signed-in app) is still a single centered column that only ever branches at `--bp-lg` (1024px) — the desktop-nav-shell threshold. This document defines the target scale so new UI work builds it in rather than retrofitting later; `MarketingNav` is the reference example to follow, not an exception to it.
 
 ## Breakpoint Scale
 

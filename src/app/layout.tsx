@@ -15,7 +15,7 @@ import { ThemeInitScript } from "@/components/ThemeInitScript";
 import { getCurrentUser } from "@/lib/session";
 import { getUnreadConversationCount } from "@/lib/messaging";
 import { getUnreadNotificationCount } from "@/lib/notifications";
-import { isChromelessPath } from "@/lib/route-context";
+import { isChromelessPath, isFixedViewportPath } from "@/lib/route-context";
 import { SpeedInsights } from "@vercel/speed-insights/next"
 import { Analytics } from "@vercel/analytics/next"
 
@@ -101,6 +101,7 @@ export default async function RootLayout({
   const headersList = await headers();
   const pathname = headersList.get("x-pathname") ?? "";
   const chromeless = isChromelessPath(pathname);
+  const fixedViewport = isFixedViewportPath(pathname);
   const currentUser = await getCurrentUser();
   // The rail is a fixed global element, same posture as the left sidebar
   // (SiteHeader) — shown on every page that has chrome at all, for every
@@ -115,7 +116,12 @@ export default async function RootLayout({
   // let .appMain reserve scroll space for the fixed bar in globals.css.
   const showBottomNav = !chromeless && Boolean(currentUser?.profile);
 
-  const bodyClassNames = [showRail && "hasRail", showBottomNav && "hasBottomNav", chromeless && "noChrome"]
+  const bodyClassNames = [
+    showRail && "hasRail",
+    showBottomNav && "hasBottomNav",
+    chromeless && "noChrome",
+    fixedViewport && "fixedViewport",
+  ]
     .filter(Boolean)
     .join(" ");
 

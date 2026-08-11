@@ -44,9 +44,7 @@ Indian-tricolor-inspired accent system: saffron primary, India green secondary, 
 
 ## Typography
 
-Currently: `var(--font-geist-sans)` (Geist, via `next/font`), no formal type scale — sizes are set ad hoc per element (`1.4rem` auth heading, `1.6rem` profile name, `1.1rem` section heading, `0.85rem`/`0.9rem` for meta text). This is a gap: formalize before the component library (Priority 7) grows past what a handful of pages can keep consistent by eye.
-
-**Target scale** (to be introduced as CSS variables, e.g. `--text-xs` … `--text-3xl`, next time typography is touched — not a blocking retrofit of every existing rem value today):
+`var(--font-geist-sans)` (Geist, via `next/font`). Implemented as real CSS variables in the `@theme` block in `globals.css` (also registered as Tailwind's `text-xs`…`text-3xl` scale) — no longer ad hoc per-element sizing:
 
 | Token | Size | Use |
 |---|---|---|
@@ -56,7 +54,9 @@ Currently: `var(--font-geist-sans)` (Geist, via `next/font`), no formal type sca
 | `--text-lg` | 1.1rem | Section headings (e.g. "Posts") |
 | `--text-xl` | 1.4rem | Card/page headings (e.g. auth heading) |
 | `--text-2xl` | 1.6rem | Profile display name |
-| `--text-3xl` | 2rem+ | Reserved — not yet used, for future marketing/landing headlines |
+| `--text-3xl` | 2.25rem | Marketing/landing headlines (`"/"`'s hero `h1`) — the first consumer of the token this doc originally reserved it for |
+
+Not yet retrofitted onto every pre-existing hand-written rem value outside these — this was the formalization pass the earlier version of this section called for, not a full sweep; new sizes should reach for a token, existing ones migrate opportunistically.
 
 Font weight: `400` body, `500` labels, `600` interactive/emphasis (buttons, links-as-actions, meta emphasis), `700` headings. Already followed consistently — formalize as the rule, don't add new weights.
 
@@ -78,7 +78,7 @@ Three tiers, implemented: `--shadow` (cards — the original single token, kept 
 
 ## Grid / Breakpoints
 
-Not yet defined anywhere in the codebase — every page today is effectively a single centered column (`max-width: 380px` auth card, `max-width: 560px` profile/feed card) with no responsive behavior tested at other viewports. This is the single largest gap between the current implementation and "world-class" — see `docs/foundations/RESPONSIVE_LAYOUT.md` for the breakpoint scale and how layouts should adapt. Do not add new fixed-width containers without registering them there. Tailwind's default breakpoints (`sm`/`md`/`lg`/`xl`/`2xl`) are available now (see Tooling above) but haven't been reconciled with `RESPONSIVE_LAYOUT.md`'s scale — check that doc before reaching for a `md:`/`lg:` prefix, rather than assuming Tailwind's defaults are this project's breakpoints.
+Most of the app is still a single centered column (`max-width: 380px` auth card, `max-width: 560px` profile/feed card) with no responsive behavior tested at other viewports. The first real exception: the marketing landing sections (`src/components/marketing/*`, `"/"` only) implement the literal breakpoint scale from `docs/foundations/RESPONSIVE_LAYOUT.md` (480/768/1024/1280/1536, mobile-first) end to end — `MarketingNav`'s collapse to a `<details>` mobile menu at 768px is the first genuinely responsive multi-breakpoint component in the codebase. Everywhere else still only branches at 1024px (`RESPONSIVE_LAYOUT.md`'s `--bp-lg`), the one breakpoint the rest of the app has ever used. Do not add new fixed-width containers without registering them in `RESPONSIVE_LAYOUT.md`. Tailwind's default breakpoints (`sm`/`md`/`lg`/`xl`/`2xl`) are available (see Tooling above) but haven't been reconciled with `RESPONSIVE_LAYOUT.md`'s scale — check that doc before reaching for a `md:`/`lg:` prefix, rather than assuming Tailwind's defaults are this project's breakpoints. `globals.css`'s own convention: literal pixel values in `@media`, not `var()` — custom properties don't resolve inside media-query conditions.
 
 ## Components (current inventory)
 
@@ -88,7 +88,7 @@ See `docs/foundations/COMPONENT_LIBRARY.md` for the full inventory and what's st
 
 ## Motion
 
-Currently: `0.15s ease` for color/border/shadow transitions (inputs, buttons, link items), `0.05s ease` translateY for button press feedback. No entrance/exit animation exists yet (no modals/toasts to animate). Formalize as tokens once those components exist: `--transition-fast: 0.05s ease` (press feedback), `--transition-base: 0.15s ease` (hover/focus states), `--transition-slow: 0.25s ease` (panel/modal enter-exit). Respect `prefers-reduced-motion` — not yet handled anywhere; see `docs/foundations/ACCESSIBILITY.md`.
+Implemented as real CSS variables in the `@theme` block in `globals.css`: `--transition-fast: 0.05s ease` (press feedback), `--transition-base: 0.15s ease` (hover/focus states — inputs, buttons, link items, `DigitalHomeVisual`'s node hover/tooltip), `--transition-slow: 0.25s ease` (panel/modal enter-exit, reserved for the marketing sections' panel-level transitions). Not yet retrofitted onto every pre-existing hand-written `0.15s ease`/`0.05s ease` value outside the new marketing/`DigitalHomeVisual` CSS — same opportunistic-migration posture as Typography above. A blanket `prefers-reduced-motion: reduce` override (zeroes animation/transition duration) is implemented globally; see `docs/foundations/ACCESSIBILITY.md`.
 
 ## Dark Mode
 

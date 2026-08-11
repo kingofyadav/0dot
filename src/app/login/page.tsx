@@ -2,11 +2,13 @@
 
 import { useActionState, useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight } from "lucide-react";
 import { login } from "@/app/actions/auth";
 import { startSsoLogin } from "@/app/actions/sso";
+import { AuthTopBar } from "@/components/AuthTopBar";
 import { ThemeToggleLogo } from "@/components/ThemeToggleLogo";
 import { AuthTrust } from "@/components/AuthTrust";
+import { DigitalHomeVisual } from "@/components/DigitalHomeVisual";
+import { ExploreLiveLink } from "@/components/ExploreLiveLink";
 import { PasswordField } from "@/components/PasswordField";
 
 export default function LoginPage() {
@@ -17,20 +19,25 @@ export default function LoginPage() {
   // the password that was actually wrong.
   const [identifier, setIdentifier] = useState("");
 
+  // Login has no signup form to jump to, unlike /signup's own
+  // focusFirstField — activating "Profile" here instead focuses the
+  // identifier field, the closest equivalent "start here" action.
+  function focusIdentifier() {
+    document.getElementById("identifier")?.focus();
+  }
+
   return (
     <div className="landingWrap">
-      <div className="landingLogo">
-        <ThemeToggleLogo size={40} />
-      </div>
+      <AuthTopBar />
 
       <section className="landingHero">
         <h1>Welcome back.</h1>
         <p>Your one link, always exactly where you left it.</p>
-        <Link href="/explore" className="exploreLiveButton">
-          <span className="exploreLiveDot" aria-hidden="true" />
-          Explore live
-          <ArrowUpRight size={16} aria-hidden="true" />
-        </Link>
+        <ExploreLiveLink />
+
+        {/* calm variant: spec §16 — "your home is waiting for you," no
+            hover expansion or pointer parallax, just the idle motion. */}
+        <DigitalHomeVisual variant="calm" onProfileActivate={focusIdentifier} />
       </section>
 
       <div className="authStack">
