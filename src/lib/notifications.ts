@@ -334,12 +334,16 @@ export async function notifyMentionsInBody(body: string, actorId: string, subjec
 
   const mentionedUsers = await db.username.findMany({
     where: { handle: { in: handles } },
-    select: { userId: true },
+    select: { userId: true, user: { select: { profile: { select: { allowTagging: true } } } } },
   });
 
   await Promise.all(
     mentionedUsers
-      .filter((u) => u.userId !== actorId)
+      // addendum-account-settings-hardening.md §9: Profile.allowTagging=false
+      // means a mention resolves to nothing, same "no error, just doesn't
+      // become a notification" posture this function already uses for
+      // handles that don't match any user at all.
+      .filter((u) => u.userId !== actorId && u.user.profile?.allowTagging !== false)
       .map((u) => notifyMention({ recipientId: u.userId, actorId, subjectId }))
   );
 }

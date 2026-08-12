@@ -52,7 +52,9 @@ export async function getSuggestedUsers(viewerId: string, limit: number) {
   const activeCandidates = await db.user.findMany({
     where: {
       id: { notIn: [...excludeIds, ...mutualCounts.keys()] },
-      profile: { isNot: null },
+      // addendum-account-settings-hardening.md §9: also requires a profile
+      // to exist, same as the isNot: null check this replaces.
+      profile: { is: { discoverableInSearch: true } },
       posts: { some: { createdAt: { gte: since7d }, deletedAt: null } },
     },
     select: { id: true },
@@ -64,7 +66,10 @@ export async function getSuggestedUsers(viewerId: string, limit: number) {
   if (candidateIds.length === 0) return [];
 
   const candidates = await db.user.findMany({
-    where: { id: { in: candidateIds } },
+    // mutualCounts' source query (above) doesn't filter on
+    // discoverableInSearch, so it's re-applied here — the one place all
+    // candidate sources converge before scoring.
+    where: { id: { in: candidateIds }, profile: { is: { discoverableInSearch: true } } },
     include: { username: true, profile: true },
   });
   const eligible = candidates.filter((u) => u.username && u.profile);
@@ -116,7 +121,11 @@ export async function getSuggestedUsers(viewerId: string, limit: number) {
 export async function getPublicSuggestedUsers(limit: number) {
   const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
   const candidates = await db.user.findMany({
-    where: { profile: { isNot: null }, username: { isNot: null }, posts: { some: { createdAt: { gte: since7d }, deletedAt: null } } },
+    where: {
+      profile: { is: { discoverableInSearch: true } },
+      username: { isNot: null },
+      posts: { some: { createdAt: { gte: since7d }, deletedAt: null } },
+    },
     include: { username: true, profile: true },
     take: SUGGESTION_POOL_SIZE,
   });

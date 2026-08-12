@@ -347,9 +347,17 @@ export default async function SearchPage({
 async function searchUsers(q: string) {
   const rows = await db.username.findMany({
     where: {
-      OR: [
-        { handle: { contains: q.toLowerCase() } },
-        { user: { profile: { displayName: { contains: q } } } },
+      AND: [
+        {
+          OR: [
+            { handle: { contains: q.toLowerCase() } },
+            { user: { profile: { displayName: { contains: q } } } },
+          ],
+        },
+        // addendum-account-settings-hardening.md §9: excluded by
+        // construction, same "gated rows never reach the WHERE" posture as
+        // searchBusinesses/searchProjects/searchKnowledge below.
+        { user: { profile: { discoverableInSearch: true } } },
       ],
     },
     include: { user: { include: { profile: true } } },

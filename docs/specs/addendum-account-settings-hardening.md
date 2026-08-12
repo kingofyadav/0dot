@@ -1,10 +1,12 @@
 # Addendum — Account Settings Hardening (2FA, Sessions, Privacy, Lifecycle)
 
 Status: Built (2026-08-11) — all nine sections implemented per this spec.
-Enforcement of the new Profile privacy fields at their call sites (DM-send,
-tag-on-post, search/explore), real SMS delivery, and actually sending the
-new email notification channel remain out of scope, exactly as this
-document's own §1 flagged from the start.
+Enforcement of the Profile privacy fields at DM-send (`canReceiveDmFrom`,
+`src/lib/messaging.ts`), tag-on-post (`notifyMentionsInBody`,
+`src/lib/notifications.ts`), and search/explore (`searchUsers` and
+`suggested-users.ts`) landed 2026-08-12. Real SMS delivery and actually
+sending the new email notification channel remain out of scope, exactly as
+this document's own §1 flagged from the start.
 Owner: TBD
 Related: [ROADMAP.md](../ROADMAP.md), [phase-1-foundation.md](phase-1-foundation.md),
 [phase-2-social-platform.md](phase-2-social-platform.md),
@@ -34,11 +36,9 @@ accessibility preferences.
 actually *sending* the new email notification channel (the preference
 plumbing is built; wiring every notification producer to check it is
 follow-up work, matching how push delivery preferences already work without
-touching every producer); enforcing the new privacy fields at their
-call sites (DM-send, tag-on-post, search/explore — the fields and settings
-UI are built, the enforcement checks are noted as follow-up per field);
-real SMS delivery (a provider seam is built, matching `email.ts`'s existing
-console-fallback pattern, no real provider wired); suspicious-login email
+touching every producer); real SMS delivery (a provider seam is built,
+matching `email.ts`'s existing console-fallback pattern, no real provider
+wired); suspicious-login email
 alerts (a notification-producer concern, same posture as email sending
 above).
 
@@ -243,10 +243,7 @@ the schema comment on `NotificationDeliveryPreference.channel` already lists
 - `updatePrivacySettings` action alongside `updateProfile` (check
   `EditProfileForm`'s import for the exact file — likely
   `src/app/actions/profile.ts`).
-- Enforcement is out of scope here — see §1. Flagged per-field as follow-up:
-  DM-send action needs an `allowDmsFrom` check, tag-on-post needs an
-  `allowTagging` check, search/explore query needs a `discoverableInSearch`
-  `where` clause.
+- Enforcement landed 2026-08-12 — see the note at the top of this document.
 - Nav: add to the `"Privacy"` group introduced in §5:
   `{ href: '${base}/privacy', label: "Privacy" }`.
 

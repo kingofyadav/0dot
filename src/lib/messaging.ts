@@ -169,6 +169,30 @@ export async function determineInitialRequestStatus(
   return follow ? "accepted" : "pending";
 }
 
+// addendum-account-settings-hardening.md §9: Profile.allowDmsFrom gates who
+// can *start* a new conversation with this recipient — "everyone" (default,
+// no check), "followers" (recipient only accepts DMs from accounts that
+// follow them, i.e. an "accepted" Follow row with senderId as follower), or
+// "none" (nobody, short of a block-level hard stop). Only checked at
+// conversation creation, same as isBlockedEitherWay's split between
+// startDirectConversation and sendMessage — an existing thread isn't torn
+// up retroactively if the recipient tightens this setting later.
+export async function canReceiveDmFrom(senderId: string, recipientId: string): Promise<boolean> {
+  const profile = await db.profile.findUnique({
+    where: { userId: recipientId },
+    select: { allowDmsFrom: true },
+  });
+  const allow = profile?.allowDmsFrom ?? "everyone";
+  if (allow === "everyone") return true;
+  if (allow === "none") return false;
+
+  const follow = await db.follow.findUnique({
+    where: { followerId_followeeId: { followerId: senderId, followeeId: recipientId } },
+    select: { status: true },
+  });
+  return follow?.status === "accepted";
+}
+
 export type ConversationCursor = { lastMessageAt: Date; id: string };
 
 // Reuses parseCursor's field-agnostic "<iso>~<id>" parsing (pagination.ts)

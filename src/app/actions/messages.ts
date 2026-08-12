@@ -12,6 +12,7 @@ import {
   getOrCreateDirectConversation,
   getMessagesForConversation,
   determineInitialRequestStatus,
+  canReceiveDmFrom,
   markConversationRead,
   buildMessagePreview,
   GROUP_PARTICIPANT_CAP,
@@ -191,6 +192,7 @@ export async function startDirectConversation(
   if (body.length > MAX_MESSAGE_LENGTH) return { error: `Messages are limited to ${MAX_MESSAGE_LENGTH} characters.` };
   if (!checkStartConversationRateLimit(user.id)) return { error: START_RATE_LIMIT_ERROR };
   if (await isBlockedEitherWay(user.id, recipientId)) return { error: "You can't message this user." };
+  if (!(await canReceiveDmFrom(user.id, recipientId))) return { error: "You can't message this user." };
 
   const recipient = await db.user.findUnique({ where: { id: recipientId }, select: { id: true } });
   if (!recipient) return { error: "User not found." };
