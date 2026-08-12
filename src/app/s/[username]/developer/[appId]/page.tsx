@@ -7,6 +7,7 @@ import { ALLOWED_WEBHOOK_EVENT_TYPES } from "@/lib/webhooks";
 import { rotateClientSecret, requestScope, deleteWebhookSubscription } from "@/app/actions/developer-apps";
 import { RedirectUrisForm } from "@/components/RedirectUrisForm";
 import { WebhookSubscriptionForm } from "@/components/WebhookSubscriptionForm";
+import { BillingPlanForm } from "./BillingPlanForm";
 
 const SCOPE_STATUS_LABEL: Record<string, string> = { pending: "Pending review", approved: "Approved", rejected: "Rejected" };
 
@@ -113,7 +114,7 @@ export default async function DeveloperAppDetailPage({
         <WebhookSubscriptionForm appId={app.id} eventTypes={ALLOWED_WEBHOOK_EVENT_TYPES} />
       </div>
 
-      <div>
+      <div style={{ marginBottom: "1.5rem" }}>
         <p className="sectionHeading">API usage (last 24 hourly windows)</p>
         {recentUsage.length === 0 && <p className="mutedText">No API requests yet.</p>}
         {recentUsage.length > 0 && (
@@ -121,6 +122,15 @@ export default async function DeveloperAppDetailPage({
             {recentUsage.reduce((sum, row) => sum + row.requestCount, 0)} requests total
           </p>
         )}
+      </div>
+
+      <div>
+        <p className="sectionHeading">Billing plan</p>
+        <p className="mutedText" style={{ fontSize: "0.85rem", marginBottom: "0.5rem" }}>
+          Free apps are rate-limited once they exceed their included hourly requests. Pay-as-you-go and
+          committed apps aren&apos;t hard-capped — usage settles periodically as a platform charge instead.
+        </p>
+        <BillingPlanForm appId={app.id} billingPlan={app.billingPlan} />
       </div>
     </div>
   );

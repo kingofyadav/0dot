@@ -72,6 +72,42 @@ export async function notifyWebhookDisabled(args: { recipientId: string; subject
   publishToUsers([args.recipientId], { type: "notification" });
 }
 
+// custom-domains addendum §10 step 6 / §7.2's acceptance criterion: a
+// renewal failure must notify the owner, not just log internally — same
+// system-initiated shape as notifyWebhookDisabled. No code path in this
+// build's stub SSL provisioning (custom-domains.ts's verifyDomainRouting,
+// which simulates ACME success instantly once routing verifies) can
+// actually reach ssl_status = renewal_failed, since there's no real
+// certificate-renewal loop to fail — this exists for a real ACME
+// integration to call once one exists, not exercised by anything today.
+export async function notifyCustomDomainSslRenewalFailed(args: { recipientId: string; customDomainId: string }): Promise<void> {
+  await db.notification.create({
+    data: { recipientId: args.recipientId, actorId: null, type: "custom_domain_ssl_renewal_failed", subjectType: "custom_domain", subjectId: args.customDomainId },
+  });
+  publishToUsers([args.recipientId], { type: "notification" });
+}
+
+// custom-domains addendum §10 step 6: sent once, on the transition into
+// suspended_nonpayment (custom-domains.ts's sweepBillingLapse) — not
+// re-sent on every subsequent sweep tick while it stays suspended.
+export async function notifyCustomDomainSuspendedNonpayment(args: { recipientId: string; customDomainId: string }): Promise<void> {
+  await db.notification.create({
+    data: { recipientId: args.recipientId, actorId: null, type: "custom_domain_suspended_nonpayment", subjectType: "custom_domain", subjectId: args.customDomainId },
+  });
+  publishToUsers([args.recipientId], { type: "notification" });
+}
+
+// custom-domains addendum §10 step 6: sent on a *regression* — a
+// previously-verified domain's DNS routing breaking — not on every failed
+// poll while a fresh claim is still mid-setup (that would fire on nearly
+// every claim, since routing_verified is rarely instant).
+export async function notifyCustomDomainRoutingFailed(args: { recipientId: string; customDomainId: string }): Promise<void> {
+  await db.notification.create({
+    data: { recipientId: args.recipientId, actorId: null, type: "custom_domain_routing_failed", subjectType: "custom_domain", subjectId: args.customDomainId },
+  });
+  publishToUsers([args.recipientId], { type: "notification" });
+}
+
 // phase-11 spec §4.3 acceptance criterion: sent for `upheld` ModerationFlag
 // outcomes on ordinary categories only — never for the wholly separate
 // CSAM pipeline (§4.2), which follows its own legally-governed rules about

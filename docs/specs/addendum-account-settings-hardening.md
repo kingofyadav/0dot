@@ -1,6 +1,10 @@
 # Addendum — Account Settings Hardening (2FA, Sessions, Privacy, Lifecycle)
 
-Status: Draft — planned, not yet built
+Status: Built (2026-08-11) — all nine sections implemented per this spec.
+Enforcement of the new Profile privacy fields at their call sites (DM-send,
+tag-on-post, search/explore), real SMS delivery, and actually sending the
+new email notification channel remain out of scope, exactly as this
+document's own §1 flagged from the start.
 Owner: TBD
 Related: [ROADMAP.md](../ROADMAP.md), [phase-1-foundation.md](phase-1-foundation.md),
 [phase-2-social-platform.md](phase-2-social-platform.md),

@@ -74,6 +74,9 @@ export default async function ManageBusinessPage({ params }: { params: Promise<{
           <Link href={`/b/${business.slug}/manage/crm`} className="button buttonSecondary" style={{ fontSize: "0.85rem", padding: "0.4rem 0.7rem" }}>
             CRM
           </Link>
+          <Link href={`/b/${business.slug}/manage/billing`} className="button buttonSecondary" style={{ fontSize: "0.85rem", padding: "0.4rem 0.7rem" }}>
+            Billing
+          </Link>
           <Link href={`/b/${business.slug}`} className="button buttonSecondary" style={{ fontSize: "0.85rem", padding: "0.4rem 0.7rem" }}>
             View business page
           </Link>

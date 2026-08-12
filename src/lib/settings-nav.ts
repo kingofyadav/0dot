@@ -17,7 +17,12 @@ export function settingsNavGroups(handle: string): SettingsNavGroup[] {
     },
     {
       label: "Security",
-      items: [{ href: `${base}/security`, label: "Change password" }],
+      items: [
+        { href: `${base}/security`, label: "Change password" },
+        { href: `${base}/two-factor`, label: "Two-factor authentication" },
+        { href: `${base}/security/sessions`, label: "Active sessions" },
+        { href: `${base}/security/contact`, label: "Email & phone" },
+      ],
     },
     {
       label: "Portfolio",
@@ -38,6 +43,13 @@ export function settingsNavGroups(handle: string): SettingsNavGroup[] {
         { href: `${base}/monetization/products`, label: "Digital products" },
         { href: `${base}/monetization/services`, label: "Freelance services" },
         { href: `${base}/monetization/affiliate`, label: "Affiliate" },
+      ],
+    },
+    {
+      label: "Billing",
+      items: [
+        { href: `${base}/billing/premium`, label: "Premium" },
+        { href: `${base}/billing/domains`, label: "Custom domain" },
       ],
     },
     {
@@ -74,6 +86,20 @@ export function settingsNavGroups(handle: string): SettingsNavGroup[] {
     {
       label: "Notifications",
       items: [{ href: `${base}/notifications`, label: "Push & delivery" }],
+    },
+    {
+      label: "Privacy",
+      items: [
+        { href: `${base}/privacy`, label: "Privacy" },
+        { href: `${base}/blocked`, label: "Blocked users" },
+      ],
+    },
+    {
+      label: "Account",
+      items: [
+        { href: `${base}/account`, label: "Account management" },
+        { href: `${base}/preferences`, label: "Language & accessibility" },
+      ],
     },
   ];
 }

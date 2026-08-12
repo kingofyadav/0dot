@@ -1,11 +1,13 @@
 "use server";
 
 import { randomBytes, createHash } from "crypto";
+import { headers } from "next/headers";
 import bcrypt from "bcryptjs";
 import { redirect } from "next/navigation";
 import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
-import { createSession, destroySession, getCurrentUser, getCurrentSessionToken } from "@/lib/session";
+import { createSession, destroySession, getCurrentUser, createTwoFactorChallenge } from "@/lib/session";
+import { revokeAllOtherSessions } from "@/app/actions/session-management";
 import { validateUsernameFormat } from "@/lib/reserved-usernames";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { toE164 } from "@/lib/country-codes";
@@ -239,14 +241,43 @@ export async function login(
   // approximately as long as a wrong-password one, closing the timing
   // side-channel a short-circuited `!user ||` would otherwise leave open.
   const passwordValid = await bcrypt.compare(password, user?.passwordHash ?? DUMMY_HASH);
+  // addendum §10: one LoginEvent row per login() attempt — only possible
+  // when a user actually resolved (the schema's userId is required), so a
+  // bad identifier that matches no account still can't be logged against
+  // anyone. The extra insert only on the user-found path re-introduces a
+  // small timing gap versus the DUMMY_HASH fix above, but it's a single
+  // indexed write (~1ms) against a ~100ms bcrypt compare — not a
+  // meaningful reopening of that side channel.
+  if (user) {
+    const headersList = await headers();
+    await db.loginEvent.create({
+      data: { userId: user.id, ipAddress: ip, userAgent: headersList.get("user-agent"), success: passwordValid, method: "password" },
+    });
+  }
   if (!user || !passwordValid || isInternalSystemAccountEmail(user.email)) {
     return { error: "Incorrect email/username/mobile number or password." };
   }
 
   if (user.status !== "active") {
-    // Deliberately generic — doesn't distinguish suspended/deactivated/deleted
-    // to a caller who already has the right password for this email.
-    return { error: "This account is no longer active." };
+    // addendum §7: a deactivated account (deletionScheduledFor set, still
+    // within the 30-day window) gets a reactivation path here instead of
+    // the generic rejection every other non-active status hits.
+    if (user.status === "deactivated" && user.deletionScheduledFor && user.deletionScheduledFor > new Date()) {
+      await db.user.update({ where: { id: user.id }, data: { status: "active", deletionScheduledFor: null } });
+    } else {
+      // Deliberately generic — doesn't distinguish suspended/deactivated/deleted
+      // to a caller who already has the right password for this email.
+      return { error: "This account is no longer active." };
+    }
+  }
+
+  // addendum §3: password check passed — branch before creating a real
+  // session if 2FA is enabled. The LoginEvent above already recorded the
+  // password stage; verifyLoginTwoFactor (two-factor.ts) records its own
+  // row for the TOTP/recovery-code stage once that completes.
+  if (user.twoFactorEnabledAt) {
+    await createTwoFactorChallenge(user.id);
+    redirect("/login/2fa");
   }
 
   await createSession(user.id);
@@ -417,10 +448,7 @@ export async function changePassword(
   // kill-everything (there, the caller isn't authenticated at all; here
   // logging the user straight back out after they just saved would be a
   // worse experience for no added security).
-  const currentToken = await getCurrentSessionToken();
-  await db.session.deleteMany({
-    where: { userId: user.id, token: { not: currentToken ?? "" } },
-  });
+  await revokeAllOtherSessions(user.id);
 
   return { success: true };
 }

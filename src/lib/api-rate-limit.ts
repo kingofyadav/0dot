@@ -19,11 +19,17 @@ function currentHourWindow(): Date {
 const UNREVIEWED_LIMIT_PER_HOUR = 100;
 const REVIEWED_LIMIT_PER_HOUR = 2000;
 
+// billing addendum §4.2's acceptance criterion: a free-plan app exceeding
+// its included usage is rate-limited (the tiering above, unchanged) rather
+// than silently over-billed. pay_as_you_go/committed apps opted into being
+// billed for usage instead — the hard cap no longer applies to them, and
+// api-usage-billing.ts's periodic settlement is what prices what they used,
+// not this function.
 export async function checkApiRateLimit(appId: string): Promise<{ allowed: boolean; limit: number; remaining: number }> {
-  const hasApprovedHighSensitivityScope = await db.developerAppScope.findFirst({
-    where: { appId, status: "approved", scope: { sensitivity: "high" } },
-    select: { appId: true },
-  });
+  const [app, hasApprovedHighSensitivityScope] = await Promise.all([
+    db.developerApp.findUnique({ where: { id: appId }, select: { billingPlan: true } }),
+    db.developerAppScope.findFirst({ where: { appId, status: "approved", scope: { sensitivity: "high" } }, select: { appId: true } }),
+  ]);
   const limit = hasApprovedHighSensitivityScope ? REVIEWED_LIMIT_PER_HOUR : UNREVIEWED_LIMIT_PER_HOUR;
   const windowStart = currentHourWindow();
 
@@ -33,5 +39,8 @@ export async function checkApiRateLimit(appId: string): Promise<{ allowed: boole
     update: { requestCount: { increment: 1 } },
   });
 
+  if (app?.billingPlan === "pay_as_you_go" || app?.billingPlan === "committed") {
+    return { allowed: true, limit, remaining: Math.max(0, limit - counter.requestCount) };
+  }
   return { allowed: counter.requestCount <= limit, limit, remaining: Math.max(0, limit - counter.requestCount) };
 }

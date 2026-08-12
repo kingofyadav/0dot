@@ -11,6 +11,7 @@ import { saveUploadedImage } from "@/lib/uploads";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { requireOwnProfile } from "@/lib/auth-guards";
 import { isSafeUrl } from "@/lib/url-safety";
+import { isProfilePremium, linkCapFor } from "@/lib/platform-billing";
 import type { ActionState } from "@/app/actions/auth";
 
 // Every mutation here affects both surfaces: the settings page itself
@@ -97,6 +98,8 @@ export async function updateProfile(
     return { error: "Bio must be 280 characters or fewer." };
   }
 
+  const isPremium = await isProfilePremium(user.profile!.id);
+
   const data: {
     displayName: string;
     bio: string;
@@ -107,7 +110,16 @@ export async function updateProfile(
   } = {
     displayName,
     bio,
-    themePreset: isValidThemePreset(themePresetRaw) ? themePresetRaw : "default",
+    // premium-profiles addendum §5's downgrade rule: a currently-applied
+    // premium preset that lapsed stays applied — re-submitting the
+    // unchanged form (e.g. editing just the display name) must not reset
+    // it, so resubmitting the profile's own current value is always
+    // allowed regardless of premium status; only switching to a
+    // *different* premium-only preset while not premium falls back.
+    themePreset:
+      themePresetRaw === user.profile!.themePreset || isValidThemePreset(themePresetRaw, isPremium)
+        ? themePresetRaw
+        : "default",
     isPrivate: formData.get("isPrivate") === "on",
   };
 
@@ -142,8 +154,8 @@ export async function createLink(
 
   // Higher budget than post creation — someone setting up a fresh profile
   // legitimately adds a burst of links in one sitting. Still bounded to
-  // stop scripted abuse of the 100-link cap check below — see phase-1
-  // spec §7.2.
+  // stop scripted abuse of the link cap check below — see phase-1 spec
+  // §7.2.
   if (!checkRateLimit(`link:create:user:${user.id}`, { max: 20, windowMs: 10 * 60 * 1000 })) {
     return { error: "You're adding links too fast. Please slow down." };
   }
@@ -161,8 +173,11 @@ export async function createLink(
   const linkCount = await db.link.count({
     where: { profileId: user.profile!.id },
   });
-  if (linkCount >= 100) {
-    return { error: "You've reached the 100-link limit." };
+  // premium-profiles addendum §3.4: raised, not removed, for an active
+  // profile_premium subscriber — see linkCapFor (platform-billing.ts).
+  const cap = await linkCapFor(user.profile!.id);
+  if (linkCount >= cap) {
+    return { error: `You've reached the ${cap}-link limit.` };
   }
 
   await db.link.create({
@@ -290,4 +305,31 @@ export async function deleteSocialLink(formData: FormData): Promise<void> {
   });
 
   revalidateProfilePaths(user.username!.handle);
+}
+
+const ALLOW_DMS_FROM_VALUES = new Set(["everyone", "followers", "none"]);
+
+// addendum §9: three controls backed by Profile.allowDmsFrom/allowTagging/
+// discoverableInSearch. Enforcement at each field's call site (DM-send,
+// tag-on-post, search/explore) is deliberately out of scope for this pass —
+// see addendum §1 — this only persists the choice.
+export async function updatePrivacySettings(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await requireOwnProfile();
+
+  const allowDmsFrom = String(formData.get("allowDmsFrom") ?? "everyone");
+  if (!ALLOW_DMS_FROM_VALUES.has(allowDmsFrom)) {
+    return { error: "Choose a valid option for who can message you." };
+  }
+
+  await db.profile.update({
+    where: { id: user.profile!.id },
+    data: {
+      allowDmsFrom,
+      allowTagging: formData.get("allowTagging") === "on",
+      discoverableInSearch: formData.get("discoverableInSearch") === "on",
+    },
+  });
+
+  revalidateProfilePaths(user.username!.handle);
+  return { success: true };
 }

@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { deleteLink, deleteSocialLink, moveLink, toggleFeatured } from "@/app/actions/profile";
 import { getLinkStats } from "@/lib/link-stats";
+import { isProfilePremium, FREE_ANALYTICS_WINDOW_DAYS } from "@/lib/platform-billing";
 import { getSocialPlatformLabel, type SocialPlatform } from "@/lib/theme-presets";
 import { SocialIcon } from "@/components/SocialIcon";
 import { ConfirmButton } from "@/components/ConfirmButton";
@@ -29,7 +30,9 @@ export default async function LinksSettingsPage() {
   // (that only ever applied to non-owners on the public page); still
   // sorted featured-first for the same reason the public page does.
   const links = [...profileRow.links].sort((a, b) => Number(b.isFeatured) - Number(a.isFeatured));
-  const linkStats = await Promise.all(links.map((link) => getLinkStats(link.id)));
+  const isPremium = await isProfilePremium(profileRow.id);
+  const analyticsWindowDays = isPremium ? null : FREE_ANALYTICS_WINDOW_DAYS;
+  const linkStats = await Promise.all(links.map((link) => getLinkStats(link.id, analyticsWindowDays)));
   const now = new Date();
 
   return (
@@ -97,6 +100,7 @@ export default async function LinksSettingsPage() {
                 <a href={`/r/${link.id}`} target="_blank" rel="noopener noreferrer nofollow">
                   {link.label}
                   {isScheduledHidden && <span className="mutedText"> (scheduled)</span>}
+                  {!link.isActive && <span className="mutedText"> (hidden — over the free plan&apos;s link limit)</span>}
                 </a>
               }
               trailing={
@@ -163,6 +167,7 @@ export default async function LinksSettingsPage() {
                 ) : (
                   <p>No referrer data yet.</p>
                 )}
+                {!isPremium && <p>Showing the last {FREE_ANALYTICS_WINDOW_DAYS} days. Premium unlocks full history.</p>}
               </div>
             </details>
           </div>

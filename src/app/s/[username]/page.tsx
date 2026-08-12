@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
+import { isProfilePremium } from "@/lib/platform-billing";
 import { EditProfileForm } from "./EditProfileForm";
 
 // Settings index — Edit profile. Auth/own-handle checks live in
@@ -13,6 +14,8 @@ export default async function EditProfilePage() {
   const profileRow = await db.profile.findUnique({ where: { userId: currentUser.id } });
   if (!profileRow) redirect("/claim-username");
 
+  const isPremium = await isProfilePremium(profileRow.id);
+
   return (
     <div className="settingsSection">
       <h2 className="settingsSectionHeading">Edit profile</h2>
@@ -23,6 +26,7 @@ export default async function EditProfilePage() {
         coverUrl={profileRow.coverUrl}
         themePreset={profileRow.themePreset}
         isPrivate={profileRow.isPrivate}
+        isPremium={isPremium}
       />
     </div>
   );

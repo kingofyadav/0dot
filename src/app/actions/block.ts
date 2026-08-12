@@ -13,6 +13,9 @@ function revalidateBlockPaths(a: string | null, b: string | null) {
     revalidatePath(`/${handle}`);
     revalidatePath(`/${handle}/followers`);
     revalidatePath(`/${handle}/following`);
+    // addendum §5: keeps the settings blocked-users list in sync with a
+    // block/unblock made from the profile page's own button.
+    revalidatePath(`/s/${handle}/blocked`);
   }
 }
 

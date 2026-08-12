@@ -14,6 +14,7 @@ export function EditProfileForm({
   coverUrl,
   themePreset,
   isPrivate,
+  isPremium,
 }: {
   displayName: string;
   bio: string;
@@ -21,6 +22,7 @@ export function EditProfileForm({
   coverUrl: string | null;
   themePreset: string;
   isPrivate: boolean;
+  isPremium: boolean;
 }) {
   const [state, formAction, pending] = useActionState(updateProfile, undefined);
   const [bioValue, setBioValue] = useState(bio);
@@ -109,11 +111,21 @@ export function EditProfileForm({
         <label htmlFor="themePreset">Theme</label>
         <select id="themePreset" name="themePreset" defaultValue={themePreset}>
           {THEME_PRESETS.map((preset) => (
-            <option key={preset.key} value={preset.key}>
+            <option
+              key={preset.key}
+              value={preset.key}
+              disabled={preset.premiumOnly && !isPremium && preset.key !== themePreset}
+            >
               {preset.label}
+              {preset.premiumOnly ? " (Premium)" : ""}
             </option>
           ))}
         </select>
+        {!isPremium && (
+          <p className="mutedText" style={{ fontSize: "0.8rem", margin: "0.25rem 0 0" }}>
+            Premium unlocks {THEME_PRESETS.filter((p) => p.premiumOnly).length} additional theme presets.
+          </p>
+        )}
       </div>
 
       <div className="field">

@@ -132,10 +132,20 @@ export default async function RootLayout({
       ]).then(([conversations, notifications]) => conversations + notifications)
     : 0;
 
+  // account-settings-hardening addendum §11: read server-side (not a
+  // client-side effect) so these apply before first paint, same "no client
+  // flash" reasoning ThemeInitScript already handles for color theme.
+  const accessibilityPrefs = currentUser?.accessibilityPrefsJson
+    ? (JSON.parse(currentUser.accessibilityPrefsJson) as { reducedMotion?: boolean; fontScale?: string; highContrast?: boolean })
+    : null;
+
   return (
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable}`}
+      data-reduced-motion={accessibilityPrefs?.reducedMotion ? "true" : undefined}
+      data-font-scale={accessibilityPrefs?.fontScale && accessibilityPrefs.fontScale !== "default" ? accessibilityPrefs.fontScale : undefined}
+      data-high-contrast={accessibilityPrefs?.highContrast ? "true" : undefined}
       suppressHydrationWarning
     >
       <head>

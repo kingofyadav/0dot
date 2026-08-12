@@ -1,6 +1,8 @@
 # Addendum — Platform Billing Core & API Usage Billing
 
-Status: Draft
+Status: Built (2026-08-11) — §2 PlatformSubscription core and §4 API usage
+billing implemented per this spec. §3 is superseded by
+addendum-custom-domains.md, whose own build covers that ground.
 Owner: TBD
 Related: [ROADMAP.md](../ROADMAP.md), [roadmap-audit.md](roadmap-audit.md),
 [addendum-custom-domains.md](addendum-custom-domains.md), [addendum-premium-profiles.md](addendum-premium-profiles.md),

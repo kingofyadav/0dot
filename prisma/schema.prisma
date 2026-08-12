@@ -50,18 +50,44 @@ model User {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
+  // account-settings-hardening addendum §2/§3: base32 TOTP secret, plain —
+  // matches this codebase's existing "trust the DB" posture (nothing else
+  // is field-encrypted, e.g. phone above). twoFactorEnabledAt null means
+  // either never enrolled or mid-enrollment (secret set, first code not yet
+  // confirmed) — confirmTwoFactorEnrollment is what sets it.
+  twoFactorSecret        String?
+  twoFactorEnabledAt     DateTime?
+  // addendum §11: account-level prefs, curated small lists at the app layer
+  // (settings/preferences), not validated against a full IANA/locale DB here.
+  locale                 String?
+  timezone               String?
+  // addendum §7: set by deactivateAccount/requestAccountDeletion, cleared by
+  // reactivateAccount (login()) if the user returns before the sweeper
+  // (account-deletion.ts) processes it.
+  deletionScheduledFor   DateTime?
+  // addendum §11: hand-serialized { reducedMotion, fontScale, highContrast }
+  // — matches this schema's "no native Json scalar" convention (hoursJson,
+  // imagesJson, etc.), since Profile.themePreset is about public profile
+  // appearance, not personal reading prefs.
+  accessibilityPrefsJson String?
+
   username                        Username?
   profile                         Profile?
   sessions                        Session[]
   deviceTokens                    DeviceToken[]
   notificationDeliveryPreferences NotificationDeliveryPreference[]
 
-  emailVerificationTokens EmailVerificationToken[]
-  passwordResetTokens     PasswordResetToken[]
-  posts                   Post[]
-  postLikes               PostLike[]
-  bookmarks               Bookmark[]
-  pollVotes               PollVote[]
+  emailVerificationTokens    EmailVerificationToken[]
+  passwordResetTokens        PasswordResetToken[]
+  twoFactorRecoveryCodes     TwoFactorRecoveryCode[]
+  pendingTwoFactorChallenges PendingTwoFactorChallenge[]
+  pendingEmailChanges        PendingEmailChange[]
+  pendingPhoneChanges        PendingPhoneChange[]
+  loginEvents                LoginEvent[]
+  posts                      Post[]
+  postLikes                  PostLike[]
+  bookmarks                  Bookmark[]
+  pollVotes                  PollVote[]
 
   // Follow rows where this user is the follower ("who I follow") vs. the
   // followee ("who follows me") — named relations since both sides of the
@@ -204,6 +230,81 @@ model Session {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
   expiresAt DateTime
+
+  // account-settings-hardening addendum §4: populated by createSession
+  // (session.ts) and touched on every getCurrentUser() read — backs the
+  // active-sessions/device-management settings page.
+  userAgent  String?
+  ipAddress  String?
+  lastSeenAt DateTime @default(now())
+}
+
+// addendum §2/§3: hashed with createHash("sha256"), never the raw code —
+// same "account-takeover-capable secret" reasoning as PasswordResetToken.
+model TwoFactorRecoveryCode {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash  String    @unique
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}
+
+// addendum §2/§3: short-TTL (5 min) row referenced by an httpOnly cookie
+// between the password check and the TOTP check during login — mirrors
+// Session's opaque-token-in-cookie shape, not a JWT.
+model PendingTwoFactorChallenge {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+}
+
+// addendum §2/§6: mirrors EmailVerificationToken's shape but kept as its own
+// model — a pending *change* to an already-verified account is a different
+// trust level than first-time signup verification, per that model's own
+// comment about not reusing a lower-trust token type.
+model PendingEmailChange {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  newEmail  String
+  token     String   @unique
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+}
+
+// addendum §2/§6: no SMS provider exists yet (sms.ts's ConsoleSmsSender dev
+// fallback) — codeHash follows the same sha256-at-rest posture as the
+// two-factor recovery codes above, not the raw OTP.
+model PendingPhoneChange {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  newPhone  String
+  codeHash  String
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+}
+
+// addendum §2/§10: one row per login attempt (success and failure) plus
+// every 2FA verification attempt — surfaced as login history on the active
+// sessions settings page. Deliberately not alerting/emailing on suspicious
+// entries here (out of scope, see addendum §1).
+model LoginEvent {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  ipAddress String?
+  userAgent String?
+  success   Boolean
+  method    String // password | totp | recovery_code
+
+  @@index([userId, createdAt])
 }
 
 model EmailVerificationToken {
@@ -242,23 +343,31 @@ model Username {
 }
 
 model Profile {
-  id          String   @id @default(uuid())
-  userId      String   @unique
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  displayName String
-  bio         String   @default("")
-  avatarUrl   String?
-  coverUrl    String?
-  themePreset String   @default("default") // key into a fixed, curated preset list — never raw CSS
-  isVerified  Boolean  @default(false)
+  id                   String   @id @default(uuid())
+  userId               String   @unique
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  displayName          String
+  bio                  String   @default("")
+  avatarUrl            String?
+  coverUrl             String?
+  themePreset          String   @default("default") // key into a fixed, curated preset list — never raw CSS
+  isVerified           Boolean  @default(false)
   // Settings-page toggle: a private profile's posts/portfolio/links stay
   // hidden from any visitor who isn't the owner or an accepted follower
   // (see the isOwner/isFollowing gate on /[username]/page.tsx) — identity
   // (name/avatar/bio) and the Follow control itself always stay visible so
   // a stranger can still find and request to follow the account.
-  isPrivate   Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  isPrivate            Boolean  @default(false)
+  // account-settings-hardening addendum §2/§9: live next to isPrivate above.
+  // Enforcement at DM-send/tag-on-post/search call sites is deliberately
+  // out of scope for this pass (addendum §1) — these back the settings UI
+  // and persist the choice; each call site's own enforcement check is
+  // flagged as follow-up where that action is implemented.
+  allowDmsFrom         String   @default("everyone") // everyone | followers | none
+  allowTagging         Boolean  @default(true)
+  discoverableInSearch Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
   // Denormalized, updated transactionally alongside the Follow row write
   // (phase-2 spec §3.1) — same pattern as Post's like/reply/repost counts.
@@ -313,6 +422,12 @@ model Profile {
   // profileId-scoped ownership as Link/SocialLink.
   externalSocialAccounts ExternalSocialAccount[]
   scheduledCrossPosts    ScheduledCrossPost[]
+
+  // billing addendum §2 / premium-profiles addendum: the profile_premium
+  // subscription and its included custom-domain slot (custom-domains
+  // addendum §2.1's two-way owner XOR).
+  platformSubscriptions PlatformSubscription[]
+  customDomains         CustomDomain[]
 }
 
 model Follow {
@@ -501,6 +616,13 @@ model Link {
   startsAt   DateTime?
   endsAt     DateTime?
   clickCount Int       @default(0)
+  // premium-profiles addendum §5: set false by the downgrade sweep when a
+  // lapsed profile_premium subscriber has more links than the free cap —
+  // never deleted, hidden from the public profile until the count drops
+  // back under the cap or premium resumes (instant reactivation, since
+  // nothing was destroyed). Business links never gate on this — the raised
+  // cap is a profile_premium-only perk (premium-profiles addendum §1 scope).
+  isActive   Boolean   @default(true)
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
@@ -1190,6 +1312,12 @@ model Business {
   fundraisingCampaigns FundraisingCampaign[]
   crmContacts          Contact[]
 
+  // billing addendum §2 / custom-domains addendum §2.1: direct-to-platform
+  // subscription (business_subscription plan) and its included custom-domain
+  // slot — same two tables Profile gains below, XOR'd the same way.
+  platformSubscriptions PlatformSubscription[]
+  customDomains         CustomDomain[]
+
   @@index([status])
 }
 
@@ -1534,7 +1662,13 @@ model PaymentTransaction {
   // phase-9 spec §3.1/§3.2/§4.3: business_purchase/freelance_purchase
   // resolve the Phase 4/5 Store checkout deferral (Offering, either owner
   // kind); marketplace_purchase is MarketplaceListing checkout (§4.3).
-  kind               String // tip | digital_purchase | course_purchase | membership_charge | affiliate_commission | ticket_purchase | business_purchase | freelance_purchase | marketplace_purchase | donation
+  // billing addendum §2.1/§4.1: platform_subscription_charge and
+  // api_usage_charge are the one case in this whole ledger where there's
+  // genuinely no payee (money flows straight to 0dot, not facilitated to a
+  // third party) — payeeId/payeeBusinessId are both left null for these two
+  // kinds, and platformFee equals the full charged amount (an honest
+  // semantic mismatch the addendum flags rather than papers over).
+  kind               String // tip | digital_purchase | course_purchase | membership_charge | affiliate_commission | ticket_purchase | business_purchase | freelance_purchase | marketplace_purchase | donation | platform_subscription_charge | api_usage_charge
   payerId            String?
   payer              User?           @relation("PaymentTransactionPayer", fields: [payerId], references: [id], onDelete: SetNull)
   // phase-8 build plan §5: payeeId made nullable, payeeBusinessId added —
@@ -1580,6 +1714,79 @@ model PaymentTransaction {
   @@index([payeeId, createdAt])
   @@index([payeeBusinessId, createdAt])
   @@index([payerId])
+}
+
+// addendum-platform-billing.md §2: direct-to-platform billing — money flows
+// from a subscriber straight to 0dot, no payee, the opposite topology of
+// every PaymentTransaction kind above. Collapses "Premium profiles,"
+// "Business subscriptions," and "Enterprise plans" into one table (the
+// `plan` enum) since all three are the identical flat-recurring-charge
+// mechanic, differing only in who's paying and what they get. subscriber_*
+// is a three-way XOR (profile | business | organization), enforced at the
+// call site (subscribeProfilePremium/subscribeBusiness/etc. in
+// src/lib/platform-billing.ts), same DB-constraint limitation noted
+// elsewhere in this schema (no partial-index/CHECK support in this
+// Prisma+SQLite setup).
+model PlatformSubscription {
+  id                       String        @id @default(uuid())
+  subscriberType           String // profile | business | organization
+  subscriberProfileId      String?
+  subscriberProfile        Profile?      @relation(fields: [subscriberProfileId], references: [id], onDelete: Cascade)
+  subscriberBusinessId     String?
+  subscriberBusiness       Business?     @relation(fields: [subscriberBusinessId], references: [id], onDelete: Cascade)
+  subscriberOrganizationId String?
+  subscriberOrganization   Organization? @relation(fields: [subscriberOrganizationId], references: [id], onDelete: Cascade)
+  plan                     String // profile_premium | business_subscription | enterprise
+  status                   String        @default("active") // active | past_due | cancelled
+  // premium-profiles addendum §4.1: not in the billing addendum's original
+  // table — added once giving profile_premium proper depth required it.
+  // Same monthly|yearly shape MembershipTier.billingInterval already uses.
+  billingInterval          String        @default("monthly") // monthly | yearly
+  processorSubscriptionId  String // external recurring-billing object is the source of truth for renewal state — same principle as MembershipSubscription (phase-5 §4.1)
+  currentPeriodEnd         DateTime
+  createdAt                DateTime      @default(now())
+
+  @@index([subscriberProfileId, status])
+  @@index([subscriberBusinessId, status])
+  @@index([subscriberOrganizationId, status])
+}
+
+// addendum-custom-domains.md: lets a Profile or Business serve its public
+// content from an owner-controlled domain in addition to its permanent
+// 0dot.in URL. Two-way owner XOR (profile | business), not three —
+// corrected from the platform-billing addendum's original three-way
+// assumption once §2.2 of the fuller spec worked through Organization
+// having no public page of its own to serve (it reaches this feature
+// through whatever Business it's linked to, via ownerBusinessId, not a
+// separate case). dnsTarget is per-row-unique and, by construction (a
+// random token), never reused even across deleted rows — the standard
+// defense against subdomain/domain-takeover (spec §5.2): a stale DNS
+// record pointing at an orphaned target simply resolves to nothing, since
+// no new claimant is ever issued that same string.
+model CustomDomain {
+  id                String    @id @default(uuid())
+  ownerType         String // profile | business
+  ownerProfileId    String?
+  ownerProfile      Profile?  @relation(fields: [ownerProfileId], references: [id], onDelete: Cascade)
+  ownerBusinessId   String?
+  ownerBusiness     Business? @relation(fields: [ownerBusinessId], references: [id], onDelete: Cascade)
+  domain            String    @unique
+  isApex            Boolean // root domain (acme.com, needs ALIAS/ANAME/A records) vs. subdomain (links.acme.com, plain CNAME) — spec §4.2
+  dnsTarget         String    @unique // e.g. "<token>.edge.0dot.in" — issued fresh per row, doubles as ownership proof once it resolves (spec §3/§4.1)
+  routingStatus     String    @default("pending_dns") // pending_dns | routing_verified | routing_failed
+  sslStatus         String    @default("pending") // pending | active | renewal_failed
+  isPrimary         Boolean   @default(false)
+  status            String    @default("active") // active | suspended_nonpayment | dormant | removed
+  claimedAt         DateTime  @default(now())
+  claimExpiresAt    DateTime // spec §4.3: an unverified claim past this is released back to the pool
+  dormantAt         DateTime? // spec §5.3/§8.2: when this row entered `dormant` — retention window is computed from here, not deleted immediately
+  lastHealthCheckAt DateTime?
+  createdAt         DateTime  @default(now())
+
+  @@index([ownerProfileId])
+  @@index([ownerBusinessId])
+  @@index([routingStatus])
+  @@index([status])
 }
 
 // phase-5 build plan §1 / spec §6.1: the smallest feature exercising the
@@ -2765,6 +2972,14 @@ model DeveloperApp {
   clientSecretHash String
   redirectUrisJson String // JSON array of exact-match redirect URIs (spec §3.2: no wildcard/prefix matching)
   status           String    @default("active") // active | suspended
+  // billing addendum §4.1: metered against the existing ApiUsageCounter
+  // rows below, kept separate from PlatformSubscription since the billing
+  // model genuinely differs (usage-metered vs. flat recurring). free stays
+  // exactly as api-rate-limit.ts's pre-existing hard cap behaved (§4.2's
+  // acceptance criterion); pay_as_you_go/committed apps aren't hard-capped,
+  // they're billed instead (api-usage-billing.ts).
+  billingPlan      String    @default("free") // free | pay_as_you_go | committed
+  lastBilledAt     DateTime? // watermark for api-usage-billing.ts's periodic settlement sweep
   createdAt        DateTime  @default(now())
 
   scopes               DeveloperAppScope[]
@@ -3326,6 +3541,12 @@ model Organization {
   // phase-16: Future Modules
   ownedForms           Form[]
   fundraisingCampaigns FundraisingCampaign[]
+
+  // billing addendum §2: the enterprise plan's subscriber row — an
+  // Organization has no public page of its own (see CustomDomain's model
+  // comment for why it never owns one directly), so it gets
+  // PlatformSubscription only, not CustomDomain.
+  platformSubscriptions PlatformSubscription[]
 
   @@index([businessId])
 }

@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { BadgeCheck } from "lucide-react";
 import { followUser, unfollowUser } from "@/app/actions/follow";
@@ -15,6 +16,7 @@ export function UserListItem({
   isSelf,
   showFollowButton,
   showHandle = true,
+  trailing,
 }: {
   userId: string;
   handle: string | null;
@@ -27,6 +29,11 @@ export function UserListItem({
   // "0dot.in/handle" line — not enough width for avatar + name + handle +
   // Follow button on one row, and the badge already covers "view profile".
   showHandle?: boolean;
+  // addendum §5: an arbitrary trailing control (e.g. blocked/page.tsx's
+  // unblock form) that takes over the row's trailing slot instead of the
+  // follow button below — settings-context lists (blocked users) don't want
+  // a follow toggle at all, unlike every other UserListItem caller.
+  trailing?: ReactNode;
 }) {
   return (
     <div className="profileLinkItem" style={{ justifyContent: "space-between" }}>
@@ -79,19 +86,20 @@ export function UserListItem({
           )}
         </span>
       </Link>
-      {showFollowButton && !isSelf && (
-        <form action={isFollowing ? unfollowUser : followUser}>
-          <input type="hidden" name="followeeId" value={userId} />
-          <button
-            type="submit"
-            className={`button${isFollowing ? " buttonSecondary" : ""}`}
-            aria-pressed={isFollowing}
-            style={{ padding: "0.4rem 0.85rem", fontSize: "0.85rem", flexShrink: 0 }}
-          >
-            {isFollowing ? "Following" : "Follow"}
-          </button>
-        </form>
-      )}
+      {trailing ??
+        (showFollowButton && !isSelf && (
+          <form action={isFollowing ? unfollowUser : followUser}>
+            <input type="hidden" name="followeeId" value={userId} />
+            <button
+              type="submit"
+              className={`button${isFollowing ? " buttonSecondary" : ""}`}
+              aria-pressed={isFollowing}
+              style={{ padding: "0.4rem 0.85rem", fontSize: "0.85rem", flexShrink: 0 }}
+            >
+              {isFollowing ? "Following" : "Follow"}
+            </button>
+          </form>
+        ))}
     </div>
   );
 }

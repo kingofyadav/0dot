@@ -8,6 +8,11 @@ export type ThemePreset = {
   accent: string;
   accentStrong: string;
   accentSoft: string;
+  // premium-profiles addendum §3.4/§2: a larger *curated* library for
+  // premium, never a door into raw CSS/HTML — every preset, free or
+  // premium, is still just a key into this fixed list and its three
+  // accent tokens.
+  premiumOnly?: boolean;
 };
 
 export const THEME_PRESETS: ThemePreset[] = [
@@ -53,12 +58,25 @@ export const THEME_PRESETS: ThemePreset[] = [
     accentStrong: "#c93f6f",
     accentSoft: "rgba(232, 87, 138, 0.14)",
   },
+  // premium-only presets below — same token schema as every free preset
+  // above, just more of them.
+  { key: "gold", label: "Gold", accent: "#c9992c", accentStrong: "#a37a1f", accentSoft: "rgba(201, 153, 44, 0.16)", premiumOnly: true },
+  { key: "lavender", label: "Lavender", accent: "#8b6fd6", accentStrong: "#6f52b8", accentSoft: "rgba(139, 111, 214, 0.16)", premiumOnly: true },
+  { key: "emerald", label: "Emerald", accent: "#0f9d78", accentStrong: "#0b7a5e", accentSoft: "rgba(15, 157, 120, 0.14)", premiumOnly: true },
+  { key: "coral", label: "Coral", accent: "#ff7a6e", accentStrong: "#e05a4d", accentSoft: "rgba(255, 122, 110, 0.14)", premiumOnly: true },
+  { key: "slate", label: "Slate", accent: "#5b6b7c", accentStrong: "#42505e", accentSoft: "rgba(91, 107, 124, 0.16)", premiumOnly: true },
+  { key: "amber", label: "Amber", accent: "#e8a33d", accentStrong: "#c4842a", accentSoft: "rgba(232, 163, 61, 0.16)", premiumOnly: true },
+  { key: "berry", label: "Berry", accent: "#a83279", accentStrong: "#84255e", accentSoft: "rgba(168, 50, 121, 0.15)", premiumOnly: true },
+  { key: "teal", label: "Teal", accent: "#1a9c93", accentStrong: "#137d76", accentSoft: "rgba(26, 156, 147, 0.15)", premiumOnly: true },
 ];
 
 const PRESET_KEYS = new Set(THEME_PRESETS.map((p) => p.key));
+const PREMIUM_PRESET_KEYS = new Set(THEME_PRESETS.filter((p) => p.premiumOnly).map((p) => p.key));
 
-export function isValidThemePreset(key: string): boolean {
-  return PRESET_KEYS.has(key);
+export function isValidThemePreset(key: string, isPremium: boolean): boolean {
+  if (!PRESET_KEYS.has(key)) return false;
+  if (PREMIUM_PRESET_KEYS.has(key) && !isPremium) return false;
+  return true;
 }
 
 export function getThemePreset(key: string): ThemePreset {

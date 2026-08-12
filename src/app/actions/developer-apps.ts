@@ -79,6 +79,26 @@ export async function updateRedirectUris(_prevState: ActionState, formData: Form
   return undefined;
 }
 
+const BILLING_PLAN_VALUES = new Set(["free", "pay_as_you_go", "committed"]);
+
+// billing addendum §4.1: an app's own owner chooses its billing plan —
+// switching to pay_as_you_go/committed lifts api-rate-limit.ts's hard cap
+// in exchange for being metered by api-usage-billing.ts's periodic
+// settlement instead.
+export async function updateBillingPlan(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await requireVerifiedUser();
+  const appId = String(formData.get("appId") ?? "");
+  const app = await requireOwnedDeveloperApp(appId, user.id);
+  if (!app) return { error: "App not found." };
+
+  const billingPlan = String(formData.get("billingPlan") ?? "");
+  if (!BILLING_PLAN_VALUES.has(billingPlan)) return { error: "Choose a valid billing plan." };
+
+  await db.developerApp.update({ where: { id: appId }, data: { billingPlan } });
+  revalidatePath(`/s/${await handleFor(user.id)}/developer/${appId}`);
+  return undefined;
+}
+
 export async function requestScope(formData: FormData): Promise<void> {
   const user = await requireVerifiedUser();
   const appId = String(formData.get("appId") ?? "");

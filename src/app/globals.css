@@ -473,6 +473,45 @@ summary:focus-visible,
   }
 }
 
+/* account-settings-hardening addendum §11: same reduction as the OS-level
+   media query above, triggered by the account preference instead (or in
+   addition) — layout.tsx sets this attribute from User.accessibilityPrefsJson
+   so an explicit in-app choice works even when the OS-level setting isn't
+   itself set. */
+html[data-reduced-motion="true"] *,
+html[data-reduced-motion="true"] *::before,
+html[data-reduced-motion="true"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* addendum §11: rem-relative text throughout this stylesheet scales with
+   this, same "curated subset, not a full range" posture as the account
+   preference's own dropdown (PreferencesForm.tsx). */
+html[data-font-scale="large"] {
+  font-size: 112.5%;
+}
+html[data-font-scale="larger"] {
+  font-size: 125%;
+}
+
+/* addendum §11: a bounded set of token overrides, not a second theme —
+   strengthens text/border contrast against --background without redefining
+   every color in the palette. */
+html[data-high-contrast="true"] {
+  --foreground: #000000;
+  --muted-foreground: #1a1a1a;
+  --border: #000000;
+}
+html[data-theme="dark"][data-high-contrast="true"],
+html:not([data-theme="light"])[data-high-contrast="true"] {
+  --foreground: #ffffff;
+  --muted-foreground: #f0f0f0;
+  --border: #ffffff;
+}
+
 /* Shared form/auth styling */
 
 .authWrap {
@@ -2337,6 +2376,25 @@ a.verifiedBadge:hover,
 a.verifiedBadge:focus-visible {
   opacity: 0.85;
   cursor: pointer;
+}
+
+/* premium-profiles addendum §3.5: a distinct icon/color from
+   .verifiedBadge above, deliberately never reusing its shape — the two
+   can co-occur on a profile that's both verified and premium, but must
+   never read as the same signal. */
+.premiumBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-left: 0.35rem;
+  border-radius: 5px;
+  background: linear-gradient(135deg, #c9992c, #e8c766);
+  color: #3a2c05;
+  font-size: 0.65rem;
+  line-height: 1;
+  vertical-align: middle;
 }
 
 /* 44x44 touch target (UX_GUIDELINES.md #4) even though the visible glyph is

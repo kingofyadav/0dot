@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { BadgeCheck } from "lucide-react";
 import { db } from "@/lib/db";
@@ -6,6 +7,7 @@ import { getCurrentUser } from "@/lib/session";
 import { getBusinessMember, parseBusinessHours } from "@/lib/businesses";
 import { businessCategoryLabel } from "@/lib/business-categories";
 import { leaveBusinessTeam } from "@/app/actions/businesses";
+import { getPrimaryLiveDomain } from "@/lib/custom-domains";
 import { Logo } from "@/components/Logo";
 import { BusinessContactForm } from "./BusinessContactForm";
 
@@ -28,6 +30,19 @@ const SIZE_RANGE_LABEL: Record<string, string> = {
   "201_1000": "201-1000 employees",
   "1000_plus": "1000+ employees",
 };
+
+// custom-domains addendum §6.3: same canonical-preference pattern as the
+// profile page's generateMetadata — see that file's comment.
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug: rawSlug } = await params;
+  const slug = decodeURIComponent(rawSlug).toLowerCase();
+
+  const business = await db.business.findUnique({ where: { slug }, select: { id: true } });
+  if (!business) return {};
+
+  const primaryDomain = await getPrimaryLiveDomain("business", business.id);
+  return primaryDomain ? { alternates: { canonical: `https://${primaryDomain}` } } : {};
+}
 
 // Identity header + about content (build plan step 1) plus links to every
 // other tab this phase builds (Posts, Catalog, Store, Reviews, Jobs,

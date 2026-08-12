@@ -1,6 +1,6 @@
 # Addendum — Custom Domains (Full Spec)
 
-Status: Draft
+Status: Built (2026-08-11) — all sections implemented per this spec.
 Owner: TBD
 Related: [ROADMAP.md](../ROADMAP.md), [roadmap-audit.md](roadmap-audit.md),
 [addendum-platform-billing.md](addendum-platform-billing.md), [addendum-premium-profiles.md](addendum-premium-profiles.md),

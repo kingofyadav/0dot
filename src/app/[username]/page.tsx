@@ -1,7 +1,8 @@
 import { Fragment } from "react";
 import type { CSSProperties, ReactNode } from "react";
+import type { Metadata } from "next";
 import Link from "next/link";
-import { BadgeCheck, Check } from "lucide-react";
+import { BadgeCheck, Check, Sparkle } from "lucide-react";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
@@ -11,6 +12,8 @@ import { blockUser, unblockUser } from "@/app/actions/block";
 import { ReportButton } from "@/components/ReportButton";
 import { isBlocked } from "@/lib/blocks";
 import { getThemePreset, getSocialPlatformLabel, type SocialPlatform } from "@/lib/theme-presets";
+import { isProfilePremium } from "@/lib/platform-billing";
+import { getPrimaryLiveDomain } from "@/lib/custom-domains";
 import { getFeedPosts, getVotedPollOptionIds } from "@/lib/feed-query";
 import { parseCursor } from "@/lib/pagination";
 import { Avatar } from "@/components/Avatar";
@@ -56,6 +59,21 @@ async function resolveAffiliateOfferingLabels(
     })
   );
   return labels;
+}
+
+// custom-domains addendum §6.3: the canonical URL is always the owner's
+// preference (their live primary custom domain, if any), never a hard
+// redirect — 0dot.in/{handle} stays independently resolvable and is the
+// fallback default whenever no custom domain is live.
+export async function generateMetadata({ params }: { params: Promise<{ username: string }> }): Promise<Metadata> {
+  const { username: rawParam } = await params;
+  const handle = decodeURIComponent(rawParam).toLowerCase();
+
+  const username = await db.username.findUnique({ where: { handle }, select: { user: { select: { profile: { select: { id: true } } } } } });
+  if (!username?.user.profile) return {};
+
+  const primaryDomain = await getPrimaryLiveDomain("profile", username.user.profile.id);
+  return primaryDomain ? { alternates: { canonical: `https://${primaryDomain}` } } : {};
 }
 
 // Public, read-only profile — identity, links, follow counts, and (spec
@@ -532,7 +550,12 @@ export default async function ProfilePage({
     ? []
     : profile.links
     .filter((link) => {
-      if (isOwner) return true; // owners see scheduled links too, managed at /s/{handle}
+      if (isOwner) return true; // owners see scheduled and downgrade-hidden links too, managed at /s/{handle}
+      // premium-profiles addendum §5: a downgrade-hidden link (over the
+      // free cap) is never deleted, just hidden from non-owner visitors —
+      // same "hidden from the public, visible to the owner" treatment as
+      // the scheduled-link check below.
+      if (!link.isActive) return false;
       if (link.startsAt && link.startsAt > now) return false;
       if (link.endsAt && link.endsAt < now) return false;
       return true;
@@ -544,6 +567,7 @@ export default async function ProfilePage({
     .sort((a, b) => Number(b.isFeatured) - Number(a.isFeatured));
 
   const theme = getThemePreset(profile.themePreset);
+  const isPremium = await isProfilePremium(profile.id);
 
   // Same dynamic-origin reasoning as src/app/qr/[handle]/route.ts — correct
   // in local dev and any deployment without a hardcoded domain.
@@ -587,6 +611,11 @@ export default async function ProfilePage({
               {profile.isVerified && (
                 <span className="verifiedBadge" title="Verified" aria-label="Verified">
                   <BadgeCheck size={14} aria-hidden="true" />
+                </span>
+              )}
+              {isPremium && (
+                <span className="premiumBadge" title="Premium" aria-label="Premium">
+                  <Sparkle size={12} aria-hidden="true" />
                 </span>
               )}
             </h1>

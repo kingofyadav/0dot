@@ -1,7 +1,9 @@
 import "server-only";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { randomBytes } from "crypto";
+import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
+import { getClientIp } from "@/lib/rate-limit";
 
 const SESSION_COOKIE = "0dot_session";
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -10,8 +12,17 @@ export async function createSession(userId: string) {
   const token = randomBytes(32).toString("hex");
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
 
+  // account-settings-hardening addendum §4: captured once at creation so the
+  // active-sessions settings page can show "Chrome on macOS" style rows
+  // without a live lookup — ip/UA drift over a session's 30-day life is
+  // acceptable for that display purpose (lastSeenAt below is what's kept
+  // fresh, not these).
+  const headersList = await headers();
+  const userAgent = headersList.get("user-agent");
+  const ipAddress = await getClientIp();
+
   await db.session.create({
-    data: { token, userId, expiresAt },
+    data: { token, userId, expiresAt, userAgent, ipAddress },
   });
 
   const cookieStore = await cookies();
@@ -56,17 +67,29 @@ export async function getCurrentUser() {
   const token = cookieStore.get(SESSION_COOKIE)?.value;
   if (!token) return null;
 
-  const session = await db.session.findUnique({
-    where: { token },
-    include: {
-      user: {
-        include: { username: true, profile: true },
+  // account-settings-hardening addendum §4: an update (not findUnique) so
+  // the active-sessions page's "last active" column stays fresh — this
+  // already runs once per request, so bumping lastSeenAt here is a field
+  // added to an existing query, not a new one. A missing token (already
+  // logged out/expired-and-deleted elsewhere) throws P2025, caught below.
+  let session;
+  try {
+    session = await db.session.update({
+      where: { token },
+      data: { lastSeenAt: new Date() },
+      include: {
+        user: {
+          include: { username: true, profile: true },
+        },
       },
-    },
-  });
+    });
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2025") return null;
+    throw err;
+  }
 
-  if (!session || session.expiresAt < new Date()) {
-    if (session) await db.session.delete({ where: { token } });
+  if (session.expiresAt < new Date()) {
+    await db.session.delete({ where: { token } });
     return null;
   }
 
@@ -79,4 +102,52 @@ export async function getCurrentUser() {
   }
 
   return session.user;
+}
+
+const TWO_FACTOR_CHALLENGE_COOKIE = "0dot_2fa_challenge";
+const TWO_FACTOR_CHALLENGE_TTL_MS = 5 * 60 * 1000; // 5 min
+
+// addendum §3: login() calls this instead of createSession when the account
+// has 2FA enabled — a PendingTwoFactorChallenge row plus a short-lived
+// cookie referencing it, mirroring Session's own opaque-token-in-cookie
+// shape rather than a JWT, so /login/2fa can find its way back to the right
+// user without a real session existing yet.
+export async function createTwoFactorChallenge(userId: string): Promise<void> {
+  const challenge = await db.pendingTwoFactorChallenge.create({
+    data: { userId, expiresAt: new Date(Date.now() + TWO_FACTOR_CHALLENGE_TTL_MS) },
+  });
+
+  const cookieStore = await cookies();
+  cookieStore.set(TWO_FACTOR_CHALLENGE_COOKIE, challenge.id, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    expires: challenge.expiresAt,
+  });
+}
+
+// Read-only, doesn't consume the challenge — /login/2fa's page render needs
+// to know which account it's verifying without deleting the row on every
+// GET (a failed code submission should be retryable within the TTL).
+export async function getPendingTwoFactorChallenge(): Promise<{ userId: string } | null> {
+  const cookieStore = await cookies();
+  const challengeId = cookieStore.get(TWO_FACTOR_CHALLENGE_COOKIE)?.value;
+  if (!challengeId) return null;
+
+  const challenge = await db.pendingTwoFactorChallenge.findUnique({ where: { id: challengeId } });
+  if (!challenge || challenge.expiresAt < new Date()) return null;
+
+  return { userId: challenge.userId };
+}
+
+// Called once verifyLoginTwoFactor succeeds, so the same challenge can't be
+// replayed after the real session is created.
+export async function clearTwoFactorChallenge(): Promise<void> {
+  const cookieStore = await cookies();
+  const challengeId = cookieStore.get(TWO_FACTOR_CHALLENGE_COOKIE)?.value;
+  if (challengeId) {
+    await db.pendingTwoFactorChallenge.deleteMany({ where: { id: challengeId } });
+  }
+  cookieStore.delete(TWO_FACTOR_CHALLENGE_COOKIE);
 }

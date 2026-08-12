@@ -12,6 +12,13 @@ import { Prisma } from "@/generated/prisma/client";
 // transaction.
 export const PLATFORM_FEE_PERCENT = 0.1;
 
+// premium-profiles addendum §3.6/§7: a reduced fee for creators who are
+// themselves an active profile_premium subscriber — exact rate is a
+// finance decision the addendum flags as unconfirmed, so this is a
+// placeholder in the same spirit as PLATFORM_FEE_PERCENT above, not a real
+// number to build pricing commitments on.
+export const PREMIUM_CREATOR_PLATFORM_FEE_PERCENT = 0.07;
+
 export type PayoutAccountStatus = "onboarding" | "active" | "restricted";
 
 // spec §3: every feature that moves money (tips now; memberships/digital
@@ -108,7 +115,30 @@ export async function recordPaymentTransaction(
     storeFee?: number;
   }
 ) {
-  const platformFee = Math.round(params.amount * PLATFORM_FEE_PERCENT * 100) / 100;
+  // premium-profiles addendum §3.6: checked inline against the same
+  // transaction client rather than importing platform-billing.ts, both to
+  // avoid a circular import (platform-billing.ts calls this function for
+  // platform_subscription_charge rows) and to keep the discount check and
+  // the ledger write atomic with each other.
+  let feeRate: number = PLATFORM_FEE_PERCENT;
+  if (params.payeeId) {
+    const premiumPayee = await tx.platformSubscription.findFirst({
+      where: {
+        plan: "profile_premium",
+        subscriberProfile: { userId: params.payeeId },
+        OR: [{ status: "active" }, { status: "cancelled", currentPeriodEnd: { gt: new Date() } }],
+      },
+      select: { id: true },
+    });
+    if (premiumPayee) feeRate = PREMIUM_CREATOR_PLATFORM_FEE_PERCENT;
+  }
+  // billing addendum §2.1: the one case in this ledger with genuinely no
+  // payee — platform_subscription_charge/api_usage_charge rows (payeeId
+  // and payeeBusinessId both null) — money flows straight to 0dot, so
+  // platform_fee is the *full* charged amount, not the facilitator-model
+  // rate above. An honest semantic mismatch the addendum names explicitly
+  // rather than something to paper over.
+  const platformFee = !params.payeeId && !params.payeeBusinessId ? params.amount : Math.round(params.amount * feeRate * 100) / 100;
   return tx.paymentTransaction.create({
     data: {
       kind: params.kind,

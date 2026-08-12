@@ -24,6 +24,11 @@ export async function register() {
     // follow-through — same scheduler posture as the three jobs above.
     const { startDmcaRestorationScheduler } = await import("@/lib/dmca");
     startDmcaRestorationScheduler();
+    // account-settings-hardening addendum §7: sweeps deactivated accounts
+    // whose 30-day grace window has passed, same "never left to manual
+    // follow-through" posture as the DMCA restoration scheduler above.
+    const { startAccountDeletionScheduler } = await import("@/lib/account-deletion");
+    startAccountDeletionScheduler();
     const { startWatermarkScheduler } = await import("@/lib/watermarking");
     startWatermarkScheduler();
     // Phase-15 spec §3.1/§9 step 1: the platform-owned account + first-party
@@ -44,5 +49,17 @@ export async function register() {
     // public profile's "Connected content" section (social-content-sync.ts).
     const { startSocialContentSyncScheduler } = await import("@/lib/social-content-sync");
     startSocialContentSyncScheduler();
+    // Direct-to-platform billing addendum: link-cap/analytics-window
+    // reconciliation on PlatformSubscription lapse/resume (premium-profiles
+    // addendum §5), custom-domain routing polling + takeover-hardening
+    // sweeps (custom-domains addendum §5/§8/§10), and API usage-billing
+    // settlement (§4) — same "never synchronously during a request" posture
+    // as every scheduler above.
+    const { startPlatformBillingScheduler } = await import("@/lib/platform-billing");
+    startPlatformBillingScheduler();
+    const { startCustomDomainScheduler } = await import("@/lib/custom-domains");
+    startCustomDomainScheduler();
+    const { startApiUsageBillingScheduler } = await import("@/lib/api-usage-billing");
+    startApiUsageBillingScheduler();
   }
 }
