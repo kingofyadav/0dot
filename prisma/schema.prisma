@@ -2986,6 +2986,10 @@ model DeveloperApp {
   // they're billed instead (api-usage-billing.ts).
   billingPlan      String    @default("free") // free | pay_as_you_go | committed
   lastBilledAt     DateTime? // watermark for api-usage-billing.ts's periodic settlement sweep
+  // Set once billingPlan moves off "free" via a real Stripe subscription
+  // Checkout (api-usage-billing.ts) — null on "free" apps, and briefly null
+  // on a paid app mid-checkout before the webhook confirms it.
+  apiSubscriptionId String?
   createdAt        DateTime  @default(now())
 
   scopes               DeveloperAppScope[]

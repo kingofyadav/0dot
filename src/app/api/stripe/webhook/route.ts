@@ -10,6 +10,7 @@ import { activateOfferingPurchase } from "@/app/actions/offerings";
 import { activateTicketPurchase } from "@/app/actions/events";
 import { activateMarketplacePurchase } from "@/app/actions/marketplace";
 import { activateMembershipSubscription, syncMembershipFromStripe } from "@/app/actions/memberships";
+import { activateApiPlanSubscription, recordApiUsageInvoicePaid } from "@/lib/api-usage-billing";
 
 // One-time (mode: "payment") destination-charge purchases, keyed by the
 // metadata.kind every createPurchaseCheckoutSession caller sets — each
@@ -81,6 +82,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           });
         } else if (kind === "membership") {
           await activateMembershipSubscription({ metadata, processorSubscriptionId: subscription.id, currentPeriodEnd });
+        } else if (kind === "api_usage_plan") {
+          await activateApiPlanSubscription(metadata, subscription.id);
         }
       }
       break;
@@ -95,9 +98,32 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       // Each sync function looks up its own table by processorSubscriptionId
       // and no-ops if not found — safe to call both rather than threading a
       // kind discriminator through Stripe's own subscription webhooks,
-      // which don't carry back our Checkout Session metadata.
+      // which don't carry back our Checkout Session metadata. DeveloperApp
+      // has no equivalent sync need — api-usage-billing.ts's plan doesn't
+      // track a local currentPeriodEnd, Stripe's own invoicing is the only
+      // thing that cares.
       await syncSubscriptionFromStripe(subscription.id, subscription.status, currentPeriodEnd);
       await syncMembershipFromStripe(subscription.id, subscription.status, currentPeriodEnd);
+      break;
+    }
+    // billing addendum §4: the real "charge succeeded" signal for
+    // api-usage-billing.ts's committed flat fee and metered overage —
+    // Stripe generates and collects these invoices automatically off the
+    // subscription created above, this route only ever records the ledger
+    // once payment is confirmed.
+    case "invoice.paid": {
+      const invoice = event.data.object as Stripe.Invoice;
+      const subscriptionRef =
+        invoice.parent?.type === "subscription_details" ? invoice.parent.subscription_details?.subscription : null;
+      const subscriptionId = typeof subscriptionRef === "string" ? subscriptionRef : subscriptionRef?.id;
+      if (!subscriptionId) break;
+
+      await recordApiUsageInvoicePaid({
+        processorSubscriptionId: subscriptionId,
+        amount: invoice.amount_paid / 100,
+        currency: invoice.currency,
+        processorReference: invoice.id ?? `${subscriptionId}_${invoice.created}`,
+      });
       break;
     }
     default:
