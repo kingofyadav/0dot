@@ -1,48 +1,122 @@
 import "server-only";
-import { randomBytes } from "crypto";
 import { db } from "@/lib/db";
 import { recordPaymentTransaction } from "@/lib/payments";
+import { stripe, getOrCreateStripeCustomerId } from "@/lib/stripe";
 
 // addendum-platform-billing.md §2.2: a plain Stripe Billing/Subscriptions
-// integration (or equivalent), genuinely different from the Stripe Connect
-// shape every other payment flow in this codebase uses (src/lib/payments.ts)
-// — that one is built for facilitating payment *to* a third party; this one
-// has no payee at all. Same "swap the class, not the callers" interface
-// posture as PaymentProcessor.
+// integration, genuinely different from the Stripe Connect shape every
+// other payment flow in this codebase uses (src/lib/payments.ts) — that
+// one is built for facilitating payment *to* a third party; this one has
+// no payee at all. Same "swap the class, not the callers" interface
+// posture as PaymentProcessor, now backed by real Stripe Checkout
+// (subscription mode) instead of a stub. A hosted Checkout redirect is
+// inherently async — payment isn't confirmed until Stripe calls back the
+// webhook (activateSubscriptionFromCheckout below), so this interface
+// returns a URL to redirect to, not a synchronous succeeded/failed result.
 export interface SubscriptionProcessor {
   readonly name: string;
-  createSubscription(params: {
+  createCheckoutSession(params: {
+    subscriberType: "profile" | "business";
     subscriberId: string;
+    payerUserId: string;
+    payerEmail: string;
     plan: string;
     billingInterval: string;
-    amount: number;
-    currency: string;
-  }): Promise<{ processorSubscriptionId: string; status: "succeeded" | "failed" }>;
+    successUrl: string;
+    cancelUrl: string;
+  }): Promise<{ checkoutUrl: string }>;
   cancelSubscription(processorSubscriptionId: string): Promise<void>;
 }
 
-// Stub only — same posture as payments.ts's StubPaymentProcessor: no real
-// hosted checkout or recurring-billing engine exists to wait on, so this
-// short-circuits straight to `succeeded`. currentPeriodEnd is computed
-// locally (periodEndFrom below) rather than driven by a webhook, the same
-// documented stub limitation subscribeToTier (memberships.ts) already
-// carries for MembershipSubscription.
-class StubSubscriptionProcessor implements SubscriptionProcessor {
-  readonly name = "stub";
+// One Stripe Product per plan (never per plan+interval — mixing tiers on
+// one Product makes every Checkout/invoice line item show the same name,
+// per the stripe-best-practices skill's billing reference), monthly/yearly
+// as separate Prices on that Product.
+const PLAN_DISPLAY_NAMES: Record<string, string> = {
+  profile_premium: "0dot Premium Profile",
+  business_subscription: "0dot Business Subscription",
+};
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- signature is the SubscriptionProcessor interface contract; the stub doesn't need every argument.
-  async createSubscription(params: { subscriberId: string; plan: string; billingInterval: string; amount: number; currency: string }) {
-    return { processorSubscriptionId: `stub_sub_${randomBytes(8).toString("hex")}`, status: "succeeded" as const };
+// Prices are immutable in Stripe — looked up by a stable lookup_key
+// (plan_interval) so re-runs reuse the same Price instead of minting a
+// duplicate every checkout, and created on first use so there's no manual
+// Dashboard step to wire a plan up. If PLAN_PRICES below ever changes,
+// bump the lookup_key (e.g. "_v2") rather than editing amounts in place —
+// Stripe Prices can't be mutated once created.
+const priceIdCache = new Map<string, string>();
+
+async function ensurePriceId(plan: string, billingInterval: string): Promise<string> {
+  const cacheKey = `${plan}:${billingInterval}`;
+  const cached = priceIdCache.get(cacheKey);
+  if (cached) return cached;
+
+  const lookupKey = `${plan}_${billingInterval}`;
+  const existing = await stripe.prices.list({ lookup_keys: [lookupKey], active: true, limit: 1 });
+  if (existing.data[0]) {
+    priceIdCache.set(cacheKey, existing.data[0].id);
+    return existing.data[0].id;
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- signature is the SubscriptionProcessor interface contract; the stub doesn't need the argument.
+  const { amount, currency } = priceFor(plan, billingInterval);
+  const price = await stripe.prices.create({
+    currency,
+    unit_amount: Math.round(amount * 100),
+    recurring: { interval: billingInterval === "yearly" ? "year" : "month" },
+    lookup_key: lookupKey,
+    product_data: { name: PLAN_DISPLAY_NAMES[plan] ?? plan },
+  });
+  priceIdCache.set(cacheKey, price.id);
+  return price.id;
+}
+
+class StripeSubscriptionProcessor implements SubscriptionProcessor {
+  readonly name = "stripe";
+
+  async createCheckoutSession(params: {
+    subscriberType: "profile" | "business";
+    subscriberId: string;
+    payerUserId: string;
+    payerEmail: string;
+    plan: string;
+    billingInterval: string;
+    successUrl: string;
+    cancelUrl: string;
+  }): Promise<{ checkoutUrl: string }> {
+    const priceId = await ensurePriceId(params.plan, params.billingInterval);
+    const customerId = await getOrCreateStripeCustomerId(params.payerUserId, params.payerEmail);
+
+    // No payment_method_types here (stripe-best-practices skill): omitting
+    // it lets Stripe choose eligible methods dynamically from the Dashboard
+    // config instead of hardcoding to card only.
+    const session = await stripe.checkout.sessions.create({
+      mode: "subscription",
+      customer: customerId,
+      line_items: [{ price: priceId, quantity: 1 }],
+      success_url: params.successUrl,
+      cancel_url: params.cancelUrl,
+      client_reference_id: `${params.subscriberType}:${params.subscriberId}`,
+      // Read back by the webhook (activateSubscriptionFromCheckout) — the
+      // session itself, not this metadata, is the trigger; this is just how
+      // it learns which PlatformSubscription row to create.
+      metadata: {
+        subscriberType: params.subscriberType,
+        subscriberId: params.subscriberId,
+        payerUserId: params.payerUserId,
+        plan: params.plan,
+        billingInterval: params.billingInterval,
+      },
+    });
+
+    if (!session.url) throw new Error("Stripe did not return a checkout URL.");
+    return { checkoutUrl: session.url };
+  }
+
   async cancelSubscription(processorSubscriptionId: string): Promise<void> {
-    // Nothing to call out to — status is flipped on our own row, same as
-    // memberships.ts's cancelSubscription.
+    await stripe.subscriptions.update(processorSubscriptionId, { cancel_at_period_end: true });
   }
 }
 
-const subscriptionProcessor: SubscriptionProcessor = new StubSubscriptionProcessor();
+const subscriptionProcessor: SubscriptionProcessor = new StripeSubscriptionProcessor();
 
 export function getSubscriptionProcessor(): SubscriptionProcessor {
   return subscriptionProcessor;
@@ -61,13 +135,6 @@ export function priceFor(plan: string, billingInterval: string): { amount: numbe
   const price = PLAN_PRICES[plan];
   if (!price) throw new Error(`No price configured for plan "${plan}"`);
   return { amount: billingInterval === "yearly" ? price.yearly : price.monthly, currency: price.currency };
-}
-
-export function periodEndFrom(billingInterval: string, from: Date): Date {
-  const end = new Date(from);
-  if (billingInterval === "yearly") end.setFullYear(end.getFullYear() + 1);
-  else end.setMonth(end.getMonth() + 1);
-  return end;
 }
 
 // Same "effective access computed live from status + currentPeriodEnd"
@@ -128,39 +195,79 @@ export async function linkCapFor(profileId: string): Promise<number> {
 // query reaches.
 export const FREE_ANALYTICS_WINDOW_DAYS = 30;
 
+// Starts a real Stripe Checkout redirect rather than writing a
+// PlatformSubscription row synchronously — a hosted-checkout redirect can't
+// confirm payment within this same request. The row is created by
+// activateSubscriptionFromCheckout below, once Stripe's webhook confirms
+// checkout.session.completed.
 async function subscribe(params: {
   subscriberType: "profile" | "business";
   subscriberId: string; // profileId or businessId
   payerUserId: string;
+  payerEmail: string;
   plan: string;
   billingInterval: string;
+  successUrl: string;
+  cancelUrl: string;
 }) {
-  const { amount, currency } = priceFor(params.plan, params.billingInterval);
-  const charge = await subscriptionProcessor.createSubscription({
-    subscriberId: params.subscriberId,
-    plan: params.plan,
-    billingInterval: params.billingInterval,
-    amount,
-    currency,
-  });
-  if (charge.status !== "succeeded") return { error: "The charge failed. Please try again." } as const;
+  priceFor(params.plan, params.billingInterval); // throws early for an unconfigured plan, before ever calling Stripe
+  const { checkoutUrl } = await subscriptionProcessor.createCheckoutSession(params);
+  return { checkoutUrl } as const;
+}
 
-  const now = new Date();
-  const currentPeriodEnd = periodEndFrom(params.billingInterval, now);
+export async function subscribeProfilePremium(
+  profileId: string,
+  payerUserId: string,
+  payerEmail: string,
+  billingInterval: string,
+  successUrl: string,
+  cancelUrl: string
+) {
+  return subscribe({ subscriberType: "profile", subscriberId: profileId, payerUserId, payerEmail, plan: "profile_premium", billingInterval, successUrl, cancelUrl });
+}
 
-  const subscription = await db.$transaction(async (tx) => {
+export async function subscribeBusiness(
+  businessId: string,
+  payerUserId: string,
+  payerEmail: string,
+  billingInterval: string,
+  successUrl: string,
+  cancelUrl: string
+) {
+  return subscribe({ subscriberType: "business", subscriberId: businessId, payerUserId, payerEmail, plan: "business_subscription", billingInterval, successUrl, cancelUrl });
+}
+
+// Called from the Stripe webhook route on checkout.session.completed —
+// this is the real "payment succeeded" signal now, replacing what used to
+// be subscribe()'s synchronous row-create. Idempotent on
+// processorSubscriptionId since Stripe can redeliver the same event.
+export async function activateSubscriptionFromCheckout(params: {
+  subscriberType: "profile" | "business";
+  subscriberId: string;
+  payerUserId: string;
+  plan: string;
+  billingInterval: string;
+  processorSubscriptionId: string;
+  currentPeriodEnd: Date;
+  amount: number;
+  currency: string;
+}): Promise<void> {
+  const already = await db.platformSubscription.findFirst({ where: { processorSubscriptionId: params.processorSubscriptionId } });
+  if (already) return;
+
+  await db.$transaction(async (tx) => {
     await recordPaymentTransaction(tx, {
       kind: "platform_subscription_charge",
       payerId: params.payerUserId,
       payeeId: null,
-      amount,
-      currency,
-      processorReference: charge.processorSubscriptionId,
+      amount: params.amount,
+      currency: params.currency,
+      processorReference: params.processorSubscriptionId,
       status: "succeeded",
       relatedObjectType: params.plan,
       relatedObjectId: params.subscriberId,
     });
-    return tx.platformSubscription.create({
+    await tx.platformSubscription.create({
       data: {
         subscriberType: params.subscriberType,
         subscriberProfileId: params.subscriberType === "profile" ? params.subscriberId : null,
@@ -168,33 +275,53 @@ async function subscribe(params: {
         plan: params.plan,
         status: "active",
         billingInterval: params.billingInterval,
-        processorSubscriptionId: charge.processorSubscriptionId,
-        currentPeriodEnd,
+        processorSubscriptionId: params.processorSubscriptionId,
+        currentPeriodEnd: params.currentPeriodEnd,
       },
     });
   });
 
   if (params.subscriberType === "profile") await reconcileLinkActivationForProfile(params.subscriberId);
-  return { subscription } as const;
 }
 
-export async function subscribeProfilePremium(profileId: string, payerUserId: string, billingInterval: string) {
-  return subscribe({ subscriberType: "profile", subscriberId: profileId, payerUserId, plan: "profile_premium", billingInterval });
-}
+// Stripe's own subscription.status is the single source of truth for
+// renewal/dunning/final-cancellation — mapped onto this model's narrower
+// active|past_due|cancelled vocabulary (schema comment on
+// PlatformSubscription.status). Called from the webhook route on
+// customer.subscription.updated/deleted, which fire for every renewal, so
+// this is also how currentPeriodEnd advances each period — nothing else in
+// this file recomputes it.
+const STRIPE_STATUS_MAP: Record<string, string> = {
+  active: "active",
+  trialing: "active",
+  past_due: "past_due",
+  unpaid: "past_due",
+  paused: "past_due",
+  canceled: "cancelled",
+  incomplete_expired: "cancelled",
+};
 
-export async function subscribeBusiness(businessId: string, payerUserId: string, billingInterval: string) {
-  return subscribe({ subscriberType: "business", subscriberId: businessId, payerUserId, plan: "business_subscription", billingInterval });
+export async function syncSubscriptionFromStripe(processorSubscriptionId: string, stripeStatus: string, currentPeriodEnd: Date): Promise<void> {
+  const subscription = await db.platformSubscription.findFirst({ where: { processorSubscriptionId } });
+  if (!subscription) return; // not one of ours, or checkout.session.completed hasn't landed yet
+
+  const status = STRIPE_STATUS_MAP[stripeStatus] ?? subscription.status;
+  await db.platformSubscription.update({ where: { id: subscription.id }, data: { status, currentPeriodEnd } });
+
+  if (subscription.subscriberProfileId) await reconcileLinkActivationForProfile(subscription.subscriberProfileId);
 }
 
 // premium-profiles addendum §4.2: only flips status, never touches
 // currentPeriodEnd — same shape as memberships.ts's cancelSubscription, so
 // the effectively-active check above keeps granting access through the
-// current period.
+// current period. Cancels at Stripe first, local row second — with a real
+// processor (no longer a no-op stub) a failed Stripe call must not leave
+// this row marked cancelled while Stripe keeps billing it.
 export async function cancelPlatformSubscription(subscriptionId: string): Promise<void> {
   const subscription = await db.platformSubscription.findUnique({ where: { id: subscriptionId } });
   if (!subscription || subscription.status !== "active") return;
-  await db.platformSubscription.update({ where: { id: subscription.id }, data: { status: "cancelled" } });
   await subscriptionProcessor.cancelSubscription(subscription.processorSubscriptionId);
+  await db.platformSubscription.update({ where: { id: subscription.id }, data: { status: "cancelled" } });
 }
 
 // premium-profiles addendum §5: excess links are marked inactive (never

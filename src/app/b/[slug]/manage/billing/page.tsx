@@ -25,7 +25,13 @@ const STATUS_LABEL: Record<string, string> = {
   removed: "Removed",
 };
 
-export default async function BusinessBillingPage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function BusinessBillingPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<{ checkout?: string }>;
+}) {
   const { slug: rawSlug } = await params;
   const slug = decodeURIComponent(rawSlug).toLowerCase();
 
@@ -37,6 +43,7 @@ export default async function BusinessBillingPage({ params }: { params: Promise<
   if (!(await isBusinessStaff(business.id, currentUser.id))) redirect(`/b/${business.slug}`);
 
   const subscription = await getActiveBusinessSubscription(business.id);
+  const { checkout } = await searchParams;
   const domains = await db.customDomain.findMany({
     where: { ownerBusinessId: business.id, status: { not: "removed" } },
     orderBy: { createdAt: "desc" },
@@ -69,9 +76,15 @@ export default async function BusinessBillingPage({ params }: { params: Promise<
         </div>
       ) : (
         <div className="profileLinkItem" style={{ flexDirection: "column", alignItems: "stretch", gap: "0.5rem" }}>
-          <p className="mutedText" style={{ fontSize: "0.85rem" }}>
-            Unlocks one included custom domain for this business&apos;s page.
-          </p>
+          {checkout === "success" ? (
+            <p className="mutedText" style={{ fontSize: "0.85rem" }}>
+              Payment received — activating your subscription. Refresh in a moment if it doesn&apos;t show above yet.
+            </p>
+          ) : (
+            <p className="mutedText" style={{ fontSize: "0.85rem" }}>
+              Unlocks one included custom domain for this business&apos;s page.
+            </p>
+          )}
           <BusinessSubscribeForm businessId={business.id} prices={PLAN_PRICES.business_subscription} />
         </div>
       )}

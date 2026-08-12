@@ -70,6 +70,12 @@ model User {
   // imagesJson, etc.), since Profile.themePreset is about public profile
   // appearance, not personal reading prefs.
   accessibilityPrefsJson String?
+  // platform-billing addendum §2.2, wired to real Stripe: cached so a payer
+  // reuses one Stripe Customer across every checkout (premium profile,
+  // business subscription) instead of Stripe minting a new one per session
+  // — created lazily on first checkout (getOrCreateStripeCustomerId,
+  // stripe.ts), never written any other way.
+  stripeCustomerId       String?  @unique
 
   username                        Username?
   profile                         Profile?

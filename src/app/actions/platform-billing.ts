@@ -1,10 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireOwnProfile, requireVerifiedUser } from "@/lib/auth-guards";
 import { isBusinessStaff } from "@/lib/businesses";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { getAppOrigin } from "@/lib/email";
 import { subscribeProfilePremium, subscribeBusiness, cancelPlatformSubscription } from "@/lib/platform-billing";
 import type { ActionState } from "@/app/actions/auth";
 
@@ -33,12 +35,20 @@ export async function subscribeToPremiumAction(_prevState: ActionState, formData
   });
   if (existing) return { error: "You already have an active Premium subscription." };
 
-  const result = await subscribeProfilePremium(user.profile!.id, user.id, billingInterval);
-  if ("error" in result) return result;
+  const base = `${getAppOrigin()}/s/${user.username!.handle}/billing/premium`;
+  const { checkoutUrl } = await subscribeProfilePremium(
+    user.profile!.id,
+    user.id,
+    user.email,
+    billingInterval,
+    `${base}?checkout=success`,
+    `${base}?checkout=cancelled`
+  );
 
-  revalidatePath(`/${user.username!.handle}`);
-  revalidatePath(`/s/${user.username!.handle}`);
-  return undefined;
+  // The PlatformSubscription row itself is created by the Stripe webhook
+  // once checkout.session.completed fires, not by this action — nothing to
+  // revalidate here yet, that happens on the next page load after redirect.
+  redirect(checkoutUrl);
 }
 
 export async function cancelPremiumAction(formData: FormData): Promise<void> {
@@ -80,12 +90,20 @@ export async function subscribeBusinessAction(_prevState: ActionState, formData:
   });
   if (existing) return { error: "This business already has an active subscription." };
 
-  const result = await subscribeBusiness(businessId, user.id, billingInterval);
-  if ("error" in result) return result;
-
   const business = await db.business.findUnique({ where: { id: businessId }, select: { slug: true } });
-  if (business) revalidatePath(`/b/${business.slug}/manage`);
-  return undefined;
+  if (!business) return { error: "Business not found." };
+
+  const base = `${getAppOrigin()}/b/${business.slug}/manage/billing`;
+  const { checkoutUrl } = await subscribeBusiness(
+    businessId,
+    user.id,
+    user.email,
+    billingInterval,
+    `${base}?checkout=success`,
+    `${base}?checkout=cancelled`
+  );
+
+  redirect(checkoutUrl);
 }
 
 export async function cancelBusinessSubscriptionAction(formData: FormData): Promise<void> {
