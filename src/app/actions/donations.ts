@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireVerifiedUser } from "@/lib/auth-guards";
-import { getPaymentProcessor, recordPaymentTransaction } from "@/lib/payments";
+import { getPaymentProcessor, recordPaymentTransaction, resolveFeeRate } from "@/lib/payments";
+import { getAppOrigin } from "@/lib/email";
 import { checkRateLimit } from "@/lib/rate-limit";
 import type { ActionState } from "@/app/actions/auth";
 
@@ -86,47 +87,75 @@ export async function donate(_prevState: ActionState, formData: FormData): Promi
     return { error: "This campaign's payout route isn't supported yet." };
   }
   const payoutAccount = await db.creatorPayoutAccount.findUnique({ where: { userId: campaign.organizerUserId } });
-  if (!payoutAccount || payoutAccount.status !== "active") {
+  if (!payoutAccount || payoutAccount.status !== "active" || !payoutAccount.processorAccountId) {
     return { error: "This fundraiser hasn't enabled payouts yet." };
   }
 
-  const charge = await getPaymentProcessor().charge({
+  const feeRate = await resolveFeeRate(db, campaign.organizerUserId);
+  const base = `${getAppOrigin()}/fund/${campaign.id}`;
+  const { checkoutUrl } = await getPaymentProcessor().createPurchaseCheckoutSession({
     amount,
     currency: campaign.currency,
     payerId: user.id,
-    payeeId: campaign.organizerUserId,
+    payerEmail: user.email,
+    payeeProcessorAccountId: payoutAccount.processorAccountId,
+    applicationFeeAmount: Math.round(amount * feeRate * 100) / 100,
+    description: `Donation to ${campaign.title}`,
+    successUrl: `${base}?checkout=success`,
+    cancelUrl: `${base}?checkout=cancelled`,
+    metadata: {
+      kind: "donation",
+      payerId: user.id,
+      payeeId: campaign.organizerUserId,
+      campaignId: campaign.id,
+      amount: String(amount),
+      currency: campaign.currency,
+      message,
+      isAnonymous: String(isAnonymous),
+    },
   });
-  if (charge.status !== "succeeded") return { error: "The charge failed. Please try again." };
+
+  redirect(checkoutUrl);
+}
+
+// Called from the Stripe webhook on checkout.session.completed once
+// payment for a donation is confirmed — real "charge succeeded" signal now
+// that donate() only starts a redirect. Idempotent on processorReference.
+export async function activateDonation(metadata: Record<string, string>, processorReference: string): Promise<void> {
+  const already = await db.paymentTransaction.findFirst({ where: { processorReference, kind: "donation" } });
+  if (already) return;
+
+  const { payerId, payeeId, campaignId, amount: amountStr, currency, message, isAnonymous } = metadata;
+  const amount = Number(amountStr);
 
   await db.$transaction(async (tx) => {
     const transaction = await recordPaymentTransaction(tx, {
       kind: "donation",
-      payerId: user.id,
-      payeeId: campaign.organizerUserId,
+      payerId,
+      payeeId,
       amount,
-      currency: campaign.currency,
-      processorReference: charge.processorReference,
+      currency,
+      processorReference,
       status: "succeeded",
       relatedObjectType: "fundraising_campaign",
-      relatedObjectId: campaign.id,
+      relatedObjectId: campaignId,
     });
     await tx.donation.create({
       data: {
-        campaignId: campaign.id,
-        donorId: user.id,
+        campaignId,
+        donorId: payerId,
         amount,
-        currency: campaign.currency,
+        currency,
         message: message.length > 0 ? message : null,
-        isAnonymous,
+        isAnonymous: isAnonymous === "true",
         paymentTransactionId: transaction.id,
       },
     });
     await tx.fundraisingCampaign.update({
-      where: { id: campaign.id },
+      where: { id: campaignId },
       data: { raisedAmount: { increment: amount } },
     });
   });
 
-  revalidatePath(`/fund/${campaign.id}`);
-  return undefined;
+  revalidatePath(`/fund/${campaignId}`);
 }

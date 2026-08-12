@@ -1,10 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { saveProtectedFile, issueDownloadToken } from "@/lib/protected-storage";
-import { getPaymentProcessor, recordPaymentTransaction } from "@/lib/payments";
+import { getPaymentProcessor, recordPaymentTransaction, resolveFeeRate } from "@/lib/payments";
+import { getAppOrigin } from "@/lib/email";
 import { hasCourseAccess } from "@/lib/course-access";
 import { checkCourseCompletion } from "@/lib/learning-completion";
 import { getAttributedAffiliateLink, creditAffiliateConversion } from "@/lib/affiliate";
@@ -214,7 +216,7 @@ export async function purchaseCourse(_prevState: ActionState, formData: FormData
   if (existing) return { error: "You already have access to this course." };
 
   const payoutAccount = await db.creatorPayoutAccount.findUnique({ where: { userId: course.creatorId } });
-  if (!payoutAccount || payoutAccount.status !== "active") {
+  if (!payoutAccount || payoutAccount.status !== "active" || !payoutAccount.processorAccountId) {
     return { error: "This creator hasn't enabled payouts yet." };
   }
 
@@ -222,45 +224,79 @@ export async function purchaseCourse(_prevState: ActionState, formData: FormData
     return { error: "You're purchasing too fast. Please slow down." };
   }
 
-  const charge = await getPaymentProcessor().charge({
+  const affiliateLink = await getAttributedAffiliateLink("course", course.id, user.id);
+
+  const feeRate = await resolveFeeRate(db, course.creatorId);
+  const creatorHandle = (await db.username.findUnique({ where: { userId: course.creatorId }, select: { handle: true } }))?.handle ?? "";
+  const base = `${getAppOrigin()}/${creatorHandle}/courses/${course.id}`;
+  const { checkoutUrl } = await getPaymentProcessor().createPurchaseCheckoutSession({
     amount: course.price,
     currency: course.currency,
     payerId: user.id,
-    payeeId: course.creatorId,
+    payerEmail: user.email,
+    payeeProcessorAccountId: payoutAccount.processorAccountId,
+    applicationFeeAmount: Math.round(course.price * feeRate * 100) / 100,
+    description: course.title,
+    successUrl: `${base}?checkout=success`,
+    cancelUrl: `${base}?checkout=cancelled`,
+    metadata: {
+      kind: "course_purchase",
+      payerId: user.id,
+      payeeId: course.creatorId,
+      courseId: course.id,
+      amount: String(course.price),
+      currency: course.currency,
+      affiliateLinkId: affiliateLink?.id ?? "",
+      affiliateId: affiliateLink?.affiliateId ?? "",
+      affiliateCommissionPercent: affiliateLink ? String(affiliateLink.program.commissionPercent) : "",
+    },
   });
-  if (charge.status !== "succeeded") return { error: "The charge failed. Please try again." };
 
-  const affiliateLink = await getAttributedAffiliateLink("course", course.id, user.id);
+  redirect(checkoutUrl);
+}
+
+// Called from the Stripe webhook once checkout.session.completed confirms
+// payment — mirrors activateDigitalPurchase's shape (digital-products.ts).
+// Idempotent on processorReference.
+export async function activateCoursePurchase(metadata: Record<string, string>, processorReference: string): Promise<void> {
+  const already = await db.paymentTransaction.findFirst({ where: { processorReference, kind: "course_purchase" } });
+  if (already) return;
+
+  const { payerId, payeeId, courseId, amount: amountStr, currency, affiliateLinkId, affiliateId, affiliateCommissionPercent } = metadata;
+  const amount = Number(amountStr);
+  const affiliateLink =
+    affiliateLinkId && affiliateId && affiliateCommissionPercent
+      ? { id: affiliateLinkId, affiliateId, program: { commissionPercent: Number(affiliateCommissionPercent) } }
+      : null;
 
   const creditedAffiliate = await db.$transaction(async (tx) => {
     const transaction = await recordPaymentTransaction(tx, {
       kind: "course_purchase",
-      payerId: user.id,
-      payeeId: course.creatorId,
-      amount: course.price!,
-      currency: course.currency!,
-      processorReference: charge.processorReference,
+      payerId,
+      payeeId,
+      amount,
+      currency,
+      processorReference,
       status: "succeeded",
       relatedObjectType: "course",
-      relatedObjectId: course.id,
+      relatedObjectId: courseId,
     });
     await tx.courseAccessGrant.create({
-      data: { courseId: course.id, userId: user.id, grantedVia: "purchase", paymentTransactionId: transaction.id },
+      data: { courseId, userId: payerId, grantedVia: "purchase", paymentTransactionId: transaction.id },
     });
 
     if (!affiliateLink) return null;
     return creditAffiliateConversion(tx, {
       affiliateLink,
-      saleAmount: course.price!,
-      currency: course.currency!,
-      saleProcessorReference: charge.processorReference,
+      saleAmount: amount,
+      currency,
+      saleProcessorReference: processorReference,
     });
   });
-  if (creditedAffiliate) await notifyAffiliateConversion({ recipientId: creditedAffiliate.affiliateId, actorId: user.id });
+  if (creditedAffiliate) await notifyAffiliateConversion({ recipientId: creditedAffiliate.affiliateId, actorId: payerId });
 
-  const creatorUsername = await db.username.findUnique({ where: { userId: course.creatorId }, select: { handle: true } });
-  if (creatorUsername) revalidatePath(`/${creatorUsername.handle}/courses/${course.id}`);
-  return undefined;
+  const creatorUsername = await db.username.findUnique({ where: { userId: payeeId }, select: { handle: true } });
+  if (creatorUsername) revalidatePath(`/${creatorUsername.handle}/courses/${courseId}`);
 }
 
 // spec §11.2's third criterion: only recorded for a user who currently has

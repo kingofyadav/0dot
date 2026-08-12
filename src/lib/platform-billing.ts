@@ -99,6 +99,7 @@ class StripeSubscriptionProcessor implements SubscriptionProcessor {
       // session itself, not this metadata, is the trigger; this is just how
       // it learns which PlatformSubscription row to create.
       metadata: {
+        kind: "platform_subscription",
         subscriberType: params.subscriberType,
         subscriberId: params.subscriberId,
         payerUserId: params.payerUserId,

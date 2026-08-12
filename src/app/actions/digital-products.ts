@@ -1,11 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { saveProtectedFile, issueDownloadToken } from "@/lib/protected-storage";
-import { getPaymentProcessor, recordPaymentTransaction } from "@/lib/payments";
+import { getPaymentProcessor, recordPaymentTransaction, resolveFeeRate } from "@/lib/payments";
+import { getAppOrigin } from "@/lib/email";
 import { getAttributedAffiliateLink, creditAffiliateConversion } from "@/lib/affiliate";
 import { notifyAffiliateConversion } from "@/lib/notifications";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -118,7 +120,7 @@ export async function purchaseProduct(_prevState: ActionState, formData: FormDat
   if (existing) return { error: "You already own this product." };
 
   const payoutAccount = await db.creatorPayoutAccount.findUnique({ where: { userId: product.creatorId } });
-  if (!payoutAccount || payoutAccount.status !== "active") {
+  if (!payoutAccount || payoutAccount.status !== "active" || !payoutAccount.processorAccountId) {
     return { error: "This creator hasn't enabled payouts yet." };
   }
 
@@ -126,62 +128,98 @@ export async function purchaseProduct(_prevState: ActionState, formData: FormDat
     return { error: "You're purchasing too fast. Please slow down." };
   }
 
-  const charge = await getPaymentProcessor().charge({
+  // spec §7.3: attribution is resolved here (it's just a cookie + read
+  // query) rather than in the webhook, which has no request cookies to
+  // read — the resolved link's id travels through Stripe metadata instead.
+  const affiliateLink = await getAttributedAffiliateLink("digital_product", product.id, user.id);
+
+  const feeRate = await resolveFeeRate(db, product.creatorId);
+  const base = `${getAppOrigin()}/${(await db.username.findUnique({ where: { userId: product.creatorId }, select: { handle: true } }))?.handle ?? ""}`;
+  const { checkoutUrl } = await getPaymentProcessor().createPurchaseCheckoutSession({
     amount: product.price,
     currency: product.currency,
     payerId: user.id,
-    payeeId: product.creatorId,
+    payerEmail: user.email,
+    payeeProcessorAccountId: payoutAccount.processorAccountId,
+    applicationFeeAmount: Math.round(product.price * feeRate * 100) / 100,
+    description: product.title,
+    successUrl: `${base}?checkout=success`,
+    cancelUrl: `${base}?checkout=cancelled`,
+    metadata: {
+      kind: "digital_purchase",
+      payerId: user.id,
+      payeeId: product.creatorId,
+      productId: product.id,
+      amount: String(product.price),
+      currency: product.currency,
+      affiliateLinkId: affiliateLink?.id ?? "",
+      affiliateId: affiliateLink?.affiliateId ?? "",
+      affiliateCommissionPercent: affiliateLink ? String(affiliateLink.program.commissionPercent) : "",
+    },
   });
-  if (charge.status !== "succeeded") return { error: "The charge failed. Please try again." };
 
-  // spec §7.3: attribution is resolved before the transaction (it's just a
-  // cookie + read query) so the credit write below can happen in the same
-  // db.$transaction as the sale's own ledger row — commission is only ever
-  // credited alongside a successful PaymentTransaction, never separately.
-  const affiliateLink = await getAttributedAffiliateLink("digital_product", product.id, user.id);
+  redirect(checkoutUrl);
+}
 
-  // The `existing` check above is check-then-act, not atomic — two
-  // concurrent purchase submits can both pass it before either commits.
-  // @@unique([productId, buyerId]) on DigitalProductPurchase is the DB-level
-  // backstop; catch its violation here rather than letting it surface as an
-  // unhandled 500, same convention as auth.ts's signup race handling.
+// Called from the Stripe webhook once checkout.session.completed confirms
+// payment — the real "charge succeeded" signal now that purchaseProduct
+// only starts a redirect. Idempotent on processorReference (Stripe
+// redelivery). The @@unique([productId, buyerId]) DB-level backstop this
+// used to surface as a friendly in-request error can't do that anymore —
+// by webhook time the buyer has already been charged for real, so a
+// genuinely concurrent double-checkout race here just logs and no-ops
+// rather than crashing the handler; a rare enough edge case (the
+// purchaseProduct-time `existing` check already blocks the common case)
+// that auto-refunding it is left as a known gap, not silently pretended
+// away.
+export async function activateDigitalPurchase(metadata: Record<string, string>, processorReference: string): Promise<void> {
+  const already = await db.paymentTransaction.findFirst({ where: { processorReference, kind: "digital_purchase" } });
+  if (already) return;
+
+  const { payerId, payeeId, productId, amount: amountStr, currency, affiliateLinkId, affiliateId, affiliateCommissionPercent } = metadata;
+  const amount = Number(amountStr);
+  const affiliateLink =
+    affiliateLinkId && affiliateId && affiliateCommissionPercent
+      ? { id: affiliateLinkId, affiliateId, program: { commissionPercent: Number(affiliateCommissionPercent) } }
+      : null;
+
   let creditedAffiliate;
   try {
     creditedAffiliate = await db.$transaction(async (tx) => {
       const transaction = await recordPaymentTransaction(tx, {
         kind: "digital_purchase",
-        payerId: user.id,
-        payeeId: product.creatorId,
-        amount: product.price,
-        currency: product.currency,
-        processorReference: charge.processorReference,
+        payerId,
+        payeeId,
+        amount,
+        currency,
+        processorReference,
         status: "succeeded",
         relatedObjectType: "digital_product",
-        relatedObjectId: product.id,
+        relatedObjectId: productId,
       });
       await tx.digitalProductPurchase.create({
-        data: { productId: product.id, buyerId: user.id, paymentTransactionId: transaction.id },
+        data: { productId, buyerId: payerId, paymentTransactionId: transaction.id },
       });
 
       if (!affiliateLink) return null;
       return creditAffiliateConversion(tx, {
         affiliateLink,
-        saleAmount: product.price,
-        currency: product.currency,
-        saleProcessorReference: charge.processorReference,
+        saleAmount: amount,
+        currency,
+        saleProcessorReference: processorReference,
       });
     });
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
-      return { error: "You already own this product." };
+      console.error(`activateDigitalPurchase: duplicate purchase race for product ${productId}, buyer ${payerId} — buyer was charged, no purchase row created.`);
+      return;
     }
     throw err;
   }
-  if (creditedAffiliate) await notifyAffiliateConversion({ recipientId: creditedAffiliate.affiliateId, actorId: user.id });
+  if (creditedAffiliate) await notifyAffiliateConversion({ recipientId: creditedAffiliate.affiliateId, actorId: payerId });
 
-  const creatorUsername = await db.username.findUnique({ where: { userId: product.creatorId }, select: { handle: true } });
+  const creatorUsername = await db.username.findUnique({ where: { userId: payeeId }, select: { handle: true } });
   if (creatorUsername) revalidatePath(`/${creatorUsername.handle}`);
-  return undefined;
 }
 
 // spec §5.3/§5.4: not a "use server" action wired to a <form>'s action prop

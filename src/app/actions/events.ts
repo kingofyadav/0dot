@@ -12,7 +12,8 @@ import { validateEventSlugFormat } from "@/lib/reserved-event-slugs";
 import { isBusinessStaff } from "@/lib/businesses";
 import { isCommunityStaff } from "@/lib/communities";
 import { isEventHost, getGoingAttendeeCount } from "@/lib/events";
-import { getPaymentProcessor, recordPaymentTransaction } from "@/lib/payments";
+import { getPaymentProcessor, recordPaymentTransaction, resolveFeeRate } from "@/lib/payments";
+import { getAppOrigin } from "@/lib/email";
 import { notifyEventCancelled, notifyTicketPurchased } from "@/lib/notifications";
 import type { ActionState } from "@/app/actions/auth";
 
@@ -421,46 +422,79 @@ export async function purchaseTicket(_prevState: ActionState, formData: FormData
 
   let payeeId: string | null = null;
   let payeeBusinessId: string | null = null;
+  let payoutAccount;
   if (event.hostedByBusinessId) {
-    const payoutAccount = await db.creatorPayoutAccount.findUnique({ where: { businessId: event.hostedByBusinessId } });
-    if (!payoutAccount || payoutAccount.status !== "active") return { error: "This host hasn't enabled payouts yet." };
+    payoutAccount = await db.creatorPayoutAccount.findUnique({ where: { businessId: event.hostedByBusinessId } });
+    if (!payoutAccount || payoutAccount.status !== "active" || !payoutAccount.processorAccountId) return { error: "This host hasn't enabled payouts yet." };
     payeeBusinessId = event.hostedByBusinessId;
   } else {
     const hostUserId = event.hostedByUserId ?? event.createdBy;
-    const payoutAccount = await db.creatorPayoutAccount.findUnique({ where: { userId: hostUserId } });
-    if (!payoutAccount || payoutAccount.status !== "active") return { error: "This host hasn't enabled payouts yet." };
+    payoutAccount = await db.creatorPayoutAccount.findUnique({ where: { userId: hostUserId } });
+    if (!payoutAccount || payoutAccount.status !== "active" || !payoutAccount.processorAccountId) return { error: "This host hasn't enabled payouts yet." };
     payeeId = hostUserId;
   }
 
-  const charge = await getPaymentProcessor().charge({
+  const feeRate = await resolveFeeRate(db, payeeId);
+  const base = `${getAppOrigin()}/e/${event.slug}`;
+  const { checkoutUrl } = await getPaymentProcessor().createPurchaseCheckoutSession({
     amount: ticketType.price,
     currency: ticketType.currency ?? "usd",
     payerId: user.id,
-    payeeId: payeeId ?? payeeBusinessId ?? "",
+    payerEmail: user.email,
+    payeeProcessorAccountId: payoutAccount.processorAccountId,
+    applicationFeeAmount: Math.round(ticketType.price * feeRate * 100) / 100,
+    description: `${event.title} — ${ticketType.name}`,
+    successUrl: `${base}?checkout=success`,
+    cancelUrl: `${base}?checkout=cancelled`,
+    metadata: {
+      kind: "ticket_purchase",
+      payerId: user.id,
+      payeeId: payeeId ?? "",
+      payeeBusinessId: payeeBusinessId ?? "",
+      ticketTypeId,
+      eventSlug: event.slug,
+      qrCodeToken,
+      amount: String(ticketType.price),
+      currency: ticketType.currency ?? "usd",
+    },
   });
-  if (charge.status !== "succeeded") return { error: "The charge failed. Please try again." };
+
+  redirect(checkoutUrl);
+}
+
+// Called from the Stripe webhook once checkout.session.completed confirms
+// payment — mirrors purchaseTicket's former synchronous shape. Idempotent
+// on processorReference. Capacity/sold-out is re-checked at
+// purchaseTicket time only (same check-then-act window every other
+// inventory check in this codebase accepts) — a real double-sale race
+// here is no worse than what already existed synchronously.
+export async function activateTicketPurchase(metadata: Record<string, string>, processorReference: string): Promise<void> {
+  const already = await db.paymentTransaction.findFirst({ where: { processorReference, kind: "ticket_purchase" } });
+  if (already) return;
+
+  const { payerId, payeeId, payeeBusinessId, ticketTypeId, eventSlug, qrCodeToken, amount: amountStr, currency } = metadata;
+  const amount = Number(amountStr);
 
   await db.$transaction(async (tx) => {
     const transaction = await recordPaymentTransaction(tx, {
       kind: "ticket_purchase",
-      payerId: user.id,
-      payeeId,
-      payeeBusinessId,
-      amount: ticketType.price!,
-      currency: ticketType.currency ?? "usd",
-      processorReference: charge.processorReference,
+      payerId,
+      payeeId: payeeId || null,
+      payeeBusinessId: payeeBusinessId || null,
+      amount,
+      currency,
+      processorReference,
       status: "succeeded",
       relatedObjectType: "ticket",
     });
     await tx.ticket.create({
-      data: { ticketTypeId, ownerId: user.id, status: "valid", qrCodeToken, paymentTransactionId: transaction.id },
+      data: { ticketTypeId, ownerId: payerId, status: "valid", qrCodeToken, paymentTransactionId: transaction.id },
     });
     await tx.ticketType.update({ where: { id: ticketTypeId }, data: { quantitySold: { increment: 1 } } });
   });
 
-  await notifyTicketPurchased({ recipientId: user.id, eventSlug: event.slug });
-  revalidatePath(`/e/${event.slug}`);
-  return undefined;
+  await notifyTicketPurchased({ recipientId: payerId, eventSlug });
+  revalidatePath(`/e/${eventSlug}`);
 }
 
 // spec §5.3: check-in is ticketed-events-only for now. Host-only, matches a

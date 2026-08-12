@@ -6,7 +6,8 @@ import { db } from "@/lib/db";
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { saveUploadedImage } from "@/lib/uploads";
 import { canManageOfferingOwner, isOfferingOwnerStaff, resolveOfferingOwner } from "@/lib/offerings";
-import { getPaymentProcessor, recordPaymentTransaction } from "@/lib/payments";
+import { getPaymentProcessor, recordPaymentTransaction, resolveFeeRate } from "@/lib/payments";
+import { getAppOrigin } from "@/lib/email";
 import { recordCrmActivity } from "@/lib/crm";
 import { checkRateLimit } from "@/lib/rate-limit";
 import type { ActionState } from "@/app/actions/auth";
@@ -239,56 +240,88 @@ export async function purchaseOffering(_prevState: ActionState, formData: FormDa
 
   let payeeId: string | null = null;
   let payeeBusinessId: string | null = null;
+  let payoutAccount;
   if (offering.businessId) {
-    const payoutAccount = await db.creatorPayoutAccount.findUnique({ where: { businessId: offering.businessId } });
-    if (!payoutAccount || payoutAccount.status !== "active") return { error: "This seller hasn't enabled payouts yet." };
+    payoutAccount = await db.creatorPayoutAccount.findUnique({ where: { businessId: offering.businessId } });
+    if (!payoutAccount || payoutAccount.status !== "active" || !payoutAccount.processorAccountId) return { error: "This seller hasn't enabled payouts yet." };
     payeeBusinessId = offering.businessId;
   } else {
-    const payoutAccount = await db.creatorPayoutAccount.findUnique({ where: { userId: offering.sellerUserId! } });
-    if (!payoutAccount || payoutAccount.status !== "active") return { error: "This seller hasn't enabled payouts yet." };
+    payoutAccount = await db.creatorPayoutAccount.findUnique({ where: { userId: offering.sellerUserId! } });
+    if (!payoutAccount || payoutAccount.status !== "active" || !payoutAccount.processorAccountId) return { error: "This seller hasn't enabled payouts yet." };
     payeeId = offering.sellerUserId;
   }
 
   const amount = Math.round(offering.price * quantity * 100) / 100;
   const currency = offering.currency ?? "usd";
 
-  const charge = await getPaymentProcessor().charge({
+  const feeRate = await resolveFeeRate(db, payeeId);
+  const base = `${getAppOrigin()}${await offeringManagePath(offering)}`;
+  const { checkoutUrl } = await getPaymentProcessor().createPurchaseCheckoutSession({
     amount,
     currency,
     payerId: user.id,
-    payeeId: payeeId ?? payeeBusinessId ?? "",
+    payerEmail: user.email,
+    payeeProcessorAccountId: payoutAccount.processorAccountId,
+    applicationFeeAmount: Math.round(amount * feeRate * 100) / 100,
+    description: `${offering.name} x${quantity}`,
+    successUrl: `${base}?checkout=success`,
+    cancelUrl: `${base}?checkout=cancelled`,
+    metadata: {
+      kind: "offering_purchase",
+      payerId: user.id,
+      payeeId: payeeId ?? "",
+      payeeBusinessId: payeeBusinessId ?? "",
+      offeringId: offering.id,
+      quantity: String(quantity),
+      amount: String(amount),
+      currency,
+    },
   });
-  if (charge.status !== "succeeded") return { error: "The charge failed. Please try again." };
+
+  redirect(checkoutUrl);
+}
+
+// Called from the Stripe webhook once checkout.session.completed confirms
+// payment — mirrors purchaseOffering's former synchronous shape.
+// Idempotent on processorReference.
+export async function activateOfferingPurchase(metadata: Record<string, string>, processorReference: string): Promise<void> {
+  const already = await db.paymentTransaction.findFirst({ where: { processorReference, kind: { in: ["business_purchase", "freelance_purchase"] } } });
+  if (already) return;
+
+  const { payerId, payeeId, payeeBusinessId, offeringId, quantity: quantityStr, amount: amountStr, currency } = metadata;
+  const amount = Number(amountStr);
+  const quantity = Number(quantityStr);
+
+  const offering = await db.offering.findUniqueOrThrow({ where: { id: offeringId } });
 
   const purchase = await db.$transaction(async (tx) => {
     const transaction = await recordPaymentTransaction(tx, {
-      kind: offering.businessId ? "business_purchase" : "freelance_purchase",
-      payerId: user.id,
-      payeeId,
-      payeeBusinessId,
+      kind: payeeBusinessId ? "business_purchase" : "freelance_purchase",
+      payerId,
+      payeeId: payeeId || null,
+      payeeBusinessId: payeeBusinessId || null,
       amount,
       currency,
-      processorReference: charge.processorReference,
+      processorReference,
       status: "succeeded",
       relatedObjectType: "offering",
-      relatedObjectId: offering.id,
+      relatedObjectId: offeringId,
     });
     return tx.offeringPurchase.create({
-      data: { offeringId: offering.id, buyerId: user.id, paymentTransactionId: transaction.id, quantity },
+      data: { offeringId, buyerId: payerId, paymentTransactionId: transaction.id, quantity },
     });
   });
 
-  if (offering.businessId) {
+  if (payeeBusinessId) {
     await recordCrmActivity({
-      businessId: offering.businessId,
+      businessId: payeeBusinessId,
       activityType: "purchase",
       sourceId: purchase.id,
-      identity: { userId: user.id },
+      identity: { userId: payerId },
     });
   }
 
   revalidatePath(await offeringManagePath(offering));
-  return undefined;
 }
 
 // Seller-only, per spec §3.1's "a status enum the seller updates

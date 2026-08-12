@@ -1,7 +1,7 @@
 import "server-only";
-import { randomBytes } from "crypto";
 import { db } from "@/lib/db";
 import { Prisma } from "@/generated/prisma/client";
+import { stripe, getOrCreateStripeCustomerId } from "@/lib/stripe";
 
 // phase-5 build plan §0 / spec §3.2: no finance decision on fee rates
 // exists yet, so this is a single flat placeholder applied to every
@@ -21,56 +21,214 @@ export const PREMIUM_CREATOR_PLATFORM_FEE_PERCENT = 0.07;
 
 export type PayoutAccountStatus = "onboarding" | "active" | "restricted";
 
-// spec §3: every feature that moves money (tips now; memberships/digital
-// downloads/courses/affiliate commissions later) goes through this
-// interface, never talks to a processor SDK directly. Swapping in real
-// Stripe Connect later means writing a second class implementing this same
-// shape and changing getPaymentProcessor() below — nothing above this file
-// needs to change shape when that happens.
+// spec §3: every feature that moves money (tips, memberships, digital
+// downloads, courses, affiliate commissions, tickets, marketplace, donations,
+// offerings) goes through this interface, never talks to a processor SDK
+// directly. Now backed by real Stripe Connect (Accounts v2, per the
+// stripe-best-practices skill's connect reference — never the deprecated
+// v1 `type: 'express'`/`'custom'`/`'standard'` account shapes) instead of a
+// stub. A hosted Checkout redirect is inherently async, so — same shape as
+// platform-billing.ts's SubscriptionProcessor — charging returns a URL to
+// redirect to, not a synchronous succeeded/failed result; the caller's own
+// feature row is created by the Stripe webhook once payment is confirmed,
+// via each feature file's own exported `activateXxx` function.
 export interface PaymentProcessor {
   readonly name: string;
-  createPayoutAccount(user: { id: string; email: string }): Promise<{
+  createPayoutAccount(entity: { id: string; email: string }): Promise<{
     processorAccountId: string;
     status: PayoutAccountStatus;
   }>;
-  charge(params: {
+  // Stripe-hosted flow that collects the identity/bank info the v2 Account
+  // needs before its stripe_transfers capability can go active — a
+  // recipient-configuration Account isn't payable-to until this completes.
+  createOnboardingLink(processorAccountId: string, params: { returnUrl: string; refreshUrl: string }): Promise<{ url: string }>;
+  // One-time destination charge (tips, donations, digital/course/offering/
+  // ticket/marketplace purchases): buyer pays via Checkout, funds transfer
+  // to the payee's connected account minus applicationFeeAmount on success.
+  createPurchaseCheckoutSession(params: {
     amount: number;
     currency: string;
     payerId: string;
-    payeeId: string;
-  }): Promise<{ processorReference: string; status: "succeeded" | "failed" }>;
+    payerEmail: string;
+    payeeProcessorAccountId: string;
+    applicationFeeAmount: number;
+    description: string;
+    successUrl: string;
+    cancelUrl: string;
+    metadata: Record<string, string>;
+  }): Promise<{ checkoutUrl: string }>;
+  // Recurring destination charge (memberships): same shape, but a Connect
+  // subscription takes a fee *percent* (subscription_data.
+  // application_fee_percent), not a fixed amount, since the charged amount
+  // repeats every period.
+  createSubscriptionCheckoutSession(params: {
+    amount: number;
+    currency: string;
+    billingInterval: string;
+    payerId: string;
+    payerEmail: string;
+    payeeProcessorAccountId: string;
+    applicationFeePercent: number;
+    description: string;
+    successUrl: string;
+    cancelUrl: string;
+    metadata: Record<string, string>;
+  }): Promise<{ checkoutUrl: string }>;
+  cancelSubscription(processorSubscriptionId: string): Promise<void>;
 }
 
-// Stub only — no real hosted onboarding or card network exists to wait on,
-// so this short-circuits straight to `active`/`succeeded`. Real Stripe
-// Connect's account status genuinely starts `onboarding` until a webhook
-// confirms it (spec §3.1/§4.3) and a real charge can fail (declined card,
-// etc.) — this stub is a local-testing shortcut, not a model for how the
-// real integration should behave.
-class StubPaymentProcessor implements PaymentProcessor {
-  readonly name = "stub";
+// Marketplace business model per the stripe-best-practices skill's connect
+// reference table: platform owns checkout (`dashboard: "express"`),
+// platform owns pricing and negative-balance liability (`fees_collector`/
+// `losses_collector: "application"`), Destination charges. Recipient
+// configuration only (not merchant) — connected accounts never become
+// merchant of record here, they only receive transfers.
+class StripeConnectPaymentProcessor implements PaymentProcessor {
+  readonly name = "stripe_connect";
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- signature is the PaymentProcessor interface contract; the stub doesn't need the argument.
-  async createPayoutAccount(user: { id: string; email: string }) {
-    return {
-      processorAccountId: `stub_acct_${randomBytes(8).toString("hex")}`,
-      status: "active" as const,
-    };
+  async createPayoutAccount(entity: { id: string; email: string }) {
+    const account = await stripe.v2.core.accounts.create({
+      contact_email: entity.email,
+      dashboard: "express",
+      defaults: {
+        responsibilities: { fees_collector: "application", losses_collector: "application" },
+      },
+      configuration: {
+        recipient: {
+          capabilities: { stripe_balance: { stripe_transfers: { requested: true } } },
+        },
+      },
+      include: ["configuration.recipient"],
+    });
+    return { processorAccountId: account.id, status: "onboarding" as const };
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- signature is the PaymentProcessor interface contract; the stub doesn't need the argument.
-  async charge(params: { amount: number; currency: string; payerId: string; payeeId: string }) {
-    return {
-      processorReference: `stub_ch_${randomBytes(12).toString("hex")}`,
-      status: "succeeded" as const,
-    };
+  async createOnboardingLink(processorAccountId: string, params: { returnUrl: string; refreshUrl: string }) {
+    const link = await stripe.v2.core.accountLinks.create({
+      account: processorAccountId,
+      use_case: {
+        type: "account_onboarding",
+        account_onboarding: {
+          configurations: ["recipient"],
+          return_url: params.returnUrl,
+          refresh_url: params.refreshUrl,
+        },
+      },
+    });
+    return { url: link.url };
+  }
+
+  async createPurchaseCheckoutSession(params: {
+    amount: number;
+    currency: string;
+    payerId: string;
+    payerEmail: string;
+    payeeProcessorAccountId: string;
+    applicationFeeAmount: number;
+    description: string;
+    successUrl: string;
+    cancelUrl: string;
+    metadata: Record<string, string>;
+  }): Promise<{ checkoutUrl: string }> {
+    const customerId = await getOrCreateStripeCustomerId(params.payerId, params.payerEmail);
+    const session = await stripe.checkout.sessions.create({
+      mode: "payment",
+      customer: customerId,
+      line_items: [
+        {
+          price_data: {
+            currency: params.currency,
+            unit_amount: Math.round(params.amount * 100),
+            product_data: { name: params.description },
+          },
+          quantity: 1,
+        },
+      ],
+      payment_intent_data: {
+        application_fee_amount: Math.round(params.applicationFeeAmount * 100),
+        transfer_data: { destination: params.payeeProcessorAccountId },
+      },
+      success_url: params.successUrl,
+      cancel_url: params.cancelUrl,
+      metadata: params.metadata,
+    });
+    if (!session.url) throw new Error("Stripe did not return a checkout URL.");
+    return { checkoutUrl: session.url };
+  }
+
+  async createSubscriptionCheckoutSession(params: {
+    amount: number;
+    currency: string;
+    billingInterval: string;
+    payerId: string;
+    payerEmail: string;
+    payeeProcessorAccountId: string;
+    applicationFeePercent: number;
+    description: string;
+    successUrl: string;
+    cancelUrl: string;
+    metadata: Record<string, string>;
+  }): Promise<{ checkoutUrl: string }> {
+    const customerId = await getOrCreateStripeCustomerId(params.payerId, params.payerEmail);
+    const session = await stripe.checkout.sessions.create({
+      mode: "subscription",
+      customer: customerId,
+      line_items: [
+        {
+          price_data: {
+            currency: params.currency,
+            unit_amount: Math.round(params.amount * 100),
+            recurring: { interval: params.billingInterval === "yearly" ? "year" : "month" },
+            product_data: { name: params.description },
+          },
+          quantity: 1,
+        },
+      ],
+      subscription_data: {
+        application_fee_percent: Math.round(params.applicationFeePercent * 10000) / 100,
+        transfer_data: { destination: params.payeeProcessorAccountId },
+      },
+      success_url: params.successUrl,
+      cancel_url: params.cancelUrl,
+      metadata: params.metadata,
+    });
+    if (!session.url) throw new Error("Stripe did not return a checkout URL.");
+    return { checkoutUrl: session.url };
+  }
+
+  async cancelSubscription(processorSubscriptionId: string): Promise<void> {
+    await stripe.subscriptions.update(processorSubscriptionId, { cancel_at_period_end: true });
   }
 }
 
-const processor: PaymentProcessor = new StubPaymentProcessor();
+const processor: PaymentProcessor = new StripeConnectPaymentProcessor();
 
 export function getPaymentProcessor(): PaymentProcessor {
   return processor;
+}
+
+// Shared by recordPaymentTransaction below and every feature action that
+// needs to know the fee *before* charging (Stripe needs
+// applicationFeeAmount/applicationFeePercent at charge time, not after) —
+// factored out so both call sites can never compute a different rate for
+// the same payee. Takes a client (plain `db`, or a `tx` from an in-flight
+// transaction) rather than importing one, so recordPaymentTransaction can
+// keep its existing atomicity — the discount check and the ledger write
+// stay against the same transaction client.
+export async function resolveFeeRate(
+  client: Pick<Prisma.TransactionClient, "platformSubscription">,
+  payeeId: string | null | undefined
+): Promise<number> {
+  if (!payeeId) return PLATFORM_FEE_PERCENT;
+  const premiumPayee = await client.platformSubscription.findFirst({
+    where: {
+      plan: "profile_premium",
+      subscriberProfile: { userId: payeeId },
+      OR: [{ status: "active" }, { status: "cancelled", currentPeriodEnd: { gt: new Date() } }],
+    },
+    select: { id: true },
+  });
+  return premiumPayee ? PREMIUM_CREATOR_PLATFORM_FEE_PERCENT : PLATFORM_FEE_PERCENT;
 }
 
 export function getMyPayoutAccount(userId: string) {
@@ -115,23 +273,10 @@ export async function recordPaymentTransaction(
     storeFee?: number;
   }
 ) {
-  // premium-profiles addendum §3.6: checked inline against the same
-  // transaction client rather than importing platform-billing.ts, both to
-  // avoid a circular import (platform-billing.ts calls this function for
-  // platform_subscription_charge rows) and to keep the discount check and
-  // the ledger write atomic with each other.
-  let feeRate: number = PLATFORM_FEE_PERCENT;
-  if (params.payeeId) {
-    const premiumPayee = await tx.platformSubscription.findFirst({
-      where: {
-        plan: "profile_premium",
-        subscriberProfile: { userId: params.payeeId },
-        OR: [{ status: "active" }, { status: "cancelled", currentPeriodEnd: { gt: new Date() } }],
-      },
-      select: { id: true },
-    });
-    if (premiumPayee) feeRate = PREMIUM_CREATOR_PLATFORM_FEE_PERCENT;
-  }
+  // premium-profiles addendum §3.6: resolveFeeRate runs against `tx`, the
+  // same transaction client the ledger write below uses, so the discount
+  // check and the write stay atomic with each other.
+  const feeRate = await resolveFeeRate(tx, params.payeeId);
   // billing addendum §2.1: the one case in this ledger with genuinely no
   // payee — platform_subscription_charge/api_usage_charge rows (payeeId
   // and payeeBusinessId both null) — money flows straight to 0dot, so

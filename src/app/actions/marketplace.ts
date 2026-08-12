@@ -15,7 +15,8 @@ import {
   resolveInstaller,
   hasVerifiedListingAccess,
 } from "@/lib/marketplace";
-import { getPaymentProcessor, recordPaymentTransaction } from "@/lib/payments";
+import { getPaymentProcessor, recordPaymentTransaction, resolveFeeRate } from "@/lib/payments";
+import { getAppOrigin } from "@/lib/email";
 import { canManageCatalog } from "@/lib/businesses";
 import { isCommunityStaff } from "@/lib/communities";
 import { createTrustSafetyCase } from "@/lib/trust-safety";
@@ -232,45 +233,73 @@ export async function purchaseMarketplaceListing(_prevState: ActionState, formDa
 
   let payeeId: string | null = null;
   let payeeBusinessId: string | null = null;
+  let payoutAccount;
   if (listing.sellerBusinessId) {
-    const payoutAccount = await db.creatorPayoutAccount.findUnique({ where: { businessId: listing.sellerBusinessId } });
-    if (!payoutAccount || payoutAccount.status !== "active") return { error: "This seller hasn't enabled payouts yet." };
+    payoutAccount = await db.creatorPayoutAccount.findUnique({ where: { businessId: listing.sellerBusinessId } });
+    if (!payoutAccount || payoutAccount.status !== "active" || !payoutAccount.processorAccountId) return { error: "This seller hasn't enabled payouts yet." };
     payeeBusinessId = listing.sellerBusinessId;
   } else {
-    const payoutAccount = await db.creatorPayoutAccount.findUnique({ where: { userId: listing.sellerUserId! } });
-    if (!payoutAccount || payoutAccount.status !== "active") return { error: "This seller hasn't enabled payouts yet." };
+    payoutAccount = await db.creatorPayoutAccount.findUnique({ where: { userId: listing.sellerUserId! } });
+    if (!payoutAccount || payoutAccount.status !== "active" || !payoutAccount.processorAccountId) return { error: "This seller hasn't enabled payouts yet." };
     payeeId = listing.sellerUserId;
   }
 
-  const charge = await getPaymentProcessor().charge({
+  const feeRate = await resolveFeeRate(db, payeeId);
+  const base = `${getAppOrigin()}/m/${listing.id}`;
+  const { checkoutUrl } = await getPaymentProcessor().createPurchaseCheckoutSession({
     amount: listing.price,
     currency: listing.currency ?? "usd",
     payerId: user.id,
-    payeeId: payeeId ?? payeeBusinessId ?? "",
+    payerEmail: user.email,
+    payeeProcessorAccountId: payoutAccount.processorAccountId,
+    applicationFeeAmount: Math.round(listing.price * feeRate * 100) / 100,
+    description: listing.title,
+    successUrl: `${base}?checkout=success`,
+    cancelUrl: `${base}?checkout=cancelled`,
+    metadata: {
+      kind: "marketplace_purchase",
+      payerId: user.id,
+      payeeId: payeeId ?? "",
+      payeeBusinessId: payeeBusinessId ?? "",
+      listingId: listing.id,
+      amount: String(listing.price),
+      currency: listing.currency ?? "usd",
+    },
   });
-  if (charge.status !== "succeeded") return { error: "The charge failed. Please try again." };
+
+  redirect(checkoutUrl);
+}
+
+// Called from the Stripe webhook once checkout.session.completed confirms
+// payment — mirrors purchaseMarketplaceListing's former synchronous shape.
+// Idempotent on processorReference.
+export async function activateMarketplacePurchase(metadata: Record<string, string>, processorReference: string): Promise<void> {
+  const already = await db.paymentTransaction.findFirst({ where: { processorReference, kind: "marketplace_purchase" } });
+  if (already) return;
+
+  const { payerId, payeeId, payeeBusinessId, listingId, amount: amountStr, currency } = metadata;
+  const amount = Number(amountStr);
 
   await db.$transaction(async (tx) => {
     const transaction = await recordPaymentTransaction(tx, {
       kind: "marketplace_purchase",
-      payerId: user.id,
-      payeeId,
-      payeeBusinessId,
-      amount: listing.price!,
-      currency: listing.currency ?? "usd",
-      processorReference: charge.processorReference,
+      payerId,
+      payeeId: payeeId || null,
+      payeeBusinessId: payeeBusinessId || null,
+      amount,
+      currency,
+      processorReference,
       status: "succeeded",
       relatedObjectType: "marketplace_listing",
-      relatedObjectId: listing.id,
+      relatedObjectId: listingId,
     });
     await tx.marketplacePurchase.create({
-      data: { listingId: listing.id, buyerId: user.id, paymentTransactionId: transaction.id },
+      data: { listingId, buyerId: payerId, paymentTransactionId: transaction.id },
     });
-    await tx.marketplaceListing.update({ where: { id: listing.id }, data: { purchaseCount: { increment: 1 } } });
+    await tx.marketplaceListing.update({ where: { id: listingId }, data: { purchaseCount: { increment: 1 } } });
   });
 
-  revalidatePath(`/m/${listing.id}`);
-  return undefined;
+  revalidatePath(`/m/${listingId}`);
 }
 
 // spec §4.3: config is accepted as opaque JSON here — the app's own

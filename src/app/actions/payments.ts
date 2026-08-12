@@ -1,18 +1,23 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { getPaymentProcessor } from "@/lib/payments";
+import { getAppOrigin } from "@/lib/email";
 import { isBusinessStaff } from "@/lib/businesses";
 import { meetsPayoutAgeFloor, PAYOUT_MINIMUM_AGE_YEARS } from "@/lib/age-controls";
 import type { ActionState } from "@/app/actions/auth";
 
 // spec §3: idempotent so the settings UI can safely re-POST — a second
 // call on an already-`active` account is a no-op rather than an error, and
-// a second call while still `onboarding` just re-checks with the processor
-// instead of creating a duplicate row (userId is unique on
-// CreatorPayoutAccount).
+// a second call while still `onboarding` re-uses the existing Stripe
+// Account rather than creating a duplicate one (userId is unique on
+// CreatorPayoutAccount). Always redirects into Stripe's hosted onboarding
+// (account_onboarding link) after creating/reusing the account — a v2
+// recipient Account's stripe_transfers capability doesn't go active until
+// that flow collects identity/bank info, so onboarding is never "done" the
+// moment the account row is created the way the old stub pretended.
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- useActionState requires this exact (prevState, formData) signature; the action itself takes no input fields.
 export async function startCreatorOnboarding(_prevState: ActionState, _formData: FormData): Promise<ActionState> {
   const user = await requireVerifiedUser();
@@ -28,24 +33,20 @@ export async function startCreatorOnboarding(_prevState: ActionState, _formData:
     return { error: `You must be at least ${PAYOUT_MINIMUM_AGE_YEARS} and have confirmed your date of birth to enable payouts.` };
   }
 
-  const result = await getPaymentProcessor().createPayoutAccount({ id: user.id, email: user.email });
+  let processorAccountId = existing?.processorAccountId ?? null;
+  if (!processorAccountId) {
+    const result = await getPaymentProcessor().createPayoutAccount({ id: user.id, email: user.email });
+    processorAccountId = result.processorAccountId;
+    await db.creatorPayoutAccount.upsert({
+      where: { userId: user.id },
+      create: { userId: user.id, processor: getPaymentProcessor().name, processorAccountId, status: result.status },
+      update: { processorAccountId, status: result.status },
+    });
+  }
 
-  await db.creatorPayoutAccount.upsert({
-    where: { userId: user.id },
-    create: {
-      userId: user.id,
-      processor: getPaymentProcessor().name,
-      processorAccountId: result.processorAccountId,
-      status: result.status,
-    },
-    update: {
-      processorAccountId: result.processorAccountId,
-      status: result.status,
-    },
-  });
-
-  if (user.username) revalidatePath(`/s/${user.username.handle}`);
-  return undefined;
+  const returnUrl = `${getAppOrigin()}/s/${user.username!.handle}/monetization/payouts`;
+  const { url } = await getPaymentProcessor().createOnboardingLink(processorAccountId, { returnUrl, refreshUrl: returnUrl });
+  redirect(url);
 }
 
 // phase-8 spec §5.2: same idempotent onboarding shape as
@@ -65,21 +66,19 @@ export async function startBusinessPayoutOnboarding(_prevState: ActionState, for
   const existing = await db.creatorPayoutAccount.findUnique({ where: { businessId } });
   if (existing?.status === "active") return undefined;
 
-  const result = await getPaymentProcessor().createPayoutAccount({ id: businessId, email: user.email });
+  let processorAccountId = existing?.processorAccountId ?? null;
+  if (!processorAccountId) {
+    const result = await getPaymentProcessor().createPayoutAccount({ id: businessId, email: user.email });
+    processorAccountId = result.processorAccountId;
+    await db.creatorPayoutAccount.upsert({
+      where: { businessId },
+      create: { businessId, processor: getPaymentProcessor().name, processorAccountId, status: result.status },
+      update: { processorAccountId, status: result.status },
+    });
+  }
 
-  await db.creatorPayoutAccount.upsert({
-    where: { businessId },
-    create: {
-      businessId,
-      processor: getPaymentProcessor().name,
-      processorAccountId: result.processorAccountId,
-      status: result.status,
-    },
-    update: {
-      processorAccountId: result.processorAccountId,
-      status: result.status,
-    },
-  });
-
-  return undefined;
+  const business = await db.business.findUnique({ where: { id: businessId }, select: { slug: true } });
+  const returnUrl = `${getAppOrigin()}${business ? `/b/${business.slug}/manage` : "/"}`;
+  const { url } = await getPaymentProcessor().createOnboardingLink(processorAccountId, { returnUrl, refreshUrl: returnUrl });
+  redirect(url);
 }
