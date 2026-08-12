@@ -17,6 +17,7 @@ import {
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { getNotificationVerb } from "@/lib/notifications";
+import { EMAIL_NOTIFICATION_TYPES } from "@/lib/email";
 import { DeliveryToggle } from "@/components/DeliveryToggle";
 import { SettingsRow } from "@/components/SettingsRow";
 
@@ -40,21 +41,9 @@ const PUSH_NOTIFICATION_TYPES = [
   "appointment_request",
 ] as const;
 
-// addendum §8: a smaller subset than push above — high-frequency, low-value
-// types (like, mention, comment) that are fine as a push buzz are noise in
-// an inbox, so they're left out of the email set entirely rather than
-// defaulted off (there's no email-sending wired up yet either way, see
-// addendum §1, so this only controls what a future sender would check).
-const EMAIL_NOTIFICATION_TYPES = [
-  "message",
-  "new_follower",
-  "community_update",
-  "tip_received",
-  "new_subscriber",
-  "event_cancelled",
-  "ticket_purchased",
-  "appointment_request",
-] as const;
+// addendum §8: canonical list now lives in email.ts (EMAIL_NOTIFICATION_TYPES)
+// since dispatchEmailEvent enforces it as an eligibility check, not just a
+// toggle list — imported above rather than redefined here.
 
 const NOTIFICATION_ICONS: Record<(typeof PUSH_NOTIFICATION_TYPES)[number], LucideIcon> = {
   like: Heart,

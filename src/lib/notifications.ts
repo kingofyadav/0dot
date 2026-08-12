@@ -236,16 +236,17 @@ async function createNotification({
   // no client-side changes needed here.
   publishToUsers([recipientId], { type: "notification" });
 
-  // phase-10 spec §7.1 / phase-15 spec §4.2: webhooks and push are two
-  // independent consumers of this same event (neither depends on the
-  // other's result), so they run concurrently rather than paying both
-  // latencies serially on every notification for every recipient. Dynamic
-  // imports avoid load-time cycles (webhooks.ts imports
-  // notifyWebhookDisabled and push.ts imports getNotificationVerb, both
-  // from this module).
+  // phase-10 spec §7.1 / phase-15 spec §4.2 / account-settings-hardening
+  // addendum §8: webhooks, push, and email are three independent consumers
+  // of this same event (none depends on another's result), so they run
+  // concurrently rather than paying all three latencies serially on every
+  // notification for every recipient. Dynamic imports avoid load-time
+  // cycles (webhooks.ts imports notifyWebhookDisabled, push.ts and
+  // email.ts both import getNotificationVerb, all from this module).
   await Promise.all([
     import("@/lib/webhooks").then(({ dispatchWebhookEvent }) => dispatchWebhookEvent({ recipientId, type, subjectType, subjectId })),
     import("@/lib/push").then(({ dispatchPushEvent }) => dispatchPushEvent({ recipientId, type, subjectType, subjectId })),
+    import("@/lib/email").then(({ dispatchEmailEvent }) => dispatchEmailEvent({ recipientId, type, subjectType, subjectId })),
   ]);
 }
 

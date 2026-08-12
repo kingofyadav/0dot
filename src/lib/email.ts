@@ -1,5 +1,7 @@
 import "server-only";
 import nodemailer, { type Transporter } from "nodemailer";
+import { Resend } from "resend";
+import { db } from "@/lib/db";
 
 // phase-5 spec §10: needs "a transactional email sending dependency (infra
 // concern outside any spec)" per the build plan. Same delegation pattern
@@ -66,11 +68,40 @@ function requireEnv(name: string): string {
   return value;
 }
 
+// Provisioned via the Vercel Marketplace (Resend). Takes priority over the
+// generic SMTP relay below when both happen to be configured — this is the
+// integration actually wired up for this deployment, not a hypothetical
+// second option.
+class ResendEmailSender implements EmailSender {
+  readonly name = "resend";
+  private readonly client: Resend;
+  private readonly from: string;
+
+  constructor() {
+    this.client = new Resend(requireEnv("RESEND_API_KEY"));
+    this.from = process.env.EMAIL_FROM ?? `0dot <no-reply@${requireEnv("RESEND_EMAIL_DOMAIN")}>`;
+  }
+
+  async send(params: { to: string; subject: string; html: string }): Promise<{ status: "sent" | "failed" }> {
+    const { error } = await this.client.emails.send({
+      from: this.from,
+      to: params.to,
+      subject: params.subject,
+      html: params.html,
+    });
+    if (error) {
+      console.error(`[email] Resend send to ${params.to} failed:`, error);
+      return { status: "failed" };
+    }
+    return { status: "sent" };
+  }
+}
+
 let sender: EmailSender | undefined;
 
 export function getEmailSender(): EmailSender {
   if (!sender) {
-    sender = process.env.SMTP_HOST ? new SmtpEmailSender() : new ConsoleEmailSender();
+    sender = process.env.RESEND_API_KEY ? new ResendEmailSender() : process.env.SMTP_HOST ? new SmtpEmailSender() : new ConsoleEmailSender();
   }
   return sender;
 }
@@ -81,4 +112,71 @@ export function getEmailSender(): EmailSender {
 // before this was centralized here.
 export function getAppOrigin(): string {
   return process.env.APP_ORIGIN ?? "http://localhost:3000";
+}
+
+// account-settings-hardening addendum §8: a smaller subset than push's own
+// curated type list (push.ts's dispatchPushEvent has no equivalent
+// allowlist — its uncurated types are the mandatory/system-generated ones,
+// always-on by design, no toggle needed) — high-frequency, low-value types
+// (like, mention, comment) that are fine as a push buzz are noise in an
+// inbox, so they're excluded from email delivery entirely here, not just
+// defaulted off. Canonical source for both dispatchEmailEvent's allowlist
+// check below and the settings page's toggle list
+// (notifications/page.tsx), so the two can't drift apart.
+export const EMAIL_NOTIFICATION_TYPES = [
+  "message",
+  "new_follower",
+  "community_update",
+  "tip_received",
+  "new_subscriber",
+  "event_cancelled",
+  "ticket_purchased",
+  "appointment_request",
+] as const;
+
+const EMAIL_ELIGIBLE_TYPES = new Set<string>(EMAIL_NOTIFICATION_TYPES);
+
+// account-settings-hardening addendum §8: the email counterpart to
+// push.ts's dispatchPushEvent — same call-site shape (dynamic import from
+// notifications.ts's createNotification, to avoid a load-time cycle since
+// this needs getNotificationVerb from that module), same "generic verb
+// text, never a rendering of private content" sensitivity-inheritance
+// posture, same per-(user, type, channel) NotificationDeliveryPreference
+// row this addendum's settings page (notifications/page.tsx's
+// EMAIL_NOTIFICATION_TYPES) already writes to and reads back — that page's
+// own comment flagged "no email-sending wired up yet" as the reason it
+// only controlled a future sender; this is that sender. Never throws: an
+// email failure must not break the in-app notification it's mirroring.
+export async function dispatchEmailEvent(args: { recipientId: string; type: string; subjectType: string; subjectId: string }): Promise<void> {
+  try {
+    if (!EMAIL_ELIGIBLE_TYPES.has(args.type)) return;
+
+    const pref = await db.notificationDeliveryPreference.findUnique({
+      where: { userId_notificationType_channel: { userId: args.recipientId, notificationType: args.type, channel: "email" } },
+    });
+    // spec §4.1's data model (reused for email by the addendum): "enabled
+    // boolean, default true" — no row means never opted out, not off.
+    if (pref && !pref.enabled) return;
+
+    const recipient = await db.user.findUnique({ where: { id: args.recipientId }, select: { email: true, emailVerifiedAt: true } });
+    if (!recipient || !recipient.emailVerifiedAt) return; // unverified addresses never receive mail, same posture as every other outbound sender in this codebase
+
+    const { getNotificationVerb } = await import("@/lib/notifications");
+    const verb = getNotificationVerb(args.type, args.subjectType);
+    if (!verb) return; // no generic copy exists for this type — same "deliberately partial" catalog dispatchPushEvent/dispatchWebhookEvent already accept
+
+    // Sent as-is, not prefixed with "Someone"/an actor name — same
+    // convention dispatchPushEvent already established for this shared
+    // verb catalog (some entries are third-person action phrases, others
+    // are already complete standalone sentences; the catalog itself
+    // doesn't distinguish, so neither delivery channel tries to).
+    const notificationsUrl = `${getAppOrigin()}/notifications`;
+    await getEmailSender().send({
+      to: recipient.email,
+      subject: "0dot",
+      html: `<p>${verb}.</p><p><a href="${notificationsUrl}">Open 0dot</a></p>`,
+    });
+  } catch {
+    // Best-effort, same posture as dispatchPushEvent/dispatchWebhookEvent.
+  }
 }
