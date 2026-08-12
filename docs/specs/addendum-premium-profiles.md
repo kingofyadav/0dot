@@ -157,11 +157,14 @@ type in this system, not a new one invented for this tier specifically.
 
 ### 4.3 Acceptance criteria
 
-- [ ] Cancelling a `profile_premium` subscription retains perks through
+- [x] Cancelling a `profile_premium` subscription retains perks through
       `current_period_end`, matching Phase 5 §4.3's rule.
-- [ ] `billing_interval` is honored by the processor-side recurring billing
+- [x] `billing_interval` is honored by the processor-side recurring billing
       object, which remains the source of truth for renewal timing (Phase 5
-      §4.1's principle, applied here).
+      §4.1's principle, applied here) — real as of 2026-08-12's Stripe
+      wiring (platform-billing addendum §6): `syncSubscriptionFromStripe`
+      advances `currentPeriodEnd` from Stripe's own subscription object on
+      every `customer.subscription.updated` webhook.
 
 ## 5. Downgrade and lapse — non-destructive, matching this series' general posture
 

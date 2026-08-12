@@ -2,7 +2,11 @@
 
 Status: Built (2026-08-11) — §2 PlatformSubscription core and §4 API usage
 billing implemented per this spec. §3 is superseded by
-addendum-custom-domains.md, whose own build covers that ground.
+addendum-custom-domains.md, whose own build covers that ground. §2's
+processor was wired to real Stripe on 2026-08-12 (see §6's resolved note);
+§4's API usage billing is still a stub settlement job — a separate
+usage-based-billing decision (Metronome vs. basic Stripe Billing Meters),
+not resolved by the §2 work.
 Owner: TBD
 Related: [ROADMAP.md](../ROADMAP.md), [roadmap-audit.md](roadmap-audit.md),
 [addendum-custom-domains.md](addendum-custom-domains.md), [addendum-premium-profiles.md](addendum-premium-profiles.md),
@@ -161,9 +165,11 @@ slot in the Phase 1–15 sequence.
   see that document's own §7 for what's still open (exact figures, pricing,
   the creator fee-discount rate).
 - **Pricing** for all three plans/metering tiers — a finance decision.
-- **Processor choice for direct billing** (§2.2): confirm which product
-  (Stripe Billing or equivalent) is used, distinct from the Connect-based
-  integration used everywhere else in this roadmap.
+- ~~**Processor choice for direct billing** (§2.2)~~ — resolved 2026-08-12:
+  Stripe Billing + Checkout Sessions (`mode: 'subscription'`), wired for
+  real in `src/lib/platform-billing.ts`/`src/lib/stripe.ts`, distinct from
+  the Connect-based integration `payments.ts` uses elsewhere (still a
+  stub — Connect is a separate, larger follow-up, not covered by this).
 - **`platform_fee` semantic mismatch** (§2.1): acceptable to leave as-is
   (100% of a direct charge, by convention), or worth a field-level fix at
   some point — flagged, not resolved, given three phases of specs already
