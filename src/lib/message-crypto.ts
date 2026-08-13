@@ -65,3 +65,18 @@ export function encryptAtRestNullable(plaintext: string | null): string | null {
 export function decryptAtRestNullable(stored: string | null): string | null {
   return stored === null ? null : decryptAtRest(stored);
 }
+
+// Display-path variant: a row encrypted under a since-rotated/lost key must
+// not crash the page it's rendered on (inbox previews, conversation view).
+// Write paths (encryptAtRest) deliberately keep throwing on a missing/wrong
+// key — only already-stored, now-undecryptable data degrades gracefully.
+const UNAVAILABLE_PLACEHOLDER = "[message unavailable]";
+
+export function decryptAtRestNullableSafe(stored: string | null): string | null {
+  if (stored === null) return null;
+  try {
+    return decryptAtRest(stored);
+  } catch {
+    return UNAVAILABLE_PLACEHOLDER;
+  }
+}

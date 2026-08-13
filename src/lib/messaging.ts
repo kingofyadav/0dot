@@ -2,7 +2,7 @@ import "server-only";
 import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { parseCursor, cursorWhere, paginate, POST_PAGE_SIZE, type PostCursor } from "@/lib/pagination";
-import { decryptAtRestNullable } from "@/lib/message-crypto";
+import { decryptAtRestNullableSafe } from "@/lib/message-crypto";
 
 // phase-2 spec §5.3: "a number to confirm with product, not a hard
 // architectural limit" — same treatment as Phase 1's link cap.
@@ -235,7 +235,7 @@ function paginateConversations<T extends { lastMessageAt: Date; id: string }>(
 // Decrypted only on the trimmed page actually being returned, not the
 // discarded "+1" row paginateConversations peeks at.
 function decryptPreviews<T extends { lastMessagePreview: string | null }>(items: T[]): T[] {
-  return items.map((item) => ({ ...item, lastMessagePreview: decryptAtRestNullable(item.lastMessagePreview) }));
+  return items.map((item) => ({ ...item, lastMessagePreview: decryptAtRestNullableSafe(item.lastMessagePreview) }));
 }
 
 // Primary inbox: conversations with no request state (group chats), an
@@ -340,7 +340,7 @@ export async function getMessagesForConversation(
   // decryptPreviews above. Filtering happens after decrypt/trim so a
   // blocked sender's messages simply never reach the caller.
   const visible = items.filter((m) => !blockedSenderIds.has(m.senderId));
-  return { items: visible.map((m) => ({ ...m, body: decryptAtRestNullable(m.body) })), nextCursor };
+  return { items: visible.map((m) => ({ ...m, body: decryptAtRestNullableSafe(m.body) })), nextCursor };
 }
 
 // spec §5.5: "unread badge on the inbox is a count of conversations with

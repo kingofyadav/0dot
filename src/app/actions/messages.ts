@@ -20,7 +20,7 @@ import {
 import { notifyMessage } from "@/lib/notifications";
 import { publishToUsers } from "@/lib/message-events";
 import { saveMessageAttachment, type MessageAttachmentKind } from "@/lib/uploads";
-import { encryptAtRestNullable, decryptAtRestNullable } from "@/lib/message-crypto";
+import { encryptAtRestNullable, decryptAtRestNullableSafe } from "@/lib/message-crypto";
 import { parseCursor } from "@/lib/pagination";
 import type { ActionState } from "@/app/actions/auth";
 
@@ -347,7 +347,7 @@ export async function deleteMessage(formData: FormData): Promise<void> {
             lastMessageAt: newLatest.createdAt,
             lastMessageSenderId: newLatest.senderId,
             lastMessagePreview: encryptAtRestNullable(
-              buildMessagePreview(decryptAtRestNullable(newLatest.body), newLatest.attachmentType)
+              buildMessagePreview(decryptAtRestNullableSafe(newLatest.body), newLatest.attachmentType)
             ),
           }
         : { lastMessageSenderId: null, lastMessagePreview: null },
