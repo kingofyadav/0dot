@@ -8,15 +8,19 @@ import {
   Bookmark,
   Briefcase,
   Building2,
+  ChevronDown,
   Code2,
+  CreditCard,
   FileText,
   Flame,
   Home,
+  Lock,
   MessageCircle,
   Search,
   Settings as SettingsIcon,
   Shield,
   User,
+  UserCog,
   Users,
   Wallet,
   Wrench,
@@ -38,18 +42,65 @@ const SETTINGS_GROUP_ICONS: Record<string, LucideIcon> = {
   Security: Shield,
   Portfolio: Briefcase,
   Monetization: Wallet,
+  Billing: CreditCard,
   Content: FileText,
   Tools: Wrench,
   Developer: Code2,
   Notifications: Bell,
+  Privacy: Lock,
+  Account: UserCog,
 };
 
-// The one master nav's settings entry — a Reddit-style accordion instead of
-// a flat link, so every settings destination (previously a separate
+type NavItem = { href: string; label: string; icon: LucideIcon };
+
+// One nav destination row — shared by the flat top tier and every
+// NavSection below it, so the icon/label/active-state markup is written
+// once instead of once per tier.
+function NavItemLink({ href, label, icon: Icon, pathname }: NavItem & { pathname: string }) {
+  const isActive = isPathActive(pathname, href);
+  return (
+    <Link
+      href={href}
+      className={`navLink${isActive ? " navLinkActive" : ""}`}
+      aria-current={isActive ? "page" : undefined}
+    >
+      <span className="navLinkIcon" aria-hidden="true">
+        <Icon size={20} />
+      </span>
+      {label}
+    </Link>
+  );
+}
+
+// A labeled, collapsible group of destinations — Reddit's "COMMUNITIES"-style
+// section header. Plain <details>/<summary> (no React state) since, unlike
+// SettingsNav below, the label itself is never a navigation target — only
+// the toggle behavior matters here.
+function NavSection({ label, items, pathname }: { label: string; items: NavItem[]; pathname: string }) {
+  return (
+    <details className="navSectionDetails" open>
+      <summary className="navSectionSummary">
+        <ChevronDown size={14} className="navSectionChevron" aria-hidden="true" />
+        {label}
+      </summary>
+      <div className="navSectionItems">
+        {items.map((item) => (
+          <NavItemLink key={item.href} {...item} pathname={pathname} />
+        ))}
+      </div>
+    </details>
+  );
+}
+
+// The master nav's settings entry — a Reddit-style accordion instead of a
+// flat link, so every settings destination (previously a separate
 // SettingsSidebar column competing with page content) lives in this single
-// left nav instead. Expand state defaults to whether the visitor is
-// currently under /s/{handle}, then persists across client-side navigation
-// since this component doesn't remount between pages.
+// left nav instead. Styled as the third main-nav section (alongside "You"
+// and "Spaces" above), just with a real link in its header in addition to
+// the expand toggle, since "Settings" itself is a destination and not just
+// a group label. Expand state defaults to whether the visitor is currently
+// under /s/{handle}, then persists across client-side navigation since this
+// component doesn't remount between pages.
 function SettingsNav({ pathname, profileHandle }: { pathname: string; profileHandle: string }) {
   const indexHref = `/s/${profileHandle}`;
   const isActive = isPathActive(pathname, indexHref);
@@ -57,11 +108,9 @@ function SettingsNav({ pathname, profileHandle }: { pathname: string; profileHan
 
   return (
     <div className="navSettingsBlock">
-      <div className={`navLink navSettingsRow${isActive ? " navLinkActive" : ""}`}>
+      <div className={`navSectionSummary navSettingsRow${isActive ? " navLinkActive" : ""}`}>
         <Link href={indexHref} className="navSettingsLink" aria-current={isActive ? "page" : undefined}>
-          <span className="navLinkIcon" aria-hidden="true">
-            <SettingsIcon size={20} />
-          </span>
+          <SettingsIcon size={14} aria-hidden="true" />
           Settings
         </Link>
         <button
@@ -71,7 +120,11 @@ function SettingsNav({ pathname, profileHandle }: { pathname: string; profileHan
           aria-label={expanded ? "Collapse settings sections" : "Expand settings sections"}
           onClick={() => setExpanded((value) => !value)}
         >
-          <span aria-hidden="true">{expanded ? "−" : "+"}</span>
+          <ChevronDown
+            size={14}
+            className={`navSectionChevron${expanded ? "" : " navSectionChevronClosed"}`}
+            aria-hidden="true"
+          />
         </button>
       </div>
       {expanded && (
@@ -129,15 +182,18 @@ export function NavLinks({
 }) {
   const pathname = usePathname();
 
-  const items: { href: string; label: string; icon: LucideIcon }[] = [
+  // Top tier: identity + core-content loop, always visible — the highest-
+  // frequency destinations, mirroring Reddit's terse Home/Popular top list.
+  const topItems: NavItem[] = [
     ...(profileHandle ? [{ href: `/${profileHandle}`, label: "Profile", icon: User }] : []),
     { href: "/feed", label: "Feed", icon: Home },
     { href: "/explore", label: "Explore", icon: Search },
     { href: "/trending", label: "Trending", icon: Flame },
+  ];
+
+  // "You": personal/inbox-style destinations.
+  const youItems: NavItem[] = [
     { href: "/messages", label: "Messages", icon: MessageCircle },
-    { href: "/b", label: "Businesses", icon: Briefcase },
-    { href: "/c", label: "Communities", icon: Users },
-    { href: "/org", label: "Organizations", icon: Building2 },
     // Desktop reaches this via SiteHeader's icon cluster (NotificationBell),
     // which is deliberately hidden on mobile — but that left mobile with no
     // path to /notifications at all (the comment in SiteHeader.tsx claims
@@ -147,24 +203,20 @@ export function NavLinks({
     { href: "/bookmarks", label: "Bookmarks", icon: Bookmark },
   ];
 
+  // "Spaces": other entities you interact with beyond your own profile.
+  const spacesItems: NavItem[] = [
+    { href: "/b", label: "Businesses", icon: Briefcase },
+    { href: "/c", label: "Communities", icon: Users },
+    { href: "/org", label: "Organizations", icon: Building2 },
+  ];
+
   return (
     <>
-      {items.map(({ href, label, icon: Icon }) => {
-        const isActive = isPathActive(pathname, href);
-        return (
-          <Link
-            key={href}
-            href={href}
-            className={`navLink${isActive ? " navLinkActive" : ""}`}
-            aria-current={isActive ? "page" : undefined}
-          >
-            <span className="navLinkIcon" aria-hidden="true">
-              <Icon size={20} />
-            </span>
-            {label}
-          </Link>
-        );
-      })}
+      {topItems.map((item) => (
+        <NavItemLink key={item.href} {...item} pathname={pathname} />
+      ))}
+      <NavSection label="You" items={youItems} pathname={pathname} />
+      <NavSection label="Spaces" items={spacesItems} pathname={pathname} />
       {profileHandle && <SettingsNav pathname={pathname} profileHandle={profileHandle} />}
       <SearchForm />
     </>

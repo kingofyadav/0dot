@@ -11,11 +11,36 @@
    media-only variant. This custom variant matches the same
    [data-theme="dark"] attribute the hand-written CSS already keys off of,
    so `dark:` utilities on new Tailwind-authored components stay consistent
-   with the rest of the app. It only fires on an *explicit* dark override;
-   the OS-preference-only case has no Tailwind equivalent here because it's
-   already handled below for every var()-backed color/shadow utility via
-   the @theme inline aliases, without needing the dark: variant at all. */
-@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+   with the rest of the app.
+   Bug fix: this used to fire only on an *explicit* dark override, on the
+   theory that the OS-preference-only case didn't need a Tailwind
+   equivalent because it's handled for every var()-backed color/shadow
+   utility via the @theme inline aliases below. That's true for var()-backed
+   utilities, but shadcn's own generated components (e.g.
+   ui/dropdown-menu.tsx's destructive-item focus background, ui/button.tsx's
+   outline/ghost/destructive variants) use *literal* dark: utilities with
+   their own opacity modifiers (bg-destructive/20, bg-input/30, ...), which
+   aren't var()-backed and so never applied for a visitor whose OS is in
+   dark mode but who never touched the manual theme toggle (data-theme is
+   only ever set from an explicit choice — see ThemeInitScript.tsx /
+   browser-tab.ts's persistTheme — never synced from prefers-color-scheme).
+   The second branch below adds that OS-preference fallback in pure CSS
+   (media query, not JS), so it stays reactive to a live OS scheme change
+   and doesn't disturb the "data-theme attribute present == explicit
+   choice" contract BrowserTabProvider.tsx's own scheme-change listener
+   relies on. It's suppressed under an explicit [data-theme="light"]
+   override so a light-mode manual choice still wins over a dark OS
+   preference. */
+@custom-variant dark {
+  &:where([data-theme="dark"], [data-theme="dark"] *) {
+    @slot;
+  }
+  @media (prefers-color-scheme: dark) {
+    &:not([data-theme="light"]):not([data-theme="light"] *) {
+      @slot;
+    }
+  }
+}
 
 /* Brand palette (2026-08 rebrand): Google's 4-color palette, used as a
    semantic system rather than decorative brand hues — Blue is the one
@@ -61,6 +86,16 @@
   /* Google Red 500 (the exact brand hex). */
   --danger: #ea4335;
   --danger-soft: rgba(234, 67, 53, 0.14);
+  /* .premiumBadge's gold — deliberately outside the Blue/Red/Yellow/Green
+     semantic system above (premium is not a status), so it doesn't get a
+     dark-mode retune like --accent/--success/--warning/--danger do; same
+     "dimensional/one-off, lives only here" posture as --desktop-header-h
+     below. Bug fix: these were hardcoded hex literals directly in
+     .premiumBadge, the one spot in this file breaking the "never hardcode a
+     hex" rule the modal-backdrop comment elsewhere calls out. */
+  --premium-gold-start: #c9992c;
+  --premium-gold-end: #e8c766;
+  --on-premium: #3a2c05;
   /* Text/icon color for content on an --accent/--accent-strong/--success/
      --warning/--danger surface (buttons, badges). Measured per color against
      its actual light-mode value rather than assumed: near-black clears AA
@@ -87,11 +122,18 @@
      offset so the two never overlap. */
   --desktop-header-h: 72px;
   /* .marketingNavInner's rendered height ("/" only) — 1rem vertical padding
-     (32px) + a 32-40px logo/button row. Used so .landingWrap--solo can fill
-     exactly the remaining viewport below the nav, letting the hero center
-     itself in real leftover space instead of relying on the ambient
-     min-height:100% cascade further up the tree. */
-  --marketing-nav-h: 72px;
+     (32px) + the row's actual height at the >=1024px breakpoint where
+     .landingWrap--solo's justify-content: center engages (32px: the
+     ThemeToggleLogo, at align-items: center, is the tallest thing in the
+     row there — MarketingNav.tsx's .buttonSmall Log in/Create your 0dot
+     links are ~29-31px). Bug fix: this was previously 72px, assuming up to
+     a 40px row; the real 64px total made .landingWrap--solo (below) reserve
+     ~8px more than the nav actually occupies, nudging the hero off true
+     center. Used so .landingWrap--solo can fill exactly the remaining
+     viewport below the nav, letting the hero center itself in real leftover
+     space instead of relying on the ambient min-height:100% cascade further
+     up the tree. */
+  --marketing-nav-h: 64px;
 
   /* Spacing scale (DESIGN_SYSTEM.md) — dimensional, not themed, so this
      lives only here, not duplicated in the dark-mode/data-theme blocks
@@ -1302,6 +1344,96 @@ html:not([data-theme="light"])[data-high-contrast="true"] {
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
+/* Native validity feedback (type="url"/"email", required, pattern, min/max
+   on date/time, …) — :user-invalid only flags a field after the visitor has
+   actually interacted with it, unlike plain :invalid which would paint every
+   required field red on first paint before anyone's typed anything. Browsers
+   that don't yet support :user-invalid just drop this one rule and fall back
+   to the plain focus/border styling above — no breakage, just no early
+   feedback there. */
+.field input:user-invalid,
+.field textarea:user-invalid,
+.textInput:user-invalid {
+  border-color: var(--danger);
+}
+
+.field input:user-invalid:focus,
+.field textarea:user-invalid:focus,
+.textInput:user-invalid:focus {
+  box-shadow: 0 0 0 3px var(--danger-soft);
+}
+
+/* Search inputs (SearchForm.tsx, search/page.tsx's in-page box) — a leading
+   magnifier icon (rendered by the component, see .searchFieldIcon) needs
+   room, and the browser's own cancel/"x" button (shown once text is typed)
+   otherwise renders as an unstyled platform-default glyph sitting flush
+   against the input's edge with no hover feedback, clashing with every other
+   icon affordance in the app. Firefox's equivalent button isn't stylable
+   this way and is left at its default appearance — not a regression, just
+   unstyled there same as before. */
+.searchFieldWrap {
+  position: relative;
+}
+
+.searchFieldWrap .textInput {
+  width: 100%;
+  padding-left: 2.5rem;
+}
+
+.searchFieldIcon {
+  position: absolute;
+  top: 50%;
+  left: 0.85rem;
+  transform: translateY(-50%);
+  color: var(--foreground);
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+input[type="search"]::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 15px;
+  height: 15px;
+  margin-inline-start: 0.5rem;
+  cursor: pointer;
+  background-color: currentColor;
+  opacity: 0.45;
+  transition: opacity 0.15s ease;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M18 6 6 18'/%3E%3Cpath d='m6 6 12 12'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M18 6 6 18'/%3E%3Cpath d='m6 6 12 12'/%3E%3C/svg%3E");
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+}
+
+input[type="search"]::-webkit-search-cancel-button:hover {
+  opacity: 0.85;
+}
+
+/* Date/time inputs — the native calendar-picker/clock icon already picks up
+   a light color from `color-scheme: dark` (see html[data-theme="dark"]
+   above) so it isn't invisible on a dark field, but out of the box it has no
+   hover affordance and sits with almost no breathing room against the
+   input's edge, unlike every other clickable icon in the app (.passwordToggle,
+   .navLink, …). This gives it the same color-mix hover treatment without
+   touching the icon glyph itself, which the browser owns. */
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  border-radius: 6px;
+  padding: 4px;
+  opacity: 0.65;
+  transition: opacity 0.15s ease, background-color 0.15s ease;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator:hover,
+input[type="time"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+  background-color: color-mix(in srgb, var(--foreground) 8%, transparent);
+}
+
 /* Bug fix: browser/password-manager autofill (Chrome, Edge, Brave, …)
    force their own white-ish input background + black text via internal
    UA styles that ignore `background`/`color` entirely — the only way to
@@ -1415,13 +1547,18 @@ html:not([data-theme="light"])[data-high-contrast="true"] {
   background: var(--danger);
 }
 
-.passwordStrength[data-score="2"] .passwordStrengthBars span.filled {
+/* Bug fix: score 4 ("Strong") used to render the exact same blue as score
+   2/3 ("Fair"/"Good"), so the meter never actually signaled that a password
+   had reached the top tier. --success is already the app's positive-state
+   color everywhere else; scores 2/3 stay on --accent as the "getting
+   there" middle tier. */
+.passwordStrength[data-score="2"] .passwordStrengthBars span.filled,
+.passwordStrength[data-score="3"] .passwordStrengthBars span.filled {
   background: var(--accent);
 }
 
-.passwordStrength[data-score="3"] .passwordStrengthBars span.filled,
 .passwordStrength[data-score="4"] .passwordStrengthBars span.filled {
-  background: var(--accent);
+  background: var(--success);
 }
 
 .passwordStrengthLabel {
@@ -2410,8 +2547,8 @@ a.verifiedBadge:focus-visible {
   height: 18px;
   margin-left: 0.35rem;
   border-radius: 5px;
-  background: linear-gradient(135deg, #c9992c, #e8c766);
-  color: #3a2c05;
+  background: linear-gradient(135deg, var(--premium-gold-start), var(--premium-gold-end));
+  color: var(--on-premium);
   font-size: 0.65rem;
   line-height: 1;
   vertical-align: middle;
@@ -3147,20 +3284,71 @@ body.hasBottomNav .appMain {
   flex-shrink: 0;
 }
 
+/* Reddit-style main-nav sections — "You" and "Spaces" (NavSection in
+   NavLinks.tsx) below the flat top-tier links, plus Settings further below
+   restyled as their third peer (same .navSectionSummary header look). Each
+   is a labeled, collapsible group instead of one long flat list. */
+.navSectionDetails {
+  margin-top: 0.35rem;
+}
+
+.navSectionSummary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0.5rem var(--space-3);
+  border-radius: 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  opacity: 0.55;
+  cursor: pointer;
+  list-style: none;
+  transition: background-color 0.15s ease, opacity 0.15s ease;
+}
+
+.navSectionSummary::-webkit-details-marker {
+  display: none;
+}
+
+.navSectionSummary:hover {
+  opacity: 0.9;
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+}
+
+.navSectionChevron {
+  flex-shrink: 0;
+  transition: transform 0.15s ease;
+}
+
+.navSectionDetails:not([open]) .navSectionChevron,
+.navSectionChevron.navSectionChevronClosed {
+  transform: rotate(-90deg);
+}
+
+.navSectionItems {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
 /* The master nav's Settings entry — a Reddit-style accordion (see
-   SettingsNav in NavLinks.tsx) replacing the old page-local SettingsSidebar.
-   The link and the expand toggle are separate click targets so the row can
-   both navigate (tap the label) and disclose (tap the +/−) without a
-   details/summary fighting an interactive child. .navSettingsBlock is the
-   outer wrapper around the row + its disclosed .navSubGroups. */
+   SettingsNav in NavLinks.tsx) replacing the old page-local SettingsSidebar,
+   styled as a peer of the "You"/"Spaces" .navSectionSummary headers above
+   (same font-size/weight/uppercase/opacity, inherited from that shared
+   class) even though structurally it's a plain div, not a <summary> — its
+   label doubles as a real link, so the link and the expand toggle are
+   separate click targets instead of a details/summary fighting an
+   interactive child. .navSettingsBlock is the outer wrapper around the row
+   + its disclosed .navSubGroups. */
 .navSettingsBlock {
   display: flex;
   flex-direction: column;
+  margin-top: 0.35rem;
 }
 
 .navSettingsRow {
-  display: flex;
-  align-items: center;
   gap: 0;
   padding: 0;
 }
@@ -3168,7 +3356,7 @@ body.hasBottomNav .appMain {
 .navSettingsLink {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-2);
   flex: 1;
   min-width: 0;
   padding: var(--space-2) var(--space-3);
@@ -3188,8 +3376,6 @@ body.hasBottomNav .appMain {
   background: none;
   color: inherit;
   opacity: 0.6;
-  font-size: 1rem;
-  line-height: 1;
   cursor: pointer;
   transition: background-color 0.15s ease, opacity 0.15s ease;
 }
@@ -3205,7 +3391,7 @@ body.hasBottomNav .appMain {
   display: flex;
   flex-direction: column;
   gap: 0.1rem;
-  margin: 0.15rem 0 0.35rem calc(1.25em + var(--space-3) + var(--space-3));
+  margin: 0.15rem 0 0.35rem calc(0.875em + var(--space-3) + var(--space-2));
   padding-left: 0.75rem;
   border-left: 2px solid var(--accent);
 }
@@ -3479,6 +3665,15 @@ body.hasBottomNav .appMain {
 .mobileNavPanel .navSubGroups {
   margin-top: 0.05rem;
   margin-bottom: 0.15rem;
+}
+
+.mobileNavPanel .navSectionDetails,
+.mobileNavPanel .navSettingsBlock {
+  margin-top: 0.15rem;
+}
+
+.mobileNavPanel .navSectionSummary {
+  padding: 0.4rem var(--space-3);
 }
 
 /* On pages with the fixed bottom tab bar, keep the panel's scrollable area
