@@ -50,7 +50,7 @@ export function linkifyPostBody(body: string): ReactNode[] {
         <Link
           key={index}
           href={`/${handle}`}
-          style={{ color: "var(--accent-navy)", fontWeight: 600 }}
+          style={{ color: "var(--accent)", fontWeight: 600 }}
         >
           {part}
         </Link>
@@ -58,7 +58,7 @@ export function linkifyPostBody(body: string): ReactNode[] {
     }
     if (part.startsWith("#")) {
       return (
-        <span key={index} style={{ color: "var(--accent-orange)", fontWeight: 600 }}>
+        <span key={index} style={{ color: "var(--accent)", fontWeight: 600 }}>
           {part}
         </span>
       );

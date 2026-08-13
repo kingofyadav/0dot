@@ -45,7 +45,7 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
       </p>
       {progressPct !== null && (
         <div style={{ height: "8px", borderRadius: "4px", background: "var(--border)", overflow: "hidden", marginTop: "0.4rem" }}>
-          <div style={{ height: "100%", width: `${progressPct}%`, background: "var(--accent, #6366f1)" }} />
+          <div style={{ height: "100%", width: `${progressPct}%`, background: "var(--accent, #4285f4)" }} />
         </div>
       )}
 

@@ -34,8 +34,11 @@ export interface ResolvedTab {
 }
 
 const SUFFIX = "0dot";
-const SAVING_DOT = "#3b82f6";
-const UNSAVED_DOT = "#f59e0b";
+// Canvas fillStyle can't read CSS custom properties, so these track the
+// brand palette in globals.css (--accent/--warning/--success/--danger)
+// manually — update alongside any future palette change.
+const SAVING_DOT = "#4285f4";
+const UNSAVED_DOT = "#fbbc04";
 
 // Highest-priority state wins outright rather than combining (e.g. an
 // unsaved dot never competes with an in-flight save) — matches how mature
@@ -120,9 +123,9 @@ function loadImage(href: string): Promise<HTMLImageElement> {
 }
 
 const BADGE_FILL: Record<"check" | "warning" | "count", string> = {
-  check: "#148104",
-  warning: "#dc2626",
-  count: "#dc2626",
+  check: "#34a853",
+  warning: "#ea4335",
+  count: "#ea4335",
 };
 
 // Composites a small status badge onto the base logo at draw time instead

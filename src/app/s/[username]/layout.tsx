@@ -34,9 +34,9 @@ export default async function SettingsLayout({
 
   return (
     <div className="settingsShell">
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
-        <h1 style={{ fontSize: "1.1rem", fontWeight: 700 }}>Settings</h1>
-        <Link href={`/${handle}`} className="button buttonSecondary" style={{ fontSize: "0.85rem", padding: "0.4rem 0.7rem" }}>
+      <div className="settingsHeaderRow">
+        <h1>Settings</h1>
+        <Link href={`/${handle}`} className="button buttonSecondary buttonSmall">
           View public profile
         </Link>
       </div>

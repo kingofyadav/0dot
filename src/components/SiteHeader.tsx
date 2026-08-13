@@ -76,6 +76,12 @@ export async function SiteHeader() {
           <ThemeToggleLogo />
           {greeting}
         </div>
+        {/* Tablet+ only (>=768px, see .mobileHeaderSearchWrap) — phone
+            widths keep search reachable via the bottom-nav icon/hamburger
+            panel instead, no room for an inline bar there. */}
+        <div className="mobileHeaderSearchWrap">
+          <SearchForm />
+        </div>
         {/* Messages/notifications/account avatar are desktop-only (per
             explicit direction) — mobile keeps just the nav toggle; Messages
             and Settings are still reachable via NavLinks inside it, and

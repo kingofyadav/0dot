@@ -537,8 +537,8 @@ export function PostCard({
                 display: "inline-flex",
                 alignItems: "center",
                 gap: "0.3rem",
-                borderColor: "var(--accent-orange)",
-                color: "var(--accent-orange)",
+                borderColor: "var(--accent)",
+                color: "var(--accent)",
               }}
               aria-label="Repost"
             >
@@ -554,7 +554,7 @@ export function PostCard({
               style={{
                 display: "inline-flex",
                 alignItems: "center",
-                ...(isBookmarked ? { borderColor: "var(--accent-navy)", color: "var(--accent-navy)" } : undefined),
+                ...(isBookmarked ? { borderColor: "var(--accent)", color: "var(--accent)" } : undefined),
               }}
               aria-pressed={isBookmarked}
               aria-label="Bookmark"

@@ -17,13 +17,19 @@
    the @theme inline aliases, without needing the dark: variant at all. */
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
-/* Brand palette: colors are picked directly from the 0dot logo mark
-   (public/1dot.png light-theme fill, public/0dot.png dark-theme fill —
-   see Logo.tsx), not an abstract design-system palette. Green is now the
-   primary interactive color (buttons, links, focus rings), orange is the
-   secondary accent used sparingly (decorative accents, the avatar ring),
-   navy is a tertiary accent for secondary links. Destructive/warning
-   actions stay red (--danger), never green. */
+/* Brand palette (2026-08 rebrand): Google's 4-color palette, used as a
+   semantic system rather than decorative brand hues — Blue is the one
+   primary interactive color (buttons, links, focus rings, active nav
+   state); Red/Yellow/Green are reserved for status (danger/warning/success)
+   and are NOT used decoratively elsewhere, precisely so a yellow badge
+   always means "warning" and never just "brand accent". Replaces the
+   previous Indian-tricolor-inspired scheme (saffron/green/navy, sourced
+   from the 0dot/1dot logo marks) per explicit product direction — see
+   DESIGN_SYSTEM.md. Every hex below is Google's own published Material
+   tonal-palette value for that hue (500 = the exact brand hex given:
+   Blue #4285F4, Red #EA4335, Yellow #FBBC04, Green #34A853; other tiers
+   picked from the same official scale for dark-mode/contrast tuning), not
+   an arbitrary tint. */
 :root {
   /* Matte off-white, not pure #ffffff — flat white at full brightness reads
      as glare next to near-black text; this warm, slightly muted tone keeps
@@ -34,39 +40,45 @@
   --foreground: #171717;
   --surface: #fbfaf8;
   --border: rgba(23, 23, 23, 0.12);
-  /* Exact pixel match to public/1dot.png's green fill. */
-  --accent: #148104;
-  --accent-strong: #116e03;
-  --accent-soft: rgba(20, 129, 4, 0.14);
-  /* Exact pixel match to public/1dot.png's orange fill. */
-  --accent-orange: #ff430a;
-  --accent-orange-soft: rgba(255, 67, 10, 0.14);
-  /* Exact pixel match to public/1dot.png's blue fill. */
-  --accent-navy: #0104d0;
-  --danger: #dc2626;
-  --danger-soft: rgba(220, 38, 38, 0.14);
-  /* Text/icon color for content placed on top of an --accent or
-     --accent-strong surface (primary buttons). The logo green is a deep,
-     dark hue — near-black text on it is only ~3.6:1, failing WCAG AA
-     (4.5:1); white clears 5:1+. This is the opposite of the old saffron
-     accent's need, and dark mode's brightened accent (below) flips back to
-     needing near-black text again, so — unlike most tokens — --on-accent
-     now genuinely needs a different value per theme (same reasoning as
-     --on-danger's existing split, just previously accent didn't need it). */
-  --on-accent: #ffffff;
-  /* Text color for content on a --danger surface. --danger itself is tuned
-     as a *foreground* (text-on-background) color per theme, not as a button
-     background — its dark-mode value (#f87171) is a light red meant to read
-     against near-black, so white button text on it drops to ~2.8:1. White
-     stays correct in light mode (danger is a saturated dark red there). */
-  --on-danger: #ffffff;
-  /* Text color for content on an --accent-navy surface (.verifiedBadge).
-     --accent-navy is tuned as a *foreground* color per theme like --danger
-     above, not as a button background — its dark-mode value (#6b7fd7) is a
-     light lavender-blue meant to read against near-black, so white text on
-     it drops to ~3.7:1, failing WCAG AA. White stays correct in light mode
-     (navy is a saturated dark blue there). */
-  --on-accent-navy: #ffffff;
+  /* Google Blue 500 (the exact brand hex) / Blue 600 hover. */
+  --accent: #4285f4;
+  --accent-strong: #1a73e8;
+  --accent-soft: rgba(66, 133, 244, 0.14);
+  /* Google Green 500 (the exact brand hex) — success/positive status. */
+  --success: #34a853;
+  --success-soft: rgba(52, 168, 83, 0.14);
+  /* Google Yellow 500 (the exact brand hex) — warning/caution status. Kept
+     identical in both light and dark mode (see the dark-mode block below
+     for why this one hue doesn't need per-theme retuning like the other
+     three) — but ONLY ever used as a filled badge/icon/border with
+     --on-warning text, never as bare colored text on the page background:
+     measured ~1.6:1 against this light-mode --background, badly failing
+     WCAG AA as plain text, even though it clears AA easily as a badge fill
+     (~10.5:1 with near-black text) or as an icon/text color against the
+     near-black dark-mode background (~11.6:1). */
+  --warning: #fbbc04;
+  --warning-soft: rgba(251, 188, 4, 0.14);
+  /* Google Red 500 (the exact brand hex). */
+  --danger: #ea4335;
+  --danger-soft: rgba(234, 67, 53, 0.14);
+  /* Text/icon color for content on an --accent/--accent-strong/--success/
+     --warning/--danger surface (buttons, badges). Measured per color against
+     its actual light-mode value rather than assumed: near-black clears AA
+     (4.5:1) against all four — Blue 5.0:1, Green 5.9:1, Red 4.6:1 (tightest
+     margin of the four; flagged here since it's close to the line), Yellow
+     10.5:1 — while white fails against every one of them in light mode
+     (Blue 3.6:1, Green 3.1:1, Red 3.9:1), the opposite of the old saffron/
+     green scheme's need. One shared token covers all four since they all
+     resolve to the same near-black value in light mode; --on-warning/
+     --on-danger/--on-success stay separate tokens (not aliases) so any
+     future per-color retune doesn't have to unpick a shared value. */
+  --on-accent: #171717;
+  --on-success: #171717;
+  --on-warning: #171717;
+  /* Passes AA at ~4.6:1 against light-mode --danger (#ea4335) — the
+     tightest margin of the four on-* pairings above; re-verify if --danger
+     is ever retuned. */
+  --on-danger: #171717;
   --shadow: 0 1px 2px rgba(23, 23, 23, 0.04), 0 8px 24px rgba(23, 23, 23, 0.06);
   --shadow-md: 0 4px 12px rgba(23, 23, 23, 0.08), 0 2px 4px rgba(23, 23, 23, 0.06);
   --shadow-lg: 0 16px 40px rgba(23, 23, 23, 0.14), 0 4px 12px rgba(23, 23, 23, 0.08);
@@ -183,32 +195,31 @@
        disappearing into it. */
     --popover: color-mix(in srgb, var(--foreground) 6%, var(--surface));
     --border: rgba(237, 237, 237, 0.12);
-    /* #06402B (deep forest green, more "depth" than the old brighter/more
-       desaturated #4f9774) is only ~1.7:1 against this page background —
-       too dim to read as a button. Kept at its own hue (158°) and
-       saturation (83%) and lightened just enough to clear contrast, rather
-       than desaturated toward pastel, so it still reads as the same rich
-       green rather than a washed-out tint. */
-    --accent: #0e9a67;
-    --accent-strong: #0d875b;
-    --accent-soft: rgba(14, 154, 103, 0.18);
-    /* Exact pixel match to public/0dot.png's orange fill. */
-    --accent-orange: #ff671d;
-    --accent-orange-soft: rgba(255, 103, 29, 0.18);
-    /* public/0dot.png's own blue fill (#05048d) is ~1.3:1 against this page
-       background — effectively invisible as text, since that mark's blue
-       swatch sits on the logo's own black fill, not on running UI text.
-       Kept as the existing brighter lavender-blue instead. */
-    --accent-navy: #6b7fd7;
-    --danger: #f87171;
-    --danger-soft: rgba(248, 113, 113, 0.18);
+    /* Google Blue 300/400 — dark mode gets its own lighter/desaturated tier
+       from the same official tonal scale, not a mechanical invert of the
+       light-mode Blue 500/600 (per this file's existing dark-mode
+       convention). Verified ~8.5:1 with near-black text, ~9.4:1 as a
+       foreground against this page background. */
+    --accent: #8ab4f8;
+    --accent-strong: #669df6;
+    --accent-soft: rgba(138, 180, 248, 0.18);
+    /* Google Green 300 — verified ~9.2:1 with near-black text. */
+    --success: #81c995;
+    --success-soft: rgba(129, 201, 149, 0.18);
+    /* Same Yellow 500 as light mode — see the :root comment above for why
+       this one hue doesn't need a separate dark-mode tier (already ~11.6:1
+       against this near-black background). */
+    --warning: #fbbc04;
+    --warning-soft: rgba(251, 188, 4, 0.18);
+    /* Google Red 300 — a lighter tier than light mode's Red 500, same
+       "tuned per theme against near-black text" pattern as the old scheme's
+       --danger. Verified ~7.5:1 with near-black text. */
+    --danger: #f28b82;
+    --danger-soft: rgba(242, 139, 130, 0.18);
     --on-accent: #171717;
-    /* Dark mode's --danger (#f87171) is a light red tuned for text-on-dark
-       use, not a button background — white text on it fails AA (~2.8:1);
-       near-black clears 7:1+. Same reasoning applies to dark mode's
-       brightened --accent-navy (#6b7fd7). */
+    --on-success: #171717;
+    --on-warning: #171717;
     --on-danger: #171717;
-    --on-accent-navy: #171717;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 8px 24px rgba(0, 0, 0, 0.35);
     --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3), 0 2px 4px rgba(0, 0, 0, 0.2);
     --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.45), 0 4px 12px rgba(0, 0, 0, 0.3);
@@ -230,17 +241,19 @@
   --surface: #fbfaf8;
   --popover: color-mix(in srgb, var(--foreground) 6%, var(--surface));
   --border: rgba(23, 23, 23, 0.12);
-  --accent: #148104;
-  --accent-strong: #116e03;
-  --accent-soft: rgba(20, 129, 4, 0.14);
-  --accent-orange: #ff430a;
-  --accent-orange-soft: rgba(255, 67, 10, 0.14);
-  --accent-navy: #0104d0;
-  --danger: #dc2626;
-  --danger-soft: rgba(220, 38, 38, 0.14);
-  --on-accent: #ffffff;
-  --on-danger: #ffffff;
-  --on-accent-navy: #ffffff;
+  --accent: #4285f4;
+  --accent-strong: #1a73e8;
+  --accent-soft: rgba(66, 133, 244, 0.14);
+  --success: #34a853;
+  --success-soft: rgba(52, 168, 83, 0.14);
+  --warning: #fbbc04;
+  --warning-soft: rgba(251, 188, 4, 0.14);
+  --danger: #ea4335;
+  --danger-soft: rgba(234, 67, 53, 0.14);
+  --on-accent: #171717;
+  --on-success: #171717;
+  --on-warning: #171717;
+  --on-danger: #171717;
   --shadow: 0 1px 2px rgba(23, 23, 23, 0.04), 0 8px 24px rgba(23, 23, 23, 0.06);
   --shadow-md: 0 4px 12px rgba(23, 23, 23, 0.08), 0 2px 4px rgba(23, 23, 23, 0.06);
   --shadow-lg: 0 16px 40px rgba(23, 23, 23, 0.14), 0 4px 12px rgba(23, 23, 23, 0.08);
@@ -258,17 +271,19 @@
   --surface: #131313;
   --popover: color-mix(in srgb, var(--foreground) 6%, var(--surface));
   --border: rgba(237, 237, 237, 0.12);
-  --accent: #0e9a67;
-  --accent-strong: #0d875b;
-  --accent-soft: rgba(14, 154, 103, 0.18);
-  --accent-orange: #ff671d;
-  --accent-orange-soft: rgba(255, 103, 29, 0.18);
-  --accent-navy: #6b7fd7;
-  --danger: #f87171;
-  --danger-soft: rgba(248, 113, 113, 0.18);
+  --accent: #8ab4f8;
+  --accent-strong: #669df6;
+  --accent-soft: rgba(138, 180, 248, 0.18);
+  --success: #81c995;
+  --success-soft: rgba(129, 201, 149, 0.18);
+  --warning: #fbbc04;
+  --warning-soft: rgba(251, 188, 4, 0.18);
+  --danger: #f28b82;
+  --danger-soft: rgba(242, 139, 130, 0.18);
   --on-accent: #171717;
+  --on-success: #171717;
+  --on-warning: #171717;
   --on-danger: #171717;
-  --on-accent-navy: #171717;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 8px 24px rgba(0, 0, 0, 0.35);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3), 0 2px 4px rgba(0, 0, 0, 0.2);
   --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.45), 0 4px 12px rgba(0, 0, 0, 0.3);
@@ -295,14 +310,16 @@
   --color-border: var(--border);
   --color-accent-strong: var(--accent-strong);
   --color-accent-soft: var(--accent-soft);
-  --color-accent-orange: var(--accent-orange);
-  --color-accent-orange-soft: var(--accent-orange-soft);
-  --color-accent-navy: var(--accent-navy);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
   --color-on-accent: var(--on-accent);
+  --color-on-success: var(--on-success);
+  --color-on-warning: var(--on-warning);
   --color-on-danger: var(--on-danger);
-  --color-on-accent-navy: var(--on-accent-navy);
 
   --shadow: var(--shadow);
   --shadow-md: var(--shadow-md);
@@ -553,7 +570,7 @@ html:not([data-theme="light"])[data-high-contrast="true"] {
   pointer-events: none;
   background:
     radial-gradient(560px circle at 25% 10%, var(--accent-soft), transparent 60%),
-    radial-gradient(560px circle at 80% 30%, var(--accent-orange-soft), transparent 60%);
+    radial-gradient(560px circle at 80% 30%, color-mix(in srgb, var(--accent-strong) 20%, transparent), transparent 60%);
 }
 
 .authCard {
@@ -751,7 +768,7 @@ html:not([data-theme="light"])[data-high-contrast="true"] {
   pointer-events: none;
   background:
     radial-gradient(560px circle at 25% 10%, var(--accent-soft), transparent 60%),
-    radial-gradient(560px circle at 80% 30%, var(--accent-orange-soft), transparent 60%);
+    radial-gradient(560px circle at 80% 30%, color-mix(in srgb, var(--accent-strong) 20%, transparent), transparent 60%);
 }
 
 /* Hidden on mobile — small screens show the auth form only, no hero
@@ -941,7 +958,7 @@ html:not([data-theme="light"])[data-high-contrast="true"] {
 .landingPreviewCover {
   height: 56px;
   margin: 0 -0.85rem;
-  background: linear-gradient(135deg, var(--accent-soft), var(--accent-orange-soft));
+  background: linear-gradient(135deg, var(--accent-soft), color-mix(in srgb, var(--accent-strong) 20%, transparent));
 }
 
 .landingPreviewHeaderRow {
@@ -959,7 +976,7 @@ html:not([data-theme="light"])[data-high-contrast="true"] {
   box-shadow: 0 0 0 3px var(--surface);
   background:
     linear-gradient(var(--surface), var(--surface)) padding-box,
-    linear-gradient(135deg, var(--accent), var(--accent-orange)) border-box;
+    linear-gradient(135deg, var(--accent), var(--accent-strong)) border-box;
   border: 2px solid transparent;
 }
 
@@ -1510,7 +1527,7 @@ html:not([data-theme="light"])[data-high-contrast="true"] {
    links with no affordance that they're clickable. Same color language as
    .authFooter a. */
 .wikiLink {
-  color: var(--accent-navy);
+  color: var(--accent);
   text-decoration: underline;
 }
 
@@ -1557,7 +1574,7 @@ html:not([data-theme="light"])[data-high-contrast="true"] {
 
 .authFooter a,
 .authFooter button {
-  color: var(--accent-navy);
+  color: var(--accent);
   font-weight: 600;
   text-decoration: underline;
 }
@@ -2211,7 +2228,7 @@ body.hasBottomNav .iosInstallBanner {
 .profileCoverPlaceholder {
   width: 100%;
   height: 100%;
-  background: linear-gradient(135deg, var(--accent-soft), var(--accent-orange-soft));
+  background: linear-gradient(135deg, var(--accent-soft), color-mix(in srgb, var(--accent-strong) 20%, transparent));
 }
 
 /* The row itself is pulled up 48px (half the avatar's height) so the
@@ -2350,9 +2367,12 @@ body.hasBottomNav .iosInstallBanner {
   box-shadow: 0 0 0 4px var(--surface);
   background:
     linear-gradient(var(--surface), var(--surface)) padding-box,
-    linear-gradient(135deg, var(--accent), var(--accent-orange)) border-box;
+    linear-gradient(135deg, var(--accent), var(--accent-strong)) border-box;
 }
 
+/* Blue badge/checkmark — matches the conventional "verified" blue used
+   across most platforms, a happy accident of the new brand blue lining up
+   with that convention (previously navy, a bespoke tertiary brand hue). */
 .verifiedBadge {
   display: inline-flex;
   align-items: center;
@@ -2361,8 +2381,8 @@ body.hasBottomNav .iosInstallBanner {
   height: 18px;
   margin-left: 0.35rem;
   border-radius: 50%;
-  background: var(--accent-navy);
-  color: var(--on-accent-navy);
+  background: var(--accent);
+  color: var(--on-accent);
   font-size: 0.65rem;
   line-height: 1;
   vertical-align: middle;
@@ -2890,11 +2910,15 @@ a.profileMetaItem:hover {
 }
 
 /* Rail's top promo card — same "transparent border + double background"
-   trick as .landingPreviewAvatar's gradient ring, so the tricolor accent
-   reads as a border stroke rather than a flat fill. Not tied to a real
-   PlatformSubscription record (docs/specs/addendum-premium-profiles.md's
-   billing plan hasn't been built yet) — this is the visual placeholder for
-   that upgrade entry point. */
+   trick as .landingPreviewAvatar's gradient ring, so the accent reads as a
+   border stroke rather than a flat fill. The one deliberate place that still
+   mixes brand blue with a second hue (green) after the semantic-color
+   rebrand — a "premium" moment gets a little extra visual richness,
+   evoking Google's own multi-color mark, without reaching for red/yellow
+   (which would misread as an actual warning/error on an upgrade card). Not
+   tied to a real PlatformSubscription record
+   (docs/specs/addendum-premium-profiles.md's billing plan hasn't been built
+   yet) — this is the visual placeholder for that upgrade entry point. */
 .railPlanCard {
   display: flex;
   flex-direction: column;
@@ -2904,7 +2928,7 @@ a.profileMetaItem:hover {
   border: 1px solid transparent;
   background:
     linear-gradient(160deg, color-mix(in srgb, var(--surface) 92%, var(--accent) 8%), var(--surface)) padding-box,
-    linear-gradient(135deg, var(--accent), var(--accent-navy), var(--accent-orange)) border-box;
+    linear-gradient(135deg, var(--accent), var(--success)) border-box;
   box-shadow: var(--shadow);
 }
 
@@ -2929,7 +2953,7 @@ a.profileMetaItem:hover {
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--on-accent);
-  background: linear-gradient(135deg, var(--accent), var(--accent-navy));
+  background: linear-gradient(135deg, var(--accent), var(--success));
   padding: 0.2rem 0.5rem;
   border-radius: 999px;
 }
@@ -3283,10 +3307,32 @@ body.hasBottomNav .appMain {
   border-bottom: 1px solid var(--border);
 }
 
-/* A restrained nod to the tricolor brand palette: a thin gradient bar
-   under the header, present on every page — shared by both header surfaces
-   (mobile top strip, desktop top header) rather than duplicated per
-   NAVIGATION.md rule 3 ("persistent brand element... same visual system"). */
+/* Tablet tier (RESPONSIVE_LAYOUT.md --bp-md, 768px) — the first real branch
+   point between phone and the 1024px desktop-shell cutover. Below this,
+   search is reachable via the bottom-nav icon or the hamburger panel only
+   (no room for an inline bar); at tablet widths and up there's enough
+   spare header width to show it inline, same as desktop, instead of making
+   every tablet visitor open a menu first. Hidden by default, not just
+   narrow, since .mobileHeaderSearchWrap only exists inside .mobileHeader
+   (the desktop header already has its own inline SearchForm). */
+.mobileHeaderSearchWrap {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .mobileHeaderSearchWrap {
+    display: block;
+    flex: 1;
+    max-width: 420px;
+    margin: 0 1.25rem;
+  }
+}
+
+/* A restrained brand touch: a thin gradient bar under the header, present
+   on every page — shared by both header surfaces (mobile top strip, desktop
+   top header) rather than duplicated per NAVIGATION.md rule 3 ("persistent
+   brand element... same visual system"). Monochrome blue since the rebrand
+   reserves red/yellow/green for status — no longer a tricolor strip. */
 .mobileHeader::after,
 .desktopTopHeader::after {
   content: "";
@@ -3295,14 +3341,7 @@ body.hasBottomNav .appMain {
   right: 0;
   bottom: -2px;
   height: 2px;
-  background: linear-gradient(
-    90deg,
-    var(--accent) 0%,
-    var(--accent) 33%,
-    color-mix(in srgb, var(--foreground) 15%, transparent) 50%,
-    var(--accent-orange) 67%,
-    var(--accent-orange) 100%
-  );
+  background: linear-gradient(90deg, var(--accent) 0%, var(--accent-strong) 100%);
 }
 
 /* Hamburger dropdown — the first real menu/dropdown component in this
@@ -3335,10 +3374,10 @@ body.hasBottomNav .appMain {
   background: var(--accent-soft);
 }
 
-/* Hamburger bars — orange top, green bottom (brand accent pair), neutral
-   foreground middle bar so it reads as pure black on light theme / pure
-   white on dark theme rather than the brand navy. Applied here since this
-   button only exists on mobile. */
+/* Hamburger bars — top/bottom bars in the two-tone brand blue (accent /
+   accent-strong), neutral foreground middle bar so it reads as pure black
+   on light theme / pure white on dark theme rather than a brand hue.
+   Applied here since this button only exists on mobile. */
 .hamburgerIcon {
   display: flex;
   flex-direction: column;
@@ -3354,7 +3393,7 @@ body.hasBottomNav .appMain {
 }
 
 .hamburgerIcon span:nth-child(1) {
-  background: var(--accent-orange);
+  background: var(--accent-strong);
 }
 
 .hamburgerIcon span:nth-child(2) {
@@ -3494,9 +3533,9 @@ body.hasBottomNav .mobileNavPanel {
 }
 
 /* Raised circular "+" — the only bottom-nav slot that isn't a plain
-   destination link, so it gets its own tricolor-gradient treatment (same
-   accent/navy/green trio as .mobileHeader::after and .hamburgerIcon) to read
-   as the primary action rather than a sixth equal tab. */
+   destination link, so it gets its own gradient treatment (same two-tone
+   blue as .mobileHeader::after and .hamburgerIcon) to read as the primary
+   action rather than a sixth equal tab. */
 .bottomNavCreate {
   display: flex;
   align-items: center;
@@ -3506,7 +3545,7 @@ body.hasBottomNav .mobileNavPanel {
   height: 50px;
   margin-top: -22px;
   border-radius: var(--radius-full);
-  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-orange) 100%);
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
   color: var(--on-accent);
   font-size: 1.6rem;
   line-height: 1;
@@ -3616,8 +3655,8 @@ body.hasBottomNav .mobileNavPanel {
        it — .appMain's own scroll (the "middle section") stays independent. */
     overflow-y: auto;
     padding: 1.5rem 1.25rem;
-    /* --accent (green) rather than --border, so the sidebar's edge pairs
-       with the contextual rail's --accent-orange edge — same tricolor accent
+    /* --accent (blue) rather than --border, so the sidebar's edge pairs
+       with the contextual rail's --accent-strong edge — same two-tone blue
        system as the header's gradient bar and hamburger icon. */
     border-right: 1px solid var(--accent);
   }
@@ -3693,9 +3732,9 @@ body.hasBottomNav .mobileNavPanel {
     overflow-y: auto;
     padding: 1.5rem 1.25rem 1.5rem 1.25rem;
     /* Mirrors .desktopSidebar's border-right separator on the opposite
-       edge, in --accent-orange rather than --border so the rail reads as
+       edge, in --accent-strong rather than --border so the rail reads as
        its own distinct column instead of a borderless afterthought. */
-    border-left: 1px solid var(--accent-orange);
+    border-left: 1px solid var(--accent-strong);
   }
 }
 
@@ -3787,15 +3826,15 @@ body.hasBottomNav .mobileNavPanel {
 }
 
 /* Sender-aligned: the viewer's own messages get the accent tint and sit
-   right, everyone else's stay neutral and sit left — same tricolor-accent
-   restraint DESIGN_SYSTEM.md asks for (accent as a signal, not a theme). */
+   right, everyone else's stay neutral and sit left — same restrained-accent
+   principle DESIGN_SYSTEM.md asks for (accent as a signal, not a theme). */
 .messageBubbleSelf {
   background: var(--accent-soft);
   border-color: var(--accent);
 }
 
 .messageAttachmentFile {
-  color: var(--accent-navy);
+  color: var(--accent);
   font-weight: 600;
   text-decoration: none;
 }
@@ -3892,6 +3931,26 @@ body.hasBottomNav .mobileNavPanel {
   max-width: 720px;
   margin: 2rem auto;
   padding: 0 1rem;
+}
+
+/* Replaces a style={{...}} object literal previously duplicated inline in
+   layout.tsx (DESIGN_SYSTEM.md's "known inconsistency to fix, not
+   perpetuate" — a layout pattern used more than once becomes a class).
+   flex-wrap + gap (not in the original inline version) so "Settings" + the
+   "View public profile" button don't get crushed onto one cramped line at
+   narrow phone widths — they wrap onto their own lines instead. */
+.settingsHeaderRow {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-6);
+}
+
+.settingsHeaderRow h1 {
+  font-size: 1.1rem;
+  font-weight: 700;
 }
 
 .settingsContent {
