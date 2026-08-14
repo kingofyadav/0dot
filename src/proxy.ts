@@ -75,6 +75,16 @@ export default async function proxy(request: NextRequest): Promise<Response | un
   return NextResponse.rewrite(url);
 }
 
+// manifest.json/sw.js/the home-screen icon files are requested by the
+// browser at absolute root paths (<link rel="manifest" href="/manifest.json">,
+// navigator.serviceWorker.register("/sw.js"), icons.apple in layout.tsx)
+// regardless of which host served the HTML. Without excluding them here the
+// same way favicon.ico already is, a visitor on a custom domain
+// (yourname.com, per isOwnHost above) gets those requests rewritten to
+// `${prefix}/manifest.json` etc., which 404s — silently breaking PWA
+// installability (and the home-screen icon) for every custom-domain visitor.
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|api/|favicon.ico|sitemap.xml|robots.txt).*)"],
+  matcher: [
+    "/((?!_next/static|_next/image|api/|favicon.ico|sitemap.xml|robots.txt|manifest.json|sw.js|apple-touch-icon.png|0dot.png|1dot.png|icon-192.png|icon-512.png|icon-maskable-192.png|icon-maskable-512.png).*)",
+  ],
 };
