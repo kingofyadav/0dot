@@ -114,6 +114,85 @@ export function getAppOrigin(): string {
   return process.env.APP_ORIGIN ?? "http://localhost:3000";
 }
 
+// Shared chrome for one-off transactional emails that center on a single
+// action (verify email, reset password, confirm new email) — a button
+// instead of a bare link, and the same card/footer every such email uses so
+// they read as one product instead of three ad-hoc templates. Table-based
+// layout + inline styles throughout: the only markup subset that renders
+// consistently across Gmail/Outlook/Apple Mail, which don't share a CSS
+// engine and mostly ignore <style> blocks and CSS variables.
+function renderActionEmail(params: { heading: string; bodyHtml: string; ctaLabel: string; ctaUrl: string; footnote: string }): string {
+  const origin = getAppOrigin();
+  return `<!doctype html>
+<html>
+  <body style="margin:0;padding:32px 16px;background-color:#f1f3f4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;margin:0 auto;background-color:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e0e0e0;">
+      <tr>
+        <td style="padding:28px 32px 0 32px;text-align:center;">
+          <img src="${origin}/icon-192.png" width="40" height="40" alt="0dot" style="border-radius:9px;display:inline-block;" />
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:16px 32px 8px 32px;text-align:center;">
+          <h1 style="margin:0;font-size:20px;line-height:28px;color:#202124;font-weight:600;">${params.heading}</h1>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:8px 32px 0 32px;text-align:center;font-size:15px;line-height:22px;color:#5f6368;">
+          ${params.bodyHtml}
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:24px 32px 8px 32px;text-align:center;">
+          <a href="${params.ctaUrl}" style="display:inline-block;background-color:#1a73e8;color:#ffffff;text-decoration:none;font-size:15px;font-weight:600;padding:12px 28px;border-radius:8px;">${params.ctaLabel}</a>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:16px 32px 4px 32px;text-align:center;font-size:12px;line-height:18px;color:#9aa0a6;word-break:break-all;">
+          Or paste this link into your browser:<br />
+          <a href="${params.ctaUrl}" style="color:#1a73e8;">${params.ctaUrl}</a>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:20px 32px 28px 32px;text-align:center;font-size:12px;line-height:18px;color:#9aa0a6;border-top:1px solid #f1f3f4;margin-top:20px;">
+          ${params.footnote}
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+}
+
+export function renderVerifyEmailHtml(verifyUrl: string): string {
+  return renderActionEmail({
+    heading: "Verify your email",
+    bodyHtml: "Confirm this address to finish setting up your 0dot.in account.",
+    ctaLabel: "Verify email",
+    ctaUrl: verifyUrl,
+    footnote: "This link expires in 24 hours. If you didn't create a 0dot.in account, you can ignore this email.",
+  });
+}
+
+export function renderPasswordResetEmailHtml(resetUrl: string): string {
+  return renderActionEmail({
+    heading: "Reset your password",
+    bodyHtml: "We got a request to reset the password on your 0dot.in account.",
+    ctaLabel: "Reset password",
+    ctaUrl: resetUrl,
+    footnote: "This link expires in 1 hour. If you didn't request this, you can ignore this email — your password won't change.",
+  });
+}
+
+export function renderEmailChangeEmailHtml(confirmUrl: string): string {
+  return renderActionEmail({
+    heading: "Confirm your new email",
+    bodyHtml: "Confirm this address to finish changing the email on your 0dot.in account.",
+    ctaLabel: "Confirm email",
+    ctaUrl: confirmUrl,
+    footnote: "This link expires in 24 hours. If you didn't request this, you can ignore this email.",
+  });
+}
+
 // account-settings-hardening addendum §8: a smaller subset than push's own
 // curated type list (push.ts's dispatchPushEvent has no equivalent
 // allowlist — its uncurated types are the mandatory/system-generated ones,

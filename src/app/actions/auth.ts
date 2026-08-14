@@ -11,7 +11,7 @@ import { revokeAllOtherSessions } from "@/app/actions/session-management";
 import { validateUsernameFormat } from "@/lib/reserved-usernames";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { toE164 } from "@/lib/country-codes";
-import { getEmailSender, getAppOrigin } from "@/lib/email";
+import { getEmailSender, getAppOrigin, renderVerifyEmailHtml, renderPasswordResetEmailHtml } from "@/lib/email";
 import { isInternalSystemAccountEmail } from "@/lib/first-party-apps";
 
 export type ActionState = { error?: string; success?: boolean } | undefined;
@@ -164,7 +164,7 @@ export async function signup(
   await sender.send({
     to: email,
     subject: "Verify your 0dot.in email",
-    html: `<p>Confirm your email to finish setting up your account:</p><p><a href="${verifyUrl}">${verifyUrl}</a></p><p>This link expires in 24 hours.</p>`,
+    html: renderVerifyEmailHtml(verifyUrl),
   });
 
   // Only the console stub needs the token surfaced back on the page — once
@@ -346,7 +346,7 @@ export async function requestPasswordReset(
   await sender.send({
     to: email,
     subject: "Reset your 0dot.in password",
-    html: `<p>Reset your password using the link below:</p><p><a href="${resetUrl}">${resetUrl}</a></p><p>This link expires in 1 hour. If you didn't request this, you can ignore this email.</p>`,
+    html: renderPasswordResetEmailHtml(resetUrl),
   });
 
   // Same account-takeover-token-in-a-URL concern as signup verification

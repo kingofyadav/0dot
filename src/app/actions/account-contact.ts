@@ -5,7 +5,7 @@ import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { getEmailSender, getAppOrigin } from "@/lib/email";
+import { getEmailSender, getAppOrigin, renderEmailChangeEmailHtml } from "@/lib/email";
 import { getSmsSender } from "@/lib/sms";
 import { toE164 } from "@/lib/country-codes";
 import type { ActionState } from "@/app/actions/auth";
@@ -55,7 +55,7 @@ export async function requestEmailChange(_prevState: ActionState, formData: Form
   await sender.send({
     to: newEmail,
     subject: "Confirm your new 0dot.in email",
-    html: `<p>Confirm this address to finish changing your account email:</p><p><a href="${confirmUrl}">${confirmUrl}</a></p><p>This link expires in 24 hours. If you didn't request this, you can ignore it.</p>`,
+    html: renderEmailChangeEmailHtml(confirmUrl),
   });
 
   return { success: true };
