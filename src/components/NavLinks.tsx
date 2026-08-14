@@ -201,6 +201,7 @@ export function NavLinks({
     // entry existed).
     { href: "/notifications", label: "Notifications", icon: Bell },
     { href: "/bookmarks", label: "Bookmarks", icon: Bookmark },
+    { href: "/wallet", label: "Wallet", icon: Wallet },
   ];
 
   // "Spaces": other entities you interact with beyond your own profile.

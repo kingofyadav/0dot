@@ -75,7 +75,16 @@ model User {
   // business subscription) instead of Stripe minting a new one per session
   // — created lazily on first checkout (getOrCreateStripeCustomerId,
   // stripe.ts), never written any other way.
-  stripeCustomerId       String?  @unique
+  stripeCustomerId       String?   @unique
+  // Internal coin wallet balance, separate from Stripe entirely — funded via
+  // manually-reviewed UPI top-ups (CoinTopUpRequest) and a 1-coin signup
+  // bonus, 1 coin = $1 (see USD_COIN_TO_INR_RATE in upi.ts). Spent via
+  // purchaseProfilePremiumWithCoins (platform-billing.ts) — the coin-funded
+  // alternative to Stripe Checkout for Premium Profile.
+  coinBalance            Int       @default(0)
+  // The user's own UPI VPA, on file for a future coin-to-cash payout —
+  // deliberately separate from CreatorPayoutAccount, which is Stripe-only.
+  payoutUpiVpa           String?
 
   username                        Username?
   profile                         Profile?
@@ -87,6 +96,8 @@ model User {
   passwordResetTokens        PasswordResetToken[]
   twoFactorRecoveryCodes     TwoFactorRecoveryCode[]
   pendingTwoFactorChallenges PendingTwoFactorChallenge[]
+  coinTopUpRequests          CoinTopUpRequest[]
+  coinPayoutRequests         CoinPayoutRequest[]
   pendingEmailChanges        PendingEmailChange[]
   pendingPhoneChanges        PendingPhoneChange[]
   loginEvents                LoginEvent[]
@@ -2966,31 +2977,31 @@ model MarketplaceListingReviewResponse {
 // developer-apps.ts) and never retrievable again, not even to this app's
 // own dashboard (spec §3.2).
 model DeveloperApp {
-  id               String    @id @default(uuid())
-  ownerType        String // user | business
-  ownerUserId      String?
-  ownerUser        User?     @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
-  ownerBusinessId  String?
-  ownerBusiness    Business? @relation(fields: [ownerBusinessId], references: [id], onDelete: Cascade)
-  name             String
-  description      String    @default("")
-  clientId         String    @unique
-  clientSecretHash String
-  redirectUrisJson String // JSON array of exact-match redirect URIs (spec §3.2: no wildcard/prefix matching)
-  status           String    @default("active") // active | suspended
+  id                String    @id @default(uuid())
+  ownerType         String // user | business
+  ownerUserId       String?
+  ownerUser         User?     @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  ownerBusinessId   String?
+  ownerBusiness     Business? @relation(fields: [ownerBusinessId], references: [id], onDelete: Cascade)
+  name              String
+  description       String    @default("")
+  clientId          String    @unique
+  clientSecretHash  String
+  redirectUrisJson  String // JSON array of exact-match redirect URIs (spec §3.2: no wildcard/prefix matching)
+  status            String    @default("active") // active | suspended
   // billing addendum §4.1: metered against the existing ApiUsageCounter
   // rows below, kept separate from PlatformSubscription since the billing
   // model genuinely differs (usage-metered vs. flat recurring). free stays
   // exactly as api-rate-limit.ts's pre-existing hard cap behaved (§4.2's
   // acceptance criterion); pay_as_you_go/committed apps aren't hard-capped,
   // they're billed instead (api-usage-billing.ts).
-  billingPlan      String    @default("free") // free | pay_as_you_go | committed
-  lastBilledAt     DateTime? // watermark for api-usage-billing.ts's periodic settlement sweep
+  billingPlan       String    @default("free") // free | pay_as_you_go | committed
+  lastBilledAt      DateTime? // watermark for api-usage-billing.ts's periodic settlement sweep
   // Set once billingPlan moves off "free" via a real Stripe subscription
   // Checkout (api-usage-billing.ts) — null on "free" apps, and briefly null
   // on a paid app mid-checkout before the webhook confirms it.
   apiSubscriptionId String?
-  createdAt        DateTime  @default(now())
+  createdAt         DateTime  @default(now())
 
   scopes               DeveloperAppScope[]
   authorizationCodes   OAuthAuthorizationCode[]
@@ -3933,4 +3944,58 @@ model Activity {
   occurredAt   DateTime @default(now())
 
   @@index([contactId, occurredAt])
+}
+
+// Coin wallet top-up, funded by UPI (no payment gateway) — the user pays the
+// platform's own UPI VPA directly (upi.ts builds the deep link/QR embedding
+// referenceCode as the "tn" note), then submits the UTR they got from their
+// UPI app as proof. There's no webhook/API confirming the payment landed, so
+// an admin manually cross-checks the UTR against the platform's own bank/UPI
+// statement before approving (wallet.ts) and crediting User.coinBalance.
+// Deliberately not a PaymentTransaction row — that ledger is Stripe's
+// money-movement record; this is an unrelated, wholly separate primitive.
+model CoinTopUpRequest {
+  id               String    @id @default(uuid())
+  userId           String
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  coinAmount       Int // coins requested, 1 coin = $1 (see USD_COIN_TO_INR_RATE in upi.ts)
+  amountInr        Int // the actual INR amount the UPI deep link asks for, captured at creation time (not recomputed later) so a later exchange-rate change never rewrites what a pending/past request expected to be paid
+  referenceCode    String    @unique // embedded in the UPI deep link's "tn" param so a payment is matchable back to this row
+  status           String    @default("pending_payment") // pending_payment | submitted | approved | rejected
+  utr              String? // user-submitted UPI transaction/reference number, set on submit
+  submittedAt      DateTime?
+  reviewedAt       DateTime?
+  reviewedByUserId String?
+  reviewNote       String?
+  createdAt        DateTime  @default(now())
+
+  @@index([userId, status])
+  @@index([status, createdAt])
+}
+
+// Coin-to-cash payout, the reverse of CoinTopUpRequest — coinBalance is
+// debited up front (escrow-style, at request time, not at payment time) so
+// a user can't also spend the same coins elsewhere while a payout is
+// pending. Same "no payment gateway" posture: an admin manually sends the
+// money via UPI to the snapshotted vpa outside the app, then marks this
+// paid with whatever reference their UPI app gave them. vpa is snapshotted
+// rather than read live off User.payoutUpiVpa at payout time so a later
+// address change can never retroactively change where an
+// already-requested-or-paid payout is understood to have gone.
+model CoinPayoutRequest {
+  id               String    @id @default(uuid())
+  userId           String
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  coinAmount       Int // debited from coinBalance at request time
+  amountInr        Int // computed via coinsToInr at request time, same peg/rounding as the top-up side
+  vpa              String // snapshot of User.payoutUpiVpa at request time
+  status           String    @default("pending") // pending | paid | rejected
+  paidReference    String? // UTR/reference the admin used to send the money, set when marking paid
+  reviewedAt       DateTime?
+  reviewedByUserId String?
+  reviewNote       String?
+  createdAt        DateTime  @default(now())
+
+  @@index([userId, status])
+  @@index([status, createdAt])
 }

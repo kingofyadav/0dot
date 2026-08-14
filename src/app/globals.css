@@ -4468,6 +4468,92 @@ details:not([open]) > .settingsAddTrigger {
   }
 }
 
+/* Wallet (/wallet) — coinBalance's own hero card, deliberately not just
+   another .settingsGroup row: it's the one number on the page the user
+   actually came to check, same "give the primary number a card of its own"
+   reasoning as a bank app's balance screen. Blue accent gradient, not the
+   gold .premiumBadge one — gold stays reserved for Premium/VIP status
+   specifically (walletVipCard below) so the two signals never blur. */
+.walletHero {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-6) var(--space-5);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  color: var(--on-accent);
+  box-shadow: var(--shadow-md);
+  margin-bottom: var(--space-6);
+}
+
+.walletHeroLabel {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.85;
+}
+
+.walletHeroBalance {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  font-size: 2.5rem;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.walletHeroBalance small {
+  font-size: 1rem;
+  font-weight: 600;
+  opacity: 0.85;
+}
+
+.walletHeroSub {
+  font-size: 0.85rem;
+  opacity: 0.85;
+}
+
+/* Same .premiumBadge gold used for the "go VIP" upsell card, since it's
+   purchasing the exact same premium-profiles perk set that badge signals
+   elsewhere — the active state tints toward gold instead of switching to a
+   plain .settingsGroup, so an active VIP purchase visually reads as the
+   same "premium" status as the badge does on a profile page. */
+.walletVipCard {
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  margin-bottom: var(--space-6);
+}
+
+.walletVipCard--active {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--premium-gold-start) 16%, var(--surface)),
+    color-mix(in srgb, var(--premium-gold-end) 10%, var(--surface))
+  );
+  border-color: color-mix(in srgb, var(--premium-gold-start) 60%, var(--border));
+}
+
+.walletVipCardHeading {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 1rem;
+  margin-bottom: 0.3rem;
+}
+
+.walletVipIcon {
+  color: var(--premium-gold-start);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

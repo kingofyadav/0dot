@@ -132,6 +132,7 @@ export async function signup(
         phone,
         dateOfBirth,
         passwordHash,
+        coinBalance: 1, // welcome bonus — every new account starts with 1 coin
         username: { create: { handle } },
         profile: { create: { displayName } },
       },
