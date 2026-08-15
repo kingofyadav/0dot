@@ -1652,6 +1652,11 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
   font-size: 0.9rem;
 }
 
+.successText {
+  color: var(--success);
+  font-size: 0.9rem;
+}
+
 .mutedText {
   opacity: 0.65;
   font-size: 0.9rem;

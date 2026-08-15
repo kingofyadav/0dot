@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ResendVerificationButton } from "./ResendVerificationButton";
 
 export default async function VerifySentPage({
   searchParams,
@@ -14,6 +15,8 @@ export default async function VerifySentPage({
         <p className="mutedText">
           We&apos;ve sent a verification link to your email address.
         </p>
+
+        <ResendVerificationButton />
 
         {token && (
           <>

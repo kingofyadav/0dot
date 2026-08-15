@@ -174,6 +174,50 @@ export async function signup(
   redirect(sender.name === "console-stub" ? `/verify/sent?token=${token}` : "/verify/sent");
 }
 
+// /verify/sent's resend button — the original signup() send is a
+// fire-and-forget best-effort (its result is never surfaced back to the
+// user), so a bad address, a bounce, or a dropped Resend call leaves
+// someone stuck on that page with no way to get a second attempt. This is
+// that second attempt: same token-issuing shape as signup()'s, gated on an
+// existing session rather than a form email field since the recipient is
+// whoever's already logged in and unverified.
+export async function resendVerificationEmail(
+  _prevState: ActionState,
+  _formData: FormData
+): Promise<ActionState> {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+  if (user.emailVerifiedAt) redirect("/feed");
+
+  const rateOk = checkRateLimit(`resend-verification:user:${user.id}`, { max: 3, windowMs: 15 * 60 * 1000 });
+  if (!rateOk) {
+    return { error: RATE_LIMIT_ERROR };
+  }
+
+  // Same "only the newest link works" invalidation as requestPasswordReset
+  // below — an old copy of this email sitting in an inbox shouldn't stay
+  // live once a new one's been issued.
+  await db.emailVerificationToken.updateMany({
+    where: { userId: user.id, usedAt: null },
+    data: { usedAt: new Date() },
+  });
+
+  const token = randomBytes(24).toString("hex");
+  await db.emailVerificationToken.create({
+    data: { token, userId: user.id, expiresAt: new Date(Date.now() + VERIFICATION_TTL_MS) },
+  });
+
+  const sender = getEmailSender();
+  const verifyUrl = `${getAppOrigin()}/verify?token=${token}`;
+  await sender.send({
+    to: user.email,
+    subject: "Verify your 0dot.in email",
+    html: renderVerifyEmailHtml(verifyUrl),
+  });
+
+  return { success: true };
+}
+
 export type UsernameAvailability = "available" | "taken" | "invalid" | "reserved";
 
 // Exposes the same authoritative checks signup() already runs
