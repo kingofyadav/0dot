@@ -7,7 +7,7 @@ import { requireOwnProfile, requireVerifiedUser } from "@/lib/auth-guards";
 import { isBusinessStaff } from "@/lib/businesses";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getAppOrigin } from "@/lib/email";
-import { subscribeProfilePremium, subscribeBusiness, cancelPlatformSubscription } from "@/lib/platform-billing";
+import { subscribeBusiness, cancelPlatformSubscription } from "@/lib/platform-billing";
 import type { ActionState } from "@/app/actions/auth";
 
 const BILLING_INTERVAL_VALUES = new Set(["monthly", "yearly"]);
@@ -16,39 +16,6 @@ const BILLING_INTERVAL_VALUES = new Set(["monthly", "yearly"]);
 // money-moving action: a repeated-attempt guard, not a product limit.
 function checkSubscribeRateLimit(userId: string): boolean {
   return checkRateLimit(`platform-subscribe:${userId}`, { max: 10, windowMs: 15 * 60 * 1000 });
-}
-
-export async function subscribeToPremiumAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
-  const user = await requireOwnProfile();
-
-  const billingInterval = String(formData.get("billingInterval") ?? "monthly");
-  if (!BILLING_INTERVAL_VALUES.has(billingInterval)) return { error: "Choose a billing interval." };
-
-  if (!checkSubscribeRateLimit(user.id)) return { error: "You're subscribing too fast. Please slow down." };
-
-  const existing = await db.platformSubscription.findFirst({
-    where: {
-      subscriberProfileId: user.profile!.id,
-      plan: "profile_premium",
-      OR: [{ status: "active" }, { status: "cancelled", currentPeriodEnd: { gt: new Date() } }],
-    },
-  });
-  if (existing) return { error: "You already have an active Premium subscription." };
-
-  const base = `${getAppOrigin()}/s/${user.username!.handle}/billing/premium`;
-  const { checkoutUrl } = await subscribeProfilePremium(
-    user.profile!.id,
-    user.id,
-    user.email,
-    billingInterval,
-    `${base}?checkout=success`,
-    `${base}?checkout=cancelled`
-  );
-
-  // The PlatformSubscription row itself is created by the Stripe webhook
-  // once checkout.session.completed fires, not by this action — nothing to
-  // revalidate here yet, that happens on the next page load after redirect.
-  redirect(checkoutUrl);
 }
 
 export async function cancelPremiumAction(formData: FormData): Promise<void> {

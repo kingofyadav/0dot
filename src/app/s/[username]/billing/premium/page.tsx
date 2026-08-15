@@ -1,11 +1,11 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
 import { db } from "@/lib/db";
-import { getActiveProfileSubscription, PLAN_PRICES, FREE_LINK_CAP, PREMIUM_LINK_CAP, FREE_ANALYTICS_WINDOW_DAYS } from "@/lib/platform-billing";
+import { getActiveProfileSubscription, FREE_LINK_CAP, PREMIUM_LINK_CAP, FREE_ANALYTICS_WINDOW_DAYS } from "@/lib/platform-billing";
 import { THEME_PRESETS } from "@/lib/theme-presets";
 import { PremiumBillingForm } from "./PremiumBillingForm";
 
-export default async function PremiumBillingPage({ searchParams }: { searchParams: Promise<{ checkout?: string }> }) {
+export default async function PremiumBillingPage() {
   const currentUser = await getCurrentUser();
   if (!currentUser) redirect("/login");
 
@@ -14,7 +14,6 @@ export default async function PremiumBillingPage({ searchParams }: { searchParam
 
   const subscription = await getActiveProfileSubscription(profileRow.id);
   const premiumPresetCount = THEME_PRESETS.filter((p) => p.premiumOnly).length;
-  const { checkout } = await searchParams;
 
   return (
     <div className="settingsSection">
@@ -24,12 +23,6 @@ export default async function PremiumBillingPage({ searchParams }: { searchParam
         (free shows the last {FREE_ANALYTICS_WINDOW_DAYS} days), {premiumPresetCount} extra theme presets, one
         included custom domain, and a reduced platform fee on your creator earnings.
       </p>
-
-      {checkout === "success" && !subscription && (
-        <p className="mutedText" style={{ marginBottom: "1rem" }}>
-          Payment received — activating your subscription. Refresh in a moment if it doesn&apos;t show below yet.
-        </p>
-      )}
 
       <PremiumBillingForm
         subscription={
@@ -42,7 +35,6 @@ export default async function PremiumBillingPage({ searchParams }: { searchParam
               }
             : null
         }
-        prices={PLAN_PRICES.profile_premium}
       />
     </div>
   );

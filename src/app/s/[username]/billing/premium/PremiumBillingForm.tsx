@@ -1,18 +1,14 @@
 "use client";
 
-import { useActionState } from "react";
-import { subscribeToPremiumAction, cancelPremiumAction } from "@/app/actions/platform-billing";
+import Link from "next/link";
+import { cancelPremiumAction } from "@/app/actions/platform-billing";
 import { ConfirmButton } from "@/components/ConfirmButton";
 
 export function PremiumBillingForm({
   subscription,
-  prices,
 }: {
   subscription: { id: string; status: string; billingInterval: string; currentPeriodEnd: string } | null;
-  prices: { monthly: number; yearly: number; currency: string };
 }) {
-  const [state, formAction, pending] = useActionState(subscribeToPremiumAction, undefined);
-
   if (subscription) {
     const isCancelling = subscription.status === "cancelled";
     return (
@@ -43,21 +39,13 @@ export function PremiumBillingForm({
   }
 
   return (
-    <form action={formAction} className="settingsGroup" style={{ padding: "0.9rem 1rem", display: "flex", flexDirection: "column", gap: "0.6rem" }}>
-      <div style={{ display: "flex", gap: "1rem" }}>
-        <label style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
-          <input type="radio" name="billingInterval" value="monthly" defaultChecked style={{ width: "auto" }} />
-          ${prices.monthly}/month
-        </label>
-        <label style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
-          <input type="radio" name="billingInterval" value="yearly" style={{ width: "auto" }} />
-          ${prices.yearly}/year
-        </label>
-      </div>
-      <button type="submit" className="button" disabled={pending} style={{ alignSelf: "flex-start" }}>
-        {pending ? "Subscribing…" : "Subscribe to Premium"}
-      </button>
-      {state?.error && <p className="errorText">{state.error}</p>}
-    </form>
+    <div className="settingsGroup" style={{ padding: "0.9rem 1rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+      <p className="mutedText" style={{ fontSize: "0.85rem" }}>
+        Card payments are off right now — unlock Premium free with your coin balance instead.
+      </p>
+      <Link href="/wallet" className="button buttonSmall" style={{ alignSelf: "flex-start" }}>
+        Go to Wallet
+      </Link>
+    </div>
   );
 }

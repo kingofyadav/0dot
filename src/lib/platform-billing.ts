@@ -217,17 +217,6 @@ async function subscribe(params: {
   return { checkoutUrl } as const;
 }
 
-export async function subscribeProfilePremium(
-  profileId: string,
-  payerUserId: string,
-  payerEmail: string,
-  billingInterval: string,
-  successUrl: string,
-  cancelUrl: string
-) {
-  return subscribe({ subscriberType: "profile", subscriberId: profileId, payerUserId, payerEmail, plan: "profile_premium", billingInterval, successUrl, cancelUrl });
-}
-
 export async function subscribeBusiness(
   businessId: string,
   payerUserId: string,
@@ -335,11 +324,11 @@ export async function cancelPlatformSubscription(subscriptionId: string): Promis
 // PlatformSubscription model/plan Stripe Checkout writes to via
 // activateSubscriptionFromCheckout above — every real perk
 // (linkCapFor/isProfilePremium/analytics window/etc.) Just Works for a
-// coin-funded row with no separate gating logic needed. Coins spend 1:1
-// against PLAN_PRICES (1 coin = $1, same peg as upi.ts's
-// USD_COIN_TO_INR_RATE); marked via a processorSubscriptionId prefix rather
-// than a new column, same "string discriminator" shape this schema already
-// uses for subscriberType/plan/status.
+// coin-funded row with no separate gating logic needed. Coin cost is
+// TEST_MODE_VIP_COIN_COST below, not PLAN_PRICES (see that constant for
+// why); marked via a processorSubscriptionId prefix rather than a new
+// column, same "string discriminator" shape this schema already uses for
+// subscriberType/plan/status.
 export const COIN_FUNDED_MARKER = "coin:";
 
 function addBillingInterval(date: Date, billingInterval: string): Date {
@@ -362,8 +351,16 @@ function addBillingInterval(date: Date, billingInterval: string): Date {
 // expect.
 class InsufficientCoinsError extends Error {}
 
+// No real payment/billing right now — every account already gets 1 coin on
+// signup (auth.ts), so this lets that alone unlock every Premium perk for
+// testing. Deliberately decoupled from PLAN_PRICES/priceFor (still the real
+// $6/$60 price, kept for the Stripe rail and for restoring the coin cost
+// later) rather than reusing it, so re-enabling real pricing is a one-line
+// revert instead of untangling this from Stripe's numbers.
+export const TEST_MODE_VIP_COIN_COST = 1;
+
 export async function purchaseProfilePremiumWithCoins(userId: string, profileId: string, billingInterval: string): Promise<{ error?: string }> {
-  const coinCost = Math.round(priceFor("profile_premium", billingInterval).amount);
+  const coinCost = TEST_MODE_VIP_COIN_COST;
   const existing = await getActiveProfileSubscription(profileId);
   if (existing && !existing.processorSubscriptionId.startsWith(COIN_FUNDED_MARKER)) {
     return { error: "You already have Premium through a card subscription." };

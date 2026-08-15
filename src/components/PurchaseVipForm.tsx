@@ -6,11 +6,11 @@ import { purchaseVipAction } from "@/app/actions/wallet";
 
 export function PurchaseVipForm({
   subscription,
-  prices,
+  coinPrice,
   coinBalance,
 }: {
   subscription: { billingInterval: string; currentPeriodEnd: string; coinFunded: boolean } | null;
-  prices: { monthly: number; yearly: number };
+  coinPrice: number;
   coinBalance: number;
 }) {
   const [state, formAction, pending] = useActionState(purchaseVipAction, undefined);
@@ -29,7 +29,7 @@ export function PurchaseVipForm({
           <form action={formAction} style={{ marginTop: "0.4rem" }}>
             <input type="hidden" name="billingInterval" value={subscription.billingInterval} />
             <button type="submit" className="button buttonSecondary buttonSmall" disabled={pending}>
-              {pending ? "Renewing…" : `Renew now (${subscription.billingInterval === "yearly" ? prices.yearly : prices.monthly} coins)`}
+              {pending ? "Renewing…" : `Renew now (${coinPrice} coin${coinPrice === 1 ? "" : "s"})`}
             </button>
           </form>
         )}
@@ -46,22 +46,14 @@ export function PurchaseVipForm({
       </div>
       <p className="mutedText" style={{ fontSize: "0.85rem", marginBottom: "0.6rem" }}>
         One purchase unlocks every Premium perk platform-wide — raised link cap, full analytics history, extra theme
-        presets, a custom domain, and a reduced platform fee on your earnings. Paid straight out of your coin balance.
+        presets, a custom domain, and a reduced platform fee on your earnings. Free to test right now — paid straight
+        out of your coin balance.
       </p>
-      <div style={{ display: "flex", gap: "1rem", marginBottom: "0.6rem" }}>
-        <label style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
-          <input type="radio" name="billingInterval" value="monthly" defaultChecked style={{ width: "auto" }} />
-          {prices.monthly} coins/month
-        </label>
-        <label style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
-          <input type="radio" name="billingInterval" value="yearly" style={{ width: "auto" }} />
-          {prices.yearly} coins/year
-        </label>
-      </div>
-      <button type="submit" className="button" disabled={pending || coinBalance < prices.monthly}>
-        {pending ? "Purchasing…" : "Buy VIP with coins"}
+      <input type="hidden" name="billingInterval" value="monthly" />
+      <button type="submit" className="button" disabled={pending || coinBalance < coinPrice}>
+        {pending ? "Unlocking…" : `Unlock VIP — ${coinPrice} coin${coinPrice === 1 ? "" : "s"}`}
       </button>
-      {coinBalance < prices.monthly && <p className="mutedText" style={{ fontSize: "0.8rem" }}>Top up first — you need at least {prices.monthly} coins.</p>}
+      {coinBalance < coinPrice && <p className="mutedText" style={{ fontSize: "0.8rem" }}>You need at least {coinPrice} coin{coinPrice === 1 ? "" : "s"}.</p>}
       {state?.error && <p className="errorText">{state.error}</p>}
     </form>
   );

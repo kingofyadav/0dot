@@ -98,6 +98,8 @@ model User {
   pendingTwoFactorChallenges PendingTwoFactorChallenge[]
   coinTopUpRequests          CoinTopUpRequest[]
   coinPayoutRequests         CoinPayoutRequest[]
+  coinTransfersSent          CoinTransfer[] @relation("CoinTransferSent")
+  coinTransfersReceived      CoinTransfer[] @relation("CoinTransferReceived")
   pendingEmailChanges        PendingEmailChange[]
   pendingPhoneChanges        PendingPhoneChange[]
   loginEvents                LoginEvent[]
@@ -3982,6 +3984,24 @@ model CoinTopUpRequest {
 // rather than read live off User.payoutUpiVpa at payout time so a later
 // address change can never retroactively change where an
 // already-requested-or-paid payout is understood to have gone.
+// User-to-user coin transfer — a plain append-only ledger row (unlike
+// coinBalance itself, which is a mutable running total on User). No status
+// field: unlike CoinTopUpRequest/CoinPayoutRequest there's no external
+// step to wait on, the transfer either fully lands in one transaction or
+// doesn't happen at all (wallet.ts's transferCoinsAction).
+model CoinTransfer {
+  id         String   @id @default(uuid())
+  fromUserId String
+  fromUser   User     @relation("CoinTransferSent", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUserId   String
+  toUser     User     @relation("CoinTransferReceived", fields: [toUserId], references: [id], onDelete: Cascade)
+  amount     Int
+  createdAt  DateTime @default(now())
+
+  @@index([fromUserId, createdAt])
+  @@index([toUserId, createdAt])
+}
+
 model CoinPayoutRequest {
   id               String    @id @default(uuid())
   userId           String

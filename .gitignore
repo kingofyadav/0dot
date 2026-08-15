@@ -48,7 +48,7 @@ next-env.d.ts
 /prisma/vitest-test.db*
 /prisma/prod.db
 /prisma/prod.db-journal
-/prisma/prod.db.bak.*
+/prisma/prod.db.bak*
 
 # scripts/backup-db.js output (runtime artifact, not source)
 /backups
