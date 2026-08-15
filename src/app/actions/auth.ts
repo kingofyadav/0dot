@@ -209,11 +209,15 @@ export async function resendVerificationEmail(
 
   const sender = getEmailSender();
   const verifyUrl = `${getAppOrigin()}/verify?token=${token}`;
-  await sender.send({
+  const result = await sender.send({
     to: user.email,
     subject: "Verify your 0dot.in email",
     html: renderVerifyEmailHtml(verifyUrl),
   });
+
+  if (result.status === "failed") {
+    return { error: "Couldn't send the verification email. Please try again in a moment." };
+  }
 
   return { success: true };
 }
