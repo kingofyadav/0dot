@@ -91,7 +91,10 @@ export function ConversationListItem({
         </span>
       </Link>
       {showMenu && (
-        <span style={{ position: "absolute", insetInlineEnd: "0.5rem", top: "50%", transform: "translateY(-50%)" }}>
+        <span
+          className="conversationRowMenuWrap"
+          style={{ position: "absolute", insetInlineEnd: "0.5rem", top: "50%", transform: "translateY(-50%)" }}
+        >
           <ConversationRowMenu conversationId={conversationId} compact />
         </span>
       )}

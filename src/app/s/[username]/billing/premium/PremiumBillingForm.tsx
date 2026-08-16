@@ -12,7 +12,7 @@ export function PremiumBillingForm({
   if (subscription) {
     const isCancelling = subscription.status === "cancelled";
     return (
-      <div className="settingsGroup" style={{ padding: "0.9rem 1rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+      <div className="settingsCard">
         <p>
           <strong>{isCancelling ? "Premium (cancelling)" : "Premium active"}</strong> — billed {subscription.billingInterval}
         </p>
@@ -39,7 +39,7 @@ export function PremiumBillingForm({
   }
 
   return (
-    <div className="settingsGroup" style={{ padding: "0.9rem 1rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+    <div className="settingsCard">
       <p className="mutedText" style={{ fontSize: "0.85rem" }}>
         Card payments are off right now — unlock Premium free with your coin balance instead.
       </p>

@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation";
+import { AlertTriangle } from "lucide-react";
 import { getCurrentUser } from "@/lib/session";
+import { SettingsRow } from "@/components/SettingsRow";
 import { DeactivateAccountAction, RequestAccountDeletionAction } from "./AccountLifecycleActions";
 
 export default async function AccountManagementPage() {
@@ -10,31 +12,48 @@ export default async function AccountManagementPage() {
     <div className="settingsSection">
       <h2 className="settingsSectionHeading">Account management</h2>
 
-      <p className="settingsGroupLabel">Export your data</p>
-      <p className="mutedText" style={{ marginBottom: "0.75rem" }}>
-        Download a copy of your profile, links, posts, articles, projects, and bookmarks as JSON.
-      </p>
-      {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- a file download (Content-Disposition: attachment), not a page navigation next/link's client-side router applies to. */}
-      <a href="/api/account/export" className="button buttonSecondary">
-        Download my data
-      </a>
+      <div className="settingsGroup">
+        <SettingsRow
+          label="Export your data"
+          description="Download a copy of your profile, links, posts, articles, projects, and bookmarks as JSON."
+          trailing={
+            // eslint-disable-next-line @next/next/no-html-link-for-pages -- a file download (Content-Disposition: attachment), not a page navigation next/link's client-side router applies to.
+            <a href="/api/account/export" className="button buttonSecondary buttonSmall">
+              Download
+            </a>
+          }
+        />
+      </div>
 
-      <p className="settingsGroupLabel" style={{ marginTop: "2rem" }}>
-        Deactivate account
-      </p>
-      <p className="mutedText" style={{ marginBottom: "0.75rem" }}>
-        Hides your profile and signs you out everywhere. Log back in within 30 days to reactivate — after
-        that, your account is permanently deleted.
-      </p>
-      <DeactivateAccountAction />
+      <p className="settingsGroupLabel">Danger zone</p>
+      <div className="settingsCard settingsCardDanger">
+        <p className="settingsCardDangerHeading">
+          <AlertTriangle size={16} aria-hidden="true" />
+          Irreversible actions
+        </p>
 
-      <p className="settingsGroupLabel" style={{ marginTop: "2rem" }}>
-        Delete account
-      </p>
-      <p className="mutedText" style={{ marginBottom: "0.75rem" }}>
-        Schedules your account for permanent deletion in 30 days. Logging back in before then cancels it.
-      </p>
-      <RequestAccountDeletionAction />
+        <div className="settingsDangerRow">
+          <div className="settingsDangerRowText">
+            <span className="settingsDangerRowLabel">Deactivate account</span>
+            <span className="settingsDangerRowDescription">
+              Hides your profile and signs you out everywhere. Log back in within 30 days to reactivate —
+              after that, your account is permanently deleted.
+            </span>
+          </div>
+          <DeactivateAccountAction />
+        </div>
+
+        <div className="settingsDangerRow">
+          <div className="settingsDangerRowText">
+            <span className="settingsDangerRowLabel">Delete account</span>
+            <span className="settingsDangerRowDescription">
+              Schedules your account for permanent deletion in 30 days. Logging back in before then cancels
+              it.
+            </span>
+          </div>
+          <RequestAccountDeletionAction />
+        </div>
+      </div>
     </div>
   );
 }

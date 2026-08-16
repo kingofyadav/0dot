@@ -19,19 +19,19 @@ function ConfirmDangerForm({
   const [state, formAction, pending] = useActionState(action, undefined);
 
   if (state?.success) {
-    return <p className="mutedText">{successMessage}</p>;
+    return <p className="mutedText settingsDangerRowFull">{successMessage}</p>;
   }
 
   if (!confirming) {
     return (
-      <button type="button" className="button buttonDanger" onClick={() => setConfirming(true)}>
+      <button type="button" className="button buttonDanger buttonSmall" onClick={() => setConfirming(true)}>
         {confirmLabel}
       </button>
     );
   }
 
   return (
-    <form action={formAction} className="authCard" style={{ maxWidth: "none" }}>
+    <form action={formAction} className="settingsDangerRowFull" style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
       <PasswordField id={`${confirmLabel}-password`} name="currentPassword" label="Confirm your password" autoComplete="current-password" required />
       {state?.error && <p className="errorText">{state.error}</p>}
       <div style={{ display: "flex", gap: "0.5rem" }}>

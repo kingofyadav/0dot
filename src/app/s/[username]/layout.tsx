@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
+import { SettingsSearchTrigger } from "./SettingsSearchTrigger";
 
 // Owner-only settings shell, shared by every /s/[username]/* route. Owns
 // the auth/own-handle checks and the persistent header that used to be
@@ -36,9 +37,12 @@ export default async function SettingsLayout({
     <div className="settingsShell">
       <div className="settingsHeaderRow">
         <h1>Settings</h1>
-        <Link href={`/${handle}`} className="button buttonSecondary buttonSmall">
-          View public profile
-        </Link>
+        <div className="settingsHeaderActions">
+          <SettingsSearchTrigger />
+          <Link href={`/${handle}`} className="button buttonSecondary buttonSmall">
+            View public profile
+          </Link>
+        </div>
       </div>
       <div className="settingsContent">{children}</div>
     </div>

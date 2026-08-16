@@ -2,6 +2,8 @@
 
 import { useActionState } from "react";
 import { updatePrivacySettings } from "@/app/actions/profile";
+import { SettingsRow } from "@/components/SettingsRow";
+import { Switch } from "@/components/Switch";
 
 export function PrivacySettingsForm({
   allowDmsFrom,
@@ -15,34 +17,33 @@ export function PrivacySettingsForm({
   const [state, formAction, pending] = useActionState(updatePrivacySettings, undefined);
 
   return (
-    <form action={formAction} className="authCard" style={{ maxWidth: "none" }}>
-      <div className="field">
-        <label htmlFor="allowDmsFrom">Who can message you</label>
-        <select id="allowDmsFrom" name="allowDmsFrom" defaultValue={allowDmsFrom}>
-          <option value="everyone">Everyone</option>
-          <option value="followers">People you follow</option>
-          <option value="none">No one</option>
-        </select>
-      </div>
-
-      <div className="field">
-        <label htmlFor="allowTagging" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          <input id="allowTagging" name="allowTagging" type="checkbox" defaultChecked={allowTagging} style={{ width: "auto" }} />
-          Allow others to tag you
-        </label>
-      </div>
-
-      <div className="field">
-        <label htmlFor="discoverableInSearch" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          <input
-            id="discoverableInSearch"
-            name="discoverableInSearch"
-            type="checkbox"
-            defaultChecked={discoverableInSearch}
-            style={{ width: "auto" }}
-          />
-          Show my profile in search results
-        </label>
+    <form action={formAction}>
+      <div className="settingsGroup">
+        <SettingsRow
+          label="Who can message you"
+          trailing={
+            <select id="allowDmsFrom" name="allowDmsFrom" defaultValue={allowDmsFrom} className="settingsRowSelect">
+              <option value="everyone">Everyone</option>
+              <option value="followers">People you follow</option>
+              <option value="none">No one</option>
+            </select>
+          }
+        />
+        <SettingsRow
+          label="Allow others to tag you"
+          trailing={<Switch name="allowTagging" value="on" defaultChecked={allowTagging} aria-label="Allow others to tag you" />}
+        />
+        <SettingsRow
+          label="Show my profile in search results"
+          trailing={
+            <Switch
+              name="discoverableInSearch"
+              value="on"
+              defaultChecked={discoverableInSearch}
+              aria-label="Show my profile in search results"
+            />
+          }
+        />
       </div>
 
       {state?.error && <p className="errorText">{state.error}</p>}

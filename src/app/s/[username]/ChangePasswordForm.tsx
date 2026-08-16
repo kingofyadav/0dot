@@ -13,7 +13,7 @@ export function ChangePasswordForm() {
   }, [state]);
 
   return (
-    <form ref={formRef} action={formAction} className="authCard" style={{ maxWidth: "none" }}>
+    <form ref={formRef} action={formAction} className="settingsCard">
       <PasswordField id="currentPassword" name="currentPassword" label="Current password" autoComplete="current-password" required />
 
       <PasswordField

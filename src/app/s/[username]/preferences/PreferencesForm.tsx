@@ -3,6 +3,8 @@
 import { useActionState } from "react";
 import { updatePreferences } from "@/app/actions/preferences";
 import { LOCALES, TIMEZONES } from "@/lib/preferences";
+import { SettingsRow } from "@/components/SettingsRow";
+import { Switch } from "@/components/Switch";
 
 const LOCALE_LABELS: Record<(typeof LOCALES)[number], string> = {
   "en-US": "English (US)",
@@ -31,62 +33,59 @@ export function PreferencesForm({
   const [state, formAction, pending] = useActionState(updatePreferences, undefined);
 
   return (
-    <form action={formAction} className="authCard" style={{ maxWidth: "none" }}>
-      <div className="field">
-        <label htmlFor="locale">Language</label>
-        <select id="locale" name="locale" defaultValue={locale ?? "en-US"}>
-          {LOCALES.map((l) => (
-            <option key={l} value={l}>
-              {LOCALE_LABELS[l]}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="field">
-        <label htmlFor="timezone">Timezone</label>
-        <select id="timezone" name="timezone" defaultValue={timezone ?? "UTC"}>
-          {TIMEZONES.map((tz) => (
-            <option key={tz} value={tz}>
-              {tz}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="field">
-        <label htmlFor="fontScale">Text size</label>
-        <select id="fontScale" name="fontScale" defaultValue={accessibilityPrefs.fontScale}>
-          <option value="default">Default</option>
-          <option value="large">Large</option>
-          <option value="larger">Larger</option>
-        </select>
-      </div>
-
-      <div className="field">
-        <label htmlFor="reducedMotion" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          <input
-            id="reducedMotion"
-            name="reducedMotion"
-            type="checkbox"
-            defaultChecked={accessibilityPrefs.reducedMotion}
-            style={{ width: "auto" }}
-          />
-          Reduce motion
-        </label>
-      </div>
-
-      <div className="field">
-        <label htmlFor="highContrast" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          <input
-            id="highContrast"
-            name="highContrast"
-            type="checkbox"
-            defaultChecked={accessibilityPrefs.highContrast}
-            style={{ width: "auto" }}
-          />
-          High contrast
-        </label>
+    <form action={formAction}>
+      <div className="settingsGroup">
+        <SettingsRow
+          label="Language"
+          trailing={
+            <select id="locale" name="locale" defaultValue={locale ?? "en-US"} className="settingsRowSelect">
+              {LOCALES.map((l) => (
+                <option key={l} value={l}>
+                  {LOCALE_LABELS[l]}
+                </option>
+              ))}
+            </select>
+          }
+        />
+        <SettingsRow
+          label="Timezone"
+          trailing={
+            <select id="timezone" name="timezone" defaultValue={timezone ?? "UTC"} className="settingsRowSelect">
+              {TIMEZONES.map((tz) => (
+                <option key={tz} value={tz}>
+                  {tz}
+                </option>
+              ))}
+            </select>
+          }
+        />
+        <SettingsRow
+          label="Text size"
+          trailing={
+            <select
+              id="fontScale"
+              name="fontScale"
+              defaultValue={accessibilityPrefs.fontScale}
+              className="settingsRowSelect"
+            >
+              <option value="default">Default</option>
+              <option value="large">Large</option>
+              <option value="larger">Larger</option>
+            </select>
+          }
+        />
+        <SettingsRow
+          label="Reduce motion"
+          trailing={
+            <Switch name="reducedMotion" value="on" defaultChecked={accessibilityPrefs.reducedMotion} aria-label="Reduce motion" />
+          }
+        />
+        <SettingsRow
+          label="High contrast"
+          trailing={
+            <Switch name="highContrast" value="on" defaultChecked={accessibilityPrefs.highContrast} aria-label="High contrast" />
+          }
+        />
       </div>
 
       {state?.error && <p className="errorText">{state.error}</p>}
