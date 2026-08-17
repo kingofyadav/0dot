@@ -24,7 +24,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ path
     return new Response("Not found", { status: 404 });
   }
 
-  const blobUrl = `https://o39zy3hzq5ymzszy.public.blob.vercel-storage.com/uploads/${filename}`;
+  const blobUrl = `https://k82rdlknd7r0iore.public.blob.vercel-storage.com/uploads/${filename}`;
 
   return Response.redirect(blobUrl, 307);
 }

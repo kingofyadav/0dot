@@ -34,12 +34,17 @@ async function writeToUploadsDir(file: File, ext: string): Promise<string> {
   const filename = `${randomBytes(16).toString("hex")}.${ext}`;
   const path = `uploads/${filename}`;
 
-  await put(path, file, {
-    access: "private",
+  // access: "public" — these URLs are handed straight to <img>/<a> tags
+  // with no auth check on read, so "private" (which needs a signed
+  // get()/token round trip) never actually served anything; public also
+  // matches Vercel's own guidance against private access for
+  // publicly-displayed content (slower delivery, higher egress cost).
+  const blob = await put(path, file, {
+    access: "public",
     addRandomSuffix: false,
   });
 
-  return `/${path}`;
+  return blob.url;
 }
 
 export async function saveUploadedImage(
