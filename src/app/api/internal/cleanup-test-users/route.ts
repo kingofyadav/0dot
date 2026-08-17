@@ -10,7 +10,7 @@ import { NextResponse } from "next/server";
 const SYSTEM_EMAIL = "platform-apps@0dot.internal";
 
 function isAuthorized(request: Request): boolean {
-  const expected = process.env.MIGRATION_RUNNER_SECRET;
+  const expected = process.env.CLEANUP_SECRET ?? process.env.MIGRATION_RUNNER_SECRET;
   if (!expected) return false;
   const provided = request.headers.get("x-migration-secret") ?? "";
   const a = Buffer.from(provided);
