@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
 import { DigitalHomeVisual } from "@/components/DigitalHomeVisual";
 import { MarketingNav } from "@/components/marketing/MarketingNav";
+import { AuthTabs } from "@/components/AuthTabs";
+import { ExploreLiveLink } from "@/components/ExploreLiveLink";
 
 export default async function Home() {
   const user = await getCurrentUser();
@@ -9,18 +11,24 @@ export default async function Home() {
     redirect("/feed");
   }
 
-  // Minimal, button-driven landing (explicit user direction): no embedded
-  // signup/login form, no paragraph-heavy sections, no footer, no duplicate
-  // CTA buttons in the hero — MarketingNav's Log in / Create your 0dot are
-  // the only navigation. Just header + one centered hero screen.
+  // MarketingNav is the only header on this page (single header, all
+  // devices). Below it, the same split hero/auth-card shell as /login and
+  // /signup (.landingWrap, shared in globals.css) — hero copy left, the
+  // signup/login form (AuthTabs) right.
   return (
     <>
       <MarketingNav />
 
-      <div className="landingWrap landingWrap--solo">
+      <div className="landingWrap">
         <section className="landingHero">
+          <h1>One identity. One profile. Infinite possibilities.</h1>
+          <p>Your permanent home on the internet.</p>
+          <ExploreLiveLink />
+
           <DigitalHomeVisual />
         </section>
+
+        <AuthTabs />
       </div>
     </>
   );

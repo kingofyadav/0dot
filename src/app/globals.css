@@ -170,19 +170,6 @@
      shared by .desktopTopHeader's height and .desktopSidebar's sticky
      offset so the two never overlap. */
   --desktop-header-h: 72px;
-  /* .marketingNavInner's rendered height ("/" only) — 1rem vertical padding
-     (32px) + the row's actual height at the >=1024px breakpoint where
-     .landingWrap--solo's justify-content: center engages (32px: the
-     ThemeToggleLogo, at align-items: center, is the tallest thing in the
-     row there — MarketingNav.tsx's .buttonSmall Log in/Create your 0dot
-     links are ~29-31px). Bug fix: this was previously 72px, assuming up to
-     a 40px row; the real 64px total made .landingWrap--solo (below) reserve
-     ~8px more than the nav actually occupies, nudging the hero off true
-     center. Used so .landingWrap--solo can fill exactly the remaining
-     viewport below the nav, letting the hero center itself in real leftover
-     space instead of relying on the ambient min-height:100% cascade further
-     up the tree. */
-  --marketing-nav-h: 64px;
 
   /* Spacing scale (DESIGN_SYSTEM.md) — dimensional, not themed, so this
      lives only here, not duplicated in the dark-mode/data-theme blocks
@@ -943,53 +930,6 @@ html:not([data-theme="light"])[data-high-contrast="true"] {
 
   .landingHero p {
     max-width: none;
-  }
-}
-
-/* "/" only (page.tsx) — the minimal, button-driven landing hero has no
-   .authCard/AuthTabs sibling anymore (removed per explicit direction: no
-   embedded form, no paragraph-heavy sections, buttons to navigate instead).
-   Two consequences that only apply here, not to /login or /signup which
-   still pair .landingHero with a real auth card:
-   1. The base .landingHero rule above is display:none below 1024px
-      (mobile shows "the auth form only" there) — with no form to fall back
-      to on "/", that would render a blank page on mobile. Force it visible
-      at every width instead.
-   2. At 1024px+, .landingWrap's row layout (justify-content: space-between,
-      further up this file) exists to push a second flex child (the auth
-      card) to the far side — with only .landingHero as a child now, that
-      just left it flush left with dead space on the right. Center the
-      whole hero as a single column instead, capped narrower than the old
-      760px two-column max so it doesn't stretch edge-to-edge alone. */
-.landingWrap--solo .landingHero {
-  display: flex;
-}
-
-/* Fills exactly the viewport height left over below MarketingNav (there's
-   no footer anymore either — see page.tsx), so the existing
-   justify-content: center above actually has real leftover space to center
-   the hero within, instead of the box just shrink-wrapping its content and
-   sitting flush under the nav. overflow-y: auto (inherited from the base
-   .landingWrap rule) is still the safety valve if a very small viewport
-   plus the DigitalHomeVisual can't fit — scrolls rather than clips. */
-.landingWrap--solo {
-  min-height: calc(100dvh - var(--marketing-nav-h));
-}
-
-@media (min-width: 1024px) {
-  .landingWrap--solo {
-    justify-content: center;
-  }
-
-  .landingWrap--solo .landingHero {
-    align-items: center;
-    text-align: center;
-    flex: 0 1 640px;
-    max-width: 640px;
-  }
-
-  .landingWrap--solo .landingHero p {
-    max-width: 48ch;
   }
 }
 

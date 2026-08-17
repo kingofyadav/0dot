@@ -49,12 +49,24 @@ function isOwnHost(host: string): boolean {
 // renders login *on* yourname.com instead of bouncing to 0dot.in's login —
 // a real gap for a follow-up pass, not silently ignored, but out of scope
 // for this build alongside everything else it already covers.
+// x-pathname makes the current path readable from Server Components via
+// headers() (route-context.ts's isChromelessPath/isProfilePagePath, read by
+// RootLayout and SiteHeader) — there's no other way to get route data into
+// a layout. Must go through NextResponse's `request.headers` init (forwards
+// upstream to the render) rather than `response.headers.set` (only reaches
+// the browser) — see this Next version's proxy.md "Setting Headers" section.
+// Set on every return path below, including the custom-domain rewrite,
+// where it reflects the *rewritten* pathname (the page actually rendered),
+// not the third-party host's original request path.
 export default async function proxy(request: NextRequest): Promise<Response | undefined> {
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-pathname", request.nextUrl.pathname);
+
   const hostHeader = request.headers.get("host");
-  if (!hostHeader) return NextResponse.next();
+  if (!hostHeader) return NextResponse.next({ request: { headers: requestHeaders } });
 
   const host = hostHeader.split(":")[0].toLowerCase();
-  if (isOwnHost(host)) return NextResponse.next();
+  if (isOwnHost(host)) return NextResponse.next({ request: { headers: requestHeaders } });
 
   let prefix: string | null = null;
   try {
@@ -68,11 +80,12 @@ export default async function proxy(request: NextRequest): Promise<Response | un
   } catch {
     prefix = null; // lookup failure falls through to normal routing rather than breaking the request
   }
-  if (!prefix) return NextResponse.next();
+  if (!prefix) return NextResponse.next({ request: { headers: requestHeaders } });
 
   const url = request.nextUrl.clone();
   url.pathname = url.pathname === "/" ? prefix : `${prefix}${url.pathname}`;
-  return NextResponse.rewrite(url);
+  requestHeaders.set("x-pathname", url.pathname);
+  return NextResponse.rewrite(url, { request: { headers: requestHeaders } });
 }
 
 // manifest.json/sw.js/the home-screen icon files are requested by the
