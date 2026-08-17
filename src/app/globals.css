@@ -3549,27 +3549,6 @@ body.hasBottomNav .appMain {
   border-bottom: 1px solid var(--border);
 }
 
-/* Tablet tier (RESPONSIVE_LAYOUT.md --bp-md, 768px) — the first real branch
-   point between phone and the 1024px desktop-shell cutover. Below this,
-   search is reachable via the bottom-nav icon or the hamburger panel only
-   (no room for an inline bar); at tablet widths and up there's enough
-   spare header width to show it inline, same as desktop, instead of making
-   every tablet visitor open a menu first. Hidden by default, not just
-   narrow, since .mobileHeaderSearchWrap only exists inside .mobileHeader
-   (the desktop header already has its own inline SearchForm). */
-.mobileHeaderSearchWrap {
-  display: none;
-}
-
-@media (min-width: 768px) {
-  .mobileHeaderSearchWrap {
-    display: block;
-    flex: 1;
-    max-width: 420px;
-    margin: 0 1.25rem;
-  }
-}
-
 /* A restrained brand touch: a thin gradient bar under the header, present
    on every page — shared by both header surfaces (mobile top strip, desktop
    top header) rather than duplicated per NAVIGATION.md rule 3 ("persistent
@@ -3852,9 +3831,7 @@ body.hasBottomNav .mobileNavPanel {
   }
 
   /* Icon cluster (messages/notifications/account avatar) pins to the far
-     right via plain flex; search is pulled out of this flow entirely (see
-     below) so it can center on the *full* header width, not just this
-     wrap's share of it (which sits right of the 240px sidebar column).
+     right via plain flex.
 
      grid-column: 2 / -1 (rather than relying on auto-placement into just
      column 2) matters on hasRail routes: body.hasRail .desktopTopHeader
@@ -3871,26 +3848,6 @@ body.hasBottomNav .mobileNavPanel {
     justify-content: flex-end;
     gap: 0.75rem;
     grid-column: 2 / -1;
-  }
-
-  /* Absolutely positioned against .desktopTopHeader (the nearest positioned
-     ancestor, via its position:sticky) rather than laid out in the grid —
-     centering it via left/right (not the wrap's own flex box, which also
-     contains the icon cluster and, on hasRail routes, spans main+aside
-     combined) is the only way to keep it centered over .appMain specifically,
-     matching the content column below it.
-     left mirrors the sidebar column (240px) plus the header's own left
-     padding; right reserves the icon cluster's width (~200px, including
-     its gap from search) plus the header's right padding, since without a
-     rail column the icon cluster sits right at main's own right edge. */
-  .desktopTopHeaderSearchWrap .siteHeaderSearch {
-    position: absolute;
-    top: 50%;
-    left: calc(240px + 1.5rem);
-    right: calc(200px + 1.5rem);
-    transform: translateY(-50%);
-    margin: 0 auto;
-    max-width: 640px;
   }
 
   .desktopSidebar {
@@ -3910,14 +3867,6 @@ body.hasBottomNav .mobileNavPanel {
        with the contextual rail's --accent-strong edge — same two-tone blue
        system as the header's gradient bar and hamburger icon. */
     border-right: 1px solid var(--accent);
-  }
-
-  /* The sidebar's own copy of the search form (rendered via the shared
-     NavLinks) is redundant now that .desktopTopHeader owns search at this
-     breakpoint — suppressed here, not in NavLinks itself, so mobile (which
-     reuses the same component inside the hamburger panel) is unaffected. */
-  .desktopSidebar .siteHeaderSearch {
-    display: none;
   }
 
   .sidebarNav {
@@ -3955,21 +3904,10 @@ body.hasBottomNav .mobileNavPanel {
       "sidebar main aside";
   }
 
-  /* Keeps the header's own internal grid (brand | search) column count in
-     sync with body's, for consistency — .desktopTopHeaderSearchWrap
-     .siteHeaderSearch below is what actually keeps the search bar centered
-     over .appMain and not main+aside combined, since it's taken out of grid
-     flow (position: absolute) and ignores these track widths directly. */
+  /* Keeps the header's own internal grid column count in sync with body's,
+     for consistency with the sidebar/main/aside track widths below it. */
   body.hasRail .desktopTopHeader {
     grid-template-columns: 240px 1fr 320px;
-  }
-
-  /* Without this, search's right bound (see the base rule above) reserves
-     only the icon cluster's ~200px, which undershoots the 320px aside
-     column now sitting between main and the icon cluster — search would
-     drift right of .appMain's true center, toward the aside. */
-  body.hasRail .desktopTopHeaderSearchWrap .siteHeaderSearch {
-    right: calc(320px + 1.5rem);
   }
 
   body.hasRail .contextualRail {
@@ -4573,6 +4511,22 @@ details:not([open]) > .settingsAddTrigger {
    1024px). Mobile-first throughout, per that doc's rule.
    ========================================================================== */
 
+/* Base header bar — kept minimal and transparent on purpose, matching
+   .authTopBar's floating-over-the-hero look on /login and /signup (no
+   solid background, no border) rather than the boxed/bordered app-chrome
+   treatment .mobileHeader/.desktopTopHeader use. Still position: sticky
+   so it stays reachable while scrolling "/" (the one chromeless page that
+   actually scrolls — see route-context.ts's FIXED_VIEWPORT_PATHS
+   comment); the blur alone (no border, no opaque fill) keeps it legible
+   over marketing-section content without reading as a hard bar. */
+.marketingNav {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
 .marketingNavInner {
   display: flex;
   align-items: center;
@@ -4581,6 +4535,15 @@ details:not([open]) > .settingsAddTrigger {
   max-width: 1440px;
   margin: 0 auto;
   padding: 1rem clamp(1rem, 4vw, 3rem);
+}
+
+/* Same breathing room as .authTopBar's `top: 2rem` / `left/right: clamp(2rem,
+   5vw, 6rem)` on /login and /signup at this breakpoint — the 1rem/3rem
+   mobile padding above read cramped next to that airier auth-page spacing. */
+@media (min-width: 1024px) {
+  .marketingNavInner {
+    padding: 2rem clamp(2rem, 5vw, 6rem);
+  }
 }
 
 .marketingNavActions {

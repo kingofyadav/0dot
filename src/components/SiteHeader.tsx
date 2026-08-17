@@ -7,7 +7,6 @@ import { MobileNavMenu } from "./MobileNavMenu";
 import { MobileBottomNav } from "./MobileBottomNav";
 import { NavLinks } from "./NavLinks";
 import { NavAction } from "./NavAction";
-import { SearchForm } from "./SearchForm";
 import { NotificationBell } from "./NotificationBell";
 import { MessagesBadge } from "./MessagesBadge";
 import { AccountMenu } from "./AccountMenu";
@@ -57,7 +56,6 @@ export async function SiteHeader() {
           {greeting}
         </div>
         <div className="desktopTopHeaderSearchWrap">
-          <SearchForm />
           <div className="siteHeaderActions">{iconCluster}</div>
         </div>
       </header>
@@ -75,12 +73,6 @@ export async function SiteHeader() {
               skipping this one bought nothing). */}
           <ThemeToggleLogo />
           {greeting}
-        </div>
-        {/* Tablet+ only (>=768px, see .mobileHeaderSearchWrap) — phone
-            widths keep search reachable via the bottom-nav icon/hamburger
-            panel instead, no room for an inline bar there. */}
-        <div className="mobileHeaderSearchWrap">
-          <SearchForm />
         </div>
         {/* Messages/notifications/account avatar are desktop-only (per
             explicit direction) — mobile keeps just the nav toggle; Messages
