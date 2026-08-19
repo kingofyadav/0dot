@@ -17,7 +17,7 @@ const discovery: AuthSession.DiscoveryDocument = {
   tokenEndpoint: `${API_BASE_URL}/api/oauth/token`,
 };
 
-const SCOPES = ["profile:read", "posts:read", "posts:write", "push:write"];
+const SCOPES = ["profile:read", "posts:read", "posts:write", "push:write", "notifications:read"];
 
 // client_id is generated per-environment (first-party-apps.ts), not a
 // fixed constant this build can hardcode — discovered from the server via

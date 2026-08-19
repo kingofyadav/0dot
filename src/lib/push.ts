@@ -10,13 +10,17 @@ export const PUSH_PLATFORMS: PushPlatform[] = ["ios", "android", "web_push"];
 // how the real integration should behave.
 export interface PushProvider {
   readonly name: string;
-  send(args: { token: string; platform: PushPlatform; title: string; body: string }): Promise<boolean>;
+  // data.href lets a client deep-link straight to the notification's
+  // subject on tap (mobile/src/push/pushNavigation.ts) — the same relative
+  // path getNotificationHref already computes for the in-app rail, reused
+  // here rather than re-derived client-side.
+  send(args: { token: string; platform: PushPlatform; title: string; body: string; data: { href: string } }): Promise<boolean>;
 }
 
 class StubPushProvider implements PushProvider {
   readonly name = "stub";
   // eslint-disable-next-line @typescript-eslint/no-unused-vars -- signature is the PushProvider interface contract; the stub doesn't need the argument.
-  async send(args: { token: string; platform: PushPlatform; title: string; body: string }) {
+  async send(args: { token: string; platform: PushPlatform; title: string; body: string; data: { href: string } }) {
     return true;
   }
 }
@@ -85,7 +89,7 @@ async function isChannelEnabled(userId: string, notificationType: string, channe
 // createNotification, same call-site shape as dispatchWebhookEvent
 // (webhooks.ts). Never throws: an unreachable device must not break the
 // in-app notification it's mirroring.
-export async function dispatchPushEvent(args: { recipientId: string; type: string; subjectType: string; subjectId: string }): Promise<void> {
+export async function dispatchPushEvent(args: { recipientId: string; actorId?: string | null; type: string; subjectType: string; subjectId: string }): Promise<void> {
   try {
     if (!(await isChannelEnabled(args.recipientId, args.type, "push"))) return;
 
@@ -98,15 +102,30 @@ export async function dispatchPushEvent(args: { recipientId: string; type: strin
     // private content itself (a DM body, a private note). Dynamic import
     // to avoid a load-time cycle (notifications.ts imports this module for
     // its own dispatch call).
-    const { getNotificationVerb } = await import("@/lib/notifications");
+    const { getNotificationVerb, getNotificationHref } = await import("@/lib/notifications");
     const body = getNotificationVerb(args.type, args.subjectType) || "You have a new notification";
+
+    // href reuses the exact same routing getNotificationHref already
+    // computes for the in-app rail (mobile/src/api/v1/notifications
+    // route does the same) — actorId/recipientHandle are best-effort
+    // (not every dispatchPushEvent call site has an actor, e.g.
+    // job_alert_match), and getNotificationHref degrades gracefully
+    // (falls back to /feed) when actor is null rather than crashing.
+    const [actor, recipient] = await Promise.all([
+      args.actorId ? db.user.findUnique({ where: { id: args.actorId }, include: { username: true } }) : null,
+      db.user.findUnique({ where: { id: args.recipientId }, include: { username: true } }),
+    ]);
+    const href = getNotificationHref(
+      { type: args.type, subjectType: args.subjectType, subjectId: args.subjectId, actor: actor ? { username: actor.username } : null },
+      recipient?.username?.handle ?? null
+    );
 
     // Independent per-device sends — concurrent instead of one-at-a-time so
     // a user with several registered devices (phone + desktop + tablet)
     // doesn't wait for each provider call to finish before the next starts.
     await Promise.all(
       tokens.map((deviceToken) =>
-        provider.send({ token: deviceToken.token, platform: deviceToken.platform as PushPlatform, title: "0dot", body })
+        provider.send({ token: deviceToken.token, platform: deviceToken.platform as PushPlatform, title: "0dot", body, data: { href } })
       )
     );
   } catch {

@@ -27,3 +27,25 @@ export type Post = {
   repostCount: number;
   createdAt: string;
 };
+
+export type FeedResponse = {
+  items: Post[];
+  nextCursor: string | null;
+};
+
+export type NotificationItem = {
+  id: string;
+  type: string;
+  subjectType: string;
+  subjectId: string;
+  verb: string;
+  href: string;
+  actor: { username: string | null; displayName: string | null } | null;
+  isRead: boolean;
+  createdAt: string;
+};
+
+export type NotificationsResponse = {
+  items: NotificationItem[];
+  nextCursor: string | null;
+};

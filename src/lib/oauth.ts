@@ -23,6 +23,11 @@ export const OAUTH_SCOPES = [
   // registration) that had no scope of its own yet — low sensitivity since
   // it only lets the app register a token to receive push, not read content.
   { key: "push:write", description: "Register your device to receive push notifications", sensitivity: "low" },
+  // mobile home/notifications screens: read-only, same sensitivity as
+  // posts:read — marking a notification read is a state change on the
+  // reader's own read receipt, not content creation, so it stays under
+  // this same scope rather than needing its own :write variant.
+  { key: "notifications:read", description: "Read your notifications", sensitivity: "low" },
 ] as const;
 
 export type OAuthScopeKey = (typeof OAUTH_SCOPES)[number]["key"];

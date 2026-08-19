@@ -1,7 +1,7 @@
 import { API_BASE_URL } from "../config";
 import { loadTokens } from "../auth/tokenStorage";
 import { fetchWithTimeout, isAbortError } from "./http";
-import type { Me, Profile, Post } from "./types";
+import type { Me, Profile, Post, FeedResponse, NotificationsResponse } from "./types";
 import type { NativePlatform } from "../config";
 
 // apiError (api-auth.ts) always responds { error: string } on the server
@@ -55,6 +55,20 @@ export function getProfile(username: string): Promise<Profile> {
 
 export function getPost(id: string): Promise<Post> {
   return authorizedRequest<Post>(`/api/v1/posts/${encodeURIComponent(id)}`);
+}
+
+export function getFeed(cursor?: string | null): Promise<FeedResponse> {
+  const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
+  return authorizedRequest<FeedResponse>(`/api/v1/feed${query}`);
+}
+
+export function getNotifications(cursor?: string | null): Promise<NotificationsResponse> {
+  const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
+  return authorizedRequest<NotificationsResponse>(`/api/v1/notifications${query}`);
+}
+
+export function markNotificationsRead(): Promise<{ ok: true }> {
+  return authorizedRequest<{ ok: true }>("/api/v1/notifications", { method: "PATCH" });
 }
 
 // Build plan step 5, against step 2's /api/v1/device-tokens route.

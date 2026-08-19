@@ -245,7 +245,7 @@ async function createNotification({
   // email.ts both import getNotificationVerb, all from this module).
   await Promise.all([
     import("@/lib/webhooks").then(({ dispatchWebhookEvent }) => dispatchWebhookEvent({ recipientId, type, subjectType, subjectId })),
-    import("@/lib/push").then(({ dispatchPushEvent }) => dispatchPushEvent({ recipientId, type, subjectType, subjectId })),
+    import("@/lib/push").then(({ dispatchPushEvent }) => dispatchPushEvent({ recipientId, actorId, type, subjectType, subjectId })),
     import("@/lib/email").then(({ dispatchEmailEvent }) => dispatchEmailEvent({ recipientId, type, subjectType, subjectId })),
   ]);
 }

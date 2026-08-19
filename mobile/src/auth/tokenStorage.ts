@@ -10,11 +10,20 @@ const EXPIRES_AT_KEY = "0dot_token_expires_at";
 export type StoredTokens = { accessToken: string; refreshToken: string; expiresAt: number };
 
 export async function saveTokens(tokens: StoredTokens): Promise<void> {
-  await Promise.all([
-    SecureStore.setItemAsync(ACCESS_TOKEN_KEY, tokens.accessToken),
-    SecureStore.setItemAsync(REFRESH_TOKEN_KEY, tokens.refreshToken),
-    SecureStore.setItemAsync(EXPIRES_AT_KEY, String(tokens.expiresAt)),
-  ]);
+  try {
+    await Promise.all([
+      SecureStore.setItemAsync(ACCESS_TOKEN_KEY, tokens.accessToken),
+      SecureStore.setItemAsync(REFRESH_TOKEN_KEY, tokens.refreshToken),
+      SecureStore.setItemAsync(EXPIRES_AT_KEY, String(tokens.expiresAt)),
+    ]);
+  } catch (err) {
+    // A partial write (e.g. accessToken + expiresAt succeed, refreshToken
+    // fails) would otherwise leave a mismatched triple that still passes
+    // loadTokens's null-check gate. Clear whatever landed so callers
+    // consistently see "no session" rather than a corrupted one.
+    await clearTokens();
+    throw err;
+  }
 }
 
 export async function loadTokens(): Promise<StoredTokens | null> {

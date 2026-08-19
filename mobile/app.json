@@ -16,7 +16,10 @@
       "bundleIdentifier": "in.0dot.ios",
       "associatedDomains": [
         "applinks:0dot.in"
-      ]
+      ],
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "in.zerodot.android",
@@ -40,6 +43,10 @@
             "DEFAULT"
           ]
         }
+      ],
+      "permissions": [
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT"
       ]
     },
     "web": {
@@ -67,7 +74,14 @@
           "backgroundColor": "#000000",
           "resizeMode": "contain"
         }
-      ]
-    ]
+      ],
+      "expo-router"
+    ],
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/89a03d8a-a71c-4cea-8e0f-3b77f591a9de"
+    }
   }
 }
