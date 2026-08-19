@@ -115,7 +115,24 @@ export async function ensureFirstPartyApps(): Promise<void> {
 // /api/oauth/first-party-clients.
 export async function getFirstPartyClientIds(): Promise<Record<FirstPartyPlatform, string | null>> {
   const platformUser = await ensurePlatformAccount();
-  const apps = await db.developerApp.findMany({ where: { ownerUserId: platformUser.id }, select: { name: true, clientId: true } });
+  let apps = await db.developerApp.findMany({ where: { ownerUserId: platformUser.id }, select: { name: true, clientId: true } });
+
+  // instrumentation.ts's register() is supposed to have already run
+  // ensureFirstPartyApps() once at boot, before this instance ever serves a
+  // request — but a production check after first deploying this route
+  // showed it returning null client_ids consistently across a warm,
+  // already-serving instance, an outcome that shouldn't be reachable if
+  // register() genuinely ran and awaited successfully first. Rather than
+  // leave every first-party client permanently unable to even start
+  // sign-in on an unclear boot-time race, this read path is self-healing
+  // too — ensureFirstPartyApps is the same idempotent call register()
+  // already makes, just invoked lazily here as a fallback instead of only
+  // trusted to have already succeeded.
+  if (FIRST_PARTY_APPS.some((spec) => !apps.some((a) => a.name === spec.name))) {
+    await ensureFirstPartyApps();
+    apps = await db.developerApp.findMany({ where: { ownerUserId: platformUser.id }, select: { name: true, clientId: true } });
+  }
+
   const clientIdByName = new Map(apps.map((a) => [a.name, a.clientId]));
   return Object.fromEntries(
     FIRST_PARTY_APPS.map((spec) => [spec.platform, clientIdByName.get(spec.name) ?? null])
