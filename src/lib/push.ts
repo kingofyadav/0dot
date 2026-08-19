@@ -2,6 +2,7 @@ import "server-only";
 import { db } from "@/lib/db";
 
 export type PushPlatform = "ios" | "android" | "web_push";
+export const PUSH_PLATFORMS: PushPlatform[] = ["ios", "android", "web_push"];
 
 // spec §4: same "swappable interface, stub implementation" posture as
 // payments.ts's PaymentProcessor — no APNs/FCM credentials exist to wire up

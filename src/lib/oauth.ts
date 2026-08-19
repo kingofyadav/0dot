@@ -19,6 +19,10 @@ export const OAUTH_SCOPES = [
   { key: "messages:read", description: "Read your private messages", sensitivity: "high" },
   { key: "messages:write", description: "Send messages on your behalf", sensitivity: "high" },
   { key: "payments:read", description: "Read your payout and transaction history", sensitivity: "high" },
+  // phase-15 build plan step 2: the one first-party-app action (push device
+  // registration) that had no scope of its own yet — low sensitivity since
+  // it only lets the app register a token to receive push, not read content.
+  { key: "push:write", description: "Register your device to receive push notifications", sensitivity: "low" },
 ] as const;
 
 export type OAuthScopeKey = (typeof OAUTH_SCOPES)[number]["key"];

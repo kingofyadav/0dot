@@ -3007,6 +3007,15 @@ model DeveloperApp {
   description       String    @default("")
   clientId          String    @unique
   clientSecretHash  String
+  // phase-15 build plan step 3: RFC 8252 public-client posture — a client
+  // that ships inside a distributed app binary (first-party iOS/Android/
+  // desktop, spec §3.2) cannot hold clientSecretHash's plaintext secret
+  // safely no matter how it's embedded, so the token endpoint must accept
+  // PKCE's code_verifier alone as proof of possession for these apps
+  // instead of also demanding a secret. Default false changes nothing for
+  // every existing third-party app, which still authenticates the way it
+  // always has.
+  isPublicClient    Boolean   @default(false)
   redirectUrisJson  String // JSON array of exact-match redirect URIs (spec §3.2: no wildcard/prefix matching)
   status            String    @default("active") // active | suspended
   // billing addendum §4.1: metered against the existing ApiUsageCounter

@@ -1,0 +1,67 @@
+{
+  "expo": {
+    "name": "0dot",
+    "slug": "0dot",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": [
+      "zerodot-ios",
+      "zerodot-android"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "in.0dot.ios",
+      "associatedDomains": [
+        "applinks:0dot.in"
+      ]
+    },
+    "android": {
+      "package": "in.zerodot.android",
+      "adaptiveIcon": {
+        "backgroundColor": "#000000",
+        "foregroundImage": "./assets/android-icon-foreground.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "0dot.in"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-web-browser",
+      "expo-notifications",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow 0dot to use Face ID to unlock the app."
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "backgroundColor": "#000000",
+          "resizeMode": "contain"
+        }
+      ]
+    ]
+  }
+}

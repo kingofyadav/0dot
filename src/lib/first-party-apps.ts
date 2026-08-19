@@ -26,11 +26,18 @@ export function isInternalSystemAccountEmail(email: string): boolean {
 // (developer-apps.ts) rejects non-https/non-localhost URIs since that
 // validation exists for user-submitted third-party apps; these are
 // server-seeded, so written directly.
+//
+// "zerodot-*", not "0dot-*": a URI scheme must start with a letter (RFC
+// 3986 §3.1's `scheme = ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )`) —
+// mobile/app.json's own scheme registration failed expo-doctor's schema
+// validation against a leading digit, which is what surfaced this.
 const FIRST_PARTY_APPS = [
-  { name: "0dot iOS App", description: "0dot's first-party iOS app.", redirectUris: ["0dot-ios://oauth/callback"] },
-  { name: "0dot Android App", description: "0dot's first-party Android app.", redirectUris: ["0dot-android://oauth/callback"] },
-  { name: "0dot Desktop", description: "0dot's first-party desktop app (installable PWA).", redirectUris: ["https://0dot.in/desktop/oauth/callback"] },
+  { platform: "ios", name: "0dot iOS App", description: "0dot's first-party iOS app.", redirectUris: ["zerodot-ios://oauth/callback"] },
+  { platform: "android", name: "0dot Android App", description: "0dot's first-party Android app.", redirectUris: ["zerodot-android://oauth/callback"] },
+  { platform: "desktop", name: "0dot Desktop", description: "0dot's first-party desktop app (installable PWA).", redirectUris: ["https://0dot.in/desktop/oauth/callback"] },
 ] as const;
+
+export type FirstPartyPlatform = (typeof FIRST_PARTY_APPS)[number]["platform"];
 
 async function ensurePlatformAccount(): Promise<{ id: string }> {
   const existing = await db.user.findUnique({ where: { email: PLATFORM_ACCOUNT_EMAIL }, select: { id: true } });
@@ -54,7 +61,21 @@ export async function ensureFirstPartyApps(): Promise<void> {
 
   for (const spec of FIRST_PARTY_APPS) {
     const existing = await db.developerApp.findFirst({ where: { ownerUserId: platformUser.id, name: spec.name } });
-    if (existing) continue;
+    // Self-healing for rows created before isPublicClient existed, or with
+    // the invalid "0dot-*" scheme (see FIRST_PARTY_APPS' comment above) —
+    // same "runs on every server start, patches forward" idiom the rest of
+    // this function already relies on, rather than a one-off migration
+    // backfill.
+    if (existing) {
+      const wantRedirectUris = JSON.stringify(spec.redirectUris);
+      const patch: { isPublicClient?: true; redirectUrisJson?: string } = {};
+      if (!existing.isPublicClient) patch.isPublicClient = true;
+      if (existing.redirectUrisJson !== wantRedirectUris) patch.redirectUrisJson = wantRedirectUris;
+      if (Object.keys(patch).length > 0) {
+        await db.developerApp.update({ where: { id: existing.id }, data: patch });
+      }
+      continue;
+    }
 
     const { clientId, clientSecretHash } = await generateClientCredentials();
     const app = await db.developerApp.create({
@@ -65,6 +86,7 @@ export async function ensureFirstPartyApps(): Promise<void> {
         description: spec.description,
         clientId,
         clientSecretHash,
+        isPublicClient: true,
         redirectUrisJson: JSON.stringify(spec.redirectUris),
       },
     });
@@ -82,4 +104,20 @@ export async function ensureFirstPartyApps(): Promise<void> {
       });
     }
   }
+}
+
+// phase-15 build plan step 3: client_id is generated randomly per
+// environment (generateClientCredentials, developer-apps.ts) rather than a
+// fixed constant a compiled app could hardcode — a mobile build needs a way
+// to discover its own client_id at runtime. client_id is not sensitive (the
+// OAuth authorization redirect already puts it in a browser-visible URL),
+// so this is safe to expose without auth; see the GET route at
+// /api/oauth/first-party-clients.
+export async function getFirstPartyClientIds(): Promise<Record<FirstPartyPlatform, string | null>> {
+  const platformUser = await ensurePlatformAccount();
+  const apps = await db.developerApp.findMany({ where: { ownerUserId: platformUser.id }, select: { name: true, clientId: true } });
+  const clientIdByName = new Map(apps.map((a) => [a.name, a.clientId]));
+  return Object.fromEntries(
+    FIRST_PARTY_APPS.map((spec) => [spec.platform, clientIdByName.get(spec.name) ?? null])
+  ) as Record<FirstPartyPlatform, string | null>;
 }

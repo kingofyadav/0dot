@@ -4,7 +4,14 @@ import { NextResponse } from "next/server";
 // apple-app-site-association — SHA256_CERT_FINGERPRINT must be replaced
 // with the real signing certificate's fingerprint at deploy time, same
 // placeholder posture as apple-app-site-association's TEAM_ID.
-const PACKAGE_NAME = "in.0dot.android";
+//
+// "zerodot", not "0dot": an Android applicationId follows Java package
+// naming — every segment must start with a letter, not a digit — so
+// "in.0dot.android" fails to build at all (surfaced by mobile/app.json's
+// android.package failing expo-doctor's schema check). iOS's
+// bundleIdentifier has no equivalent restriction, so apple-app-site-
+// association's BUNDLE_ID keeps "in.0dot.ios" unchanged.
+const PACKAGE_NAME = "in.zerodot.android";
 const SHA256_CERT_FINGERPRINT = "00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00";
 
 export function GET() {

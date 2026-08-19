@@ -33,7 +33,14 @@ export async function POST(request: Request) {
   }
 
   const app = await db.developerApp.findUnique({ where: { clientId } });
-  if (!app || app.status !== "active" || !(await verifyClientSecret(app.clientSecretHash, clientSecret))) {
+  if (!app || app.status !== "active") {
+    return Response.json({ error: "invalid_client" }, { status: 401 });
+  }
+  // Public clients (first-party mobile/desktop apps, phase-15 build plan
+  // step 3) have no secret to verify — PKCE's code_verifier, checked below
+  // in exchangeAuthorizationCode, is their sole proof of possession, same
+  // RFC 8252 posture every other public-client OAuth implementation uses.
+  if (!app.isPublicClient && !(await verifyClientSecret(app.clientSecretHash, clientSecret))) {
     return Response.json({ error: "invalid_client" }, { status: 401 });
   }
   if (!code || !codeVerifier || !redirectUri) {

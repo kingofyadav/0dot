@@ -2,9 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireVerifiedUser } from "@/lib/auth-guards";
-import { registerDeviceToken, unregisterDeviceToken, setDeliveryPreference, type PushPlatform } from "@/lib/push";
-
-const VALID_PLATFORMS: PushPlatform[] = ["ios", "android", "web_push"];
+import { registerDeviceToken, unregisterDeviceToken, setDeliveryPreference, PUSH_PLATFORMS, type PushPlatform } from "@/lib/push";
 
 // Called by a first-party client (§3) after it authenticates via PKCE and
 // obtains a push token from the OS — appClientId is that same OAuth
@@ -12,7 +10,7 @@ const VALID_PLATFORMS: PushPlatform[] = ["ios", "android", "web_push"];
 // clear the tokens it registered (revokeOAuthAuthorization, oauth.ts).
 export async function registerDeviceTokenAction(args: { platform: string; token: string; appClientId: string }): Promise<{ error: string } | { ok: true }> {
   const user = await requireVerifiedUser();
-  if (!VALID_PLATFORMS.includes(args.platform as PushPlatform)) return { error: "Invalid platform." };
+  if (!PUSH_PLATFORMS.includes(args.platform as PushPlatform)) return { error: "Invalid platform." };
   if (!args.token || !args.appClientId) return { error: "Missing token or appClientId." };
 
   await registerDeviceToken({ userId: user.id, platform: args.platform as PushPlatform, token: args.token, appClientId: args.appClientId });
