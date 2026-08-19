@@ -61,6 +61,9 @@
     "better-sqlite3@12.11.1": true,
     "unrs-resolver@1.12.2": true
   },
+  "overrides": {
+    "deepmerge-ts": "^8.0.1"
+  },
   "browserslist": [
     "chrome >= 111",
     "edge >= 111",
