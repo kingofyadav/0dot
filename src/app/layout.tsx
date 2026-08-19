@@ -100,6 +100,10 @@ export default async function RootLayout({
   // RootLayout needs to know the current route too, not just SiteHeader.
   const headersList = await headers();
   const pathname = headersList.get("x-pathname") ?? "";
+  // proxy.ts's per-request CSP nonce — Next.js applies this automatically to
+  // its own inline/framework scripts, but ThemeInitScript is hand-authored,
+  // so it needs the nonce passed down explicitly (see that component).
+  const nonce = headersList.get("x-nonce") ?? undefined;
   const chromeless = isChromelessPath(pathname);
   const fixedViewport = isFixedViewportPath(pathname);
   const currentUser = await getCurrentUser();
@@ -149,7 +153,7 @@ export default async function RootLayout({
       suppressHydrationWarning
     >
       <head>
-        <ThemeInitScript />
+        <ThemeInitScript nonce={nonce} />
       </head>
       <body className={bodyClassNames || undefined}>
         <a href="#main-content" className="skipLink">

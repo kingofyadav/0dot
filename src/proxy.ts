@@ -29,6 +29,47 @@ import type { NextRequest } from "next/server";
 // for the overwhelming majority of requests — anything hitting this app's
 // own domain rather than a third-party custom domain — so normal traffic
 // pays no extra cost.
+// LiveKit's connect host is only known at runtime (LIVEKIT_URL, self-hosted
+// or LiveKit Cloud) — read per-request here (Proxy runs on every request,
+// unlike next.config.ts's headers() which only runs once at build time) so
+// a deployment's own env is reflected live rather than baked into the build.
+function livekitConnectSrc(): string[] {
+  const url = process.env.LIVEKIT_URL;
+  if (!url) return [];
+  try {
+    const host = new URL(url).host;
+    return [`wss://${host}`, `https://${host}`];
+  } catch {
+    return [];
+  }
+}
+
+// Nonce-based CSP, not a static hash: Next.js injects a fresh, per-request
+// inline <script> on every page to carry RSC flight data for hydration
+// (self.__next_f.push), whose content (and hash) differs on every request —
+// a fixed script-src can never allowlist those. Next.js reads the nonce back
+// out of this response's Content-Security-Policy header and threads it
+// through its own inline scripts automatically (framework runtime, flight
+// data, page bundles); 'strict-dynamic' lets those framework scripts load
+// further scripts they trust without needing their own explicit allowlist
+// entries. See https://nextjs.org/docs/app/guides/content-security-policy.
+// The one inline script this app authors itself (ThemeInitScript) is NOT
+// covered by Next's auto-injection — layout.tsx reads x-nonce below and
+// applies it to that script's `nonce` attribute manually.
+function buildCsp(nonce: string): string {
+  return [
+    "default-src 'self'",
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
+    "style-src 'self' 'unsafe-inline'", // Tailwind's runtime + component-library inline styles have no static hash/nonce to pin
+    "img-src 'self' data: https://*.public.blob.vercel-storage.com",
+    "media-src 'self' https://*.public.blob.vercel-storage.com",
+    ["connect-src", "'self'", "https://*.public.blob.vercel-storage.com", "https://vitals.vercel-insights.com", ...livekitConnectSrc()].join(" "),
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+  ].join("; ");
+}
+
 function isOwnHost(host: string): boolean {
   if (host === "localhost" || host === "127.0.0.1") return true;
   if (host.endsWith(".vercel.app")) return true;
@@ -59,14 +100,28 @@ function isOwnHost(host: string): boolean {
 // where it reflects the *rewritten* pathname (the page actually rendered),
 // not the third-party host's original request path.
 export default async function proxy(request: NextRequest): Promise<Response | undefined> {
+  const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
+  const csp = buildCsp(nonce);
+
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-pathname", request.nextUrl.pathname);
+  requestHeaders.set("x-nonce", nonce);
+  requestHeaders.set("Content-Security-Policy", csp);
+
+  // Applied on every return path below (mirrors x-pathname's own comment):
+  // the CSP header must reach the browser response, not just the upstream
+  // render, or the nonce Next.js embeds in its scripts won't match what the
+  // browser is told to trust.
+  function withCsp(response: NextResponse): NextResponse {
+    response.headers.set("Content-Security-Policy", csp);
+    return response;
+  }
 
   const hostHeader = request.headers.get("host");
-  if (!hostHeader) return NextResponse.next({ request: { headers: requestHeaders } });
+  if (!hostHeader) return withCsp(NextResponse.next({ request: { headers: requestHeaders } }));
 
   const host = hostHeader.split(":")[0].toLowerCase();
-  if (isOwnHost(host)) return NextResponse.next({ request: { headers: requestHeaders } });
+  if (isOwnHost(host)) return withCsp(NextResponse.next({ request: { headers: requestHeaders } }));
 
   let prefix: string | null = null;
   try {
@@ -80,12 +135,12 @@ export default async function proxy(request: NextRequest): Promise<Response | un
   } catch {
     prefix = null; // lookup failure falls through to normal routing rather than breaking the request
   }
-  if (!prefix) return NextResponse.next({ request: { headers: requestHeaders } });
+  if (!prefix) return withCsp(NextResponse.next({ request: { headers: requestHeaders } }));
 
   const url = request.nextUrl.clone();
   url.pathname = url.pathname === "/" ? prefix : `${prefix}${url.pathname}`;
   requestHeaders.set("x-pathname", url.pathname);
-  return NextResponse.rewrite(url, { request: { headers: requestHeaders } });
+  return withCsp(NextResponse.rewrite(url, { request: { headers: requestHeaders } }));
 }
 
 // manifest.json/sw.js/the home-screen icon files are requested by the

@@ -6,9 +6,15 @@
 // only avoids React's dev-only "script tag" warning if this code actually
 // re-executes in the browser (on React Strict Mode's remount), which never
 // happens for Server Component output.
-export function ThemeInitScript() {
+//
+// `nonce` comes from RootLayout's x-nonce header (set per-request by
+// proxy.ts). Unlike Next's own framework scripts, a hand-authored <script>
+// like this one isn't auto-covered by the CSP nonce Next.js threads through
+// internally — it has to be applied here explicitly or the browser blocks it.
+export function ThemeInitScript({ nonce }: { nonce?: string }) {
   return (
     <script
+      nonce={nonce}
       type={typeof window === "undefined" ? "text/javascript" : "text/plain"}
       suppressHydrationWarning
       dangerouslySetInnerHTML={{
