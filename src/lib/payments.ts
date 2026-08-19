@@ -1,7 +1,22 @@
 import "server-only";
+import { createHash } from "crypto";
 import { db } from "@/lib/db";
 import { Prisma } from "@/generated/prisma/client";
 import { stripe, getOrCreateStripeCustomerId } from "@/lib/stripe";
+
+// A double-click or network retry on a "Tip"/"Buy" button re-runs the whole
+// server action, which would otherwise mint a second, distinct Checkout
+// Session (and a second charge) for what the user experienced as one click.
+// Hashing the exact purchase intent gives Stripe a stable key: a retry
+// within its 24h idempotency window replays the original session instead of
+// creating a new one. Deliberately excludes nothing time-varying (no
+// timestamp/nonce in the input) — two genuinely different purchases with
+// identical params are rare enough (and inconsequential enough, since a
+// legitimate repeat click is exactly what this should collapse) not to need
+// a nonce that would defeat the dedup entirely.
+function checkoutIdempotencyKey(parts: Record<string, unknown>): string {
+  return `checkout_${createHash("sha256").update(JSON.stringify(parts)).digest("hex")}`;
+}
 
 // phase-5 build plan §0 / spec §3.2: no finance decision on fee rates
 // exists yet, so this is a single flat placeholder applied to every
@@ -131,27 +146,31 @@ class StripeConnectPaymentProcessor implements PaymentProcessor {
     metadata: Record<string, string>;
   }): Promise<{ checkoutUrl: string }> {
     const customerId = await getOrCreateStripeCustomerId(params.payerId, params.payerEmail);
-    const session = await stripe.checkout.sessions.create({
-      mode: "payment",
-      customer: customerId,
-      line_items: [
-        {
-          price_data: {
-            currency: params.currency,
-            unit_amount: Math.round(params.amount * 100),
-            product_data: { name: params.description },
+    const idempotencyKey = checkoutIdempotencyKey({ mode: "payment", customerId, ...params });
+    const session = await stripe.checkout.sessions.create(
+      {
+        mode: "payment",
+        customer: customerId,
+        line_items: [
+          {
+            price_data: {
+              currency: params.currency,
+              unit_amount: Math.round(params.amount * 100),
+              product_data: { name: params.description },
+            },
+            quantity: 1,
           },
-          quantity: 1,
+        ],
+        payment_intent_data: {
+          application_fee_amount: Math.round(params.applicationFeeAmount * 100),
+          transfer_data: { destination: params.payeeProcessorAccountId },
         },
-      ],
-      payment_intent_data: {
-        application_fee_amount: Math.round(params.applicationFeeAmount * 100),
-        transfer_data: { destination: params.payeeProcessorAccountId },
+        success_url: params.successUrl,
+        cancel_url: params.cancelUrl,
+        metadata: params.metadata,
       },
-      success_url: params.successUrl,
-      cancel_url: params.cancelUrl,
-      metadata: params.metadata,
-    });
+      { idempotencyKey }
+    );
     if (!session.url) throw new Error("Stripe did not return a checkout URL.");
     return { checkoutUrl: session.url };
   }
@@ -170,28 +189,32 @@ class StripeConnectPaymentProcessor implements PaymentProcessor {
     metadata: Record<string, string>;
   }): Promise<{ checkoutUrl: string }> {
     const customerId = await getOrCreateStripeCustomerId(params.payerId, params.payerEmail);
-    const session = await stripe.checkout.sessions.create({
-      mode: "subscription",
-      customer: customerId,
-      line_items: [
-        {
-          price_data: {
-            currency: params.currency,
-            unit_amount: Math.round(params.amount * 100),
-            recurring: { interval: params.billingInterval === "yearly" ? "year" : "month" },
-            product_data: { name: params.description },
+    const idempotencyKey = checkoutIdempotencyKey({ mode: "subscription", customerId, ...params });
+    const session = await stripe.checkout.sessions.create(
+      {
+        mode: "subscription",
+        customer: customerId,
+        line_items: [
+          {
+            price_data: {
+              currency: params.currency,
+              unit_amount: Math.round(params.amount * 100),
+              recurring: { interval: params.billingInterval === "yearly" ? "year" : "month" },
+              product_data: { name: params.description },
+            },
+            quantity: 1,
           },
-          quantity: 1,
+        ],
+        subscription_data: {
+          application_fee_percent: Math.round(params.applicationFeePercent * 10000) / 100,
+          transfer_data: { destination: params.payeeProcessorAccountId },
         },
-      ],
-      subscription_data: {
-        application_fee_percent: Math.round(params.applicationFeePercent * 10000) / 100,
-        transfer_data: { destination: params.payeeProcessorAccountId },
+        success_url: params.successUrl,
+        cancel_url: params.cancelUrl,
+        metadata: params.metadata,
       },
-      success_url: params.successUrl,
-      cancel_url: params.cancelUrl,
-      metadata: params.metadata,
-    });
+      { idempotencyKey }
+    );
     if (!session.url) throw new Error("Stripe did not return a checkout URL.");
     return { checkoutUrl: session.url };
   }

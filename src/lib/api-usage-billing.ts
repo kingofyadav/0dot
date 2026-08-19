@@ -1,9 +1,17 @@
 import "server-only";
 import Stripe from "stripe";
+import { createHash } from "crypto";
 import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { recordPaymentTransaction } from "@/lib/payments";
 import { stripe, getOrCreateStripeCustomerId } from "@/lib/stripe";
+
+// See payments.ts's checkoutIdempotencyKey for why: collapses a retried
+// createApiPlanCheckoutSession call onto the same Checkout Session instead
+// of minting a second one.
+function checkoutIdempotencyKey(parts: Record<string, unknown>): string {
+  return `checkout_${createHash("sha256").update(JSON.stringify(parts)).digest("hex")}`;
+}
 
 // billing addendum §4.1: meters against Phase 10 §5.3's *existing*
 // aggregated ApiUsageCounter rows — no parallel per-request billing log.
@@ -128,20 +136,24 @@ export async function createApiPlanCheckoutSession(params: {
 }): Promise<{ checkoutUrl: string }> {
   const priceId = params.plan === "committed" ? await ensureCommittedPriceId() : await ensureOveragePriceId();
   const customerId = await getOrCreateStripeCustomerId(params.payerUserId, params.payerEmail);
+  const idempotencyKey = checkoutIdempotencyKey({ customerId, priceId, ...params });
 
-  const session = await stripe.checkout.sessions.create({
-    mode: "subscription",
-    customer: customerId,
-    line_items: [{ price: priceId, quantity: params.plan === "committed" ? 1 : undefined }],
-    success_url: params.successUrl,
-    cancel_url: params.cancelUrl,
-    metadata: {
-      kind: "api_usage_plan",
-      appId: params.appId,
-      plan: params.plan,
-      payerUserId: params.payerUserId,
+  const session = await stripe.checkout.sessions.create(
+    {
+      mode: "subscription",
+      customer: customerId,
+      line_items: [{ price: priceId, quantity: params.plan === "committed" ? 1 : undefined }],
+      success_url: params.successUrl,
+      cancel_url: params.cancelUrl,
+      metadata: {
+        kind: "api_usage_plan",
+        appId: params.appId,
+        plan: params.plan,
+        payerUserId: params.payerUserId,
+      },
     },
-  });
+    { idempotencyKey }
+  );
 
   if (!session.url) throw new Error("Stripe did not return a checkout URL.");
   return { checkoutUrl: session.url };

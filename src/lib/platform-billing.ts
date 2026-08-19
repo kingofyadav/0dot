@@ -1,9 +1,16 @@
 import "server-only";
-import { randomUUID } from "crypto";
+import { randomUUID, createHash } from "crypto";
 import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { recordPaymentTransaction } from "@/lib/payments";
 import { stripe, getOrCreateStripeCustomerId } from "@/lib/stripe";
+
+// See payments.ts's checkoutIdempotencyKey for why: collapses a retried
+// subscribe() call (double-click, network retry) onto the same Checkout
+// Session instead of minting a second one.
+function checkoutIdempotencyKey(parts: Record<string, unknown>): string {
+  return `checkout_${createHash("sha256").update(JSON.stringify(parts)).digest("hex")}`;
+}
 
 // addendum-platform-billing.md §2.2: a plain Stripe Billing/Subscriptions
 // integration, genuinely different from the Stripe Connect shape every
@@ -86,29 +93,33 @@ class StripeSubscriptionProcessor implements SubscriptionProcessor {
   }): Promise<{ checkoutUrl: string }> {
     const priceId = await ensurePriceId(params.plan, params.billingInterval);
     const customerId = await getOrCreateStripeCustomerId(params.payerUserId, params.payerEmail);
+    const idempotencyKey = checkoutIdempotencyKey({ customerId, priceId, ...params });
 
     // No payment_method_types here (stripe-best-practices skill): omitting
     // it lets Stripe choose eligible methods dynamically from the Dashboard
     // config instead of hardcoding to card only.
-    const session = await stripe.checkout.sessions.create({
-      mode: "subscription",
-      customer: customerId,
-      line_items: [{ price: priceId, quantity: 1 }],
-      success_url: params.successUrl,
-      cancel_url: params.cancelUrl,
-      client_reference_id: `${params.subscriberType}:${params.subscriberId}`,
-      // Read back by the webhook (activateSubscriptionFromCheckout) — the
-      // session itself, not this metadata, is the trigger; this is just how
-      // it learns which PlatformSubscription row to create.
-      metadata: {
-        kind: "platform_subscription",
-        subscriberType: params.subscriberType,
-        subscriberId: params.subscriberId,
-        payerUserId: params.payerUserId,
-        plan: params.plan,
-        billingInterval: params.billingInterval,
+    const session = await stripe.checkout.sessions.create(
+      {
+        mode: "subscription",
+        customer: customerId,
+        line_items: [{ price: priceId, quantity: 1 }],
+        success_url: params.successUrl,
+        cancel_url: params.cancelUrl,
+        client_reference_id: `${params.subscriberType}:${params.subscriberId}`,
+        // Read back by the webhook (activateSubscriptionFromCheckout) — the
+        // session itself, not this metadata, is the trigger; this is just how
+        // it learns which PlatformSubscription row to create.
+        metadata: {
+          kind: "platform_subscription",
+          subscriberType: params.subscriberType,
+          subscriberId: params.subscriberId,
+          payerUserId: params.payerUserId,
+          plan: params.plan,
+          billingInterval: params.billingInterval,
+        },
       },
-    });
+      { idempotencyKey }
+    );
 
     if (!session.url) throw new Error("Stripe did not return a checkout URL.");
     return { checkoutUrl: session.url };
