@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Trash2, X } from "lucide-react";
+import { Trash2, X, Paperclip } from "lucide-react";
 import { Modal } from "@/components/Modal";
 
 export type MessageBubbleData = {
@@ -89,8 +89,14 @@ export function MessageBubble({
         <audio controls src={message.attachmentUrl} style={{ maxWidth: "220px" }} />
       )}
       {message.attachmentType === "file" && message.attachmentUrl && (
-        <a href={message.attachmentUrl} target="_blank" rel="noopener noreferrer" className="messageAttachmentFile">
-          📎 {message.attachmentMimeType ?? "Attachment"}
+        <a
+          href={message.attachmentUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="messageAttachmentFile"
+          style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}
+        >
+          <Paperclip size={14} /> {message.attachmentMimeType ?? "Attachment"}
         </a>
       )}
       {message.body && <p style={{ margin: 0 }}>{message.body}</p>}

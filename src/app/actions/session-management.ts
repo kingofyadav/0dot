@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireVerifiedUser } from "@/lib/auth-guards";
-import { getCurrentSessionToken } from "@/lib/session";
+import { getCurrentSessionToken, hashToken } from "@/lib/session";
 
 // account-settings-hardening addendum §4: single-row delete, guarded to the
 // caller's own userId so a forged sessionId can't revoke someone else's.
@@ -24,8 +24,9 @@ export async function revokeSession(formData: FormData): Promise<void> {
 // second copy — changePassword now calls this too.
 export async function revokeAllOtherSessions(userId: string): Promise<void> {
   const currentToken = await getCurrentSessionToken();
+  const currentTokenHash = currentToken ? hashToken(currentToken) : "";
   await db.session.deleteMany({
-    where: { userId, token: { not: currentToken ?? "" } },
+    where: { userId, tokenHash: { not: currentTokenHash } },
   });
 }
 

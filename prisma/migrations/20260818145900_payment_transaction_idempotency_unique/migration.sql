@@ -1,0 +1,11 @@
+-- Closes a webhook-redelivery race: every activateXxx function in
+-- src/app/actions/*.ts and src/lib/{platform-billing,api-usage-billing}.ts
+-- only guarded against duplicate Stripe webhook events with an app-level
+-- findFirst-then-create check (TOCTOU race under concurrent delivery). This
+-- unique index is the DB-level backstop for all of them at once, since they
+-- all funnel through recordPaymentTransaction (src/lib/payments.ts). If this
+-- fails to apply, check for pre-existing duplicate (processorReference, kind)
+-- rows first — that would mean a double-charge already happened and needs a
+-- manual reconciliation pass before the constraint can go on.
+-- CreateIndex
+CREATE UNIQUE INDEX "PaymentTransaction_processorReference_kind_key" ON "PaymentTransaction"("processorReference", "kind");

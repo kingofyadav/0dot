@@ -291,14 +291,24 @@ function PostBody({ body }: { body: string }) {
   );
 }
 
-function PostMediaGrid({ media }: { media: MediaItem[] }) {
+function PostMediaGrid({ media, authorName }: { media: MediaItem[]; authorName: string }) {
   if (media.length === 0) return null;
   const columns = media.length === 1 ? 1 : 2;
   return (
     <div className="postMediaGrid" style={{ gridTemplateColumns: `repeat(${columns}, 1fr)` }}>
-      {media.map((item) => (
+      {media.map((item, index) => (
+        // No per-image caption exists in the data model yet (MediaItem is
+        // just {id, url}) — this generic description is meaningfully better
+        // than empty alt="" (which claims the image is decorative, when
+        // it's the actual content someone is looking at) without a data
+        // model change to add real author-authored captions.
         // eslint-disable-next-line @next/next/no-img-element -- user-uploaded content, not an optimizable static asset
-        <img key={item.id} src={item.url} alt="" className="postMediaItem" />
+        <img
+          key={item.id}
+          src={item.url}
+          alt={`Image ${index + 1} posted by ${authorName}`}
+          className="postMediaItem"
+        />
       ))}
     </div>
   );
@@ -496,7 +506,7 @@ export function PostCard({
             </span>
           </div>
           <PostBody body={post.body} />
-          <PostMediaGrid media={post.media} />
+          <PostMediaGrid media={post.media} authorName={post.author.profile?.displayName ?? "Unknown"} />
           {post.poll && <PollBlock poll={post.poll} votedOptionIds={votedOptionIds ?? new Set()} />}
         </>
       )}

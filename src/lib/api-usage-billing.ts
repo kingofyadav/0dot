@@ -1,5 +1,6 @@
 import "server-only";
 import Stripe from "stripe";
+import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { recordPaymentTransaction } from "@/lib/payments";
 import { stripe, getOrCreateStripeCustomerId } from "@/lib/stripe";
@@ -194,19 +195,27 @@ export async function recordApiUsageInvoicePaid(params: {
   const payerId = await resolveAppPayerUserId(app);
   if (!payerId) return;
 
-  await db.$transaction(async (tx) => {
-    await recordPaymentTransaction(tx, {
-      kind: "api_usage_charge",
-      payerId,
-      payeeId: null,
-      amount: params.amount,
-      currency: params.currency,
-      processorReference: params.processorReference,
-      status: "succeeded",
-      relatedObjectType: "developer_app",
-      relatedObjectId: app.id,
+  try {
+    await db.$transaction(async (tx) => {
+      await recordPaymentTransaction(tx, {
+        kind: "api_usage_charge",
+        payerId,
+        payeeId: null,
+        amount: params.amount,
+        currency: params.currency,
+        processorReference: params.processorReference,
+        status: "succeeded",
+        relatedObjectType: "developer_app",
+        relatedObjectId: app.id,
+      });
     });
-  });
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      console.error(`recordApiUsageInvoicePaid: duplicate webhook delivery for invoice ${params.processorReference} — already recorded, no-op.`);
+      return;
+    }
+    throw err;
+  }
 }
 
 // Reports one pay_as_you_go app's overage since its lastBilledAt (or

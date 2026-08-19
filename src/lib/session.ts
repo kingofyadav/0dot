@@ -1,12 +1,22 @@
 import "server-only";
 import { cookies, headers } from "next/headers";
-import { randomBytes } from "crypto";
+import { randomBytes, createHash } from "crypto";
 import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { getClientIp } from "@/lib/rate-limit";
 
 const SESSION_COOKIE = "0dot_session";
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+
+// The raw token only ever lives in the httpOnly cookie — the DB stores
+// sha256(token), same pattern two-factor.ts's hashRecoveryCode uses, so a
+// DB read exposure can't yield a directly-usable session token. Exported so
+// callers that already hold the raw cookie value via getCurrentSessionToken
+// (the active-sessions page's "this device" check, revokeAllOtherSessions)
+// can compare/filter against tokenHash themselves without duplicating this.
+export function hashToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
 
 export async function createSession(userId: string) {
   const token = randomBytes(32).toString("hex");
@@ -22,7 +32,7 @@ export async function createSession(userId: string) {
   const ipAddress = await getClientIp();
 
   await db.session.create({
-    data: { token, userId, expiresAt, userAgent, ipAddress },
+    data: { tokenHash: hashToken(token), userId, expiresAt, userAgent, ipAddress },
   });
 
   const cookieStore = await cookies();
@@ -39,8 +49,9 @@ export async function destroySession() {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE)?.value;
   if (token) {
-    const session = await db.session.findUnique({ where: { token }, select: { userId: true } });
-    await db.session.deleteMany({ where: { token } });
+    const tokenHash = hashToken(token);
+    const session = await db.session.findUnique({ where: { tokenHash }, select: { userId: true } });
+    await db.session.deleteMany({ where: { tokenHash } });
     // phase-15 spec §4.4: "revoking/logging out clears the associated
     // DeviceToken" — delegates to push.ts's own device-token interface
     // (clearWebPushTokensForUser) rather than reaching into db.deviceToken
@@ -72,10 +83,11 @@ export async function getCurrentUser() {
   // already runs once per request, so bumping lastSeenAt here is a field
   // added to an existing query, not a new one. A missing token (already
   // logged out/expired-and-deleted elsewhere) throws P2025, caught below.
+  const tokenHash = hashToken(token);
   let session;
   try {
     session = await db.session.update({
-      where: { token },
+      where: { tokenHash },
       data: { lastSeenAt: new Date() },
       include: {
         user: {
@@ -89,7 +101,7 @@ export async function getCurrentUser() {
   }
 
   if (session.expiresAt < new Date()) {
-    await db.session.delete({ where: { token } });
+    await db.session.delete({ where: { tokenHash } });
     return null;
   }
 
@@ -97,7 +109,7 @@ export async function getCurrentUser() {
     // Status can change after a session already exists (suspension, deletion,
     // etc.) — checking only at login time would let an existing session keep
     // working indefinitely after the account is no longer active.
-    await db.session.delete({ where: { token } });
+    await db.session.delete({ where: { tokenHash } });
     return null;
   }
 

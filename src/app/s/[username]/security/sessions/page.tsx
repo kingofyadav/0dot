@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { Monitor } from "lucide-react";
 import { db } from "@/lib/db";
-import { getCurrentUser, getCurrentSessionToken } from "@/lib/session";
+import { getCurrentUser, getCurrentSessionToken, hashToken } from "@/lib/session";
 import { revokeSession, revokeAllOtherSessionsAction } from "@/app/actions/session-management";
 import { SettingsRow } from "@/components/SettingsRow";
 
@@ -14,6 +14,7 @@ export default async function ActiveSessionsPage() {
   if (!currentUser) redirect("/login");
 
   const currentToken = await getCurrentSessionToken();
+  const currentTokenHash = currentToken ? hashToken(currentToken) : null;
 
   const [sessions, loginEvents] = await Promise.all([
     db.session.findMany({ where: { userId: currentUser.id }, orderBy: { lastSeenAt: "desc" } }),
@@ -29,7 +30,7 @@ export default async function ActiveSessionsPage() {
 
       <div className="settingsGroup">
         {sessions.map((session) => {
-          const isCurrent = session.token === currentToken;
+          const isCurrent = session.tokenHash === currentTokenHash;
           return (
             <SettingsRow
               key={session.id}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { getCurrentUser } from "@/lib/session";
+import { getCurrentUser, hashToken } from "@/lib/session";
 import { createUser, createSessionForUser } from "@/test/factories";
 import { setSessionCookie } from "@/test/next-test-state";
 import { db } from "@/lib/db";
@@ -19,7 +19,7 @@ describe("getCurrentUser", () => {
     const result = await getCurrentUser();
     expect(result).toBeNull();
 
-    const sessionRow = await db.session.findUnique({ where: { token } });
+    const sessionRow = await db.session.findUnique({ where: { tokenHash: hashToken(token) } });
     expect(sessionRow).toBeNull();
   });
 

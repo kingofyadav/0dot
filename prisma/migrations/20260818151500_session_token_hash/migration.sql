@@ -1,0 +1,17 @@
+-- Session.token stored the raw, directly-usable session token in plaintext
+-- — any DB read exposure (backup snapshot, replica, an over-broad admin
+-- query, a future unrelated SQL-injection bug) would hand over live
+-- session tokens for every logged-in user, no cracking required. Every
+-- other credential-shaped value in this codebase (PasswordResetToken,
+-- TwoFactorRecoveryCode, OAuthToken) stores only a hash; this one didn't.
+--
+-- This rename is a deliberate breaking change, not an oversight: SQLite has
+-- no built-in SHA-256 function to rehash existing values in place during a
+-- plain migration.sql, so the old plaintext values below simply become
+-- unusable tokenHash values that will never match a real sha256(token)
+-- lookup again — every currently-active session is logged out once when
+-- this ships. That's the intended, accepted cost of closing the plaintext
+-- exposure; app code (src/lib/session.ts) only ever writes real hashes
+-- going forward.
+-- RenameColumn
+ALTER TABLE "Session" RENAME COLUMN "token" TO "tokenHash";

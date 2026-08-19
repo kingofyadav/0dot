@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
+import { hashToken } from "@/lib/session";
 
 let counter = 0;
 function unique(prefix: string) {
@@ -76,10 +77,12 @@ export async function blockUser(blockerId: string, blockedId: string) {
   return db.block.create({ data: { blockerId, blockedId } });
 }
 
+// Returns the raw token (as if it were the session cookie's value) — the
+// DB row only ever stores its hash, matching session.ts's createSession.
 export async function createSessionForUser(userId: string) {
   const token = randomUUID();
   await db.session.create({
-    data: { token, userId, expiresAt: new Date(Date.now() + 60 * 60 * 1000) },
+    data: { tokenHash: hashToken(token), userId, expiresAt: new Date(Date.now() + 60 * 60 * 1000) },
   });
   return token;
 }

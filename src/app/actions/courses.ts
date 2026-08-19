@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { saveProtectedFile, issueDownloadToken } from "@/lib/protected-storage";
@@ -269,30 +270,39 @@ export async function activateCoursePurchase(metadata: Record<string, string>, p
       ? { id: affiliateLinkId, affiliateId, program: { commissionPercent: Number(affiliateCommissionPercent) } }
       : null;
 
-  const creditedAffiliate = await db.$transaction(async (tx) => {
-    const transaction = await recordPaymentTransaction(tx, {
-      kind: "course_purchase",
-      payerId,
-      payeeId,
-      amount,
-      currency,
-      processorReference,
-      status: "succeeded",
-      relatedObjectType: "course",
-      relatedObjectId: courseId,
-    });
-    await tx.courseAccessGrant.create({
-      data: { courseId, userId: payerId, grantedVia: "purchase", paymentTransactionId: transaction.id },
-    });
+  let creditedAffiliate;
+  try {
+    creditedAffiliate = await db.$transaction(async (tx) => {
+      const transaction = await recordPaymentTransaction(tx, {
+        kind: "course_purchase",
+        payerId,
+        payeeId,
+        amount,
+        currency,
+        processorReference,
+        status: "succeeded",
+        relatedObjectType: "course",
+        relatedObjectId: courseId,
+      });
+      await tx.courseAccessGrant.create({
+        data: { courseId, userId: payerId, grantedVia: "purchase", paymentTransactionId: transaction.id },
+      });
 
-    if (!affiliateLink) return null;
-    return creditAffiliateConversion(tx, {
-      affiliateLink,
-      saleAmount: amount,
-      currency,
-      saleProcessorReference: processorReference,
+      if (!affiliateLink) return null;
+      return creditAffiliateConversion(tx, {
+        affiliateLink,
+        saleAmount: amount,
+        currency,
+        saleProcessorReference: processorReference,
+      });
     });
-  });
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      console.error(`activateCoursePurchase: duplicate webhook delivery for ${processorReference} — already recorded, no-op.`);
+      return;
+    }
+    throw err;
+  }
   if (creditedAffiliate) await notifyAffiliateConversion({ recipientId: creditedAffiliate.affiliateId, actorId: payerId });
 
   const creatorUsername = await db.username.findUnique({ where: { userId: payeeId }, select: { handle: true } });

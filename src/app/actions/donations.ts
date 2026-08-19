@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { getPaymentProcessor, recordPaymentTransaction, resolveFeeRate } from "@/lib/payments";
@@ -128,34 +129,42 @@ export async function activateDonation(metadata: Record<string, string>, process
   const { payerId, payeeId, campaignId, amount: amountStr, currency, message, isAnonymous } = metadata;
   const amount = Number(amountStr);
 
-  await db.$transaction(async (tx) => {
-    const transaction = await recordPaymentTransaction(tx, {
-      kind: "donation",
-      payerId,
-      payeeId,
-      amount,
-      currency,
-      processorReference,
-      status: "succeeded",
-      relatedObjectType: "fundraising_campaign",
-      relatedObjectId: campaignId,
-    });
-    await tx.donation.create({
-      data: {
-        campaignId,
-        donorId: payerId,
+  try {
+    await db.$transaction(async (tx) => {
+      const transaction = await recordPaymentTransaction(tx, {
+        kind: "donation",
+        payerId,
+        payeeId,
         amount,
         currency,
-        message: message.length > 0 ? message : null,
-        isAnonymous: isAnonymous === "true",
-        paymentTransactionId: transaction.id,
-      },
+        processorReference,
+        status: "succeeded",
+        relatedObjectType: "fundraising_campaign",
+        relatedObjectId: campaignId,
+      });
+      await tx.donation.create({
+        data: {
+          campaignId,
+          donorId: payerId,
+          amount,
+          currency,
+          message: message.length > 0 ? message : null,
+          isAnonymous: isAnonymous === "true",
+          paymentTransactionId: transaction.id,
+        },
+      });
+      await tx.fundraisingCampaign.update({
+        where: { id: campaignId },
+        data: { raisedAmount: { increment: amount } },
+      });
     });
-    await tx.fundraisingCampaign.update({
-      where: { id: campaignId },
-      data: { raisedAmount: { increment: amount } },
-    });
-  });
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      console.error(`activateDonation: duplicate webhook delivery for ${processorReference} — already recorded, no-op.`);
+      return;
+    }
+    throw err;
+  }
 
   revalidatePath(`/fund/${campaignId}`);
 }

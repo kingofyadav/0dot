@@ -475,23 +475,31 @@ export async function activateTicketPurchase(metadata: Record<string, string>, p
   const { payerId, payeeId, payeeBusinessId, ticketTypeId, eventSlug, qrCodeToken, amount: amountStr, currency } = metadata;
   const amount = Number(amountStr);
 
-  await db.$transaction(async (tx) => {
-    const transaction = await recordPaymentTransaction(tx, {
-      kind: "ticket_purchase",
-      payerId,
-      payeeId: payeeId || null,
-      payeeBusinessId: payeeBusinessId || null,
-      amount,
-      currency,
-      processorReference,
-      status: "succeeded",
-      relatedObjectType: "ticket",
+  try {
+    await db.$transaction(async (tx) => {
+      const transaction = await recordPaymentTransaction(tx, {
+        kind: "ticket_purchase",
+        payerId,
+        payeeId: payeeId || null,
+        payeeBusinessId: payeeBusinessId || null,
+        amount,
+        currency,
+        processorReference,
+        status: "succeeded",
+        relatedObjectType: "ticket",
+      });
+      await tx.ticket.create({
+        data: { ticketTypeId, ownerId: payerId, status: "valid", qrCodeToken, paymentTransactionId: transaction.id },
+      });
+      await tx.ticketType.update({ where: { id: ticketTypeId }, data: { quantitySold: { increment: 1 } } });
     });
-    await tx.ticket.create({
-      data: { ticketTypeId, ownerId: payerId, status: "valid", qrCodeToken, paymentTransactionId: transaction.id },
-    });
-    await tx.ticketType.update({ where: { id: ticketTypeId }, data: { quantitySold: { increment: 1 } } });
-  });
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      console.error(`activateTicketPurchase: duplicate webhook delivery for ${processorReference} — already recorded, no-op.`);
+      return;
+    }
+    throw err;
+  }
 
   await notifyTicketPurchased({ recipientId: payerId, eventSlug });
   revalidatePath(`/e/${eventSlug}`);

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { saveUploadedImage } from "@/lib/uploads";
@@ -294,23 +295,32 @@ export async function activateOfferingPurchase(metadata: Record<string, string>,
 
   const offering = await db.offering.findUniqueOrThrow({ where: { id: offeringId } });
 
-  const purchase = await db.$transaction(async (tx) => {
-    const transaction = await recordPaymentTransaction(tx, {
-      kind: payeeBusinessId ? "business_purchase" : "freelance_purchase",
-      payerId,
-      payeeId: payeeId || null,
-      payeeBusinessId: payeeBusinessId || null,
-      amount,
-      currency,
-      processorReference,
-      status: "succeeded",
-      relatedObjectType: "offering",
-      relatedObjectId: offeringId,
+  let purchase;
+  try {
+    purchase = await db.$transaction(async (tx) => {
+      const transaction = await recordPaymentTransaction(tx, {
+        kind: payeeBusinessId ? "business_purchase" : "freelance_purchase",
+        payerId,
+        payeeId: payeeId || null,
+        payeeBusinessId: payeeBusinessId || null,
+        amount,
+        currency,
+        processorReference,
+        status: "succeeded",
+        relatedObjectType: "offering",
+        relatedObjectId: offeringId,
+      });
+      return tx.offeringPurchase.create({
+        data: { offeringId, buyerId: payerId, paymentTransactionId: transaction.id, quantity },
+      });
     });
-    return tx.offeringPurchase.create({
-      data: { offeringId, buyerId: payerId, paymentTransactionId: transaction.id, quantity },
-    });
-  });
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      console.error(`activateOfferingPurchase: duplicate webhook delivery for ${processorReference} — already recorded, no-op.`);
+      return;
+    }
+    throw err;
+  }
 
   if (payeeBusinessId) {
     await recordCrmActivity({

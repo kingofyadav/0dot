@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useRef, useState } from "react";
+import { X } from "lucide-react";
 import { createPollPost } from "@/app/actions/polls";
 
 const MIN_OPTIONS = 2;
@@ -26,18 +27,27 @@ export function PollComposeForm({
 }) {
   const [state, formAction, pending] = useActionState(createPollPost, undefined);
   const formRef = useRef<HTMLFormElement>(null);
-  const [options, setOptions] = useState(["", ""]);
+  // Keyed by a stable client-generated id (nextOptionId ref), not array
+  // index — removing an option used to shift every later option's index,
+  // so React reused the wrong DOM node's key and focus landed on the wrong
+  // input after a removal. Every input is fully controlled (value={...}),
+  // so this was never a stale-value bug, just a focus/identity glitch.
+  const nextOptionId = useRef(2);
+  const [options, setOptions] = useState([
+    { id: 0, value: "" },
+    { id: 1, value: "" },
+  ]);
 
-  function updateOption(index: number, value: string) {
-    setOptions((prev) => prev.map((o, i) => (i === index ? value : o)));
+  function updateOption(id: number, value: string) {
+    setOptions((prev) => prev.map((o) => (o.id === id ? { ...o, value } : o)));
   }
 
   function addOption() {
-    setOptions((prev) => (prev.length >= MAX_OPTIONS ? prev : [...prev, ""]));
+    setOptions((prev) => (prev.length >= MAX_OPTIONS ? prev : [...prev, { id: nextOptionId.current++, value: "" }]));
   }
 
-  function removeOption(index: number) {
-    setOptions((prev) => (prev.length <= MIN_OPTIONS ? prev : prev.filter((_, i) => i !== index)));
+  function removeOption(id: number) {
+    setOptions((prev) => (prev.length <= MIN_OPTIONS ? prev : prev.filter((o) => o.id !== id)));
   }
 
   return (
@@ -46,7 +56,11 @@ export function PollComposeForm({
       action={async (formData: FormData) => {
         await formAction(formData);
         formRef.current?.reset();
-        setOptions(["", ""]);
+        nextOptionId.current = 2;
+        setOptions([
+          { id: 0, value: "" },
+          { id: 1, value: "" },
+        ]);
       }}
       className="authCard"
       style={{ maxWidth: "none", marginBottom: "1.5rem" }}
@@ -66,12 +80,12 @@ export function PollComposeForm({
 
       <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem", marginTop: "0.5rem" }}>
         {options.map((option, index) => (
-          <div key={index} style={{ display: "flex", gap: "0.4rem" }}>
+          <div key={option.id} style={{ display: "flex", gap: "0.4rem" }}>
             <input
               type="text"
               name="option"
-              value={option}
-              onChange={(e) => updateOption(index, e.target.value)}
+              value={option.value}
+              onChange={(e) => updateOption(option.id, e.target.value)}
               placeholder={`Option ${index + 1}`}
               maxLength={80}
               className="textInput"
@@ -80,11 +94,11 @@ export function PollComposeForm({
             {options.length > MIN_OPTIONS && (
               <button
                 type="button"
-                onClick={() => removeOption(index)}
+                onClick={() => removeOption(option.id)}
                 className="button buttonSecondary iconButton"
                 aria-label="Remove option"
               >
-                ✕
+                <X size={14} />
               </button>
             )}
           </div>

@@ -36,9 +36,32 @@ const TABLES = [
   "CoinTopUpRequest","CoinTransfer","CoinPayoutRequest",
 ];
 
+// This wipes every table above unconditionally — no dry-run, no per-row
+// confirmation. The only thing standing between "local dev.db" and
+// "production Turso" is whatever DATABASE_URL happens to resolve to in the
+// shell it's run from (e.g. a stray `vercel env pull` or a copy-pasted
+// .env.production sourced by habit) — the same class of accident the
+// removed cleanup-test-users endpoint and its CLEANUP_SECRET existed to
+// guard against for the HTTP path. A remote libsql:// URL (Turso — what
+// Preview/Production actually use, per src/lib/db.ts) requires an explicit
+// opt-in; a local file: URL (the intended use of this script) does not.
+function assertSafeToWipe(url: string): void {
+  if (url.startsWith("file:")) return;
+  if (process.env.CONFIRM_WIPE_REMOTE_DATABASE === url) return;
+  throw new Error(
+    `Refusing to wipe a non-local database (DATABASE_URL="${url}"). ` +
+      `If this is genuinely intended (e.g. resetting a scratch/staging Turso branch, never production), ` +
+      `re-run with CONFIRM_WIPE_REMOTE_DATABASE set to the exact same DATABASE_URL value as an explicit opt-in.`
+  );
+}
+
 async function main() {
+  const url = process.env.DATABASE_URL ?? "file:./dev.db";
+  console.log(`About to wipe every user-data table at: ${url}`);
+  assertSafeToWipe(url);
+
   const adapter = new PrismaLibSql({
-    url: process.env.DATABASE_URL ?? "file:./dev.db",
+    url,
     authToken: process.env.DATABASE_AUTH_TOKEN,
   });
   const prisma = new PrismaClient({ adapter });

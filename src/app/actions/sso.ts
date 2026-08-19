@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { createSession } from "@/lib/session";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
-import { getIdentityProviderVerifier, provisionOrLinkUserForSso, emailDomain } from "@/lib/sso";
+import { getIdentityProviderVerifier, provisionOrLinkUserForSso, emailDomain, isStubSsoAllowed } from "@/lib/sso";
 
 export type SsoActionState = { error?: string } | undefined;
 
@@ -15,6 +15,10 @@ export type SsoActionState = { error?: string } | undefined;
 export async function startSsoLogin(_prevState: SsoActionState, formData: FormData): Promise<SsoActionState> {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   if (!email) return { error: "Enter your work email." };
+
+  if (!isStubSsoAllowed()) {
+    return { error: "SSO sign-in isn't available yet." };
+  }
 
   const ip = await getClientIp();
   if (!checkRateLimit(`sso:start:ip:${ip}`, { max: 20, windowMs: 15 * 60 * 1000 })) {

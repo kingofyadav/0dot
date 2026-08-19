@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
+import { Paperclip, Mic, Square, X, Circle } from "lucide-react";
 import { sendMessage, deleteMessage, loadOlderMessages } from "@/app/actions/messages";
 import { MessageBubble, type MessageBubbleData } from "@/components/MessageBubble";
 
@@ -257,30 +258,35 @@ export function ConversationView({
         <form onSubmit={handleSubmit} className="messageComposer" style={{ flexDirection: "column", alignItems: "stretch" }}>
           {pendingAttachment && (
             <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.4rem" }}>
-              <span className="mutedText" style={{ fontSize: "0.8rem" }}>
-                {pendingAttachment.kind === "voice_note"
-                  ? `🎤 Voice note (${pendingAttachment.durationS ?? 0}s)`
-                  : `📎 ${pendingAttachment.file.name}`}
+              <span className="mutedText" style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.8rem" }}>
+                {pendingAttachment.kind === "voice_note" ? (
+                  <>
+                    <Mic size={14} /> Voice note ({pendingAttachment.durationS ?? 0}s)
+                  </>
+                ) : (
+                  <>
+                    <Paperclip size={14} /> {pendingAttachment.file.name}
+                  </>
+                )}
               </span>
               <button
                 type="button"
                 className="button buttonSecondary iconButton"
                 onClick={() => setPendingAttachment(null)}
                 aria-label="Remove attachment"
-                style={{ fontSize: "0.75rem" }}
               >
-                ✕
+                <X size={14} />
               </button>
             </div>
           )}
           {isRecording && (
-            <p className="mutedText" style={{ fontSize: "0.8rem", marginBottom: "0.4rem" }}>
-              🔴 Recording… {recordingSeconds}s
+            <p className="mutedText" style={{ display: "flex", alignItems: "center", gap: "0.3rem", fontSize: "0.8rem", marginBottom: "0.4rem" }}>
+              <Circle size={10} fill="currentColor" style={{ color: "var(--danger)" }} /> Recording… {recordingSeconds}s
             </p>
           )}
           <div style={{ display: "flex", alignItems: "flex-end", gap: "0.5rem" }}>
             <label className="button buttonSecondary iconButton" aria-label="Attach file" style={{ cursor: isRecording ? "not-allowed" : "pointer" }}>
-              📎
+              <Paperclip size={16} />
               <input
                 type="file"
                 accept={ATTACHMENT_FILE_ACCEPT}
@@ -295,7 +301,7 @@ export function ConversationView({
               aria-label={isRecording ? "Stop recording" : "Record a voice note"}
               onClick={isRecording ? stopRecording : startRecording}
             >
-              {isRecording ? "⏹" : "🎤"}
+              {isRecording ? <Square size={16} /> : <Mic size={16} />}
             </button>
             <label htmlFor="message-composer-input" className="srOnly">
               Message

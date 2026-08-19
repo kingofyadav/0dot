@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { getPaymentProcessor, recordPaymentTransaction, resolveFeeRate } from "@/lib/payments";
@@ -100,28 +101,36 @@ export async function activateTip(metadata: Record<string, string>, processorRef
   const { payerId, payeeId, amount: amountStr, currency, message } = metadata;
   const amount = Number(amountStr);
 
-  await db.$transaction(async (tx) => {
-    const transaction = await recordPaymentTransaction(tx, {
-      kind: "tip",
-      payerId,
-      payeeId,
-      amount,
-      currency,
-      processorReference,
-      status: "succeeded",
-      relatedObjectType: "tip",
-    });
-    await tx.tip.create({
-      data: {
-        fromUserId: payerId,
-        toCreatorId: payeeId,
+  try {
+    await db.$transaction(async (tx) => {
+      const transaction = await recordPaymentTransaction(tx, {
+        kind: "tip",
+        payerId,
+        payeeId,
         amount,
         currency,
-        message: message.length > 0 ? message : null,
-        paymentTransactionId: transaction.id,
-      },
+        processorReference,
+        status: "succeeded",
+        relatedObjectType: "tip",
+      });
+      await tx.tip.create({
+        data: {
+          fromUserId: payerId,
+          toCreatorId: payeeId,
+          amount,
+          currency,
+          message: message.length > 0 ? message : null,
+          paymentTransactionId: transaction.id,
+        },
+      });
     });
-  });
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      console.error(`activateTip: duplicate webhook delivery for ${processorReference} — already recorded, no-op.`);
+      return;
+    }
+    throw err;
+  }
 
   await notifyTipReceived({ recipientId: payeeId, actorId: payerId });
 

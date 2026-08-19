@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireTrustSafetyStaff, requireVerifiedUser } from "@/lib/auth-guards";
-import { resolveTrustSafetyCase, reviewAppeal } from "@/lib/trust-safety";
+import { resolveTrustSafetyCase, reviewAppeal, resolveSubjectOwnerId } from "@/lib/trust-safety";
 import { db } from "@/lib/db";
 
 // phase-12 spec §11 step 3: the single resolve action behind the unified
@@ -52,6 +52,14 @@ export async function fileAppealAction(formData: FormData): Promise<void> {
   // §5.3's scope boundary: routine community moderation stays with each
   // community's own governance, not a platform appeal.
   if (trustSafetyCase.caseType === "community_escalation") return;
+
+  // "filed by the affected party" (this function's own header comment)
+  // wasn't actually enforced — any verified user could appeal any case.
+  // resolveSubjectOwnerId is the same helper resolveTrustSafetyCase already
+  // uses to notify the affected party on resolution, so this is the same
+  // notion of "affected party" the rest of this module already relies on.
+  const ownerId = await resolveSubjectOwnerId(trustSafetyCase.subjectType, trustSafetyCase.subjectId);
+  if (ownerId !== user.id) return;
 
   const existing = await db.appeal.findFirst({ where: { originalCaseId: caseId, filedById: user.id } });
   if (existing) return;

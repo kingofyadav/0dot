@@ -50,13 +50,15 @@ export default async function FeedPage({
       .then((rows) => new Set(rows.map((r) => r.postId))),
   ]);
 
-  const votedOptionIds = await getVotedPollOptionIds(currentUser.id, posts);
-  const postableBusinesses = await getPostableBusinesses(currentUser.id);
-  const ownTiers = await db.membershipTier.findMany({
-    where: { creatorId: currentUser.id, status: "active" },
-    select: { id: true, name: true },
-    orderBy: { level: "asc" },
-  });
+  const [votedOptionIds, postableBusinesses, ownTiers] = await Promise.all([
+    getVotedPollOptionIds(currentUser.id, posts),
+    getPostableBusinesses(currentUser.id),
+    db.membershipTier.findMany({
+      where: { creatorId: currentUser.id, status: "active" },
+      select: { id: true, name: true },
+      orderBy: { level: "asc" },
+    }),
+  ]);
 
   // phase-5: quick entry points into the creator's own monetization tools,
   // deep-linking to the matching #section on the settings page (§3-§11)

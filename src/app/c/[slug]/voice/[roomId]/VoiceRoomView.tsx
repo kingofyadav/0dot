@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Mic } from "lucide-react";
 import {
   joinVoiceRoom,
   leaveVoiceRoom,
@@ -69,6 +70,12 @@ export function VoiceRoomView({
   const router = useRouter();
   const [micError, setMicError] = useState<string | null>(null);
   const [isBroadcasting, setIsBroadcasting] = useState(false);
+  // Surfaced when a listener's inbound connection to the current speaker
+  // fails (bad NAT, no TURN configured — see ICE_SERVERS's comment above)
+  // — previously this failed silently: the listener just heard nothing
+  // forever with no indication anything was wrong, and no way to recover
+  // short of leaving and rejoining the room by hand.
+  const [connectionError, setConnectionError] = useState<string | null>(null);
 
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
   const peerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
@@ -91,6 +98,24 @@ export function VoiceRoomView({
     peerConnectionsRef.current.delete(peerId);
   }
 
+  // A connection reaching "failed" never recovers on its own (unlike
+  // "disconnected", which can self-heal on a brief network blip) — close it
+  // and drop it from the map so it doesn't linger as a dead entry that
+  // knownParticipantIdsRef still thinks is live. `role: "listener"` also
+  // surfaces a visible error, since that side has no other signal that
+  // anything went wrong; the broadcaster side just silently loses that one
+  // listener, same as if they'd left normally.
+  function monitorConnection(pc: RTCPeerConnection, peerId: string, role: "listener" | "broadcaster-leg") {
+    pc.oniceconnectionstatechange = () => {
+      if (pc.iceConnectionState !== "failed") return;
+      closePeer(peerId);
+      if (role === "listener") {
+        setConnectionError("Lost the connection to the speaker. Leave and rejoin to reconnect.");
+        if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
+      }
+    };
+  }
+
   function closeAllPeers() {
     for (const pc of peerConnectionsRef.current.values()) pc.close();
     peerConnectionsRef.current.clear();
@@ -102,6 +127,7 @@ export function VoiceRoomView({
     pc.onicecandidate = (e) => {
       if (e.candidate) sendSignalToServer(peerId, { kind: "ice", candidate: e.candidate.toJSON() });
     };
+    monitorConnection(pc, peerId, "broadcaster-leg");
     peerConnectionsRef.current.set(peerId, pc);
 
     const offer = await pc.createOffer();
@@ -147,10 +173,12 @@ export function VoiceRoomView({
   function cleanupListening() {
     closeAllPeers();
     if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
+    setConnectionError(null);
   }
 
   async function handleSignal(from: string, payload: SignalPayload) {
     if (payload.kind === "offer") {
+      setConnectionError(null);
       const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
       pc.ontrack = (e) => {
         if (remoteAudioRef.current) remoteAudioRef.current.srcObject = e.streams[0];
@@ -158,6 +186,7 @@ export function VoiceRoomView({
       pc.onicecandidate = (e) => {
         if (e.candidate) sendSignalToServer(from, { kind: "ice", candidate: e.candidate.toJSON() });
       };
+      monitorConnection(pc, from, "listener");
       peerConnectionsRef.current.set(from, pc);
       await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
       const answer = await pc.createAnswer();
@@ -303,8 +332,8 @@ export function VoiceRoomView({
 
       <div className="profileLinkItem" style={{ flexDirection: "column", alignItems: "flex-start", gap: "0.3rem" }}>
         {currentSpeakerId ? (
-          <span>
-            🎙 <strong>{currentSpeakerId === currentUserId ? "You" : currentSpeakerName}</strong> {currentSpeakerId === currentUserId ? "are" : "is"} speaking
+          <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}>
+            <Mic size={14} aria-hidden="true" /> <strong>{currentSpeakerId === currentUserId ? "You" : currentSpeakerName}</strong> {currentSpeakerId === currentUserId ? "are" : "is"} speaking
           </span>
         ) : (
           <span className="mutedText">The floor is free.</span>
@@ -312,6 +341,7 @@ export function VoiceRoomView({
       </div>
 
       {micError && <p className="errorText">{micError}</p>}
+      {connectionError && <p className="errorText">{connectionError}</p>}
 
       <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
         {myRole === "listener" && canSpeak && (

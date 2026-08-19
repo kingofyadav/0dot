@@ -31,15 +31,17 @@ export default async function ExplorePage({
           .then((rows) => new Set(rows.map((r) => r.postId))),
       ])
     : [new Set<string>(), new Set<string>()];
-  const votedOptionIds = await getVotedPollOptionIds(currentUser?.id, posts);
-  const postableBusinesses = currentUser ? await getPostableBusinesses(currentUser.id) : [];
-  const ownTiers = currentUser
-    ? await db.membershipTier.findMany({
-        where: { creatorId: currentUser.id, status: "active" },
-        select: { id: true, name: true },
-        orderBy: { level: "asc" },
-      })
-    : [];
+  const [votedOptionIds, postableBusinesses, ownTiers] = await Promise.all([
+    getVotedPollOptionIds(currentUser?.id, posts),
+    currentUser ? getPostableBusinesses(currentUser.id) : Promise.resolve([]),
+    currentUser
+      ? db.membershipTier.findMany({
+          where: { creatorId: currentUser.id, status: "active" },
+          select: { id: true, name: true },
+          orderBy: { level: "asc" },
+        })
+      : Promise.resolve([]),
+  ]);
 
   return (
     <FeedList

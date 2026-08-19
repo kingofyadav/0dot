@@ -30,7 +30,9 @@ Status: Foundational document (Priority 7). Inventory of what exists today plus 
 
 ## Superseded, left in place
 
-`src/components/AuthTabs.tsx` and `src/components/LandingLiveShowcase.tsx` were the previous `"/"`/`login`/`signup` implementation — `AuthTabs` a signup/login single-view switcher embedded directly in the landing page, `LandingLiveShowcase` a rotating mockup-profile preview. Neither is imported anywhere anymore since the landing-page redesign (`MarketingNav` + `DigitalHomeVisual` replaced them; `.landingPreview` in `globals.css` is the matching dead CSS, also left in place). Not deleted — pre-existing components, not something to force out as a side effect of an unrelated rule. Delete outright if a future pass confirms nothing will ever reuse them.
+`src/components/LandingLiveShowcase.tsx` (a rotating mockup-profile preview) was part of the previous `"/"` landing-page implementation and is no longer imported anywhere since the redesign (`MarketingNav` + `DigitalHomeVisual` replaced it; `.landingPreview` in `globals.css` is the matching dead CSS, also left in place). Not deleted — pre-existing component, not something to force out as a side effect of an unrelated rule. Delete outright if a future pass confirms nothing will ever reuse it.
+
+**Correction:** this section previously also listed `src/components/AuthTabs.tsx` as superseded/unused — that was wrong. `AuthTabs` (the signup/login single-view switcher) is still actively imported and rendered by `src/app/page.tsx` as the homepage's own auth form; it was never replaced. A cleanup pass trusting the old text here would have deleted live homepage auth code.
 
 ## Missing (needed before the next few phases)
 

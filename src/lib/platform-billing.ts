@@ -1,5 +1,6 @@
 import "server-only";
 import { randomUUID } from "crypto";
+import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { recordPaymentTransaction } from "@/lib/payments";
 import { stripe, getOrCreateStripeCustomerId } from "@/lib/stripe";
@@ -246,31 +247,43 @@ export async function activateSubscriptionFromCheckout(params: {
   const already = await db.platformSubscription.findFirst({ where: { processorSubscriptionId: params.processorSubscriptionId } });
   if (already) return;
 
-  await db.$transaction(async (tx) => {
-    await recordPaymentTransaction(tx, {
-      kind: "platform_subscription_charge",
-      payerId: params.payerUserId,
-      payeeId: null,
-      amount: params.amount,
-      currency: params.currency,
-      processorReference: params.processorSubscriptionId,
-      status: "succeeded",
-      relatedObjectType: params.plan,
-      relatedObjectId: params.subscriberId,
+  try {
+    await db.$transaction(async (tx) => {
+      await recordPaymentTransaction(tx, {
+        kind: "platform_subscription_charge",
+        payerId: params.payerUserId,
+        payeeId: null,
+        amount: params.amount,
+        currency: params.currency,
+        processorReference: params.processorSubscriptionId,
+        status: "succeeded",
+        relatedObjectType: params.plan,
+        relatedObjectId: params.subscriberId,
+      });
+      await tx.platformSubscription.create({
+        data: {
+          subscriberType: params.subscriberType,
+          subscriberProfileId: params.subscriberType === "profile" ? params.subscriberId : null,
+          subscriberBusinessId: params.subscriberType === "business" ? params.subscriberId : null,
+          plan: params.plan,
+          status: "active",
+          billingInterval: params.billingInterval,
+          processorSubscriptionId: params.processorSubscriptionId,
+          currentPeriodEnd: params.currentPeriodEnd,
+        },
+      });
     });
-    await tx.platformSubscription.create({
-      data: {
-        subscriberType: params.subscriberType,
-        subscriberProfileId: params.subscriberType === "profile" ? params.subscriberId : null,
-        subscriberBusinessId: params.subscriberType === "business" ? params.subscriberId : null,
-        plan: params.plan,
-        status: "active",
-        billingInterval: params.billingInterval,
-        processorSubscriptionId: params.processorSubscriptionId,
-        currentPeriodEnd: params.currentPeriodEnd,
-      },
-    });
-  });
+  } catch (err) {
+    // Duplicate webhook redelivery for the same Checkout session racing the
+    // `already` check above — recordPaymentTransaction's unique constraint
+    // on (processorReference, kind) is the DB-level backstop; treat it as
+    // "already activated," not a real failure.
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      console.error(`activateSubscriptionFromCheckout: duplicate webhook delivery for subscription ${params.processorSubscriptionId} — already recorded, no-op.`);
+      return;
+    }
+    throw err;
+  }
 
   if (params.subscriberType === "profile") await reconcileLinkActivationForProfile(params.subscriberId);
 }

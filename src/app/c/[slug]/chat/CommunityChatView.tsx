@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { X } from "lucide-react";
 import { sendChatMessage, deleteChatMessage } from "@/app/actions/community-chat";
 
 export type ChatMessageData = {
@@ -102,8 +103,8 @@ export function CommunityChatView({
                   <form action={deleteChatMessage}>
                     <input type="hidden" name="communityId" value={communityId} />
                     <input type="hidden" name="messageId" value={m.id} />
-                    <button type="submit" className="button buttonSecondary iconButton" aria-label="Remove message" style={{ fontSize: "0.7rem" }}>
-                      ✕
+                    <button type="submit" className="button buttonSecondary iconButton" aria-label="Remove message">
+                      <X size={14} />
                     </button>
                   </form>
                 )}

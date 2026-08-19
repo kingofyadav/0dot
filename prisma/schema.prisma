@@ -244,7 +244,13 @@ model User {
 
 model Session {
   id        String   @id @default(uuid())
-  token     String   @unique
+  // sha256(raw token) — the raw 256-bit token only ever lives in the
+  // httpOnly cookie (session.ts's createSession/getCurrentUser), never at
+  // rest here, so a DB read exposure (backup snapshot, replica, an
+  // over-broad query) can't yield directly-usable session tokens. Same
+  // "store a hash, not the secret" posture two-factor.ts's recovery codes
+  // and auth.ts's password-reset tokens already use.
+  tokenHash String   @unique
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
@@ -1730,6 +1736,7 @@ model PaymentTransaction {
   marketplacePurchase    MarketplacePurchase?
   donation               Donation?
 
+  @@unique([processorReference, kind])
   @@index([payeeId, createdAt])
   @@index([payeeBusinessId, createdAt])
   @@index([payerId])
@@ -2929,6 +2936,17 @@ model InstalledApp {
   @@index([installerUserId])
   @@index([installerBusinessId])
   @@index([installerCommunityId])
+  // Uniqueness against duplicate installs (installApp's read-then-write
+  // race, closed in migration 20260818150500_installed_app_idempotency) is
+  // enforced by three raw partial unique indexes on
+  // (listingId, installerUserId/installerBusinessId/installerCommunityId)
+  // — not expressible as a declarative `@@unique` here since Prisma has no
+  // partial/filtered-index syntax, and a plain compound unique across all
+  // three nullable columns wouldn't catch it (NULL isn't unique-equal to
+  // NULL in SQLite). This comment is the only trace of them in this file —
+  // `prisma migrate diff`/`db push` won't see them and won't try to drop
+  // them, but also won't recreate them if the DB is ever rebuilt from this
+  // schema alone rather than replayed through prisma/migrations/.
 }
 
 // phase-9 spec §7.1: the second instance of the rated-review pattern after

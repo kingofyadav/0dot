@@ -38,7 +38,21 @@ class StubIdentityProviderVerifier implements IdentityProviderVerifier {
   }
 }
 
+// The stub trusts caller-submitted `{subjectId, email}` with no signature
+// check — fine for local dev, a full account-takeover primitive for any
+// domain with SSO configured if it ever runs in production. Gated off by
+// default; only NODE_ENV !== "production" or an explicit opt-in (for a
+// controlled staging smoke-test) allows it to run at all.
+export function isStubSsoAllowed(): boolean {
+  return process.env.NODE_ENV !== "production" || process.env.ALLOW_STUB_SSO === "true";
+}
+
 export function getIdentityProviderVerifier(): IdentityProviderVerifier {
+  if (!isStubSsoAllowed()) {
+    throw new Error(
+      "SSO login is disabled: the only verifier implemented is an unauthenticated dev stub, which must not run in production. Implement real SAML/OIDC assertion verification before enabling SSO, or set ALLOW_STUB_SSO=true for a deliberate, trusted staging test only."
+    );
+  }
   return new StubIdentityProviderVerifier();
 }
 

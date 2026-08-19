@@ -189,6 +189,24 @@ async function restoreEligibleCounterNotices(): Promise<void> {
   });
 
   for (const counterNotice of eligible) {
+    // restoreContent's own status-guarded updateMany (e.g. article must
+    // still be "draft") only protects against *this* DMCA case's own
+    // prior state — it doesn't know about a separate, independently-filed
+    // TrustSafetyCase that removed the same content for an unrelated
+    // reason after this takedown landed. Re-check for one before
+    // restoring, so an elapsing counter-notice window can't silently
+    // un-remove content staff intended to keep down via a different case.
+    const otherActiveCase = await db.trustSafetyCase.findFirst({
+      where: {
+        subjectType: counterNotice.originalNotice.infringingContentSubjectType,
+        subjectId: counterNotice.originalNotice.infringingContentSubjectId,
+        id: { not: counterNotice.originalNotice.trustSafetyCaseId },
+        status: { in: ["open", "in_review", "resolved_upheld"] },
+      },
+      select: { id: true },
+    });
+    if (otherActiveCase) continue;
+
     await restoreContent(
       counterNotice.originalNotice.infringingContentSubjectType,
       counterNotice.originalNotice.infringingContentSubjectId

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { getPaymentProcessor, recordPaymentTransaction, resolveFeeRate } from "@/lib/payments";
@@ -194,36 +195,45 @@ export async function activateMembershipSubscription(params: {
       ? { id: affiliateLinkId, affiliateId, program: { commissionPercent: Number(affiliateCommissionPercent) } }
       : null;
 
-  const creditedAffiliate = await db.$transaction(async (tx) => {
-    await recordPaymentTransaction(tx, {
-      kind: "membership_charge",
-      payerId,
-      payeeId,
-      amount,
-      currency,
-      processorReference: params.processorSubscriptionId,
-      status: "succeeded",
-      relatedObjectType: "membership_tier",
-      relatedObjectId: tierId,
-    });
-    await tx.membershipSubscription.create({
-      data: {
-        tierId,
-        fanId: payerId,
-        status: "active",
-        currentPeriodEnd: params.currentPeriodEnd,
-        processorSubscriptionId: params.processorSubscriptionId,
-      },
-    });
+  let creditedAffiliate;
+  try {
+    creditedAffiliate = await db.$transaction(async (tx) => {
+      await recordPaymentTransaction(tx, {
+        kind: "membership_charge",
+        payerId,
+        payeeId,
+        amount,
+        currency,
+        processorReference: params.processorSubscriptionId,
+        status: "succeeded",
+        relatedObjectType: "membership_tier",
+        relatedObjectId: tierId,
+      });
+      await tx.membershipSubscription.create({
+        data: {
+          tierId,
+          fanId: payerId,
+          status: "active",
+          currentPeriodEnd: params.currentPeriodEnd,
+          processorSubscriptionId: params.processorSubscriptionId,
+        },
+      });
 
-    if (!affiliateLink) return null;
-    return creditAffiliateConversion(tx, {
-      affiliateLink,
-      saleAmount: amount,
-      currency,
-      saleProcessorReference: params.processorSubscriptionId,
+      if (!affiliateLink) return null;
+      return creditAffiliateConversion(tx, {
+        affiliateLink,
+        saleAmount: amount,
+        currency,
+        saleProcessorReference: params.processorSubscriptionId,
+      });
     });
-  });
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      console.error(`activateMembershipSubscription: duplicate webhook delivery for ${params.processorSubscriptionId} — already recorded, no-op.`);
+      return;
+    }
+    throw err;
+  }
   if (creditedAffiliate) await notifyAffiliateConversion({ recipientId: creditedAffiliate.affiliateId, actorId: payerId });
 
   await notifyNewSubscriber({ recipientId: payeeId, actorId: payerId });

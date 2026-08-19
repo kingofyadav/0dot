@@ -280,24 +280,32 @@ export async function activateMarketplacePurchase(metadata: Record<string, strin
   const { payerId, payeeId, payeeBusinessId, listingId, amount: amountStr, currency } = metadata;
   const amount = Number(amountStr);
 
-  await db.$transaction(async (tx) => {
-    const transaction = await recordPaymentTransaction(tx, {
-      kind: "marketplace_purchase",
-      payerId,
-      payeeId: payeeId || null,
-      payeeBusinessId: payeeBusinessId || null,
-      amount,
-      currency,
-      processorReference,
-      status: "succeeded",
-      relatedObjectType: "marketplace_listing",
-      relatedObjectId: listingId,
+  try {
+    await db.$transaction(async (tx) => {
+      const transaction = await recordPaymentTransaction(tx, {
+        kind: "marketplace_purchase",
+        payerId,
+        payeeId: payeeId || null,
+        payeeBusinessId: payeeBusinessId || null,
+        amount,
+        currency,
+        processorReference,
+        status: "succeeded",
+        relatedObjectType: "marketplace_listing",
+        relatedObjectId: listingId,
+      });
+      await tx.marketplacePurchase.create({
+        data: { listingId, buyerId: payerId, paymentTransactionId: transaction.id },
+      });
+      await tx.marketplaceListing.update({ where: { id: listingId }, data: { purchaseCount: { increment: 1 } } });
     });
-    await tx.marketplacePurchase.create({
-      data: { listingId, buyerId: payerId, paymentTransactionId: transaction.id },
-    });
-    await tx.marketplaceListing.update({ where: { id: listingId }, data: { purchaseCount: { increment: 1 } } });
-  });
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      console.error(`activateMarketplacePurchase: duplicate webhook delivery for ${processorReference} — already recorded, no-op.`);
+      return;
+    }
+    throw err;
+  }
 
   revalidatePath(`/m/${listingId}`);
 }
@@ -346,9 +354,21 @@ export async function installApp(_prevState: ActionState, formData: FormData): P
 
   if (!checkInstallRateLimit(user.id)) return { error: "You're installing too fast. Please slow down." };
 
-  await db.installedApp.create({
-    data: { listingId: listing.id, ...installer, config: configRaw || null },
-  });
+  try {
+    await db.installedApp.create({
+      data: { listingId: listing.id, ...installer, config: configRaw || null },
+    });
+  } catch (err) {
+    // The findFirst check above is a fast path, not the real guard — the
+    // partial unique indexes from migration 20260818150500 are (see
+    // schema.prisma's InstalledApp comment). A concurrent install landing
+    // in the race window surfaces here as P2002, same "already done, not a
+    // real failure" handling docs/BUGS.md's username-claim race uses.
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      return { error: "Already installed here." };
+    }
+    throw err;
+  }
 
   revalidatePath(`/m/${listing.id}`);
   return undefined;
