@@ -1,7 +1,8 @@
 {
   "expo": {
     "name": "0dot",
-    "slug": "0dot",
+    "slug": "zerodot",
+    "owner": "zerodot",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -43,6 +44,11 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "89a03d8a-a71c-4cea-8e0f-3b77f591a9de"
+      }
     },
     "plugins": [
       "expo-secure-store",
