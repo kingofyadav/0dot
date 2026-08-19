@@ -1,7 +1,7 @@
 import "server-only";
+import { cache } from "react";
 import { cookies, headers } from "next/headers";
 import { randomBytes, createHash } from "crypto";
-import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { getClientIp } from "@/lib/rate-limit";
 
@@ -73,32 +73,35 @@ export async function getCurrentSessionToken(): Promise<string | null> {
   return cookieStore.get(SESSION_COOKIE)?.value ?? null;
 }
 
-export async function getCurrentUser() {
+const LAST_SEEN_THROTTLE_MS = 5 * 60 * 1000;
+
+// Wrapped in React's cache() below — every layout/page/component on a given
+// request calls getCurrentUser independently (it's the standard auth check),
+// so without per-request memoization a single page load was firing this
+// several times over, each one a DB round trip. cache() collapses those into
+// one call per request.
+async function loadCurrentUser() {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE)?.value;
   if (!token) return null;
 
-  // account-settings-hardening addendum §4: an update (not findUnique) so
-  // the active-sessions page's "last active" column stays fresh — this
-  // already runs once per request, so bumping lastSeenAt here is a field
-  // added to an existing query, not a new one. A missing token (already
-  // logged out/expired-and-deleted elsewhere) throws P2025, caught below.
+  // account-settings-hardening addendum §4: needs to stay a find, not the
+  // unconditional update this used to be — that turned every single
+  // getCurrentUser call (i.e. every page load and every server action) into
+  // a DB write. The lastSeenAt bump below is now throttled instead, so a
+  // request only writes when the timestamp is actually stale. A missing
+  // token (already logged out/expired-and-deleted elsewhere) is just null,
+  // no exception needed since this is a read again.
   const tokenHash = hashToken(token);
-  let session;
-  try {
-    session = await db.session.update({
-      where: { tokenHash },
-      data: { lastSeenAt: new Date() },
-      include: {
-        user: {
-          include: { username: true, profile: true },
-        },
+  const session = await db.session.findUnique({
+    where: { tokenHash },
+    include: {
+      user: {
+        include: { username: true, profile: true },
       },
-    });
-  } catch (err) {
-    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2025") return null;
-    throw err;
-  }
+    },
+  });
+  if (!session) return null;
 
   if (session.expiresAt < new Date()) {
     await db.session.delete({ where: { tokenHash } });
@@ -113,8 +116,21 @@ export async function getCurrentUser() {
     return null;
   }
 
+  // account-settings-hardening addendum §4: the active-sessions page's "last
+  // active" column just needs to be roughly fresh, not exact — throttling to
+  // once per 5min turns nearly every request into a plain read instead of a
+  // write, without the active-sessions display going noticeably stale.
+  // Awaited (not fire-and-forget): serverless functions can freeze right
+  // after the response is sent, so an un-awaited write here could silently
+  // never happen.
+  if (Date.now() - session.lastSeenAt.getTime() > LAST_SEEN_THROTTLE_MS) {
+    await db.session.update({ where: { tokenHash }, data: { lastSeenAt: new Date() } });
+  }
+
   return session.user;
 }
+
+export const getCurrentUser = cache(loadCurrentUser);
 
 const TWO_FACTOR_CHALLENGE_COOKIE = "0dot_2fa_challenge";
 const TWO_FACTOR_CHALLENGE_TTL_MS = 5 * 60 * 1000; // 5 min

@@ -57,9 +57,15 @@ function livekitConnectSrc(): string[] {
 // covered by Next's auto-injection — layout.tsx reads x-nonce below and
 // applies it to that script's `nonce` attribute manually.
 function buildCsp(nonce: string): string {
+  // 'unsafe-eval' only outside production: React dev mode and Turbopack HMR
+  // use eval() for debugging features (e.g. reconstructing component stacks)
+  // that don't exist in a production build, which never needs or gets this.
+  const scriptSrc = ["'self'", `'nonce-${nonce}'`, "'strict-dynamic'"];
+  if (process.env.NODE_ENV !== "production") scriptSrc.push("'unsafe-eval'");
+
   return [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
+    `script-src ${scriptSrc.join(" ")}`,
     "style-src 'self' 'unsafe-inline'", // Tailwind's runtime + component-library inline styles have no static hash/nonce to pin
     "img-src 'self' data: https://*.public.blob.vercel-storage.com",
     "media-src 'self' https://*.public.blob.vercel-storage.com",
