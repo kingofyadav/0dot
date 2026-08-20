@@ -1,18 +1,24 @@
-import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 import { FIRST_PARTY_PLATFORM } from "../config";
 import { registerDeviceToken } from "../api/client";
+import { Notifications } from "./expoNotificationsModule";
 
 // Shown while the app is foregrounded — without a handler, expo-notifications
 // silently drops incoming notifications instead of surfacing them.
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: false,
-    shouldSetBadge: false,
-  }),
-});
+if (Notifications) {
+  try {
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowBanner: true,
+        shouldShowList: true,
+        shouldPlaySound: false,
+        shouldSetBadge: false,
+      }),
+    });
+  } catch {
+    // Best-effort, same posture as registerForPushNotificationsAsync's caller.
+  }
+}
 
 // spec §4.1: DeviceToken.token is documented as "opaque APNs/FCM/Web-Push
 // token" — this uses getDevicePushTokenAsync (the native APNs/FCM token)
@@ -21,6 +27,8 @@ Notifications.setNotificationHandler({
 // StubPushProvider) will talk to APNs/FCM directly, matching the schema
 // comment rather than introducing a third, Expo-specific token shape.
 export async function registerForPushNotificationsAsync(): Promise<void> {
+  if (!Notifications) return;
+
   if (Platform.OS === "android") {
     // Required on Android 8+ before a notification can display at all —
     // harmless to call every launch, setNotificationChannelAsync upserts.

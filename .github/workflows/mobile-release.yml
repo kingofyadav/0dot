@@ -1,0 +1,144 @@
+name: Mobile Release
+
+on:
+  push:
+    tags:
+      - "mobile-v*.*.*"
+  workflow_dispatch: {}
+
+defaults:
+  run:
+    working-directory: mobile
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+  build:
+    needs: typecheck
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: android-aab
+            platform: android
+            profile: production
+          - name: android-apk
+            platform: android
+            profile: production-apk
+          - name: ios
+            platform: ios
+            profile: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - run: npm ci
+
+      - name: EAS Build (${{ matrix.name }})
+        run: |
+          eas build \
+            --platform ${{ matrix.platform }} \
+            --profile ${{ matrix.profile }} \
+            --non-interactive \
+            --wait \
+            --json > build-result.json
+          cat build-result.json
+
+      - name: Download APK for GitHub Release
+        if: matrix.name == 'android-apk'
+        run: |
+          url=$(jq -r '.[0].artifacts.buildUrl // .[0].artifacts.applicationArchiveUrl' build-result.json)
+          echo "Downloading $url"
+          curl -fL "$url" -o app-release.apk
+
+      - uses: actions/upload-artifact@v4
+        if: matrix.name == 'android-apk'
+        with:
+          name: android-apk
+          path: mobile/app-release.apk
+          retention-days: 90
+
+  github-release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: android-apk
+          path: mobile
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: mobile/app-release.apk
+          generate_release_notes: true
+
+  submit-to-stores:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: store-release
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - run: npm ci
+
+      - name: Write store credentials
+        run: |
+          echo "${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}" > google-service-account.json
+          echo "${{ secrets.APPLE_ASC_API_KEY_P8 }}" | base64 -d > apple-asc-api-key.p8
+
+      - name: Submit to Google Play (internal track)
+        env:
+          EXPO_ASC_ISSUER_ID: ${{ vars.EXPO_ASC_ISSUER_ID }}
+          EXPO_ASC_KEY_ID: ${{ vars.EXPO_ASC_KEY_ID }}
+          EXPO_APPLE_TEAM_ID: ${{ vars.EXPO_APPLE_TEAM_ID }}
+          EXPO_ASC_APP_ID: ${{ vars.EXPO_ASC_APP_ID }}
+        run: eas submit --platform android --profile production --non-interactive --latest
+
+      - name: Submit to App Store Connect
+        env:
+          EXPO_ASC_ISSUER_ID: ${{ vars.EXPO_ASC_ISSUER_ID }}
+          EXPO_ASC_KEY_ID: ${{ vars.EXPO_ASC_KEY_ID }}
+          EXPO_APPLE_TEAM_ID: ${{ vars.EXPO_APPLE_TEAM_ID }}
+          EXPO_ASC_APP_ID: ${{ vars.EXPO_ASC_APP_ID }}
+        run: eas submit --platform ios --profile production --non-interactive --latest
+
+      - name: Clean up credential files
+        if: always()
+        run: rm -f google-service-account.json apple-asc-api-key.p8

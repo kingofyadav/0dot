@@ -31,9 +31,11 @@ import { endorseSkill } from "@/app/actions/skills";
 import { parsePortfolioLayout } from "@/lib/portfolio-layout";
 
 // Fallback cover photo for any profile that hasn't set its own (replaces
-// the plain gradient .profileCoverPlaceholder) — per explicit direction,
-// same asset already live under kingofyadav's profile.
-const DEFAULT_COVER_URL = "/uploads/8b52a1d822e19f974165b7498189eb36.jpg";
+// the plain gradient .profileCoverPlaceholder). Served from /public/defaults,
+// not /uploads — the /uploads/[...path] route 307-redirects everything to
+// Vercel Blob storage, and this asset was never actually written there, so
+// it 404'd ("Blob not found") for every new signup.
+const DEFAULT_COVER_URL = "/defaults/profile-cover.jpg";
 
 // Small display-only lookup: turns a program's offeringType/offeringId
 // pointer into a human label for BecomeAffiliateForm — the same

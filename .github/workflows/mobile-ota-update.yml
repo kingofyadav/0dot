@@ -1,0 +1,37 @@
+name: Mobile OTA Update
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "mobile/**"
+      - "!mobile/**.md"
+
+defaults:
+  run:
+    working-directory: mobile
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Publish OTA update
+        run: eas update --branch production --channel production --auto --non-interactive
