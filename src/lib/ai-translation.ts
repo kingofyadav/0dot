@@ -35,14 +35,24 @@ export async function getOrCreateTranslation(params: {
   if (existing) return { translatedText: existing.translatedText, cached: true };
 
   const provider = getAIProvider();
-  const result = await provider.translate({ text: params.sourceText, targetLanguage: params.targetLanguage });
+  let result: Awaited<ReturnType<typeof provider.translate>>;
+  try {
+    result = await provider.translate({ text: params.sourceText, targetLanguage: params.targetLanguage });
+  } catch (err) {
+    // Degrade to showing the original text rather than throwing into
+    // whatever page called this — a broken translation is a worse outcome
+    // than no translation for a nice-to-have feature. Not cached (so the
+    // next request retries against the real provider).
+    console.error(`getOrCreateTranslation failed for ${params.subjectType}:${params.subjectId} -> ${params.targetLanguage}`, err);
+    return { translatedText: params.sourceText, cached: false };
+  }
 
   const generation = await logAIGeneration({
     feature: "translation",
     requestedById: params.requestedById ?? null,
     subjectType: params.subjectType,
     subjectId: params.subjectId,
-    modelName: provider.modelName,
+    modelName: result.modelName,
     input: { targetLanguage: params.targetLanguage, sourceRevisionKey: params.sourceRevisionKey },
     output: { text: result.text },
     costTokens: result.costTokens,

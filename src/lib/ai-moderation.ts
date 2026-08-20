@@ -30,14 +30,24 @@ const MODERATION_SUBJECT_OWNER: Record<string, (id: string) => Promise<string | 
 // real classifier would need.
 export async function classifyAndFlag(params: { subjectType: string; subjectId: string; text: string }): Promise<void> {
   const provider = getAIProvider();
-  const classification = await provider.classifyModeration(params.text);
+  let classification: Awaited<ReturnType<typeof provider.classifyModeration>>;
+  try {
+    classification = await provider.classifyModeration(params.text);
+  } catch (err) {
+    // Deliberately does not write an AIGeneration row on failure — that's
+    // what getClassifiedSubjectIds' notIn filter uses to decide what still
+    // needs classifying, so leaving this item unlogged means the next 60s
+    // sweep retries it automatically, with no separate retry bookkeeping.
+    console.error(`classifyAndFlag failed for ${params.subjectType}:${params.subjectId}`, err);
+    return;
+  }
 
   const generation = await logAIGeneration({
     feature: "moderation",
     requestedById: null, // system-initiated (§3: "null for system-initiated generations")
     subjectType: params.subjectType,
     subjectId: params.subjectId,
-    modelName: provider.modelName,
+    modelName: classification.modelName,
     input: { textLength: params.text.length },
     output: classification,
     costTokens: classification.costTokens,

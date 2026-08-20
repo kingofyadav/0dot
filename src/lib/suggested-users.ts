@@ -1,6 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
-import { getAIProvider, cosineSimilarity } from "@/lib/ai-provider";
+import { getAIProvider, cosineSimilarity, HASH_EMBEDDING_MODEL_NAME } from "@/lib/ai-provider";
 import { logAIGeneration } from "@/lib/ai-generation";
 
 // phase-2 spec §3.3 — originally a placeholder heuristic "to revisit when
@@ -104,7 +104,7 @@ export async function getSuggestedUsers(viewerId: string, limit: number) {
     requestedById: viewerId,
     subjectType: "user",
     subjectId: viewerId,
-    modelName: provider.modelName,
+    modelName: HASH_EMBEDDING_MODEL_NAME,
     input: { candidateCount: eligible.length },
     output: { suggestedUserIds: scored.map((s) => s.user.id) },
     costTokens: eligible.length,

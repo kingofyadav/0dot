@@ -34,14 +34,14 @@ async function generateAccessibilityMetadataFor(asset: {
   uploadedById: string;
 }): Promise<void> {
   const provider = getAIProvider();
-  const { altText, costTokens } = await provider.describeMedia({ url: asset.url, contentType: asset.contentType });
+  const { altText, costTokens, modelName } = await provider.describeMedia({ url: asset.url, contentType: asset.contentType });
 
   const generation = await logAIGeneration({
     feature: "accessibility_caption",
     requestedById: asset.uploadedById,
     subjectType: "file_asset",
     subjectId: asset.id,
-    modelName: provider.modelName,
+    modelName,
     input: { url: asset.url, contentType: asset.contentType },
     output: { altText },
     costTokens,
@@ -63,7 +63,13 @@ async function processPendingAccessibilityJobs(): Promise<void> {
     take: 50, // per-run cap, same safety-valve reasoning as trending.ts's CANDIDATE_LIMIT
   });
   for (const asset of pending) {
-    await generateAccessibilityMetadataFor(asset);
+    try {
+      await generateAccessibilityMetadataFor(asset);
+    } catch (err) {
+      // One bad asset shouldn't stop the rest of the batch — the next
+      // 60s interval retries it (it's still missing accessibilityMetadata).
+      console.error(`generateAccessibilityMetadataFor failed for file asset ${asset.id}`, err);
+    }
   }
 }
 

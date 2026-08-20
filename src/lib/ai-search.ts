@@ -1,5 +1,5 @@
 import "server-only";
-import { getAIProvider, cosineSimilarity } from "@/lib/ai-provider";
+import { getAIProvider, cosineSimilarity, HASH_EMBEDDING_MODEL_NAME } from "@/lib/ai-provider";
 import { logAIGeneration } from "@/lib/ai-generation";
 
 // phase-11 spec §8.1: an additional retrieval signal blended with the
@@ -42,7 +42,7 @@ export async function semanticRerank<T>(params: {
     requestedById: requestedById ?? null,
     subjectType: "search_query",
     subjectId: null,
-    modelName: provider.modelName,
+    modelName: HASH_EMBEDDING_MODEL_NAME,
     input: { query },
     output: { topIds: rerankedFuzzy.slice(0, 10).map(getId) },
     costTokens: fuzzy.length,

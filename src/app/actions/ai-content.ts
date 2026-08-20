@@ -30,14 +30,19 @@ export async function suggestProfileBio(context: string): Promise<AISuggestionRe
 
   const trimmedContext = context.trim().slice(0, 500);
   const provider = getAIProvider();
-  const result = await provider.suggestText({ kind: "profile_bio", context: trimmedContext });
+  let result: Awaited<ReturnType<typeof provider.suggestText>>;
+  try {
+    result = await provider.suggestText({ kind: "profile_bio", context: trimmedContext });
+  } catch {
+    return { error: "AI suggestions are temporarily unavailable. Try again shortly." };
+  }
 
   const generation = await logAIGeneration({
     feature: "profile_builder",
     requestedById: user.id,
     subjectType: "profile",
     subjectId: user.id,
-    modelName: provider.modelName,
+    modelName: result.modelName,
     input: { context: trimmedContext },
     output: { text: result.text },
     costTokens: result.costTokens,
@@ -55,7 +60,12 @@ export async function suggestArticleDraft(topic: string): Promise<AISuggestionRe
   if (trimmedTopic.length === 0) return { error: "Enter a topic first." };
 
   const provider = getAIProvider();
-  const result = await provider.suggestText({ kind: "article_draft", context: trimmedTopic });
+  let result: Awaited<ReturnType<typeof provider.suggestText>>;
+  try {
+    result = await provider.suggestText({ kind: "article_draft", context: trimmedTopic });
+  } catch {
+    return { error: "AI suggestions are temporarily unavailable. Try again shortly." };
+  }
 
   // subjectId is null: the article may not exist yet (a new-article draft
   // suggestion happens before the first save) — subject_id is nullable in
@@ -65,7 +75,7 @@ export async function suggestArticleDraft(topic: string): Promise<AISuggestionRe
     requestedById: user.id,
     subjectType: "article",
     subjectId: null,
-    modelName: provider.modelName,
+    modelName: result.modelName,
     input: { topic: trimmedTopic },
     output: { text: result.text },
     costTokens: result.costTokens,
