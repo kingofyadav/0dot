@@ -4,15 +4,21 @@ import { router, useFocusEffect } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { getFeed, likePost, repostPost, ApiError } from "../../src/api/client";
 import { EmptyState } from "../../src/components/EmptyState";
+import { OfflineBanner } from "../../src/components/OfflineBanner";
 import { PostRow } from "../../src/components/PostRow";
 import { FeedRowSkeleton } from "../../src/components/Skeleton";
 import { animateNextLayout } from "../../src/utils/animateLayout";
 import { haptics } from "../../src/utils/haptics";
+import { getCached, setCached } from "../../src/utils/offlineCache";
+import { useContentMaxWidth } from "../../src/utils/responsive";
 import { useTheme, type Theme } from "../../src/theme";
 import type { Post } from "../../src/api/types";
 
+const CACHE_KEY = "feed";
+
 export default function HomeScreen() {
   const theme = useTheme();
+  const maxWidth = useContentMaxWidth();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   const [posts, setPosts] = useState<Post[]>([]);
@@ -21,15 +27,28 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [offlineCachedAt, setOfflineCachedAt] = useState<number | null>(null);
 
+  // Phase 15 spec §5.2: read-time offline caching. A live fetch always
+  // wins and refreshes the cache; the cache is only ever consulted after a
+  // live fetch has already failed, never as a first choice.
   const loadFirstPage = useCallback(async () => {
     setError(null);
     try {
       const { items, nextCursor: cursor } = await getFeed();
       setPosts(items);
       setNextCursor(cursor);
+      setOfflineCachedAt(null);
+      setCached(CACHE_KEY, items);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not load your feed.");
+      const cached = await getCached<Post[]>(CACHE_KEY);
+      if (cached && cached.value.length > 0) {
+        setPosts(cached.value);
+        setNextCursor(null);
+        setOfflineCachedAt(cached.cachedAt);
+      } else {
+        setError(err instanceof ApiError ? err.message : "Could not load your feed.");
+      }
     }
   }, []);
 
@@ -125,46 +144,54 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.flex}>
-      <FlatList
-      style={styles.screen}
-      contentContainerStyle={posts.length === 0 ? styles.grow : undefined}
-      data={posts}
-      keyExtractor={(post) => post.id}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.accent} />}
-      onEndReached={onEndReached}
-      onEndReachedThreshold={0.4}
-      ListEmptyComponent={
-        <EmptyState
-          icon={error ? "cloud-offline-outline" : "newspaper-outline"}
-          message={error ?? "Nothing in your feed yet. Follow people on 0dot to see their posts here."}
-          onRetry={error ? loadFirstPage : undefined}
+      {/* maxWidth/alignSelf live on this wrapper (not the FlatList itself)
+          so the FAB below — absolutely positioned within it — anchors to
+          the centered content column's own edge on a tablet, not the full
+          window width behind it. */}
+      <View style={[styles.contentWrap, maxWidth ? { maxWidth, alignSelf: "center", width: "100%" } : null]}>
+        <FlatList
+          style={styles.screen}
+          contentContainerStyle={posts.length === 0 ? styles.grow : undefined}
+          data={posts}
+          keyExtractor={(post) => post.id}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.accent} />}
+          onEndReached={onEndReached}
+          onEndReachedThreshold={0.4}
+          ListHeaderComponent={offlineCachedAt ? <OfflineBanner cachedAt={offlineCachedAt} /> : null}
+          ListEmptyComponent={
+            <EmptyState
+              icon={error ? "cloud-offline-outline" : "newspaper-outline"}
+              message={error ?? "Nothing in your feed yet. Follow people on 0dot to see their posts here."}
+              onRetry={error ? loadFirstPage : undefined}
+            />
+          }
+          ListFooterComponent={loadingMore ? <ActivityIndicator style={styles.footerSpinner} color={theme.colors.accent} /> : null}
+          renderItem={({ item }) => (
+            <PostRow
+              post={item}
+              onPress={() => router.push({ pathname: "/post/[id]", params: { id: item.id } })}
+              onToggleLike={() => onToggleLike(item)}
+              onToggleRepost={() => onToggleRepost(item.id)}
+            />
+          )}
         />
-      }
-      ListFooterComponent={loadingMore ? <ActivityIndicator style={styles.footerSpinner} color={theme.colors.accent} /> : null}
-      renderItem={({ item }) => (
-        <PostRow
-          post={item}
-          onPress={() => router.push({ pathname: "/post/[id]", params: { id: item.id } })}
-          onToggleLike={() => onToggleLike(item)}
-          onToggleRepost={() => onToggleRepost(item.id)}
-        />
-      )}
-      />
-      <Pressable
-        onPress={() => router.push("/compose")}
-        accessibilityRole="button"
-        accessibilityLabel="New post"
-        style={({ pressed }) => [styles.fab, { opacity: pressed ? 0.85 : 1 }]}
-      >
-        <Ionicons name="add" size={26} color={theme.colors.onAccent} />
-      </Pressable>
+        <Pressable
+          onPress={() => router.push("/compose")}
+          accessibilityRole="button"
+          accessibilityLabel="New post"
+          style={({ pressed }) => [styles.fab, { opacity: pressed ? 0.85 : 1 }]}
+        >
+          <Ionicons name="add" size={26} color={theme.colors.onAccent} />
+        </Pressable>
+      </View>
     </View>
   );
 }
 
 function createStyles(theme: Theme) {
   return StyleSheet.create({
-    flex: { flex: 1 },
+    flex: { flex: 1, backgroundColor: theme.colors.background },
+    contentWrap: { flex: 1 },
     screen: { flex: 1, backgroundColor: theme.colors.background },
     grow: { flexGrow: 1 },
     fab: {

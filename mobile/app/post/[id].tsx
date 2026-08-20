@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, Stack, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { getPost, createPost, likePost, repostPost, ApiError } from "../../src/api/client";
 import { resolvePath } from "../../src/links/resolvePath";
@@ -12,7 +12,9 @@ import { PostMediaGrid } from "../../src/components/PostMediaGrid";
 import { SkeletonBlock } from "../../src/components/Skeleton";
 import { animateNextLayout } from "../../src/utils/animateLayout";
 import { haptics } from "../../src/utils/haptics";
+import { useContentMaxWidth } from "../../src/utils/responsive";
 import { useTheme, type Theme } from "../../src/theme";
+import { API_BASE_URL } from "../../src/config";
 import type { Post } from "../../src/api/types";
 
 const MAX_REPLY_LENGTH = 500;
@@ -20,6 +22,7 @@ const MAX_REPLY_LENGTH = 500;
 export default function PostScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const theme = useTheme();
+  const maxWidth = useContentMaxWidth();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   const [post, setPost] = useState<Post | null>(null);
@@ -47,6 +50,21 @@ export default function PostScreen() {
   useEffect(() => {
     load();
   }, [load]);
+
+  async function onShare() {
+    if (!post) return;
+    haptics.light();
+    const url = `${API_BASE_URL}/p/${post.id}`;
+    // `url` is iOS-only (renders as a proper link in the share sheet);
+    // `message` is what Android actually uses — passing both covers each
+    // platform's own reading of the API rather than picking one.
+    try {
+      await Share.share({ message: url, url });
+    } catch {
+      // User-cancelled or platform share-sheet failure — nothing to
+      // recover from, same posture as a dismissed native picker.
+    }
+  }
 
   // Same optimistic-with-known-direction posture as the feed screen's
   // onToggleLike — see its comment for why repost doesn't get the same
@@ -122,11 +140,22 @@ export default function PostScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.flex}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
-    >
+    <>
+      <Stack.Screen
+        options={{
+          headerRight: () => (
+            <Pressable onPress={onShare} accessibilityRole="button" accessibilityLabel="Share post" hitSlop={8} style={styles.headerButton}>
+              <Ionicons name="share-outline" size={20} color={theme.colors.foreground} />
+            </Pressable>
+          ),
+        }}
+      />
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+      >
+      <View style={[styles.contentWrap, maxWidth ? { maxWidth, alignSelf: "center", width: "100%" } : null]}>
       <ScrollView style={styles.screen} contentContainerStyle={styles.scrollContent}>
         {post.author ? (
           <Pressable
@@ -204,13 +233,17 @@ export default function PostScreen() {
           <Ionicons name="arrow-up" size={18} color={theme.colors.onAccent} />
         </Pressable>
       </SafeAreaView>
-    </KeyboardAvoidingView>
+      </View>
+      </KeyboardAvoidingView>
+    </>
   );
 }
 
 function createStyles(theme: Theme) {
   return StyleSheet.create({
     flex: { flex: 1 },
+    contentWrap: { flex: 1 },
+    headerButton: { minWidth: 44, minHeight: 44, alignItems: "center", justifyContent: "center" },
     screen: { flex: 1, backgroundColor: theme.colors.background },
     scrollContent: { padding: theme.space[5], gap: theme.space[4] },
     byline: { flexDirection: "row", alignItems: "center", gap: theme.space[3] },

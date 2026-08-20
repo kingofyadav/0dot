@@ -6,16 +6,22 @@ import { resolvePath } from "../../src/links/resolvePath";
 import { Avatar } from "../../src/components/Avatar";
 import { EmptyState } from "../../src/components/EmptyState";
 import { ListRow } from "../../src/components/ListRow";
+import { OfflineBanner } from "../../src/components/OfflineBanner";
 import { FeedRowSkeleton } from "../../src/components/Skeleton";
 import { relativeTime } from "../../src/utils/relativeTime";
 import { getNotificationIcon } from "../../src/utils/notificationIcon";
 import { animateNextLayout } from "../../src/utils/animateLayout";
 import { haptics } from "../../src/utils/haptics";
+import { getCached, setCached } from "../../src/utils/offlineCache";
+import { useContentMaxWidth } from "../../src/utils/responsive";
 import { useTheme, type Theme } from "../../src/theme";
 import type { NotificationItem } from "../../src/api/types";
 
+const CACHE_KEY = "notifications";
+
 export default function NotificationsScreen() {
   const theme = useTheme();
+  const maxWidth = useContentMaxWidth();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   const [items, setItems] = useState<NotificationItem[]>([]);
@@ -24,6 +30,7 @@ export default function NotificationsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [offlineCachedAt, setOfflineCachedAt] = useState<number | null>(null);
 
   const loadFirstPage = useCallback(async () => {
     setError(null);
@@ -31,8 +38,17 @@ export default function NotificationsScreen() {
       const { items: rows, nextCursor: cursor } = await getNotifications();
       setItems(rows);
       setNextCursor(cursor);
+      setOfflineCachedAt(null);
+      setCached(CACHE_KEY, rows);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not load your notifications.");
+      const cached = await getCached<NotificationItem[]>(CACHE_KEY);
+      if (cached && cached.value.length > 0) {
+        setItems(cached.value);
+        setNextCursor(null);
+        setOfflineCachedAt(cached.cachedAt);
+      } else {
+        setError(err instanceof ApiError ? err.message : "Could not load your notifications.");
+      }
     }
   }, []);
 
@@ -95,7 +111,7 @@ export default function NotificationsScreen() {
 
   return (
     <FlatList
-      style={styles.screen}
+      style={[styles.screen, maxWidth ? { maxWidth, alignSelf: "center", width: "100%" } : null]}
       contentContainerStyle={items.length === 0 ? styles.grow : undefined}
       data={items}
       keyExtractor={(item) => item.id}
@@ -103,16 +119,19 @@ export default function NotificationsScreen() {
       onEndReached={onEndReached}
       onEndReachedThreshold={0.4}
       ListHeaderComponent={
-        hasUnread ? (
-          <Pressable
-            onPress={onMarkAllRead}
-            accessibilityRole="button"
-            accessibilityLabel="Mark all notifications read"
-            style={({ pressed }) => [styles.markAllRow, { opacity: pressed ? 0.6 : 1 }]}
-          >
-            <Text style={styles.markAllText}>Mark all read</Text>
-          </Pressable>
-        ) : null
+        <>
+          {offlineCachedAt ? <OfflineBanner cachedAt={offlineCachedAt} /> : null}
+          {hasUnread ? (
+            <Pressable
+              onPress={onMarkAllRead}
+              accessibilityRole="button"
+              accessibilityLabel="Mark all notifications read"
+              style={({ pressed }) => [styles.markAllRow, { opacity: pressed ? 0.6 : 1 }]}
+            >
+              <Text style={styles.markAllText}>Mark all read</Text>
+            </Pressable>
+          ) : null}
+        </>
       }
       ListEmptyComponent={
         <EmptyState

@@ -1,7 +1,8 @@
 import { useCallback, useRef, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, Pressable, Share, StyleSheet, Text, View } from "react-native";
 import { Image } from "expo-image";
-import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { router, Stack, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { getProfile, getUserPosts, followUser, unfollowUser, likePost, repostPost, ApiError } from "../src/api/client";
 import { Avatar } from "../src/components/Avatar";
 import { VerifiedBadge } from "../src/components/VerifiedBadge";
@@ -10,12 +11,15 @@ import { PostRow } from "../src/components/PostRow";
 import { SkeletonBlock } from "../src/components/Skeleton";
 import { animateNextLayout } from "../src/utils/animateLayout";
 import { haptics } from "../src/utils/haptics";
+import { useContentMaxWidth } from "../src/utils/responsive";
 import { useTheme, type Theme } from "../src/theme";
+import { API_BASE_URL } from "../src/config";
 import type { Post, Profile } from "../src/api/types";
 
 export default function ProfileScreen() {
   const { username } = useLocalSearchParams<{ username: string }>();
   const theme = useTheme();
+  const maxWidth = useContentMaxWidth();
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -102,6 +106,18 @@ export default function ProfileScreen() {
     }
   }
 
+  async function onShare() {
+    if (!profile) return;
+    haptics.light();
+    const url = `${API_BASE_URL}/${profile.username}`;
+    try {
+      await Share.share({ message: url, url });
+    } catch {
+      // User-cancelled or platform share-sheet failure — nothing to
+      // recover from.
+    }
+  }
+
   // Optimistic in the "unfollow" direction (the current state is always
   // known). In the "follow" direction the count bump assumes acceptance
   // and is corrected once the server responds — a private account replies
@@ -158,8 +174,18 @@ export default function ProfileScreen() {
   }
 
   return (
-    <FlatList
-      style={styles.screen}
+    <>
+      <Stack.Screen
+        options={{
+          headerRight: () => (
+            <Pressable onPress={onShare} accessibilityRole="button" accessibilityLabel="Share profile" hitSlop={8} style={styles.headerButton}>
+              <Ionicons name="share-outline" size={20} color={theme.colors.foreground} />
+            </Pressable>
+          ),
+        }}
+      />
+      <FlatList
+      style={[styles.screen, maxWidth ? { maxWidth, alignSelf: "center", width: "100%" } : null]}
       data={posts}
       keyExtractor={(post) => post.id}
       onEndReached={onPostsEndReached}
@@ -224,13 +250,15 @@ export default function ProfileScreen() {
           <Text style={styles.postsHeading}>Posts</Text>
         </View>
       }
-    />
+      />
+    </>
   );
 }
 
 function createStyles(theme: Theme) {
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: theme.colors.background },
+    headerButton: { minWidth: 44, minHeight: 44, alignItems: "center", justifyContent: "center" },
     cover: { width: "100%", height: 140 },
     center: { alignItems: "center", justifyContent: "center", padding: theme.space[6], gap: theme.space[2] },
     nameRow: { flexDirection: "row", alignItems: "center", gap: theme.space[1], marginTop: theme.space[3] },
