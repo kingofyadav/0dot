@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { validateRedirectUri, resolveApprovableScopes, seedOAuthScopes } from "@/lib/oauth";
 import { approveAuthorization, denyAuthorization } from "@/app/actions/oauth";
+import { ensureFirstPartyApps, isFirstPartyOwner } from "@/lib/first-party-apps";
 
 // "Sign in with 0dot" consent screen (spec §4.2/§4.4) — the one page every
 // third-party app's authorization-code flow redirects a browser to. Renders
@@ -40,7 +41,19 @@ export default async function AuthorizePage({
 
   await seedOAuthScopes();
   const requestedScopeKeys = (scope ?? "").split(" ").filter(Boolean);
-  const grantable = await resolveApprovableScopes(app.id, JSON.stringify(requestedScopeKeys));
+  let grantable = await resolveApprovableScopes(app.id, JSON.stringify(requestedScopeKeys));
+  if ("error" in grantable && (await isFirstPartyOwner(app.ownerUserId))) {
+    // Self-heal, mirroring getFirstPartyClientIds' fallback (first-party-apps.ts):
+    // instrumentation.ts's register() is supposed to have already backfilled
+    // DeveloperAppScope approval for this app's catalog scopes at boot, but an
+    // earlier, unrelated scheduler throwing there aborts register() before it
+    // gets there — leaving a first-party app's own sign-in permanently
+    // rejecting with "isn't approved to request" until the next successful
+    // boot. Retried here, once, only for apps 0dot itself owns (isFirstPartyOwner)
+    // — a third-party app's unapproved scope must still fail closed.
+    await ensureFirstPartyApps();
+    grantable = await resolveApprovableScopes(app.id, JSON.stringify(requestedScopeKeys));
+  }
   if ("error" in grantable) {
     return <ErrorPanel message={grantable.error} />;
   }

@@ -39,6 +39,15 @@ const FIRST_PARTY_APPS = [
 
 export type FirstPartyPlatform = (typeof FIRST_PARTY_APPS)[number]["platform"];
 
+// Exposed so callers (oauth/authorize/page.tsx) can gate self-healing scope
+// approval to apps 0dot itself owns both sides of — never for a third-party
+// DeveloperApp, where an unapproved scope must keep failing closed (§3.3).
+export async function isFirstPartyOwner(ownerUserId: string | null): Promise<boolean> {
+  if (!ownerUserId) return false;
+  const platformUser = await ensurePlatformAccount();
+  return ownerUserId === platformUser.id;
+}
+
 async function ensurePlatformAccount(): Promise<{ id: string }> {
   const existing = await db.user.findUnique({ where: { email: PLATFORM_ACCOUNT_EMAIL }, select: { id: true } });
   if (existing) return existing;
