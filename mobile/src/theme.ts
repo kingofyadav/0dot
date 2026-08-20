@@ -1,0 +1,108 @@
+import { useColorScheme } from "react-native";
+
+// Mirrors src/app/globals.css / docs/DESIGN_SYSTEM.md on the web app
+// exactly (light/dark hex values, spacing, radius, type scale) rather than
+// inventing a second palette for the mobile client — same Google 4-color
+// system (Blue primary interactive, Red/Yellow/Green reserved for status
+// only, never decorative). rem values there are converted to px here
+// (React Native has no rem) at the same 16px base the web app's root font
+// size uses.
+
+export type Theme = {
+  scheme: "light" | "dark";
+  colors: {
+    background: string;
+    foreground: string;
+    surface: string;
+    border: string;
+    mutedForeground: string;
+    accent: string;
+    accentStrong: string;
+    accentSoft: string;
+    onAccent: string;
+    success: string;
+    successSoft: string;
+    onSuccess: string;
+    warning: string;
+    warningSoft: string;
+    onWarning: string;
+    danger: string;
+    dangerSoft: string;
+    onDanger: string;
+  };
+  space: { 1: number; 2: number; 3: number; 4: number; 5: number; 6: number; 8: number };
+  radius: { sm: number; md: number; lg: number; full: number };
+  text: { xs: number; sm: number; base: number; lg: number; xl: number; xxl: number };
+  weight: { regular: "400"; label: "500"; emphasis: "600"; heading: "700" };
+};
+
+const space = { 1: 4, 2: 8, 3: 12, 4: 16, 5: 20, 6: 24, 8: 32 } as const;
+const radius = { sm: 8, md: 10, lg: 16, full: 9999 } as const;
+const text = { xs: 12.8, sm: 14.4, base: 16, lg: 17.6, xl: 22.4, xxl: 25.6 } as const;
+const weight = { regular: "400", label: "500", emphasis: "600", heading: "700" } as const;
+
+// Near-black text (#171717) clears WCAG AA against every accent/success/
+// warning/danger fill in both themes — globals.css's --on-accent/
+// --on-success/--on-warning/--on-danger, all verified there per-color
+// rather than assumed.
+const onColor = "#171717";
+
+const light: Theme = {
+  scheme: "light",
+  colors: {
+    background: "#f5f4f1",
+    foreground: "#171717",
+    surface: "#fbfaf8",
+    border: "rgba(23, 23, 23, 0.12)",
+    mutedForeground: "#666666",
+    accent: "#4285f4",
+    accentStrong: "#1a73e8",
+    accentSoft: "rgba(66, 133, 244, 0.14)",
+    onAccent: onColor,
+    success: "#34a853",
+    successSoft: "rgba(52, 168, 83, 0.14)",
+    onSuccess: onColor,
+    warning: "#fbbc04",
+    warningSoft: "rgba(251, 188, 4, 0.14)",
+    onWarning: onColor,
+    danger: "#ea4335",
+    dangerSoft: "rgba(234, 67, 53, 0.14)",
+    onDanger: onColor,
+  },
+  space,
+  radius,
+  text,
+  weight,
+};
+
+const dark: Theme = {
+  scheme: "dark",
+  colors: {
+    background: "#0a0a0a",
+    foreground: "#ededed",
+    surface: "#131313",
+    border: "rgba(237, 237, 237, 0.12)",
+    mutedForeground: "#a0a0a0",
+    accent: "#8ab4f8",
+    accentStrong: "#669df6",
+    accentSoft: "rgba(138, 180, 248, 0.18)",
+    onAccent: onColor,
+    success: "#81c995",
+    successSoft: "rgba(129, 201, 149, 0.18)",
+    onSuccess: onColor,
+    warning: "#fbbc04",
+    warningSoft: "rgba(251, 188, 4, 0.18)",
+    onWarning: onColor,
+    danger: "#f28b82",
+    dangerSoft: "rgba(242, 139, 130, 0.18)",
+    onDanger: onColor,
+  },
+  space,
+  radius,
+  text,
+  weight,
+};
+
+export function useTheme(): Theme {
+  return useColorScheme() === "dark" ? dark : light;
+}

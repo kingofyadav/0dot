@@ -14,7 +14,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (!allowed) return apiError("Rate limit exceeded.", 429);
 
   const { id } = await params;
-  const post = await db.post.findUnique({ where: { id }, include: { author: { include: { username: true } } } });
+  const post = await db.post.findUnique({ where: { id }, include: { author: { include: { username: true, profile: true } } } });
   if (!post || post.deletedAt) return apiError("Not found.", 404);
   if (await isBlockedEitherWay(ctx.userId, post.authorId)) return apiError("Not found.", 404);
 
@@ -23,6 +23,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       id: post.id,
       body: post.body,
       author: post.author.username?.handle ?? null,
+      authorDisplayName: post.author.profile?.displayName ?? null,
+      authorAvatarUrl: post.author.profile?.avatarUrl ?? null,
+      authorVerified: post.author.profile?.isVerified ?? false,
       likeCount: post.likeCount,
       replyCount: post.replyCount,
       repostCount: post.repostCount,

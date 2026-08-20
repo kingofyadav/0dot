@@ -38,7 +38,11 @@ export async function GET(request: Request) {
         verb: getNotificationVerb(n.type, n.subjectType),
         href: getNotificationHref(n, recipientHandle),
         actor: n.actor
-          ? { username: n.actor.username?.handle ?? null, displayName: n.actor.profile?.displayName ?? null }
+          ? {
+              username: n.actor.username?.handle ?? null,
+              displayName: n.actor.profile?.displayName ?? null,
+              avatarUrl: n.actor.profile?.avatarUrl ?? null,
+            }
           : null,
         isRead: n.readAt !== null,
         createdAt: n.createdAt,

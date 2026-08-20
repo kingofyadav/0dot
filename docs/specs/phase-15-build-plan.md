@@ -307,3 +307,50 @@ Developer Program enrollment ($99/year) before any build can reach a
 device at all, TestFlight or otherwise. Neither of these is something this
 session can do on your behalf — they need your own account and, for iOS,
 Apple's paid enrollment.
+
+## Read-only content screens + design pass
+
+**Correction to this doc**: an earlier session (commit `8276d35`, "Add
+mobile home feed, notifications, and profile/post navigation") already
+built the actual content screens this doc's "Progress" section above never
+mentioned — `expo-router` file-based routes for a tabbed Home
+feed/Notifications/Settings plus `[username]` and `post/[id]` detail
+screens, all read-only (no compose/like/comment/follow/DM, matching the
+spec's out-of-scope list). This doc simply wasn't updated when that
+happened; trust the tree over this file for what existed before this pass.
+
+This pass took the app from functional-but-bare-bones to a real design
+pass, reusing the web app's established system (`src/app/globals.css` /
+`docs/DESIGN_SYSTEM.md`) rather than inventing a second palette:
+
+- `mobile/src/theme.ts` — the same Google 4-color light/dark tokens, type
+  scale, spacing, and radius as the web app, converted from rem to px
+  (`useColorScheme`-driven; `app.json`'s `userInterfaceStyle` changed from
+  hardcoded `"light"` to `"automatic"` so dark mode actually activates).
+- `expo-image` (cached/placeholder avatars), `@expo/vector-icons`
+  (`Ionicons` — tab bar icons, per-notification-type icons, stat-row
+  icons), `react-native-safe-area-context`'s `SafeAreaProvider` wired at
+  root (dependency was already present but unused).
+- New shared components: `Avatar` (initials fallback), `VerifiedBadge`,
+  `EmptyState` (icon + message + **retry button** — every list/detail
+  screen's error state was previously dead-end static text with no
+  recovery path short of a manual pull-to-refresh), `SkeletonBlock`/
+  `FeedRowSkeleton` (pulsing placeholders replacing bare spinners on first
+  load).
+- Server: `/api/v1/feed`, `/api/v1/posts/[id]`, `/api/v1/notifications`
+  now also return `authorDisplayName`/`authorAvatarUrl`/`authorVerified`
+  (posts) and `actor.avatarUrl` (notifications) — the profile route
+  already returned these; the feed/post/notification routes just weren't
+  selecting the same already-fetched `profile` relation. Additive only, no
+  new scope/rate-limit/visibility behavior.
+- Accessibility: `accessibilityRole`/`accessibilityLabel` on every
+  interactive element and avatar image, 44pt-minimum touch targets on
+  buttons — matching the spec's §7.1 standing accessibility requirement
+  and the web app's own 44×44px minimum-touch-target rule.
+
+Verified after this pass: `mobile`'s `expo-doctor` (21/21), `tsc --noEmit`,
+and `expo config` all clean; root `tsc`, `eslint` (on the three touched
+routes), and the full test suite (31/31) all still pass. Not verified in a
+real simulator/device this session — no running Metro/device session was
+started, so this is a static-verification pass (types, doctor checks,
+config validation), not an on-device smoke test.

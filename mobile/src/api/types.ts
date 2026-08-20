@@ -22,6 +22,9 @@ export type Post = {
   id: string;
   body: string;
   author: string | null;
+  authorDisplayName: string | null;
+  authorAvatarUrl: string | null;
+  authorVerified: boolean;
   likeCount: number;
   replyCount: number;
   repostCount: number;
@@ -40,7 +43,7 @@ export type NotificationItem = {
   subjectId: string;
   verb: string;
   href: string;
-  actor: { username: string | null; displayName: string | null } | null;
+  actor: { username: string | null; displayName: string | null; avatarUrl: string | null } | null;
   isRead: boolean;
   createdAt: string;
 };

@@ -1,14 +1,18 @@
 import { Stack } from "expo-router";
 import { useEffect } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+import { StatusBar } from "expo-status-bar";
 import { AuthProvider, useAuth } from "../src/auth/AuthContext";
 import { SignInScreen } from "../src/screens/SignInScreen";
 import { LockScreen } from "../src/screens/LockScreen";
 import { subscribeToIncomingLinks } from "../src/links/universalLinks";
 import { subscribeToPushNavigation } from "../src/push/pushNavigation";
+import { useTheme } from "../src/theme";
 
 function RootNavigator() {
   const { status } = useAuth();
+  const theme = useTheme();
 
   // Registered once, regardless of auth state, matching the original
   // App.tsx's unconditional subscribeToIncomingLinks(setOpenedVia) call —
@@ -24,8 +28,8 @@ function RootNavigator() {
 
   if (status === "loading") {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator />
+      <View style={[styles.center, { backgroundColor: theme.colors.background }]}>
+        <ActivityIndicator color={theme.colors.accent} />
       </View>
     );
   }
@@ -33,7 +37,14 @@ function RootNavigator() {
   if (status === "signedOut") return <SignInScreen />;
 
   return (
-    <Stack>
+    <Stack
+      screenOptions={{
+        headerStyle: { backgroundColor: theme.colors.surface },
+        headerTintColor: theme.colors.foreground,
+        headerTitleStyle: { fontWeight: theme.weight.emphasis },
+        contentStyle: { backgroundColor: theme.colors.background },
+      }}
+    >
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="post/[id]" options={{ title: "Post" }} />
       <Stack.Screen name="[username]" options={{ title: "Profile" }} />
@@ -43,9 +54,12 @@ function RootNavigator() {
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <RootNavigator />
-    </AuthProvider>
+    <SafeAreaProvider>
+      <AuthProvider>
+        <RootNavigator />
+        <StatusBar style="auto" />
+      </AuthProvider>
+    </SafeAreaProvider>
   );
 }
 
