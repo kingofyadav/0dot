@@ -1,13 +1,13 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
-import { router } from "expo-router";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, View } from "react-native";
+import { router, useFocusEffect } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { getFeed, ApiError } from "../../src/api/client";
-import { Avatar } from "../../src/components/Avatar";
-import { VerifiedBadge } from "../../src/components/VerifiedBadge";
+import { getFeed, likePost, repostPost, ApiError } from "../../src/api/client";
 import { EmptyState } from "../../src/components/EmptyState";
+import { PostRow } from "../../src/components/PostRow";
 import { FeedRowSkeleton } from "../../src/components/Skeleton";
-import { relativeTime } from "../../src/utils/relativeTime";
+import { animateNextLayout } from "../../src/utils/animateLayout";
+import { haptics } from "../../src/utils/haptics";
 import { useTheme, type Theme } from "../../src/theme";
 import type { Post } from "../../src/api/types";
 
@@ -33,16 +33,33 @@ export default function HomeScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    (async () => {
-      setLoading(true);
-      await loadFirstPage();
-      setLoading(false);
-    })();
-  }, [loadFirstPage]);
+  // useFocusEffect (not a plain mount useEffect) so returning to this tab
+  // after posting from the compose screen shows the new post without a
+  // manual pull-to-refresh — expo-router keeps tab screens mounted across
+  // switches, so a mount-only effect would never fire again. isFirstLoad
+  // keeps the full skeleton screen exclusive to the very first load; every
+  // later focus is a quiet background refresh instead.
+  const isFirstLoad = useRef(true);
+  useFocusEffect(
+    useCallback(() => {
+      (async () => {
+        if (isFirstLoad.current) {
+          setLoading(true);
+          await loadFirstPage();
+          animateNextLayout();
+          setLoading(false);
+          isFirstLoad.current = false;
+        } else {
+          await loadFirstPage();
+          animateNextLayout();
+        }
+      })();
+    }, [loadFirstPage])
+  );
 
   async function onRefresh() {
     setRefreshing(true);
+    haptics.light();
     await loadFirstPage();
     setRefreshing(false);
   }
@@ -52,6 +69,7 @@ export default function HomeScreen() {
     setLoadingMore(true);
     try {
       const { items, nextCursor: cursor } = await getFeed(nextCursor);
+      animateNextLayout();
       setPosts((prev) => [...prev, ...items]);
       setNextCursor(cursor);
     } catch {
@@ -59,6 +77,39 @@ export default function HomeScreen() {
       // showing; the user can pull-to-refresh or scroll again to retry.
     } finally {
       setLoadingMore(false);
+    }
+  }
+
+  // Optimistic: isLiked/likeCount from the last GET is known, so the
+  // direction of the toggle is never a guess — rolled back to the
+  // pre-tap snapshot on failure rather than left in a state the server
+  // never actually confirmed.
+  async function onToggleLike(post: Post) {
+    haptics.light();
+    const { isLiked, likeCount } = post;
+    setPosts((prev) =>
+      prev.map((p) => (p.id === post.id ? { ...p, isLiked: !isLiked, likeCount: likeCount + (isLiked ? -1 : 1) } : p))
+    );
+    try {
+      const result = await likePost(post.id);
+      setPosts((prev) => prev.map((p) => (p.id === post.id ? { ...p, isLiked: result.liked, likeCount: result.likeCount } : p)));
+    } catch {
+      haptics.warning();
+      setPosts((prev) => prev.map((p) => (p.id === post.id ? { ...p, isLiked, likeCount } : p)));
+    }
+  }
+
+  // Not optimistic — unlike likes, a GET never tells this screen whether
+  // the viewer already reposted (the web app itself has no viewer-relative
+  // repost indicator either, see PostCard.tsx), so there's no known
+  // direction to pre-apply. Waits for the server's own before/after count.
+  async function onToggleRepost(postId: string) {
+    haptics.light();
+    try {
+      const result = await repostPost(postId);
+      setPosts((prev) => prev.map((p) => (p.id === postId ? { ...p, repostCount: result.repostCount } : p)));
+    } catch {
+      haptics.warning();
     }
   }
 
@@ -73,7 +124,8 @@ export default function HomeScreen() {
   }
 
   return (
-    <FlatList
+    <View style={styles.flex}>
+      <FlatList
       style={styles.screen}
       contentContainerStyle={posts.length === 0 ? styles.grow : undefined}
       data={posts}
@@ -90,66 +142,47 @@ export default function HomeScreen() {
       }
       ListFooterComponent={loadingMore ? <ActivityIndicator style={styles.footerSpinner} color={theme.colors.accent} /> : null}
       renderItem={({ item }) => (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`Post by ${item.authorDisplayName ?? item.author ?? "someone"}`}
-          style={({ pressed }) => [styles.postCard, { opacity: pressed ? 0.7 : 1 }]}
+        <PostRow
+          post={item}
           onPress={() => router.push({ pathname: "/post/[id]", params: { id: item.id } })}
-        >
-          <Avatar uri={item.authorAvatarUrl} name={item.authorDisplayName ?? item.author} size={44} />
-          <View style={styles.postBody}>
-            <View style={styles.byline}>
-              <Text style={styles.author} numberOfLines={1}>
-                {item.authorDisplayName ?? (item.author ? `@${item.author}` : "0dot user")}
-              </Text>
-              {item.authorVerified ? <VerifiedBadge size={14} /> : null}
-              <Text style={styles.dot}>·</Text>
-              <Text style={styles.time}>{relativeTime(item.createdAt)}</Text>
-            </View>
-            <Text style={styles.postText} numberOfLines={4}>
-              {item.body}
-            </Text>
-            <View style={styles.statsRow}>
-              <View style={styles.stat}>
-                <Ionicons name="heart-outline" size={15} color={theme.colors.mutedForeground} />
-                <Text style={styles.statText}>{item.likeCount}</Text>
-              </View>
-              <View style={styles.stat}>
-                <Ionicons name="chatbubble-outline" size={14} color={theme.colors.mutedForeground} />
-                <Text style={styles.statText}>{item.replyCount}</Text>
-              </View>
-              <View style={styles.stat}>
-                <Ionicons name="repeat-outline" size={16} color={theme.colors.mutedForeground} />
-                <Text style={styles.statText}>{item.repostCount}</Text>
-              </View>
-            </View>
-          </View>
-        </Pressable>
+          onToggleLike={() => onToggleLike(item)}
+          onToggleRepost={() => onToggleRepost(item.id)}
+        />
       )}
-    />
+      />
+      <Pressable
+        onPress={() => router.push("/compose")}
+        accessibilityRole="button"
+        accessibilityLabel="New post"
+        style={({ pressed }) => [styles.fab, { opacity: pressed ? 0.85 : 1 }]}
+      >
+        <Ionicons name="add" size={26} color={theme.colors.onAccent} />
+      </Pressable>
+    </View>
   );
 }
 
 function createStyles(theme: Theme) {
   return StyleSheet.create({
+    flex: { flex: 1 },
     screen: { flex: 1, backgroundColor: theme.colors.background },
     grow: { flexGrow: 1 },
-    postCard: {
-      flexDirection: "row",
-      gap: theme.space[3],
-      padding: theme.space[4],
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: theme.colors.border,
+    fab: {
+      position: "absolute",
+      right: theme.space[5],
+      bottom: theme.space[5],
+      width: 56,
+      height: 56,
+      borderRadius: theme.radius.full,
+      backgroundColor: theme.colors.accent,
+      alignItems: "center",
+      justifyContent: "center",
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.2,
+      shadowRadius: 6,
+      elevation: 4,
     },
-    postBody: { flex: 1, gap: theme.space[1] },
-    byline: { flexDirection: "row", alignItems: "center", gap: theme.space[1] },
-    author: { fontWeight: theme.weight.emphasis, color: theme.colors.foreground, fontSize: theme.text.sm, flexShrink: 1 },
-    dot: { color: theme.colors.mutedForeground },
-    time: { color: theme.colors.mutedForeground, fontSize: theme.text.xs },
-    postText: { color: theme.colors.foreground, fontSize: theme.text.base, lineHeight: theme.text.base * 1.3 },
-    statsRow: { flexDirection: "row", gap: theme.space[5], marginTop: theme.space[1] },
-    stat: { flexDirection: "row", alignItems: "center", gap: 4 },
-    statText: { color: theme.colors.mutedForeground, fontSize: theme.text.xs },
     footerSpinner: { paddingVertical: theme.space[4] },
   });
 }

@@ -4,6 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useAuth } from "../auth/AuthContext";
 import { useTheme, type Theme } from "../theme";
+import { haptics } from "../utils/haptics";
 
 export function LockScreen() {
   const { error, unlock, signOut } = useAuth();
@@ -22,7 +23,10 @@ export function LockScreen() {
 
       <View style={styles.footer}>
         <Pressable
-          onPress={unlock}
+          onPress={() => {
+            haptics.light();
+            unlock();
+          }}
           accessibilityRole="button"
           accessibilityLabel="Unlock"
           style={({ pressed }) => [styles.primaryButton, { opacity: pressed ? 0.85 : 1 }]}
@@ -33,7 +37,10 @@ export function LockScreen() {
             no longer enrolled) would be permanently stuck here — a valid
             session they can neither access nor discard. */}
         <Pressable
-          onPress={signOut}
+          onPress={() => {
+            haptics.medium();
+            signOut();
+          }}
           accessibilityRole="button"
           accessibilityLabel="Sign out instead"
           style={({ pressed }) => [styles.secondaryButton, { opacity: pressed ? 0.6 : 1 }]}

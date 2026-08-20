@@ -48,6 +48,9 @@ function RootNavigator() {
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="post/[id]" options={{ title: "Post" }} />
       <Stack.Screen name="[username]" options={{ title: "Profile" }} />
+      <Stack.Screen name="compose" options={{ headerShown: false, presentation: "modal" }} />
+      <Stack.Screen name="edit-profile" options={{ headerShown: false, presentation: "modal" }} />
+      <Stack.Screen name="notification-preferences" options={{ title: "Notifications" }} />
     </Stack>
   );
 }

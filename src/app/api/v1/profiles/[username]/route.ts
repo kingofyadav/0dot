@@ -26,6 +26,19 @@ export async function GET(request: Request, { params }: { params: Promise<{ user
 
   if (await isBlockedEitherWay(ctx.userId, username.userId)) return apiError("Not found.", 404);
 
+  const isOwnProfile = ctx.userId === username.userId;
+  // Same "only an accepted row counts as following" rule [username]/page.tsx
+  // applies (a pending row is a request against a private account awaiting
+  // approval, not a real follow) — mirrored here rather than re-derived
+  // differently, so the mobile Follow button and the web one never disagree
+  // about what "Following" vs "Requested" means for the same relationship.
+  const followRow = isOwnProfile
+    ? null
+    : await db.follow.findUnique({
+        where: { followerId_followeeId: { followerId: ctx.userId, followeeId: username.userId } },
+        select: { status: true },
+      });
+
   const profile = username.user.profile;
   return Response.json(
     {
@@ -33,8 +46,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ user
       displayName: profile.displayName,
       bio: profile.bio,
       avatarUrl: profile.avatarUrl,
+      coverUrl: profile.coverUrl,
       isVerified: profile.isVerified,
       followerCount: profile.followerCount,
+      isOwnProfile,
+      followStatus: isOwnProfile ? null : (followRow?.status ?? "none"),
     },
     { headers: { "X-RateLimit-Limit": String(limit), "X-RateLimit-Remaining": String(remaining) } }
   );

@@ -61,12 +61,14 @@ export async function ensureFirstPartyApps(): Promise<void> {
 
   for (const spec of FIRST_PARTY_APPS) {
     const existing = await db.developerApp.findFirst({ where: { ownerUserId: platformUser.id, name: spec.name } });
-    // Self-healing for rows created before isPublicClient existed, or with
-    // the invalid "0dot-*" scheme (see FIRST_PARTY_APPS' comment above) —
-    // same "runs on every server start, patches forward" idiom the rest of
-    // this function already relies on, rather than a one-off migration
-    // backfill.
+
+    let appId: string;
     if (existing) {
+      // Self-healing for rows created before isPublicClient existed, or with
+      // the invalid "0dot-*" scheme (see FIRST_PARTY_APPS' comment above) —
+      // same "runs on every server start, patches forward" idiom the rest of
+      // this function already relies on, rather than a one-off migration
+      // backfill.
       const wantRedirectUris = JSON.stringify(spec.redirectUris);
       const patch: { isPublicClient?: true; redirectUrisJson?: string } = {};
       if (!existing.isPublicClient) patch.isPublicClient = true;
@@ -74,32 +76,41 @@ export async function ensureFirstPartyApps(): Promise<void> {
       if (Object.keys(patch).length > 0) {
         await db.developerApp.update({ where: { id: existing.id }, data: patch });
       }
-      continue;
+      appId = existing.id;
+    } else {
+      const { clientId, clientSecretHash } = await generateClientCredentials();
+      const app = await db.developerApp.create({
+        data: {
+          ownerType: "user",
+          ownerUserId: platformUser.id,
+          name: spec.name,
+          description: spec.description,
+          clientId,
+          clientSecretHash,
+          isPublicClient: true,
+          redirectUrisJson: JSON.stringify(spec.redirectUris),
+        },
+      });
+      appId = app.id;
     }
-
-    const { clientId, clientSecretHash } = await generateClientCredentials();
-    const app = await db.developerApp.create({
-      data: {
-        ownerType: "user",
-        ownerUserId: platformUser.id,
-        name: spec.name,
-        description: spec.description,
-        clientId,
-        clientSecretHash,
-        isPublicClient: true,
-        redirectUrisJson: JSON.stringify(spec.redirectUris),
-      },
-    });
 
     // spec §3.3: the security model doesn't relax for first-party apps —
     // every scope goes through the same DeveloperAppScope row a
     // third-party app would have, just pre-approved outright (0dot owns
     // both sides of this grant) rather than sitting `pending` for
     // high-sensitivity scopes the way an external app's request would.
+    //
+    // Runs for *existing* apps too, not just newly-created ones — otherwise
+    // a scope added to OAUTH_SCOPES after an app's first boot would never
+    // get backfilled here (previously this loop sat only in the "new app"
+    // branch above, unreachable once the app row already existed), and the
+    // first-party app's own OAuth flow would start failing resolveApprovableScopes
+    // ("This app isn't approved to request: ...") the moment it asked for
+    // the new scope.
     for (const scope of OAUTH_SCOPES) {
       await db.developerAppScope.upsert({
-        where: { appId_scopeKey: { appId: app.id, scopeKey: scope.key } },
-        create: { appId: app.id, scopeKey: scope.key, status: "approved", reviewedAt: new Date() },
+        where: { appId_scopeKey: { appId, scopeKey: scope.key } },
+        create: { appId, scopeKey: scope.key, status: "approved", reviewedAt: new Date() },
         update: {},
       });
     }

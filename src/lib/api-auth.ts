@@ -42,6 +42,22 @@ export function requireScope(ctx: ApiRequestContext, scope: string): { error: st
   return null;
 }
 
+// API-route equivalent of auth-guards.ts's requireVerifiedUser — same
+// emailVerifiedAt check every write server action already gates on, just
+// returning an error object instead of redirect() (meaningless outside a
+// page render). A valid bearer token only proves the authorization is
+// live (resolveApiRequest), not that the underlying account has since
+// finished verification or been reinstated after suspension — write
+// endpoints need the same account-standing check web writes already get,
+// not a weaker one just because the caller is a bearer-token client.
+export async function requireVerifiedApiUser(ctx: ApiRequestContext): Promise<{ error: string; status: number } | null> {
+  const user = await db.user.findUnique({ where: { id: ctx.userId }, select: { emailVerifiedAt: true } });
+  if (!user?.emailVerifiedAt) {
+    return { error: "Your account must have a verified email to do this.", status: 403 };
+  }
+  return null;
+}
+
 export function apiError(message: string, status: number): Response {
   return Response.json({ error: message }, { status });
 }

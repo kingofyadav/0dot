@@ -1,24 +1,50 @@
 import { useMemo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Constants from "expo-constants";
+import * as WebBrowser from "expo-web-browser";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { router } from "expo-router";
 import { useAuth } from "../../src/auth/AuthContext";
 import { Avatar } from "../../src/components/Avatar";
+import { SettingsRow } from "../../src/components/SettingsRow";
+import { API_BASE_URL } from "../../src/config";
 import { useTheme, type Theme } from "../../src/theme";
+import { haptics } from "../../src/utils/haptics";
 
 export default function SettingsScreen() {
   const { me, tokens, error, signOut } = useAuth();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
+  async function onOpenConnectedApps() {
+    if (!me?.username) return;
+    haptics.light();
+    await WebBrowser.openBrowserAsync(`${API_BASE_URL}/s/${encodeURIComponent(me.username)}/authorized-apps`);
+  }
+
   return (
     <View style={styles.screen}>
-      <View style={styles.profileCard}>
-        <Avatar uri={null} name={me?.displayName ?? me?.username} size={56} />
+      <Pressable
+        onPress={() => me?.username && router.push(`/${me.username}`)}
+        accessibilityRole="button"
+        accessibilityLabel="View your profile"
+        style={styles.profileCard}
+      >
+        <Avatar uri={me?.avatarUrl ?? null} name={me?.displayName ?? me?.username} size={56} />
         <View style={styles.profileText}>
           <Text style={styles.name}>{me?.displayName ?? me?.username ?? "Signed in to 0dot"}</Text>
           {me?.username ? <Text style={styles.handle}>@{me.username}</Text> : null}
         </View>
+      </Pressable>
+
+      <View style={styles.group}>
+        <SettingsRow icon="person-outline" label="Edit profile" onPress={() => router.push("/edit-profile")} />
+        <SettingsRow
+          icon="notifications-outline"
+          label="Notification preferences"
+          onPress={() => router.push("/notification-preferences")}
+        />
+        <SettingsRow icon="apps-outline" label="Connected apps" onPress={onOpenConnectedApps} />
       </View>
 
       {tokens ? (
@@ -29,7 +55,10 @@ export default function SettingsScreen() {
       ) : null}
 
       <Pressable
-        onPress={signOut}
+        onPress={() => {
+          haptics.medium();
+          signOut();
+        }}
         accessibilityRole="button"
         accessibilityLabel="Sign out"
         style={({ pressed }) => [styles.signOutButton, { opacity: pressed ? 0.7 : 1 }]}
@@ -61,6 +90,13 @@ function createStyles(theme: Theme) {
     profileText: { flex: 1, gap: 2 },
     name: { fontSize: theme.text.lg, fontWeight: theme.weight.heading, color: theme.colors.foreground },
     handle: { fontSize: theme.text.sm, color: theme.colors.mutedForeground },
+    group: {
+      backgroundColor: theme.colors.surface,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.colors.border,
+      borderRadius: theme.radius.lg,
+      overflow: "hidden",
+    },
     infoRow: { flexDirection: "row", alignItems: "center", gap: theme.space[2] },
     infoText: { fontSize: theme.text.sm, color: theme.colors.mutedForeground },
     signOutButton: {

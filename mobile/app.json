@@ -77,7 +77,15 @@
       ],
       "expo-router",
       "expo-image",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow 0dot to access your photos to attach them to posts and your profile.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ]
     ],
     "runtimeVersion": {
       "policy": "appVersion"

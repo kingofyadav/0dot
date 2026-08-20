@@ -1,6 +1,7 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useTheme } from "../theme";
+import { haptics } from "../utils/haptics";
 
 type Props = {
   icon: keyof typeof Ionicons.glyphMap;
@@ -21,7 +22,10 @@ export function EmptyState({ icon, message, onRetry }: Props) {
       <Text style={[styles.message, { color: theme.colors.mutedForeground }]}>{message}</Text>
       {onRetry ? (
         <Pressable
-          onPress={onRetry}
+          onPress={() => {
+            haptics.light();
+            onRetry();
+          }}
           accessibilityRole="button"
           accessibilityLabel="Retry"
           style={({ pressed }) => [

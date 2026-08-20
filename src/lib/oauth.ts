@@ -12,8 +12,24 @@ import { createTrustSafetyCase } from "@/lib/trust-safety";
 // adding an entry here, same posture as marketplace.ts's EMBED_PROVIDERS.
 export const OAUTH_SCOPES = [
   { key: "profile:read", description: "Read your public profile", sensitivity: "low" },
+  // mobile Phase C (rich profile): editing displayName/bio/avatar/cover is
+  // a real account-identity change, not a low-stakes toggle — mirrors the
+  // read/write split posts:read/posts:write already established, at
+  // medium sensitivity for the same reason posts:write is medium.
+  { key: "profile:write", description: "Edit your profile", sensitivity: "medium" },
   { key: "posts:read", description: "Read your posts", sensitivity: "low" },
   { key: "posts:write", description: "Create posts on your behalf", sensitivity: "medium" },
+  // mobile Phase B (interaction parity): like/repost are lower-stakes than
+  // creating content — they don't add anything to the account's own
+  // timeline the way posts:write does — so they get their own scope rather
+  // than folding under posts:write, the same "match scope grain to what a
+  // consent screen should actually say" reasoning notifications:read used
+  // to stay separate from posts:read above.
+  { key: "engagement:write", description: "Like and repost content on your behalf", sensitivity: "low" },
+  // Distinct from posts:write for the same reason: following someone
+  // doesn't create content, and a consent screen listing "Create posts"
+  // shouldn't silently also cover "Follow accounts."
+  { key: "follows:write", description: "Follow and unfollow accounts on your behalf", sensitivity: "low" },
   { key: "events:read", description: "Read events you host or attend", sensitivity: "low" },
   { key: "marketplace:read", description: "Read your marketplace purchases and listings", sensitivity: "low" },
   { key: "messages:read", description: "Read your private messages", sensitivity: "high" },
@@ -28,6 +44,11 @@ export const OAUTH_SCOPES = [
   // reader's own read receipt, not content creation, so it stays under
   // this same scope rather than needing its own :write variant.
   { key: "notifications:read", description: "Read your notifications", sensitivity: "low" },
+  // Distinct from notifications:read (reading notification items) — this
+  // covers reading/changing *delivery preferences* (NotificationDeliveryPreference),
+  // a settings change rather than content access, same read/write split
+  // reasoning as profile:write above.
+  { key: "notifications:write", description: "Change your notification delivery preferences", sensitivity: "low" },
 ] as const;
 
 export type OAuthScopeKey = (typeof OAUTH_SCOPES)[number]["key"];

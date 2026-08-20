@@ -7,16 +7,25 @@ export type Me = {
   username: string | null;
   displayName: string | null;
   bio: string | null;
+  avatarUrl: string | null;
+  coverUrl: string | null;
 };
+
+export type FollowStatus = "none" | "pending" | "accepted";
 
 export type Profile = {
   username: string;
   displayName: string;
   bio: string;
   avatarUrl: string | null;
+  coverUrl: string | null;
   isVerified: boolean;
   followerCount: number;
+  isOwnProfile: boolean;
+  followStatus: FollowStatus | null;
 };
+
+export type PostMedia = { url: string; position: number };
 
 export type Post = {
   id: string;
@@ -28,6 +37,8 @@ export type Post = {
   likeCount: number;
   replyCount: number;
   repostCount: number;
+  isLiked: boolean;
+  media: PostMedia[];
   createdAt: string;
 };
 
@@ -51,4 +62,12 @@ export type NotificationItem = {
 export type NotificationsResponse = {
   items: NotificationItem[];
   nextCursor: string | null;
+};
+
+export type NotificationPreferenceChannel = "push" | "email";
+
+export type NotificationPreferencesResponse = {
+  push: { type: string; enabled: boolean }[];
+  email: { type: string; enabled: boolean }[];
+  deviceCount: number;
 };

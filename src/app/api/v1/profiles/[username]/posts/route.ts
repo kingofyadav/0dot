@@ -1,10 +1,15 @@
 import { db } from "@/lib/db";
 import { resolveApiRequest, requireScope, apiError } from "@/lib/api-auth";
 import { checkApiRateLimit } from "@/lib/api-rate-limit";
+import { isBlockedEitherWay } from "@/lib/blocks";
 import { getFeedPosts } from "@/lib/feed-query";
 import { parseCursor } from "@/lib/pagination";
 
-export async function GET(request: Request) {
+// Mobile Phase C's "Posts" profile tab — same getFeedPosts helper the main
+// feed route already uses, just scoped to one author via authorFilter
+// (exactly how [username]/page.tsx builds its own posts list), not a
+// second query implementation to keep in sync with the real one.
+export async function GET(request: Request, { params }: { params: Promise<{ username: string }> }) {
   const ctx = await resolveApiRequest(request);
   if ("error" in ctx) return apiError(ctx.error, ctx.status);
 
@@ -14,13 +19,19 @@ export async function GET(request: Request) {
   const { allowed, limit, remaining } = await checkApiRateLimit(ctx.appId);
   if (!allowed) return apiError("Rate limit exceeded.", 429);
 
-  const cursor = parseCursor(new URL(request.url).searchParams.get("cursor") ?? undefined);
-  const { items, nextCursor } = await getFeedPosts({ cursor, viewerId: ctx.userId });
+  const { username: rawHandle } = await params;
+  const handle = decodeURIComponent(rawHandle).toLowerCase();
+  const username = await db.username.findUnique({ where: { handle } });
+  if (!username) return apiError("Not found.", 404);
+  if (await isBlockedEitherWay(ctx.userId, username.userId)) return apiError("Not found.", 404);
 
-  // Same batch-query shape feed/page.tsx already uses for the web feed
-  // (one findMany + a Set, not N per-post lookups) so a like toggle
-  // rendered on mobile reflects the viewer's real state, not always "not
-  // liked" until the app re-derives it from a local toggle.
+  const cursor = parseCursor(new URL(request.url).searchParams.get("cursor") ?? undefined);
+  const { items, nextCursor } = await getFeedPosts({
+    authorFilter: { authorId: { in: [username.userId] } },
+    cursor,
+    viewerId: ctx.userId,
+  });
+
   const likedPostIds = await db.postLike
     .findMany({ where: { userId: ctx.userId, postId: { in: items.map((p) => p.id) } }, select: { postId: true } })
     .then((rows) => new Set(rows.map((r) => r.postId)));

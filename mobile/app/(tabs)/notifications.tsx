@@ -5,9 +5,12 @@ import { getNotifications, markNotificationsRead, ApiError } from "../../src/api
 import { resolvePath } from "../../src/links/resolvePath";
 import { Avatar } from "../../src/components/Avatar";
 import { EmptyState } from "../../src/components/EmptyState";
+import { ListRow } from "../../src/components/ListRow";
 import { FeedRowSkeleton } from "../../src/components/Skeleton";
 import { relativeTime } from "../../src/utils/relativeTime";
 import { getNotificationIcon } from "../../src/utils/notificationIcon";
+import { animateNextLayout } from "../../src/utils/animateLayout";
+import { haptics } from "../../src/utils/haptics";
 import { useTheme, type Theme } from "../../src/theme";
 import type { NotificationItem } from "../../src/api/types";
 
@@ -37,12 +40,14 @@ export default function NotificationsScreen() {
     (async () => {
       setLoading(true);
       await loadFirstPage();
+      animateNextLayout();
       setLoading(false);
     })();
   }, [loadFirstPage]);
 
   async function onRefresh() {
     setRefreshing(true);
+    haptics.light();
     await loadFirstPage();
     setRefreshing(false);
   }
@@ -52,6 +57,7 @@ export default function NotificationsScreen() {
     setLoadingMore(true);
     try {
       const { items: rows, nextCursor: cursor } = await getNotifications(nextCursor);
+      animateNextLayout();
       setItems((prev) => [...prev, ...rows]);
       setNextCursor(cursor);
     } catch {
@@ -62,12 +68,15 @@ export default function NotificationsScreen() {
   }
 
   async function onMarkAllRead() {
+    haptics.light();
+    animateNextLayout();
     // Optimistic — this is the reader's own read-receipt state, not
     // content that could conflict with a concurrent write elsewhere.
     setItems((prev) => prev.map((item) => ({ ...item, isRead: true })));
     try {
       await markNotificationsRead();
     } catch {
+      haptics.warning();
       await loadFirstPage();
     }
   }
@@ -117,14 +126,10 @@ export default function NotificationsScreen() {
         const { icon, tint } = getNotificationIcon(item.type);
         const actorName = item.actor?.displayName ?? item.actor?.username ?? "Someone";
         return (
-          <Pressable
-            accessibilityRole="button"
+          <ListRow
             accessibilityLabel={`${actorName} ${item.verb}`}
-            style={({ pressed }) => [
-              styles.row,
-              !item.isRead && { backgroundColor: theme.colors.accentSoft },
-              { opacity: pressed ? 0.7 : 1 },
-            ]}
+            highlighted={!item.isRead}
+            style={styles.row}
             onPress={() => resolvePath(item.href)}
           >
             <View style={styles.avatarStack}>
@@ -144,7 +149,7 @@ export default function NotificationsScreen() {
               <Text style={styles.time}>{relativeTime(item.createdAt)}</Text>
             </View>
             {!item.isRead ? <View style={[styles.unreadDot, { backgroundColor: theme.colors.accent }]} /> : null}
-          </Pressable>
+          </ListRow>
         );
       }}
     />
@@ -155,16 +160,9 @@ function createStyles(theme: Theme) {
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: theme.colors.background },
     grow: { flexGrow: 1 },
-    markAllRow: { alignItems: "flex-end", padding: theme.space[3], paddingHorizontal: theme.space[4] },
+    markAllRow: { alignItems: "flex-end", justifyContent: "center", minHeight: 44, padding: theme.space[3], paddingHorizontal: theme.space[4] },
     markAllText: { color: theme.colors.accent, fontWeight: theme.weight.emphasis, fontSize: theme.text.sm },
-    row: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.space[3],
-      padding: theme.space[4],
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: theme.colors.border,
-    },
+    row: { alignItems: "center" },
     avatarStack: { width: 40, height: 40, position: "relative" },
     iconBadge: {
       position: "absolute",
