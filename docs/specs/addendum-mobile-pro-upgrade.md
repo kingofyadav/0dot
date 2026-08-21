@@ -241,22 +241,25 @@ part of an unrelated feature addendum.
   browser-testable here, so this is Expo Go/simulator verification, not
   claimed as browser-tested.
 
-## 6. Known dependency vulnerability (accepted risk, no fix available)
+## 6. Dependency vulnerability (image-size DoS) — fixed 2026-08-21
 
-`npm audit` in `mobile/` reports 8 high-severity findings that all trace to
-two advisories against `image-size` (a transitive dependency pulled in by
-Metro, React Native's bundler): **GHSA-w3rx-r6r6-pgpr** and
-**GHSA-5p2g-fcmc-qvqq** — infinite-loop denial-of-service bugs in its
-ICNS/JXL/HEIF parsers. Checked directly against both advisories: **no
-patched version exists** as of this writing (every published `image-size`
-release, including the latest, is affected). npm's automatic "fix"
-suggestion (downgrade `expo` 57→53) doesn't actually patch it — it just
-resolves to an older Metro that doesn't happen to pull `image-size` in —
-and would break every SDK-57-specific piece of this addendum's own work for
-no real security gain.
+Previously recorded here as an accepted risk: `npm audit` in `mobile/`
+reported high-severity findings tracing to **GHSA-w3rx-r6r6-pgpr** and
+**GHSA-5p2g-fcmc-qvqq** (infinite-loop DoS in `image-size`'s ICNS/JXL/HEIF
+parsers), pulled in transitively via Metro. At the time, no patched
+`image-size` release existed upstream.
 
-**Accepted, not fixed**, because the actual exposure is low: `image-size`
-here only ever parses this project's own local asset files during Metro's
-dev/build-time bundling — not untrusted user uploads processed at runtime.
-It is not a production attack surface. Revisit by running `npm audit` in
-`mobile/` again once `image-size` ships a patched release upstream.
+Metro shipped a backport on the `0.84.x` line (`metro@0.84.5`,
+2026-08-19) that drops the `image-size` dependency from
+`metro-transform-worker` entirely — note this fix is on the `0.84.x`
+line specifically and has not (yet) been forward-ported to `0.85.x`+.
+`mobile/`'s dependency tree had two copies of Metro: `@expo/metro`
+resolved to the fixed `0.84.5`, but `react-native`'s
+`@react-native/community-cli-plugin` (which allows `^0.84.3`) was still
+resolving the older `0.84.4`. Added an `overrides` block in
+`mobile/package.json` pinning `metro`, `metro-config`, and
+`metro-transform-worker` to `0.84.5` so both copies dedupe to the patched
+version. `npm audit` in `mobile/` now reports 0 vulnerabilities, and
+`npx expo export --platform web` (Metro bundling smoke test) still
+succeeds. Revisit the override once Expo/React Native bump their own
+Metro floor past `0.84.5`.
