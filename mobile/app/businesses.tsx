@@ -62,7 +62,14 @@ export default function BusinessesScreen() {
     );
   }
 
-  const sections = [...(mine.length > 0 ? [{ title: "Your businesses", data: mine }] : []), { title: "Discover", data: discover }];
+  // See communities.tsx's own comment: SectionList's ListEmptyComponent
+  // only fires when `sections` itself is empty, so an always-present
+  // "Discover" section with empty data would otherwise render a lone
+  // header over nothing instead of the real empty state.
+  const sections = [
+    ...(mine.length > 0 ? [{ title: "Your businesses", data: mine }] : []),
+    ...(discover.length > 0 ? [{ title: "Discover", data: discover }] : []),
+  ];
 
   return (
     <SectionList

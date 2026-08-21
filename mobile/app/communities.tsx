@@ -60,9 +60,14 @@ export default function CommunitiesScreen() {
     );
   }
 
+  // SectionList's ListEmptyComponent only fires when `sections` itself is
+  // empty, not when every section's own `data` is — so the "Discover"
+  // section (always present) must actually be omitted once it's empty too,
+  // or a truly-empty result renders a lone "Discover" header over nothing
+  // instead of the real empty state.
   const sections = [
     ...(joined.length > 0 ? [{ title: "Your communities", data: joined }] : []),
-    { title: "Discover", data: discover },
+    ...(discover.length > 0 ? [{ title: "Discover", data: discover }] : []),
   ];
 
   return (

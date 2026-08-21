@@ -27,6 +27,25 @@ const SCOPES = [
   "notifications:write",
   "engagement:write",
   "follows:write",
+  // Mobile pro-upgrade addendum M3-M6: every scope those sub-phases' new
+  // /api/v1 routes require, requested up front at sign-in — a route added
+  // later without its scope added here would fail closed for every
+  // already-signed-in session until the user signs out and back in, the
+  // same "forgot to widen the request" class of bug this list itself is
+  // fixing. businesses:write is deliberately omitted: no mobile screen
+  // uses it yet (see oauth.ts's own comment on that scope), so requesting
+  // it now would just be a consent-screen line item nothing here can act on.
+  "messages:read",
+  "messages:write",
+  "communities:read",
+  "communities:write",
+  "businesses:read",
+  "marketplace:read",
+  "marketplace:write",
+  "events:read",
+  "events:write",
+  "payments:read",
+  "payments:write",
 ];
 
 // client_id is generated per-environment (first-party-apps.ts), not a
