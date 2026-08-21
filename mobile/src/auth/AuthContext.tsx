@@ -40,9 +40,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setMe(await getMe());
     } catch (err) {
-      // No refresh-token grant exists yet (build plan step 3's flagged
-      // follow-up) — a dead token's only recovery is signing in again, not
-      // a silent retry, so a 401 here drops back to the signed-out state.
+      // api/client.ts's authorizedRequest already tries one silent
+      // refresh-and-retry on a 401 — reaching here as a 401 means that
+      // failed too (refresh token rotated away, revoked, or the app itself
+      // lost access), so the only real recovery left is signing in again.
       if (err instanceof ApiError && err.status === 401) {
         await pkceSignOut();
         setTokens(null);

@@ -227,6 +227,51 @@ export async function exchangeAuthorizationCode(args: { code: string; codeVerifi
   return { accessToken, refreshToken, expiresIn: TOKEN_TTL_MS / 1000, scope: approvedScopes.join(" ") };
 }
 
+// RFC 6749 §6: rotates on every use — the presented refresh token's
+// OAuthToken row is deleted and replaced by a fresh access/refresh pair
+// rather than updated in place, so a stolen-then-used-elsewhere refresh
+// token stops working the moment either side redeems it (whichever redeems
+// second gets "Invalid refresh token", not a silently-shared session).
+// Refresh tokens don't carry their own separate expiry — expiresAt on the
+// row bounds only the access token half — so a session stays alive until
+// the user signs out or revokes the app, the same long-lived-refresh
+// posture every first-party mobile OAuth client takes, not a departure
+// from it.
+export async function refreshAccessToken(args: { refreshToken: string; appId: string }): Promise<TokenResult> {
+  const tokenRow = await db.oAuthToken.findUnique({
+    where: { refreshTokenHash: hashApiToken(args.refreshToken) },
+    include: { authorization: true },
+  });
+  if (!tokenRow || tokenRow.authorization.appId !== args.appId) {
+    return { error: "Invalid refresh token." };
+  }
+  if (tokenRow.authorization.status !== "active") {
+    return { error: "This app's access has been revoked." };
+  }
+
+  const accessToken = generateOpaqueToken();
+  const refreshToken = generateOpaqueToken();
+
+  await db.$transaction([
+    db.oAuthToken.delete({ where: { id: tokenRow.id } }),
+    db.oAuthToken.create({
+      data: {
+        authorizationId: tokenRow.authorizationId,
+        accessTokenHash: hashApiToken(accessToken),
+        refreshTokenHash: hashApiToken(refreshToken),
+        expiresAt: new Date(Date.now() + TOKEN_TTL_MS),
+      },
+    }),
+  ]);
+
+  return {
+    accessToken,
+    refreshToken,
+    expiresIn: TOKEN_TTL_MS / 1000,
+    scope: JSON.parse(tokenRow.authorization.grantedScopesJson).join(" "),
+  };
+}
+
 // spec §4.4: revoking an OAuthAuthorization must immediately invalidate its
 // OAuthToken rows, not just stop future issuance — deleting them (rather
 // than flagging) means resolveApiRequest's accessTokenHash lookup can never

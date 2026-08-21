@@ -104,14 +104,53 @@ export async function signIn(): Promise<StoredTokens> {
   const tokens: StoredTokens = {
     accessToken: tokenResponse.accessToken,
     refreshToken: tokenResponse.refreshToken,
-    // No server-side refresh-token grant exists yet (token route only
-    // implements grant_type=authorization_code) — expiresAt is tracked so a
-    // future refresh call has something to check against, but re-running
-    // signIn() (a fresh browser round-trip) is the only way to renew today.
     expiresAt: Date.now() + (tokenResponse.expiresIn ?? 3600) * 1000,
   };
   await saveTokens(tokens);
   return tokens;
+}
+
+// Thrown by refreshAccessToken. invalidGrant distinguishes the two ways a
+// refresh can fail, since callers (api/client.ts's retry-once logic) must
+// react differently: a rejected refresh token (rotated away, revoked, or
+// unknown) means the session is genuinely over, but a network-level
+// failure (offline, timeout) says nothing about whether the still-stored
+// tokens are good — clearing them on a timeout would sign someone out for
+// losing wifi for a second.
+export class RefreshFailedError extends Error {
+  invalidGrant: boolean;
+  constructor(message: string, invalidGrant: boolean) {
+    super(message);
+    this.invalidGrant = invalidGrant;
+  }
+}
+
+// RFC 6749 §6, against the refresh_token grant oauth.ts's token route now
+// implements. Reuses expo-auth-session's own refreshAsync rather than
+// hand-rolling the form-encoded POST — same call shape as exchangeCodeAsync
+// above, and its TokenError distinguishes "server rejected the grant" from
+// a plain network failure for RefreshFailedError's invalidGrant flag.
+export async function refreshAccessToken(refreshToken: string): Promise<StoredTokens> {
+  const clientId = await fetchClientId();
+  let response: AuthSession.TokenResponse;
+  try {
+    response = await AuthSession.refreshAsync({ clientId, refreshToken }, discovery);
+  } catch (err) {
+    throw new RefreshFailedError(
+      err instanceof Error ? err.message : "Could not refresh your session.",
+      err instanceof AuthSession.TokenError
+    );
+  }
+  // Rotation (oauth.ts's refreshAccessToken) always issues a new refresh
+  // token alongside the new access token — a response missing one can't be
+  // trusted to keep the session renewable next time, same reasoning signIn()
+  // above applies to the initial exchange.
+  if (!response.refreshToken) throw new RefreshFailedError("Refresh did not return a usable session.", true);
+  return {
+    accessToken: response.accessToken,
+    refreshToken: response.refreshToken,
+    expiresAt: Date.now() + (response.expiresIn ?? 3600) * 1000,
+  };
 }
 
 export async function signOut(): Promise<void> {

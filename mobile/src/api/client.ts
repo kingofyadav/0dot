@@ -1,5 +1,6 @@
 import { API_BASE_URL } from "../config";
-import { loadTokens } from "../auth/tokenStorage";
+import { loadTokens, saveTokens, clearTokens } from "../auth/tokenStorage";
+import { refreshAccessToken, RefreshFailedError } from "../auth/pkceAuth";
 import { fetchWithTimeout, isAbortError } from "./http";
 import type {
   Me,
@@ -64,7 +65,40 @@ export class ApiError extends Error {
 // rather than raising the default for every call.
 const UPLOAD_TIMEOUT_MS = 45000;
 
-async function authorizedRequest<T>(path: string, init?: RequestInit, timeoutMs?: number): Promise<T> {
+// Concurrent 401s (several screens' requests landing at once) must share a
+// single refresh attempt rather than each redeeming the refresh token —
+// oauth.ts's refreshAccessToken rotates on every use, so a second racing
+// call presenting the now-superseded refresh token would get "Invalid
+// refresh token" and force a real sign-out for no reason. Module-level
+// (not per-call) so every authorizedRequest caller sees the same in-flight
+// attempt.
+let refreshInFlight: Promise<boolean> | null = null;
+
+function tryRefreshTokens(): Promise<boolean> {
+  if (!refreshInFlight) {
+    refreshInFlight = (async () => {
+      const current = await loadTokens();
+      if (!current) return false;
+      try {
+        const refreshed = await refreshAccessToken(current.refreshToken);
+        await saveTokens(refreshed);
+        return true;
+      } catch (err) {
+        // Only clear the stored session when the server actually rejected
+        // the refresh token — a network-level failure says nothing about
+        // whether it's still good, so the existing tokens are left in
+        // place for the next attempt (see RefreshFailedError's comment).
+        if (err instanceof RefreshFailedError && err.invalidGrant) await clearTokens();
+        return false;
+      }
+    })().finally(() => {
+      refreshInFlight = null;
+    });
+  }
+  return refreshInFlight;
+}
+
+async function authorizedRequest<T>(path: string, init?: RequestInit, timeoutMs?: number, isRetry = false): Promise<T> {
   const tokens = await loadTokens();
   if (!tokens) throw new ApiError("Not signed in.", 401);
 
@@ -89,12 +123,20 @@ async function authorizedRequest<T>(path: string, init?: RequestInit, timeoutMs?
     throw err;
   }
 
+  // A 401 here means the access token is dead — expired (the common case)
+  // or revoked. Try exactly one silent refresh-and-retry before surfacing
+  // it; isRetry stops this from looping if the refreshed token still
+  // 401s (e.g. the authorization was revoked server-side, which
+  // invalidates the refresh token too, so refresh itself fails first).
+  if (res.status === 401 && !isRetry && (await tryRefreshTokens())) {
+    return authorizedRequest<T>(path, init, timeoutMs, true);
+  }
+
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as { error?: string } | null;
-    // 401 here means the token itself is dead (expired or revoked) — since
-    // there's no refresh-token grant yet (build plan step 3's flagged
-    // follow-up), the caller's only real recovery is signIn() again, not a
-    // silent retry.
+    // Reaching here on a 401 means refresh didn't recover the session (or
+    // wasn't attempted, e.g. this already is the retry) — the caller's
+    // only real recovery is signing in again.
     throw new ApiError(body?.error ?? `Request failed (${res.status}).`, res.status);
   }
 
