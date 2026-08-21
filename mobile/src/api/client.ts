@@ -10,6 +10,21 @@ import type {
   FollowStatus,
   NotificationPreferenceChannel,
   NotificationPreferencesResponse,
+  SearchUsersResponse,
+  ConversationsResponse,
+  MessagesResponse,
+  MessageItem,
+  MessageableCandidate,
+  CommunitiesResponse,
+  CommunityDetail,
+  BusinessesResponse,
+  BusinessDetail,
+  MarketplaceResponse,
+  MarketplaceCategory,
+  EventsResponse,
+  EventDetail,
+  EventRsvpStatus,
+  WalletResponse,
 } from "./types";
 import type { NativePlatform } from "../config";
 
@@ -130,6 +145,121 @@ export function likePost(id: string): Promise<{ liked: boolean; likeCount: numbe
 
 export function repostPost(id: string): Promise<{ reposted: boolean; repostCount: number }> {
   return authorizedRequest(`/api/v1/posts/${encodeURIComponent(id)}/repost`, { method: "POST" });
+}
+
+export function toggleBookmark(id: string): Promise<{ bookmarked: boolean }> {
+  return authorizedRequest(`/api/v1/posts/${encodeURIComponent(id)}/bookmark`, { method: "POST" });
+}
+
+export function getBookmarks(cursor?: string | null): Promise<FeedResponse> {
+  const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
+  return authorizedRequest<FeedResponse>(`/api/v1/bookmarks${query}`);
+}
+
+export function searchUsers(q: string): Promise<SearchUsersResponse> {
+  return authorizedRequest<SearchUsersResponse>(`/api/v1/search?type=users&q=${encodeURIComponent(q)}`);
+}
+
+export function searchPosts(q: string, cursor?: string | null): Promise<FeedResponse> {
+  const cursorQuery = cursor ? `&cursor=${encodeURIComponent(cursor)}` : "";
+  return authorizedRequest<FeedResponse>(`/api/v1/search?type=posts&q=${encodeURIComponent(q)}${cursorQuery}`);
+}
+
+// Sub-phase M3 (Messages/DMs). Polling-based, no live socket — see
+// GET /api/v1/conversations' own comment for why.
+export function getConversations(cursor?: string | null): Promise<ConversationsResponse> {
+  const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
+  return authorizedRequest<ConversationsResponse>(`/api/v1/conversations${query}`);
+}
+
+export function getMessageCandidates(): Promise<{ items: MessageableCandidate[] }> {
+  return authorizedRequest(`/api/v1/conversations/candidates`);
+}
+
+export function startConversation(args: { recipientId: string; body: string }): Promise<{ conversationId: string; message: MessageItem }> {
+  return authorizedRequest(`/api/v1/conversations`, { method: "POST", body: JSON.stringify(args) });
+}
+
+export function getMessages(conversationId: string, cursor?: string | null): Promise<MessagesResponse> {
+  const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
+  return authorizedRequest<MessagesResponse>(`/api/v1/conversations/${encodeURIComponent(conversationId)}/messages${query}`);
+}
+
+export function sendConversationMessage(conversationId: string, body: string): Promise<MessageItem> {
+  return authorizedRequest(`/api/v1/conversations/${encodeURIComponent(conversationId)}/messages`, {
+    method: "POST",
+    body: JSON.stringify({ body }),
+  });
+}
+
+export function markConversationRead(conversationId: string): Promise<{ ok: true }> {
+  return authorizedRequest(`/api/v1/conversations/${encodeURIComponent(conversationId)}/read`, { method: "PATCH" });
+}
+
+// Sub-phase M4 (Communities).
+export function getCommunities(): Promise<CommunitiesResponse> {
+  return authorizedRequest<CommunitiesResponse>("/api/v1/communities");
+}
+
+export function getCommunity(slug: string): Promise<CommunityDetail> {
+  return authorizedRequest<CommunityDetail>(`/api/v1/communities/${encodeURIComponent(slug)}`);
+}
+
+export function joinCommunity(slug: string): Promise<{ status: string }> {
+  return authorizedRequest(`/api/v1/communities/${encodeURIComponent(slug)}/join`, { method: "POST" });
+}
+
+export function leaveCommunity(slug: string): Promise<{ ok: true }> {
+  return authorizedRequest(`/api/v1/communities/${encodeURIComponent(slug)}/join`, { method: "DELETE" });
+}
+
+export function getCommunityPosts(slug: string, cursor?: string | null): Promise<FeedResponse> {
+  const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
+  return authorizedRequest<FeedResponse>(`/api/v1/communities/${encodeURIComponent(slug)}/posts${query}`);
+}
+
+export function createCommunityPost(slug: string, body: string): Promise<Post> {
+  return authorizedRequest(`/api/v1/communities/${encodeURIComponent(slug)}/posts`, { method: "POST", body: JSON.stringify({ body }) });
+}
+
+// Sub-phase M5 (Businesses + Marketplace) — both browse-only, purchase/
+// contact/booking hand off to the browser (see the server routes' own
+// comments for why).
+export function getBusinesses(): Promise<BusinessesResponse> {
+  return authorizedRequest<BusinessesResponse>("/api/v1/businesses");
+}
+
+export function getBusiness(slug: string): Promise<BusinessDetail> {
+  return authorizedRequest<BusinessDetail>(`/api/v1/businesses/${encodeURIComponent(slug)}`);
+}
+
+export function getMarketplace(category?: MarketplaceCategory | null, q?: string): Promise<MarketplaceResponse> {
+  const params = new URLSearchParams();
+  if (category) params.set("category", category);
+  if (q) params.set("q", q);
+  const query = params.toString() ? `?${params.toString()}` : "";
+  return authorizedRequest<MarketplaceResponse>(`/api/v1/marketplace${query}`);
+}
+
+// Sub-phase M6 (Events + Wallet).
+export function getEvents(): Promise<EventsResponse> {
+  return authorizedRequest<EventsResponse>("/api/v1/events");
+}
+
+export function getEvent(slug: string): Promise<EventDetail> {
+  return authorizedRequest<EventDetail>(`/api/v1/events/${encodeURIComponent(slug)}`);
+}
+
+export function rsvpToEvent(slug: string, status: EventRsvpStatus): Promise<{ status: EventRsvpStatus }> {
+  return authorizedRequest(`/api/v1/events/${encodeURIComponent(slug)}/rsvp`, { method: "POST", body: JSON.stringify({ status }) });
+}
+
+export function getWallet(): Promise<WalletResponse> {
+  return authorizedRequest<WalletResponse>("/api/v1/wallet");
+}
+
+export function transferCoins(args: { username: string; coinAmount: number }): Promise<{ ok: true }> {
+  return authorizedRequest("/api/v1/wallet/transfer", { method: "POST", body: JSON.stringify(args) });
 }
 
 export function followUser(username: string): Promise<{ status: FollowStatus }> {

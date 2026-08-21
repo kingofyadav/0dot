@@ -14,13 +14,14 @@ type Props = {
   onPress: () => void;
   onToggleLike: () => void;
   onToggleRepost: () => void;
+  onToggleBookmark: () => void;
 };
 
 // Shared by the feed and the profile "Posts" tab — both render the exact
-// same row shape (avatar, byline, body/media, like/reply/repost stats), so
-// this is the one place that shape is defined rather than two screens each
-// keeping their own copy in sync by hand.
-export function PostRow({ post, onPress, onToggleLike, onToggleRepost }: Props) {
+// same row shape (avatar, byline, body/media, like/reply/repost/bookmark
+// stats), so this is the one place that shape is defined rather than two
+// screens each keeping their own copy in sync by hand.
+export function PostRow({ post, onPress, onToggleLike, onToggleRepost, onToggleBookmark }: Props) {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
@@ -65,6 +66,19 @@ export function PostRow({ post, onPress, onToggleLike, onToggleRepost }: Props) 
             <Ionicons name="repeat-outline" size={16} color={theme.colors.mutedForeground} />
             <Text style={styles.statText}>{post.repostCount}</Text>
           </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={post.isBookmarked ? "Remove bookmark" : "Bookmark"}
+            hitSlop={8}
+            onPress={onToggleBookmark}
+            style={[styles.stat, styles.bookmarkStat]}
+          >
+            <Ionicons
+              name={post.isBookmarked ? "bookmark" : "bookmark-outline"}
+              size={15}
+              color={post.isBookmarked ? theme.colors.accent : theme.colors.mutedForeground}
+            />
+          </Pressable>
         </View>
       </View>
     </ListRow>
@@ -79,8 +93,9 @@ function createStyles(theme: Theme) {
     dot: { color: theme.colors.mutedForeground },
     time: { color: theme.colors.mutedForeground, fontSize: theme.text.xs },
     postText: { color: theme.colors.foreground, fontSize: theme.text.base, lineHeight: theme.text.base * 1.3 },
-    statsRow: { flexDirection: "row", gap: theme.space[5], marginTop: theme.space[1] },
+    statsRow: { flexDirection: "row", alignItems: "center", gap: theme.space[5], marginTop: theme.space[1] },
     stat: { flexDirection: "row", alignItems: "center", gap: 4 },
+    bookmarkStat: { marginLeft: "auto" },
     statText: { color: theme.colors.mutedForeground, fontSize: theme.text.xs },
   });
 }

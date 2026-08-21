@@ -25,16 +25,55 @@ export const OAUTH_SCOPES = [
   // than folding under posts:write, the same "match scope grain to what a
   // consent screen should actually say" reasoning notifications:read used
   // to stay separate from posts:read above.
-  { key: "engagement:write", description: "Like and repost content on your behalf", sensitivity: "low" },
+  // Bookmarking is folded into this same scope rather than getting its own
+  // (mobile pro-upgrade addendum): it's private (never shown to anyone
+  // else, phase-1 spec §5.3) and exactly as low-stakes as a like — the same
+  // "match scope grain to what a consent screen should actually say"
+  // reasoning below just as easily covers a second low-stakes engagement
+  // action as a first.
+  { key: "engagement:write", description: "Like, bookmark, and repost content on your behalf", sensitivity: "low" },
   // Distinct from posts:write for the same reason: following someone
   // doesn't create content, and a consent screen listing "Create posts"
   // shouldn't silently also cover "Follow accounts."
   { key: "follows:write", description: "Follow and unfollow accounts on your behalf", sensitivity: "low" },
   { key: "events:read", description: "Read events you host or attend", sensitivity: "low" },
+  // mobile pro-upgrade addendum M6: RSVPing is a state change (who's
+  // going), same low-stakes-but-real-write tier as engagement:write's
+  // like/bookmark/repost — split from events:read for the identical reason
+  // every other domain's read/write pair is split here.
+  { key: "events:write", description: "RSVP to events on your behalf", sensitivity: "low" },
+  // mobile pro-upgrade addendum M4: read-only (browse/view a community, its
+  // post feed, your own membership status) versus write (join/leave — a
+  // membership change, not content creation) split the same way
+  // follows:write stays separate from posts:write below — a consent screen
+  // shouldn't lump "see communities" in with "join/leave them on your
+  // behalf." Creating a post *inside* a community reuses posts:write
+  // (it's the same Post table, same consent-screen meaning), not a third
+  // communities scope.
+  { key: "communities:read", description: "Read communities and their posts", sensitivity: "low" },
+  { key: "communities:write", description: "Join and leave communities on your behalf", sensitivity: "low" },
   { key: "marketplace:read", description: "Read your marketplace purchases and listings", sensitivity: "low" },
+  // mobile pro-upgrade addendum M5: marketplace:read already covered
+  // browsing; installing/purchasing is a real action (spending or adding
+  // an app), so it gets its own write scope, same read/write split as
+  // every other domain here.
+  { key: "marketplace:write", description: "Purchase and install marketplace listings on your behalf", sensitivity: "medium" },
+  // mobile pro-upgrade addendum M5: businesses:read covers browsing a
+  // business profile/listings; write is left unused by mobile v1 (business
+  // team-management stays web-only for now) but declared per this catalog's
+  // own "named explicitly even before a second/first real write use,
+  // matching CreatorPayoutAccount.processor's own precedent" posture —
+  // reserved for a business-owner mobile flow (M8+), not added speculatively
+  // beyond the declaration itself.
+  { key: "businesses:read", description: "Read business profiles and listings", sensitivity: "low" },
+  { key: "businesses:write", description: "Manage businesses you own or work for", sensitivity: "medium" },
   { key: "messages:read", description: "Read your private messages", sensitivity: "high" },
   { key: "messages:write", description: "Send messages on your behalf", sensitivity: "high" },
   { key: "payments:read", description: "Read your payout and transaction history", sensitivity: "high" },
+  // mobile pro-upgrade addendum M6 (wallet): sending coins moves real
+  // value between accounts — high sensitivity, same tier as payments:read,
+  // not the low/medium tier most other :write scopes here get.
+  { key: "payments:write", description: "Send coin transfers on your behalf", sensitivity: "high" },
   // phase-15 build plan step 2: the one first-party-app action (push device
   // registration) that had no scope of its own yet — low sensitivity since
   // it only lets the app register a token to receive push, not read content.

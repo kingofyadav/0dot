@@ -32,9 +32,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ user
     viewerId: ctx.userId,
   });
 
-  const likedPostIds = await db.postLike
-    .findMany({ where: { userId: ctx.userId, postId: { in: items.map((p) => p.id) } }, select: { postId: true } })
-    .then((rows) => new Set(rows.map((r) => r.postId)));
+  const [likedPostIds, bookmarkedPostIds] = await Promise.all([
+    db.postLike
+      .findMany({ where: { userId: ctx.userId, postId: { in: items.map((p) => p.id) } }, select: { postId: true } })
+      .then((rows) => new Set(rows.map((r) => r.postId))),
+    db.bookmark
+      .findMany({ where: { userId: ctx.userId, postId: { in: items.map((p) => p.id) } }, select: { postId: true } })
+      .then((rows) => new Set(rows.map((r) => r.postId))),
+  ]);
 
   return Response.json(
     {
@@ -49,6 +54,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ user
         replyCount: post.replyCount,
         repostCount: post.repostCount,
         isLiked: likedPostIds.has(post.id),
+        isBookmarked: bookmarkedPostIds.has(post.id),
         media: post.media.map((m) => ({ url: m.url, position: m.position })),
         createdAt: post.createdAt,
       })),

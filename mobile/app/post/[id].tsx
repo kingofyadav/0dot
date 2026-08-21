@@ -3,7 +3,7 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Share, StyleShee
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { getPost, createPost, likePost, repostPost, ApiError } from "../../src/api/client";
+import { getPost, createPost, likePost, repostPost, toggleBookmark, ApiError } from "../../src/api/client";
 import { resolvePath } from "../../src/links/resolvePath";
 import { Avatar } from "../../src/components/Avatar";
 import { VerifiedBadge } from "../../src/components/VerifiedBadge";
@@ -91,6 +91,20 @@ export default function PostScreen() {
       setPost((prev) => (prev ? { ...prev, repostCount: result.repostCount } : prev));
     } catch {
       haptics.warning();
+    }
+  }
+
+  async function onToggleBookmark() {
+    if (!post) return;
+    haptics.light();
+    const { isBookmarked } = post;
+    setPost({ ...post, isBookmarked: !isBookmarked });
+    try {
+      const result = await toggleBookmark(post.id);
+      setPost((prev) => (prev ? { ...prev, isBookmarked: result.bookmarked } : prev));
+    } catch {
+      haptics.warning();
+      setPost((prev) => (prev ? { ...prev, isBookmarked } : prev));
     }
   }
 
@@ -201,6 +215,19 @@ export default function PostScreen() {
             <Ionicons name="repeat-outline" size={18} color={theme.colors.mutedForeground} />
             <Text style={styles.statText}>{post.repostCount}</Text>
           </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={post.isBookmarked ? "Remove bookmark" : "Bookmark"}
+            hitSlop={8}
+            onPress={onToggleBookmark}
+            style={[styles.stat, styles.bookmarkStat]}
+          >
+            <Ionicons
+              name={post.isBookmarked ? "bookmark" : "bookmark-outline"}
+              size={17}
+              color={post.isBookmarked ? theme.colors.accent : theme.colors.mutedForeground}
+            />
+          </Pressable>
         </View>
 
         <Text style={styles.timestamp}>{new Date(post.createdAt).toLocaleString()}</Text>
@@ -260,6 +287,7 @@ function createStyles(theme: Theme) {
       borderColor: theme.colors.border,
     },
     stat: { flexDirection: "row", alignItems: "center", gap: theme.space[1] },
+    bookmarkStat: { marginLeft: "auto" },
     statText: { color: theme.colors.mutedForeground, fontSize: theme.text.sm },
     timestamp: { color: theme.colors.mutedForeground, fontSize: theme.text.xs },
     replyError: { color: theme.colors.danger, fontSize: theme.text.sm },

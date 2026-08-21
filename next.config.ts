@@ -16,7 +16,7 @@ const nextConfig: NextConfig = {
   // directly on top of the left sidebar's bottom edge — disabled so it
   // doesn't obscure sidebar content during development.
   devIndicators: false,
-  allowedDevOrigins: ["192.168.0.114", "192.168.0.122"],
+  allowedDevOrigins: ["192.168.0.114", "192.168.0.122", "10.0.2.2"], // 10.0.2.2 = Android emulator's host-loopback address
   experimental: {
     serverActions: {
       // Default is 1MB. Raised for post composing: up to 4 images per

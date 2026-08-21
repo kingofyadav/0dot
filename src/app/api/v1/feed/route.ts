@@ -21,9 +21,14 @@ export async function GET(request: Request) {
   // (one findMany + a Set, not N per-post lookups) so a like toggle
   // rendered on mobile reflects the viewer's real state, not always "not
   // liked" until the app re-derives it from a local toggle.
-  const likedPostIds = await db.postLike
-    .findMany({ where: { userId: ctx.userId, postId: { in: items.map((p) => p.id) } }, select: { postId: true } })
-    .then((rows) => new Set(rows.map((r) => r.postId)));
+  const [likedPostIds, bookmarkedPostIds] = await Promise.all([
+    db.postLike
+      .findMany({ where: { userId: ctx.userId, postId: { in: items.map((p) => p.id) } }, select: { postId: true } })
+      .then((rows) => new Set(rows.map((r) => r.postId))),
+    db.bookmark
+      .findMany({ where: { userId: ctx.userId, postId: { in: items.map((p) => p.id) } }, select: { postId: true } })
+      .then((rows) => new Set(rows.map((r) => r.postId))),
+  ]);
 
   return Response.json(
     {
@@ -38,6 +43,7 @@ export async function GET(request: Request) {
         replyCount: post.replyCount,
         repostCount: post.repostCount,
         isLiked: likedPostIds.has(post.id),
+        isBookmarked: bookmarkedPostIds.has(post.id),
         media: post.media.map((m) => ({ url: m.url, position: m.position })),
         createdAt: post.createdAt,
       })),

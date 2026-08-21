@@ -34,12 +34,51 @@ export type Theme = {
   radius: { sm: number; md: number; lg: number; full: number };
   text: { xs: number; sm: number; base: number; lg: number; xl: number; xxl: number };
   weight: { regular: "400"; label: "500"; emphasis: "600"; heading: "700" };
+  shadow: { sm: ShadowStyle; md: ShadowStyle; lg: ShadowStyle };
+  motion: { fast: number; base: number; slow: number };
+};
+
+// RN's shadow props (iOS) can't express web's dual-layer box-shadow
+// (--shadow/-md/-lg are each two stacked layers) without a nested view per
+// layer — this approximates each tier with its more visually dominant
+// (larger blur/offset) layer, tuned against the same rgba alpha web uses,
+// plus an elevation number for Android (which has no opacity/blur control
+// of its own, only a depth integer) scaled to land in the same sm<md<lg
+// order. Values, not a shared type export — RN's ViewStyle already covers
+// the shape callers need.
+type ShadowStyle = {
+  shadowColor: string;
+  shadowOffset: { width: number; height: number };
+  shadowOpacity: number;
+  shadowRadius: number;
+  elevation: number;
 };
 
 const space = { 1: 4, 2: 8, 3: 12, 4: 16, 5: 20, 6: 24, 8: 32 } as const;
 const radius = { sm: 8, md: 10, lg: 16, full: 9999 } as const;
 const text = { xs: 12.8, sm: 14.4, base: 16, lg: 17.6, xl: 22.4, xxl: 25.6 } as const;
 const weight = { regular: "400", label: "500", emphasis: "600", heading: "700" } as const;
+// Mirrors globals.css's --transition-fast/-base/-slow (0.05s/0.15s/0.25s)
+// converted to the millisecond durations RN's Animated/LayoutAnimation
+// timing functions take, rather than each new screen picking its own
+// duration by feel.
+const motion = { fast: 50, base: 150, slow: 250 } as const;
+
+// Mirrors globals.css's --shadow/-md/-lg light values (see that file's
+// light-mode custom properties) — see ShadowStyle's comment for the
+// single-layer approximation this makes.
+const lightShadow: Theme["shadow"] = {
+  sm: { shadowColor: "#171717", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
+  md: { shadowColor: "#171717", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 6 },
+  lg: { shadowColor: "#171717", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.14, shadowRadius: 20, elevation: 16 },
+};
+
+// Mirrors globals.css's --_dark-shadow/-md/-lg values.
+const darkShadow: Theme["shadow"] = {
+  sm: { shadowColor: "#000000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 2 },
+  md: { shadowColor: "#000000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 10, elevation: 6 },
+  lg: { shadowColor: "#000000", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.45, shadowRadius: 20, elevation: 16 },
+};
 
 // Near-black text (#171717) clears WCAG AA against every accent/success/
 // warning/danger fill in both themes — globals.css's --on-accent/
@@ -73,6 +112,8 @@ const light: Theme = {
   radius,
   text,
   weight,
+  shadow: lightShadow,
+  motion,
 };
 
 const dark: Theme = {
@@ -101,6 +142,8 @@ const dark: Theme = {
   radius,
   text,
   weight,
+  shadow: darkShadow,
+  motion,
 };
 
 export function useTheme(): Theme {

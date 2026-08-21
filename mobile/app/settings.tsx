@@ -4,12 +4,12 @@ import Constants from "expo-constants";
 import * as WebBrowser from "expo-web-browser";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
-import { useAuth } from "../../src/auth/AuthContext";
-import { Avatar } from "../../src/components/Avatar";
-import { SettingsRow } from "../../src/components/SettingsRow";
-import { API_BASE_URL } from "../../src/config";
-import { useTheme, type Theme } from "../../src/theme";
-import { haptics } from "../../src/utils/haptics";
+import { useAuth } from "../src/auth/AuthContext";
+import { Avatar } from "../src/components/Avatar";
+import { SettingsRow } from "../src/components/SettingsRow";
+import { API_BASE_URL } from "../src/config";
+import { useTheme, type Theme } from "../src/theme";
+import { haptics } from "../src/utils/haptics";
 
 export default function SettingsScreen() {
   const { me, tokens, error, signOut } = useAuth();
@@ -39,6 +39,7 @@ export default function SettingsScreen() {
 
       <View style={styles.group}>
         <SettingsRow icon="person-outline" label="Edit profile" onPress={() => router.push("/edit-profile")} />
+        <SettingsRow icon="bookmark-outline" label="Bookmarks" onPress={() => router.push("/bookmarks")} />
         <SettingsRow
           icon="notifications-outline"
           label="Notification preferences"

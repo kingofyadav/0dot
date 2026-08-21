@@ -21,7 +21,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (!post || post.deletedAt) return apiError("Not found.", 404);
   if (await isBlockedEitherWay(ctx.userId, post.authorId)) return apiError("Not found.", 404);
 
-  const isLiked = (await db.postLike.findUnique({ where: { postId_userId: { postId: id, userId: ctx.userId } } })) !== null;
+  const [isLiked, isBookmarked] = await Promise.all([
+    db.postLike.findUnique({ where: { postId_userId: { postId: id, userId: ctx.userId } } }).then((row) => row !== null),
+    db.bookmark.findUnique({ where: { postId_userId: { postId: id, userId: ctx.userId } } }).then((row) => row !== null),
+  ]);
 
   return Response.json(
     {
@@ -35,6 +38,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       replyCount: post.replyCount,
       repostCount: post.repostCount,
       isLiked,
+      isBookmarked,
       media: post.media.map((m) => ({ url: m.url, position: m.position })),
       createdAt: post.createdAt,
     },

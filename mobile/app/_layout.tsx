@@ -74,6 +74,18 @@ function RootNavigator() {
       <Stack.Screen name="compose" options={{ headerShown: false, presentation: "modal" }} />
       <Stack.Screen name="edit-profile" options={{ headerShown: false, presentation: "modal" }} />
       <Stack.Screen name="notification-preferences" options={{ title: "Notifications" }} />
+      <Stack.Screen name="settings" options={{ title: "Settings" }} />
+      <Stack.Screen name="bookmarks" options={{ title: "Bookmarks" }} />
+      <Stack.Screen name="messages/[id]" options={{ title: "Conversation" }} />
+      <Stack.Screen name="messages/new" options={{ title: "New message", presentation: "modal" }} />
+      <Stack.Screen name="communities" options={{ title: "Communities" }} />
+      <Stack.Screen name="community/[slug]" options={{ title: "Community" }} />
+      <Stack.Screen name="businesses" options={{ title: "Businesses" }} />
+      <Stack.Screen name="business/[slug]" options={{ title: "Business" }} />
+      <Stack.Screen name="marketplace" options={{ title: "Marketplace" }} />
+      <Stack.Screen name="events" options={{ title: "Events" }} />
+      <Stack.Screen name="event/[slug]" options={{ title: "Event" }} />
+      <Stack.Screen name="wallet" options={{ title: "Wallet" }} />
     </Stack>
   );
 }

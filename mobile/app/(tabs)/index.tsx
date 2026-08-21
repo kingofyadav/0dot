@@ -2,7 +2,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { getFeed, likePost, repostPost, ApiError } from "../../src/api/client";
+import { getFeed, likePost, repostPost, toggleBookmark, ApiError } from "../../src/api/client";
 import { EmptyState } from "../../src/components/EmptyState";
 import { OfflineBanner } from "../../src/components/OfflineBanner";
 import { PostRow } from "../../src/components/PostRow";
@@ -132,6 +132,21 @@ export default function HomeScreen() {
     }
   }
 
+  // Optimistic, same known-direction posture as onToggleLike (the current
+  // state is always known from the last GET).
+  async function onToggleBookmark(post: Post) {
+    haptics.light();
+    const { isBookmarked } = post;
+    setPosts((prev) => prev.map((p) => (p.id === post.id ? { ...p, isBookmarked: !isBookmarked } : p)));
+    try {
+      const result = await toggleBookmark(post.id);
+      setPosts((prev) => prev.map((p) => (p.id === post.id ? { ...p, isBookmarked: result.bookmarked } : p)));
+    } catch {
+      haptics.warning();
+      setPosts((prev) => prev.map((p) => (p.id === post.id ? { ...p, isBookmarked } : p)));
+    }
+  }
+
   if (loading) {
     return (
       <View style={styles.screen}>
@@ -172,6 +187,7 @@ export default function HomeScreen() {
               onPress={() => router.push({ pathname: "/post/[id]", params: { id: item.id } })}
               onToggleLike={() => onToggleLike(item)}
               onToggleRepost={() => onToggleRepost(item.id)}
+              onToggleBookmark={() => onToggleBookmark(item)}
             />
           )}
         />

@@ -16,11 +16,44 @@ export function resolvePath(path: string): void {
     return;
   }
 
+  // Mobile pro-upgrade addendum M3: resolves the message-notification href
+  // deferral phase-15 spec §4 named — no title/avatar available from a bare
+  // path (unlike the in-app tap from ConversationRow, which passes those as
+  // route params), so the thread screen falls back to a generic header
+  // until its own fetch resolves.
+  const messageMatch = path.match(/^\/messages\/([^/?#]+)/);
+  if (messageMatch && messageMatch[1] !== "new" && messageMatch[1] !== "requests") {
+    router.push({ pathname: "/messages/[id]", params: { id: messageMatch[1] } });
+    return;
+  }
+
+  // Mobile pro-upgrade addendum M4-M6: communities/businesses/events all
+  // gained a native detail screen — each keyed by slug, matching /c/{slug},
+  // /b/{slug}, /e/{slug} exactly. "/new" (create-flow, web-only for now)
+  // and bare "/c"/"/b"/"/e" (the index pages — the native Discover hub
+  // covers that instead) fall through to the browser like everything else
+  // not yet natively covered.
+  const communityMatch = path.match(/^\/c\/([^/?#]+)/);
+  if (communityMatch && communityMatch[1] !== "new") {
+    router.push({ pathname: "/community/[slug]", params: { slug: communityMatch[1] } });
+    return;
+  }
+  const businessMatch = path.match(/^\/b\/([^/?#]+)/);
+  if (businessMatch && businessMatch[1] !== "new") {
+    router.push({ pathname: "/business/[slug]", params: { slug: businessMatch[1] } });
+    return;
+  }
+  const eventMatch = path.match(/^\/e\/([^/?#]+)/);
+  if (eventMatch && eventMatch[1] !== "new") {
+    router.push({ pathname: "/event/[slug]", params: { slug: eventMatch[1] } });
+    return;
+  }
+
   // Every other known top-level namespace this app doesn't have a native
-  // screen for yet (/c/, /b/, /e/, /messages/, ...) falls through below —
-  // checked before the bare-username catch-all so e.g. "/feed" or
-  // "/notifications" don't get misread as a username.
-  const reservedFirstSegment = /^\/(c|b|e|messages|feed|notifications|login|signup|s)(\/|$)/;
+  // screen for yet (marketplace items, businesses' sub-pages, ...) falls
+  // through below — checked before the bare-username catch-all so e.g.
+  // "/feed" or "/notifications" don't get misread as a username.
+  const reservedFirstSegment = /^\/(c|b|e|m|messages|feed|notifications|login|signup|s)(\/|$)/;
   const usernameMatch = !reservedFirstSegment.test(path) && path.match(/^\/([^/?#]+)\/?$/);
   if (usernameMatch) {
     router.push({ pathname: "/[username]", params: { username: usernameMatch[1] } });

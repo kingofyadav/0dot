@@ -2,7 +2,9 @@ import "server-only";
 import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { parseCursor, cursorWhere, paginate, POST_PAGE_SIZE, type PostCursor } from "@/lib/pagination";
-import { decryptAtRestNullableSafe } from "@/lib/message-crypto";
+import { decryptAtRestNullableSafe, encryptAtRestNullable } from "@/lib/message-crypto";
+import { notifyMessage } from "@/lib/notifications";
+import { publishToUsers } from "@/lib/message-events";
 
 // phase-2 spec §5.3: "a number to confirm with product, not a hard
 // architectural limit" — same treatment as Phase 1's link cap.
@@ -458,4 +460,117 @@ export function buildMessagePreview(body: string | null, attachmentType: string 
   if (attachmentType === "voice_note") return "🎤 Voice note";
   if (attachmentType === "file") return "📎 Attachment";
   return "";
+}
+
+// Moved here from actions/messages.ts (mobile pro-upgrade addendum, M3):
+// the v1 API's send-message route needs this exact encrypt/create/
+// denormalize/notify/publish sequence too, and duplicating anything
+// touching message encryption is exactly the kind of duplication worth
+// avoiding — a bug fixed in one copy and not the other would be a silent
+// plaintext-at-rest leak, not just a cosmetic drift. actions/messages.ts
+// (a "use server" file) can't be imported from a route handler, so this
+// lives in the plain lib both callers can reach.
+export type ResolvedAttachment = {
+  type: "file" | "voice_note";
+  url: string;
+  mimeType: string;
+  sizeBytes: number;
+  durationS: number | null;
+};
+
+const messageSelect = {
+  id: true,
+  body: true,
+  createdAt: true,
+  senderId: true,
+  attachmentType: true,
+  attachmentUrl: true,
+  attachmentMimeType: true,
+  attachmentSizeBytes: true,
+  attachmentDurationS: true,
+  deletedAt: true,
+} as const;
+
+export type SentMessage = {
+  id: string;
+  body: string | null;
+  createdAt: Date;
+  senderId: string;
+  attachmentType: string | null;
+  attachmentUrl: string | null;
+  attachmentMimeType: string | null;
+  attachmentSizeBytes: number | null;
+  attachmentDurationS: number | null;
+  deletedAt: Date | null;
+};
+
+export async function otherParticipantIds(conversationId: string, excludeUserId: string): Promise<string[]> {
+  const rows = await db.conversationParticipant.findMany({
+    where: { conversationId, userId: { not: excludeUserId } },
+    select: { userId: true },
+  });
+  return rows.map((r) => r.userId);
+}
+
+// Create the Message row, bump the conversation's denormalized inbox-display
+// fields, fan out notifications, and push the live SSE event — the one place
+// all of that happens, so the web action and the v1 API route can't drift
+// apart from each other.
+export async function recordMessageAndNotify(args: {
+  conversationId: string;
+  senderId: string;
+  body: string | null;
+  attachment: ResolvedAttachment | null;
+}): Promise<SentMessage> {
+  // phase-2 spec §5.7: message content encrypted at rest. Encrypted just
+  // before the write, decrypted just after every read — the plaintext only
+  // ever exists in memory during a request, never in the DB file itself.
+  // lastMessagePreview is encrypted too, since it's a literal copy of
+  // message content living on the Conversation row — leaving that one
+  // column in plaintext would defeat the point.
+  const preview = buildMessagePreview(args.body, args.attachment?.type ?? null);
+
+  const message = await db.message.create({
+    data: {
+      conversationId: args.conversationId,
+      senderId: args.senderId,
+      body: encryptAtRestNullable(args.body),
+      attachmentType: args.attachment?.type ?? null,
+      attachmentUrl: args.attachment?.url ?? null,
+      attachmentMimeType: args.attachment?.mimeType ?? null,
+      attachmentSizeBytes: args.attachment?.sizeBytes ?? null,
+      attachmentDurationS: args.attachment?.durationS ?? null,
+    },
+    select: messageSelect,
+  });
+  await db.conversation.update({
+    where: { id: args.conversationId },
+    data: {
+      lastMessageAt: message.createdAt,
+      lastMessageSenderId: args.senderId,
+      lastMessagePreview: encryptAtRestNullable(preview),
+    },
+  });
+  // A new message revives the conversation for anyone who'd deleted/hidden
+  // it from their own inbox — same "it comes back when something new
+  // happens" behavior as every mainstream chat app, rather than a hide
+  // being a silent permanent unsubscribe.
+  await db.conversationParticipant.updateMany({
+    where: { conversationId: args.conversationId, hiddenAt: { not: null } },
+    data: { hiddenAt: null },
+  });
+
+  const recipients = await otherParticipantIds(args.conversationId, args.senderId);
+  await Promise.all(
+    recipients.map((recipientId) =>
+      notifyMessage({ recipientId, actorId: args.senderId, subjectId: args.conversationId })
+    )
+  );
+  publishToUsers(recipients, { type: "new-message", conversationId: args.conversationId });
+
+  // message.body from the DB is ciphertext — the caller (ConversationView's
+  // optimistic append, or the v1 route's own response) needs the plaintext
+  // it already has in args.body, not a second decrypt round-trip for a
+  // value already in hand.
+  return { ...message, body: args.body };
 }
