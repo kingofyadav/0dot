@@ -5,10 +5,11 @@ import { Notifications } from "./expoNotificationsModule";
 // dispatchPushEvent computes this via the same getNotificationHref the
 // in-app notification rail uses) — through the same resolvePath every
 // universal link and in-app "View post"/"View profile" action uses, so
-// there's one navigation-mapping to maintain, not three. Real server-sent
-// push still won't fire (StubPushProvider is a no-op end to end), so this
-// is proven today via a locally-scheduled test notification with a
-// matching data.href, ready for when real APNs/FCM delivery lands.
+// there's one navigation-mapping to maintain, not three. Now backed by
+// real server-sent push (push.ts's ExpoPushProvider), not just a
+// locally-scheduled test notification — this listener's own shape didn't
+// need to change, since expo-notifications delivers a relay-sent push
+// through the same response event either way.
 export function subscribeToPushNavigation(): () => void {
   if (!Notifications) return () => {};
 

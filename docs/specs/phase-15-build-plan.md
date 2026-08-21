@@ -203,16 +203,19 @@ refresh path to retry silently.
   flag it.
 - **Step 5 — push registration**: `mobile/src/push/registerPush.ts`
   requests notification permission, sets up the Android default channel,
-  and registers the *native* APNs/FCM device token (`getDevicePushTokenAsync`,
-  not Expo's own relay-service token) against step 2's
-  `/api/v1/device-tokens` — matching `DeviceToken.token`'s "opaque
-  APNs/FCM/Web-Push token" schema comment rather than introducing a third
-  token shape `push.ts`'s real-provider swap-in wouldn't expect. Runs
-  automatically once a session is established (fresh sign-in or unlock),
-  best-effort (a denied permission or simulator's missing hardware doesn't
-  block the rest of the app). Sending is still `StubPushProvider`'s no-op
-  end to end — registration works, delivery doesn't, until real APNs/FCM
-  credentials exist.
+  and registers a device token against step 2's `/api/v1/device-tokens`.
+  Runs automatically once a session is established (fresh sign-in or
+  unlock), best-effort (a denied permission or simulator's missing
+  hardware doesn't block the rest of the app). Originally registered the
+  *native* APNs/FCM device token (`getDevicePushTokenAsync`) on the
+  assumption `push.ts`'s eventual real-provider swap-in would talk to
+  APNs/FCM directly, and sending stayed `StubPushProvider`'s no-op end to
+  end until then. **Update (mobile-review fix):** the swap-in went the
+  other way — `push.ts` now sends through Expo's own push relay
+  (`ExpoPushProvider`), needing zero Apple/Google credentials in this
+  codebase, so `registerForPushNotificationsAsync` now registers Expo's
+  relay token (`getExpoPushTokenAsync`) instead. Delivery is live end to
+  end today, not just registration.
 - **Step 6 — universal/app links**: `mobile/app.json` gained
   `ios.associatedDomains: ["applinks:0dot.in"]` and an Android
   `intentFilters` entry for `https://0dot.in` (`autoVerify: true`),
