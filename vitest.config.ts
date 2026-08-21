@@ -1,5 +1,5 @@
 import path from "node:path";
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 import tsconfigPaths from "vite-tsconfig-paths";
 import { TEST_DATABASE_URL, TEST_MESSAGE_ENCRYPTION_KEY, TEST_STRIPE_SECRET_KEY } from "./vitest.env";
 
@@ -14,6 +14,12 @@ export default defineConfig({
     environment: "node",
     globalSetup: ["./vitest.global-setup.ts"],
     setupFiles: ["./src/test/setup.ts"],
+    // mobile/ has its own Jest suite (jest-expo preset, run via `npm test`
+    // inside mobile/) — without this, vitest's default include pattern
+    // still picks up mobile/src/**/__tests__/*.test.ts (it's not under
+    // mobile/node_modules, vitest's only default exclude that would apply)
+    // and fails trying to run Jest-specific mocking APIs under vitest.
+    exclude: [...configDefaults.exclude, "mobile/**"],
     // Every test file shares the one SQLite file created by global setup —
     // running files in parallel would race on it.
     fileParallelism: false,
