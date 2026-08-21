@@ -240,3 +240,23 @@ part of an unrelated feature addendum.
   bookmarks, search, and messages flows — native-app behavior isn't
   browser-testable here, so this is Expo Go/simulator verification, not
   claimed as browser-tested.
+
+## 6. Known dependency vulnerability (accepted risk, no fix available)
+
+`npm audit` in `mobile/` reports 8 high-severity findings that all trace to
+two advisories against `image-size` (a transitive dependency pulled in by
+Metro, React Native's bundler): **GHSA-w3rx-r6r6-pgpr** and
+**GHSA-5p2g-fcmc-qvqq** — infinite-loop denial-of-service bugs in its
+ICNS/JXL/HEIF parsers. Checked directly against both advisories: **no
+patched version exists** as of this writing (every published `image-size`
+release, including the latest, is affected). npm's automatic "fix"
+suggestion (downgrade `expo` 57→53) doesn't actually patch it — it just
+resolves to an older Metro that doesn't happen to pull `image-size` in —
+and would break every SDK-57-specific piece of this addendum's own work for
+no real security gain.
+
+**Accepted, not fixed**, because the actual exposure is low: `image-size`
+here only ever parses this project's own local asset files during Metro's
+dev/build-time bundling — not untrusted user uploads processed at runtime.
+It is not a production attack surface. Revisit by running `npm audit` in
+`mobile/` again once `image-size` ships a patched release upstream.
