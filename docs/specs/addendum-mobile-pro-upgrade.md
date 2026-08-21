@@ -1,6 +1,9 @@
 # Addendum — Mobile Pro-Level Upgrade
 
-Status: M1–M10 built; M11 planned (see §6)
+Status: M1–M10 built. M11's schema half already existed pre-addendum
+(verified) and its missing admin trigger surface is now built too (see
+§6) — only the legal-gated native-purchase flow and finance-ops
+disbursement remain, neither buildable by this addendum alone.
 Owner: TBD
 Related: [phase-15-mobile-apps.md](phase-15-mobile-apps.md), [phase-10-developer-platform.md](phase-10-developer-platform.md), [phase-2-social-platform.md](phase-2-social-platform.md)
 
@@ -566,35 +569,80 @@ proper).
 
 ### M11 — In-app-purchase compliance (engineering half only)
 
-Phase-15 §6 flagged this as needing dedicated legal/business sign-off,
-not a unilateral engineering decision — that sign-off is a separate,
-non-engineering track this addendum can't resolve. What's safe to build
-now:
+**Correction (discovered while starting to build this): the schema half
+below was already built**, in `331cfa1` ("Build Phase 15 mobile app:
+PKCE-authenticated Expo client + fixes") — a commit that predates this
+addendum document entirely. Whoever originally drafted this M11 section
+didn't check `prisma/schema.prisma` first, and neither did the session
+that carried the plan forward into §6 above; both wrote "safe to build
+now" for something already sitting in the codebase. Actually in place
+today, verified by reading it rather than assumed:
 
-1. `PaymentTransaction` gains `processor` (`stripe_connect | apple_iap |
-   google_play_billing`) and `store_fee` (phase-15 §6.2's schema) — safe
-   regardless of policy outcome, and both fees recorded and deducted
-   separately from `platform_fee`, never conflated.
-2. **No native purchase flow gets wired for any category** until legal
+1. `PaymentTransaction.processor` (`stripe_connect | apple_iap |
+   google_play_billing`) and `.storeFee`, both threaded through
+   `recordPaymentTransaction` (`src/lib/payments.ts`) — every pre-phase-15
+   call site defaults to `stripe_connect`/`null` and is unaffected;
+   `platformFee` and `storeFee` are computed and stored as separate
+   fields, never conflated into one number.
+2. An `IapPayoutBatch` model plus `recordIapPayoutBatch`/
+   `reconcileIapPayoutBatch` (same file) — the latter attributes every
+   succeeded, not-yet-reconciled transaction for a processor within a
+   batch's period to that batch and marks it `reconciled`, the
+   "before disbursement" step phase-15 §6.4's acceptance criterion names.
+3. **Was genuinely, correctly incomplete beyond that, now closed**:
+   confirmed by `grep` (not assumed) that no route or admin action
+   anywhere called `recordIapPayoutBatch`/`reconcileIapPayoutBatch` —
+   they were reachable library functions with zero callers, reachable
+   only from a Prisma console. Built the missing admin trigger surface:
+   `src/app/actions/iap-payouts.ts` (`createIapPayoutBatchAction`,
+   `reconcileIapPayoutBatchAction`, both gated on `requirePlatformAdmin`)
+   and `src/app/admin/payments/iap-batches/page.tsx` — a new
+   `/admin/payments/` area, kept separate from `/admin/wallet/` since
+   that's the internal coin economy (`CoinTopUpRequest`/
+   `CoinPayoutRequest`), a different domain from `PaymentTransaction`/
+   Stripe Connect real money. Lists batches with attributed transaction
+   counts and platform-fee/store-fee totals (summed client-side from the
+   batch's own `transactions` relation — batch volumes are low enough
+   that a nested `include` beats an aggregate query per batch), a form to
+   record a new batch, and a "Reconcile" button shown only while a batch
+   is still `received`. **Deliberately still no "mark disbursed"
+   action** — nothing on this page moves real money to a creator, and a
+   fake status flip with no transfer behind it would be a false record,
+   not a shortcut; disbursement itself stays out of scope for the reason
+   below.
+4. **No native purchase flow gets wired for any category** until legal
    confirms which categories current store policy actually covers, in
    which jurisdictions — phase-15 §6.1's point that DMA/Epic-v-Apple
    rulings make this jurisdiction-dependent and evolving, not a fixed
-   rule to hardcode once.
-3. Reconciling IAP-derived earnings against Apple/Google's aggregated
-   lump-sum payout (phase-15 §6.3) is its own finance-operations effort,
-   out of scope here.
+   rule to hardcode once. Still true, still not built, still correctly
+   gated on non-engineering sign-off this addendum can't provide.
 
 Until sign-off lands, marketplace/business/event purchases keep today's
 browser hand-off (M5/M6's existing posture) — the safe default, not a
-placeholder.
+placeholder. What's left of M11 is exactly what was always flagged as
+out of scope for engineering alone: the native purchase flow itself
+(legal-gated) and actually disbursing IAP-attributed earnings through
+`CreatorPayoutAccount` (phase-15 §6.3's dedicated finance/ops effort) —
+neither is a task this addendum can pick up unilaterally.
+
+Verification (admin trigger surface): `npx tsc --noEmit` clean, `npm run
+lint` — 0 errors from either new file (same 8 pre-existing errors as
+M8-M10), `npm test` — 44/44 passing. Manually confirmed
+`/admin/payments/iap-batches` compiles and correctly 307-redirects an
+unauthenticated request to `/login` (the `requirePlatformAdmin` chain
+firing) against the project's own already-running dev server — didn't go
+further than that (submitting the form, seeing the rendered admin view)
+since this repo's `DATABASE_URL` points at `prisma/prod.db`, and
+fabricating an admin session to click through felt like the wrong call
+against a database named that without checking with the user first.
 
 ### Sequencing
 
 M8 first, regardless of the other three — it's the only track that makes
 every subsequent change safer to ship. M9 and M10 touch disjoint code and
-can run in parallel. M11's schema half can start anytime; its
-purchase-flow half is gated on non-engineering sign-off, not on any other
-sub-phase here.
+can run in parallel. M11's schema half turned out to already exist (§6);
+its purchase-flow half is gated on non-engineering sign-off, not on any
+other sub-phase here.
 
 ## 7. Dependency vulnerability (image-size DoS) — fixed 2026-08-21
 
