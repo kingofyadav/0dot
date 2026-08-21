@@ -2,20 +2,15 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { getConversations, ApiError } from "../../src/api/client";
+import { getConversations, markConversationRead, ApiError } from "../../src/api/client";
 import { ConversationRow } from "../../src/components/ConversationRow";
 import { EmptyState } from "../../src/components/EmptyState";
+import { useMessagesStreamEvents } from "../../src/realtime/MessagesStreamContext";
 import { animateNextLayout } from "../../src/utils/animateLayout";
 import { haptics } from "../../src/utils/haptics";
 import { useContentMaxWidth } from "../../src/utils/responsive";
 import { useTheme, type Theme } from "../../src/theme";
 import type { ConversationSummary } from "../../src/api/types";
-
-// Polling, not a live socket — sub-phase M3's architecture decision (see
-// GET /api/v1/conversations' own comment): 20s while this tab is focused,
-// stopped the instant it isn't, so backgrounding the app doesn't keep
-// spending the app's shared per-hour API rate limit for no visible benefit.
-const POLL_INTERVAL_MS = 20000;
 
 export default function MessagesScreen() {
   const theme = useTheme();
@@ -53,13 +48,24 @@ export default function MessagesScreen() {
           await load(true);
         }
       })();
-
-      const interval = setInterval(() => load(true), POLL_INTERVAL_MS);
       return () => {
         cancelled = true;
-        clearInterval(interval);
       };
     }, [load])
+  );
+
+  // M10: replaces the 20s poll — the same app-wide SSE connection
+  // ConversationScreen (messages/[id].tsx) subscribes to. Any conversation
+  // changing (not filtered to one id, unlike that screen — a new message
+  // in any conversation should move it to the top of this list and update
+  // its unread state) triggers a silent refetch.
+  useMessagesStreamEvents(
+    useCallback(
+      (event) => {
+        if (event.type === "new-message" || event.type === "conversation-updated") load(true);
+      },
+      [load]
+    )
   );
 
   async function onRefresh() {
@@ -67,6 +73,19 @@ export default function MessagesScreen() {
     haptics.light();
     await load();
     setRefreshing(false);
+  }
+
+  // M9: ConversationRow's swipe action. Optimistic — updates local state
+  // immediately (same "the swipe itself is the confirmation" reasoning a
+  // mark-read affordance elsewhere would use) and fires the request
+  // best-effort, matching messages/[id].tsx's own markConversationRead
+  // call sites (`.catch(() => {})`, no user-facing error): worst case a
+  // failed request here just means the row goes back to unread on the
+  // next poll, not a lost or duplicated action.
+  function onMarkRead(id: string) {
+    animateNextLayout();
+    setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, isUnread: false } : c)));
+    markConversationRead(id).catch(() => {});
   }
 
   if (loading) {
@@ -99,6 +118,7 @@ export default function MessagesScreen() {
               onPress={() =>
                 router.push({ pathname: "/messages/[id]", params: { id: item.id, title: item.title, avatarUrl: item.avatarUrl ?? "" } })
               }
+              onMarkRead={() => onMarkRead(item.id)}
             />
           )}
         />

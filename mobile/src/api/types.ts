@@ -20,7 +20,9 @@ export type Profile = {
   avatarUrl: string | null;
   coverUrl: string | null;
   isVerified: boolean;
+  isPremium: boolean;
   followerCount: number;
+  followingCount: number;
   isOwnProfile: boolean;
   followStatus: FollowStatus | null;
 };

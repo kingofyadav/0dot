@@ -85,6 +85,12 @@
           "cameraPermission": false,
           "microphonePermission": false
         }
+      ],
+      [
+        "@sentry/react-native/expo",
+        {
+          "disableAutoUpload": true
+        }
       ]
     ],
     "runtimeVersion": {

@@ -5,6 +5,15 @@ import { Platform } from "react-native";
 // touching this file, while shipped builds default to production.
 export const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? "https://0dot.in";
 
+// Unset until a Sentry project exists for this app — app/_layout.tsx's
+// Sentry.init() no-ops without a DSN, so local dev and any build made
+// before a project is provisioned behave identically to today. Once
+// created at sentry.io, set via `eas secret:create --scope project --name
+// EXPO_PUBLIC_SENTRY_DSN --value ...` (and as a local .env entry for dev
+// builds) — never hardcoded here, same reasoning API_BASE_URL's own
+// env-var indirection follows.
+export const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN ?? null;
+
 // Full three-way shape of /api/oauth/first-party-clients' response —
 // "desktop" is the PWA's own client, never something this native binary
 // resolves to itself (see NativePlatform below).

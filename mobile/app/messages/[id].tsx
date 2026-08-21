@@ -4,6 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack, useFocusEffect, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useAuth } from "../../src/auth/AuthContext";
+import { useMessagesStreamEvents } from "../../src/realtime/MessagesStreamContext";
 import { getMessages, sendConversationMessage, markConversationRead, ApiError } from "../../src/api/client";
 import { Avatar } from "../../src/components/Avatar";
 import { EmptyState } from "../../src/components/EmptyState";
@@ -14,9 +15,6 @@ import { useTheme, type Theme } from "../../src/theme";
 import type { MessageItem } from "../../src/api/types";
 
 const MAX_MESSAGE_LENGTH = 4000;
-// While this thread is focused — shorter than the inbox's 20s poll since
-// an open conversation is the one place a delay is most noticeable.
-const POLL_INTERVAL_MS = 5000;
 
 // Newest-first data + FlatList's `inverted` prop (index 0 renders at the
 // bottom, growing upward) — the standard chat-list arrangement, and it
@@ -65,16 +63,27 @@ export default function ConversationScreen() {
         if (!cancelled) setLoading(false);
         markConversationRead(id).catch(() => {});
       })();
-
-      const interval = setInterval(() => {
-        load();
-        markConversationRead(id).catch(() => {});
-      }, POLL_INTERVAL_MS);
       return () => {
         cancelled = true;
-        clearInterval(interval);
       };
     }, [id, load])
+  );
+
+  // M10: replaces the old 5s poll — GET /api/v1/messages/stream (the same
+  // bearer-token SSE connection MessagesStreamProvider holds open for the
+  // whole session) pushes a `new-message`/`conversation-updated` event the
+  // instant one lands, filtered to this conversation so an unrelated
+  // conversation's activity elsewhere doesn't trigger a refetch here.
+  useMessagesStreamEvents(
+    useCallback(
+      (event) => {
+        if ((event.type === "new-message" || event.type === "conversation-updated") && event.conversationId === id) {
+          load();
+          markConversationRead(id).catch(() => {});
+        }
+      },
+      [id, load]
+    )
   );
 
   async function onLoadOlder() {

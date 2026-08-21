@@ -1,11 +1,21 @@
 import { useCallback, useRef, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, Share, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, Share, StyleSheet, Text, View } from "react-native";
 import { Image } from "expo-image";
+import Animated, {
+  Extrapolation,
+  interpolate,
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useSharedValue,
+} from "react-native-reanimated";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router, useFocusEffect } from "expo-router";
 import { getProfile, getUserPosts, followUser, unfollowUser, likePost, repostPost, toggleBookmark, ApiError } from "../api/client";
 import { Avatar } from "../components/Avatar";
+import { Button } from "../components/Button";
 import { VerifiedBadge } from "../components/VerifiedBadge";
+import { PremiumBadge } from "../components/PremiumBadge";
+import { ImageLightbox } from "../components/ImageLightbox";
 import { EmptyState } from "../components/EmptyState";
 import { PostRow } from "../components/PostRow";
 import { SkeletonBlock } from "../components/Skeleton";
@@ -15,6 +25,8 @@ import { useContentMaxWidth } from "../utils/responsive";
 import { useTheme, type Theme } from "../theme";
 import { API_BASE_URL } from "../config";
 import type { Post, Profile } from "../api/types";
+
+const COVER_HEIGHT = 140;
 
 // The full profile screen body (fetch, optimistic like/repost/bookmark/
 // follow, header, posts list) — shared by app/[username].tsx (any
@@ -36,6 +48,25 @@ export function ProfileScreenBody({ username, showSettingsShortcut = false }: { 
   const [posts, setPosts] = useState<Post[]>([]);
   const [postsNextCursor, setPostsNextCursor] = useState<string | null>(null);
   const [postsLoadingMore, setPostsLoadingMore] = useState(false);
+
+  // M9 profile pass: tapping either image opens it full-screen — a shared
+  // lightbox regardless of which one, since only one can be open at a
+  // time. null both means closed.
+  const [lightboxUri, setLightboxUri] = useState<string | null>(null);
+
+  // Drives the cover's overscroll "stretch" on pull-down (Twitter/
+  // Instagram's own profile cover behavior) — a transform (scale +
+  // translateY), not a height change, so the FlatList's header never
+  // reflows on every scroll frame.
+  const scrollY = useSharedValue(0);
+  const scrollHandler = useAnimatedScrollHandler((event) => {
+    scrollY.value = event.contentOffset.y;
+  });
+  const coverAnimatedStyle = useAnimatedStyle(() => {
+    const stretch = interpolate(scrollY.value, [-COVER_HEIGHT, 0], [2, 1], Extrapolation.CLAMP);
+    const translateY = interpolate(scrollY.value, [-COVER_HEIGHT, 0], [-COVER_HEIGHT / 2, 0], Extrapolation.CLAMP);
+    return { transform: [{ translateY }, { scale: stretch }] };
+  });
 
   const load = useCallback(async () => {
     setError(null);
@@ -183,99 +214,145 @@ export function ProfileScreenBody({ username, showSettingsShortcut = false }: { 
   }
 
   return (
-    <FlatList
-      style={[styles.screen, maxWidth ? { maxWidth, alignSelf: "center", width: "100%" } : null]}
-      data={posts}
-      keyExtractor={(post) => post.id}
-      onEndReached={onPostsEndReached}
-      onEndReachedThreshold={0.4}
-      renderItem={({ item }) => (
-        <PostRow
-          post={item}
-          onPress={() => router.push({ pathname: "/post/[id]", params: { id: item.id } })}
-          onToggleLike={() => onToggleLike(item)}
-          onToggleRepost={() => onToggleRepost(item.id)}
-          onToggleBookmark={() => onToggleBookmark(item)}
-        />
-      )}
-      ListFooterComponent={postsLoadingMore ? <ActivityIndicator style={styles.footerSpinner} color={theme.colors.accent} /> : null}
-      ListEmptyComponent={<Text style={styles.emptyPosts}>No posts yet.</Text>}
-      ListHeaderComponent={
-        <View>
-          {profile.coverUrl ? (
-            <Image source={{ uri: profile.coverUrl }} style={styles.cover} contentFit="cover" />
-          ) : (
-            <View style={[styles.cover, { backgroundColor: theme.colors.surface }]} />
-          )}
-          <View style={styles.headerButtons}>
-            <Pressable onPress={onShare} accessibilityRole="button" accessibilityLabel="Share profile" hitSlop={8} style={styles.headerButton}>
-              <Ionicons name="share-outline" size={20} color={theme.colors.foreground} />
-            </Pressable>
-            {showSettingsShortcut ? (
+    <>
+      <Animated.FlatList
+        style={[styles.screen, maxWidth ? { maxWidth, alignSelf: "center", width: "100%" } : null]}
+        data={posts}
+        keyExtractor={(post: Post) => post.id}
+        onScroll={scrollHandler}
+        scrollEventThrottle={16}
+        onEndReached={onPostsEndReached}
+        onEndReachedThreshold={0.4}
+        renderItem={({ item }: { item: Post }) => (
+          <PostRow
+            post={item}
+            onPress={() => router.push({ pathname: "/post/[id]", params: { id: item.id } })}
+            onToggleLike={() => onToggleLike(item)}
+            onToggleRepost={() => onToggleRepost(item.id)}
+            onToggleBookmark={() => onToggleBookmark(item)}
+          />
+        )}
+        ListFooterComponent={postsLoadingMore ? <ActivityIndicator style={styles.footerSpinner} color={theme.colors.accent} /> : null}
+        ListEmptyComponent={<Text style={styles.emptyPosts}>No posts yet.</Text>}
+        ListHeaderComponent={
+          <View>
+            <View style={styles.coverClip}>
               <Pressable
-                onPress={() => router.push("/settings")}
-                accessibilityRole="button"
-                accessibilityLabel="Settings"
-                hitSlop={8}
-                style={styles.headerButton}
+                onPress={() => profile.coverUrl && setLightboxUri(profile.coverUrl)}
+                accessibilityRole={profile.coverUrl ? "imagebutton" : undefined}
+                accessibilityLabel="Cover photo"
+                disabled={!profile.coverUrl}
               >
-                <Ionicons name="settings-outline" size={20} color={theme.colors.foreground} />
+                {profile.coverUrl ? (
+                  <Animated.View style={coverAnimatedStyle}>
+                    <Image source={{ uri: profile.coverUrl }} style={styles.cover} contentFit="cover" />
+                  </Animated.View>
+                ) : (
+                  <View style={[styles.cover, { backgroundColor: theme.colors.surface }]} />
+                )}
               </Pressable>
-            ) : null}
-          </View>
-          <View style={styles.center}>
-            <Avatar uri={profile.avatarUrl} name={profile.displayName ?? profile.username} size={88} />
-            <View style={styles.nameRow}>
-              <Text style={styles.title}>{profile.displayName}</Text>
-              {profile.isVerified ? <VerifiedBadge size={18} /> : null}
+              <View style={styles.headerButtons}>
+                <Pressable onPress={onShare} accessibilityRole="button" accessibilityLabel="Share profile" hitSlop={8} style={styles.headerButton}>
+                  <Ionicons name="share-outline" size={20} color="#fff" />
+                </Pressable>
+                {showSettingsShortcut ? (
+                  <Pressable
+                    onPress={() => router.push("/settings")}
+                    accessibilityRole="button"
+                    accessibilityLabel="Settings"
+                    hitSlop={8}
+                    style={styles.headerButton}
+                  >
+                    <Ionicons name="settings-outline" size={20} color="#fff" />
+                  </Pressable>
+                ) : null}
+              </View>
             </View>
-            <Text style={styles.handle}>@{profile.username}</Text>
-            {profile.bio ? <Text style={styles.bio}>{profile.bio}</Text> : null}
-            <View style={styles.statPill}>
-              <Text style={styles.statNumber}>{profile.followerCount}</Text>
-              <Text style={styles.statLabel}>{profile.followerCount === 1 ? "follower" : "followers"}</Text>
+            <View style={styles.center}>
+              <Pressable
+                onPress={() => profile.avatarUrl && setLightboxUri(profile.avatarUrl)}
+                accessibilityRole={profile.avatarUrl ? "imagebutton" : undefined}
+                accessibilityLabel="Profile photo"
+                disabled={!profile.avatarUrl}
+              >
+                <Avatar uri={profile.avatarUrl} name={profile.displayName ?? profile.username} size={88} />
+              </Pressable>
+              <View style={styles.nameRow}>
+                <Text style={styles.title}>{profile.displayName}</Text>
+                {profile.isVerified ? <VerifiedBadge size={18} /> : null}
+                {profile.isPremium ? <PremiumBadge size={18} /> : null}
+              </View>
+              <Text style={styles.handle}>@{profile.username}</Text>
+              {profile.bio ? <Text style={styles.bio}>{profile.bio}</Text> : null}
+              <View style={styles.statPill}>
+                <View style={styles.statGroup}>
+                  <Text style={styles.statNumber}>{profile.followerCount}</Text>
+                  <Text style={styles.statLabel}>{profile.followerCount === 1 ? "follower" : "followers"}</Text>
+                </View>
+                <View style={styles.statDivider} />
+                <View style={styles.statGroup}>
+                  <Text style={styles.statNumber}>{profile.followingCount}</Text>
+                  <Text style={styles.statLabel}>following</Text>
+                </View>
+              </View>
+              {profile.isOwnProfile ? (
+                <Button
+                  label="Edit profile"
+                  variant="secondary"
+                  accessibilityLabel="Edit profile"
+                  onPress={() => router.push("/edit-profile")}
+                  style={styles.followButton}
+                />
+              ) : (
+                <Button
+                  label={profile.followStatus === "accepted" ? "Following" : profile.followStatus === "pending" ? "Requested" : "Follow"}
+                  variant={profile.followStatus === "none" ? "primary" : "secondary"}
+                  accessibilityLabel={
+                    profile.followStatus === "accepted" ? "Unfollow" : profile.followStatus === "pending" ? "Cancel follow request" : "Follow"
+                  }
+                  onPress={onToggleFollow}
+                  style={styles.followButton}
+                />
+              )}
             </View>
-            {profile.isOwnProfile ? (
-              <Pressable
-                onPress={() => router.push("/edit-profile")}
-                accessibilityRole="button"
-                accessibilityLabel="Edit profile"
-                style={({ pressed }) => [styles.followButton, styles.followButtonSecondary, { opacity: pressed ? 0.7 : 1 }]}
-              >
-                <Text style={styles.followButtonText}>Edit profile</Text>
-              </Pressable>
-            ) : (
-              <Pressable
-                onPress={onToggleFollow}
-                accessibilityRole="button"
-                accessibilityLabel={
-                  profile.followStatus === "accepted" ? "Unfollow" : profile.followStatus === "pending" ? "Cancel follow request" : "Follow"
-                }
-                style={({ pressed }) => [
-                  styles.followButton,
-                  profile.followStatus === "none" ? styles.followButtonPrimary : styles.followButtonSecondary,
-                  { opacity: pressed ? 0.7 : 1 },
-                ]}
-              >
-                <Text style={[styles.followButtonText, profile.followStatus === "none" && styles.followButtonTextPrimary]}>
-                  {profile.followStatus === "accepted" ? "Following" : profile.followStatus === "pending" ? "Requested" : "Follow"}
-                </Text>
-              </Pressable>
-            )}
+            <Text style={styles.postsHeading}>Posts</Text>
           </View>
-          <Text style={styles.postsHeading}>Posts</Text>
-        </View>
-      }
-    />
+        }
+      />
+      <ImageLightbox uri={lightboxUri} onClose={() => setLightboxUri(null)} />
+    </>
   );
 }
 
 function createStyles(theme: Theme) {
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: theme.colors.background },
-    headerButtons: { flexDirection: "row", justifyContent: "flex-end", gap: theme.space[1], paddingHorizontal: theme.space[2] },
-    headerButton: { minWidth: 44, minHeight: 44, alignItems: "center", justifyContent: "center" },
-    cover: { width: "100%", height: 140 },
+    // overflow: hidden clips the cover's scroll-driven overscroll stretch
+    // (scale transform) to the cover's own bounds, rather than letting the
+    // scaled-up image spill into the avatar/name area below it.
+    coverClip: { height: COVER_HEIGHT, overflow: "hidden" },
+    headerButtons: {
+      position: "absolute",
+      top: theme.space[3],
+      right: theme.space[2],
+      flexDirection: "row",
+      gap: theme.space[2],
+    },
+    // Circular scrim (same rgba(0,0,0,0.6) treatment edit-profile.tsx's own
+    // coverEditBadge already uses) — these icons float over a photo of
+    // unknown brightness, so a fixed white icon + dark backdrop stays
+    // legible regardless of theme or the cover's own colors, unlike the
+    // previous theme.colors.foreground (which assumed a plain background,
+    // not a photo underneath).
+    headerButton: {
+      minWidth: 36,
+      minHeight: 36,
+      borderRadius: 18,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: "rgba(0, 0, 0, 0.6)",
+    },
+    cover: { width: "100%", height: COVER_HEIGHT },
     center: { alignItems: "center", justifyContent: "center", padding: theme.space[6], gap: theme.space[2] },
     nameRow: { flexDirection: "row", alignItems: "center", gap: theme.space[1], marginTop: theme.space[3] },
     title: { fontSize: theme.text.xxl, fontWeight: theme.weight.heading, color: theme.colors.foreground },
@@ -283,8 +360,8 @@ function createStyles(theme: Theme) {
     bio: { fontSize: theme.text.base, color: theme.colors.foreground, textAlign: "center", marginTop: theme.space[1] },
     statPill: {
       flexDirection: "row",
-      alignItems: "baseline",
-      gap: theme.space[1],
+      alignItems: "center",
+      gap: theme.space[3],
       marginTop: theme.space[4],
       backgroundColor: theme.colors.surface,
       borderWidth: StyleSheet.hairlineWidth,
@@ -293,21 +370,11 @@ function createStyles(theme: Theme) {
       paddingVertical: theme.space[2],
       paddingHorizontal: theme.space[4],
     },
+    statGroup: { flexDirection: "row", alignItems: "baseline", gap: theme.space[1] },
+    statDivider: { width: StyleSheet.hairlineWidth, alignSelf: "stretch", backgroundColor: theme.colors.border },
     statNumber: { fontWeight: theme.weight.heading, color: theme.colors.foreground, fontSize: theme.text.base },
     statLabel: { color: theme.colors.mutedForeground, fontSize: theme.text.sm },
-    followButton: {
-      marginTop: theme.space[4],
-      minHeight: 44,
-      minWidth: 120,
-      alignItems: "center",
-      justifyContent: "center",
-      borderRadius: theme.radius.full,
-      paddingHorizontal: theme.space[6],
-    },
-    followButtonPrimary: { backgroundColor: theme.colors.accent },
-    followButtonSecondary: { borderWidth: StyleSheet.hairlineWidth, borderColor: theme.colors.border, backgroundColor: theme.colors.surface },
-    followButtonText: { fontWeight: theme.weight.emphasis, fontSize: theme.text.base, color: theme.colors.foreground },
-    followButtonTextPrimary: { color: theme.colors.onAccent },
+    followButton: { marginTop: theme.space[4], minWidth: 140 },
     postsHeading: {
       fontSize: theme.text.lg,
       fontWeight: theme.weight.heading,

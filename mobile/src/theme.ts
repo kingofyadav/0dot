@@ -35,7 +35,7 @@ export type Theme = {
   text: { xs: number; sm: number; base: number; lg: number; xl: number; xxl: number };
   weight: { regular: "400"; label: "500"; emphasis: "600"; heading: "700" };
   shadow: { sm: ShadowStyle; md: ShadowStyle; lg: ShadowStyle };
-  motion: { fast: number; base: number; slow: number };
+  motion: { fast: number; base: number; slow: number; press: { damping: number; stiffness: number } };
 };
 
 // RN's shadow props (iOS) can't express web's dual-layer box-shadow
@@ -62,7 +62,11 @@ const weight = { regular: "400", label: "500", emphasis: "600", heading: "700" }
 // converted to the millisecond durations RN's Animated/LayoutAnimation
 // timing functions take, rather than each new screen picking its own
 // duration by feel.
-const motion = { fast: 50, base: 150, slow: 250 } as const;
+// M9: one shared spring tuning for every Reanimated press-scale effect
+// (Button, ListRow) so a future retune doesn't need finding every call
+// site by hand — damping/stiffness rather than a duration since
+// withSpring is physics-driven, unlike fast/base/slow above.
+const motion = { fast: 50, base: 150, slow: 250, press: { damping: 18, stiffness: 400 } } as const;
 
 // Mirrors globals.css's --shadow/-md/-lg light values (see that file's
 // light-mode custom properties) — see ShadowStyle's comment for the

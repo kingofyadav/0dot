@@ -1,16 +1,29 @@
 import { useMemo } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Swipeable } from "react-native-gesture-handler";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { Avatar } from "./Avatar";
 import { ListRow } from "./ListRow";
 import { relativeTime } from "../utils/relativeTime";
+import { haptics } from "../utils/haptics";
 import { useTheme, type Theme } from "../theme";
 import type { ConversationSummary } from "../api/types";
 
-export function ConversationRow({ conversation, onPress }: { conversation: ConversationSummary; onPress: () => void }) {
+type Props = {
+  conversation: ConversationSummary;
+  onPress: () => void;
+  // M9: only the messages inbox passes this — the request-to-message
+  // sub-screen (if one existed) or any other future consumer of this row
+  // can render it without opting into a swipe action it doesn't have a
+  // handler for. Omitted -> row behaves exactly as before.
+  onMarkRead?: () => void;
+};
+
+export function ConversationRow({ conversation, onPress, onMarkRead }: Props) {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
-  return (
+  const row = (
     <ListRow
       accessibilityLabel={`Conversation with ${conversation.title}${conversation.isUnread ? ", unread" : ""}`}
       onPress={onPress}
@@ -33,6 +46,33 @@ export function ConversationRow({ conversation, onPress }: { conversation: Conve
       </View>
     </ListRow>
   );
+
+  // Nothing to mark read on an already-read conversation — skip wrapping
+  // in Swipeable entirely rather than rendering a reachable action with
+  // nothing for it to do.
+  if (!onMarkRead || !conversation.isUnread) return row;
+
+  return (
+    <Swipeable
+      renderRightActions={(_progress, _dragX, swipeable) => (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Mark as read"
+          onPress={() => {
+            haptics.light();
+            onMarkRead();
+            swipeable.close();
+          }}
+          style={[styles.markReadAction, { backgroundColor: theme.colors.accent }]}
+        >
+          <Ionicons name="checkmark-done" size={20} color={theme.colors.onAccent} />
+        </Pressable>
+      )}
+      rightThreshold={40}
+    >
+      {row}
+    </Swipeable>
+  );
 }
 
 function createStyles(theme: Theme) {
@@ -46,5 +86,6 @@ function createStyles(theme: Theme) {
     preview: { color: theme.colors.mutedForeground, fontSize: theme.text.sm, flex: 1 },
     previewUnread: { color: theme.colors.foreground, fontWeight: theme.weight.label },
     dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: theme.colors.accent },
+    markReadAction: { width: 72, alignItems: "center", justifyContent: "center" },
   });
 }

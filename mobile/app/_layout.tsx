@@ -1,9 +1,12 @@
+import * as Sentry from "@sentry/react-native";
 import { Stack } from "expo-router";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { AuthProvider, useAuth } from "../src/auth/AuthContext";
+import { MessagesStreamProvider } from "../src/realtime/MessagesStreamContext";
 import { SignInScreen } from "../src/screens/SignInScreen";
 import { LockScreen } from "../src/screens/LockScreen";
 import { OnboardingScreen } from "../src/screens/OnboardingScreen";
@@ -11,6 +14,15 @@ import { subscribeToIncomingLinks } from "../src/links/universalLinks";
 import { subscribeToPushNavigation } from "../src/push/pushNavigation";
 import { hasSeenOnboarding, markOnboardingSeen } from "../src/utils/onboarding";
 import { useTheme } from "../src/theme";
+import { SENTRY_DSN } from "../src/config";
+
+// M8 (mobile pro-upgrade addendum §6): no DSN means no project has been
+// provisioned yet at sentry.io — init() is a documented no-op without one,
+// so this line is safe to ship ahead of that provisioning step rather than
+// gating the whole import on it.
+if (SENTRY_DSN) {
+  Sentry.init({ dsn: SENTRY_DSN });
+}
 
 function RootNavigator() {
   const { status } = useAuth();
@@ -90,17 +102,31 @@ function RootNavigator() {
   );
 }
 
-export default function RootLayout() {
+function RootLayout() {
   return (
-    <SafeAreaProvider>
-      <AuthProvider>
-        <RootNavigator />
-        <StatusBar style="auto" />
-      </AuthProvider>
-    </SafeAreaProvider>
+    // M9: required at the app root for react-native-gesture-handler's
+    // gestures (BottomSheet's drag-to-dismiss, ConversationRow's swipe) to
+    // receive touches at all — without it those gesture handlers silently
+    // never fire.
+    <GestureHandlerRootView style={styles.flex}>
+      <SafeAreaProvider>
+        <AuthProvider>
+          <MessagesStreamProvider>
+            <RootNavigator />
+            <StatusBar style="auto" />
+          </MessagesStreamProvider>
+        </AuthProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 
+// Sentry.wrap is a no-op passthrough when init() above never ran (no DSN)
+// — it only adds its error-boundary/breadcrumb instrumentation once a real
+// project is configured.
+export default Sentry.wrap(RootLayout);
+
 const styles = StyleSheet.create({
+  flex: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
 });

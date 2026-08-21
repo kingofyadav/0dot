@@ -1,7 +1,10 @@
 import { useMemo } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, type StyleProp, type ViewStyle } from "react-native";
+import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSpring } from "react-native-reanimated";
 import { useTheme, type Theme } from "../theme";
 import { haptics } from "../utils/haptics";
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 type Variant = "primary" | "secondary" | "danger" | "ghost";
 
@@ -30,25 +33,56 @@ export function Button({ label, onPress, variant = "primary", loading = false, d
   const styles = useMemo(() => createStyles(theme), [theme]);
   const isDisabled = disabled || loading;
 
+  // M9: scale adds the "feels expensive" press-down X/Instagram's own
+  // buttons have; opacity keeps the instant dip the old style-function
+  // form gave for free. Both driven from the same shared values (rather
+  // than Pressable's own `style={({pressed}) => ...}` callback) because
+  // AnimatedPressable intercepts the resolved `style` prop directly —
+  // it never sees inside a function passed as that prop, so an animated
+  // style can't be threaded through it. Skipped entirely under reduced
+  // motion, same OS signal animateLayout.ts's LayoutAnimation gate reads
+  // — Reanimated's own hook rather than that module's cached flag, since
+  // a worklet needs a reactive value, not a snapshot read once.
+  const reduceMotion = useReducedMotion();
+  const scale = useSharedValue(1);
+  const opacity = useSharedValue(1);
+  const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }], opacity: opacity.value }));
+
   return (
-    <Pressable
+    <AnimatedPressable
       onPress={() => {
         if (isDisabled) return;
         haptics.light();
         onPress();
       }}
+      onPressIn={() => {
+        if (isDisabled || reduceMotion) return;
+        scale.value = withSpring(0.96, theme.motion.press);
+        opacity.value = withSpring(0.75, theme.motion.press);
+      }}
+      onPressOut={() => {
+        if (reduceMotion) return;
+        scale.value = withSpring(1, theme.motion.press);
+        opacity.value = withSpring(1, theme.motion.press);
+      }}
       disabled={isDisabled}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}
       accessibilityState={{ disabled: isDisabled, busy: loading }}
-      style={({ pressed }) => [styles.base, styles[variant], isDisabled && styles.disabled, pressed && !isDisabled && styles.pressed, style]}
+      style={[
+        styles.base,
+        styles[variant],
+        isDisabled && styles.disabled,
+        style,
+        animatedStyle,
+      ]}
     >
       {loading ? (
         <ActivityIndicator color={variant === "primary" ? theme.colors.onAccent : theme.colors.accent} />
       ) : (
         <Text style={[styles.label, styles[`${variant}Label`]]}>{label}</Text>
       )}
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 
@@ -62,7 +96,6 @@ function createStyles(theme: Theme) {
       flexDirection: "row",
       gap: theme.space[2],
     },
-    pressed: { opacity: 0.75 },
     disabled: { opacity: 0.5 },
     label: { fontSize: theme.text.base, fontWeight: theme.weight.emphasis },
     primary: { backgroundColor: theme.colors.accent, borderRadius: theme.radius.full },

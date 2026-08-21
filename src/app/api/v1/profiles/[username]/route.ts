@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { resolveApiRequest, requireScope, apiError } from "@/lib/api-auth";
 import { checkApiRateLimit } from "@/lib/api-rate-limit";
 import { isBlockedEitherWay } from "@/lib/blocks";
+import { isProfilePremium } from "@/lib/platform-billing";
 
 // spec §5.1's acceptance criterion in concrete form: a blocked relationship
 // hides the profile from the API exactly as it hides it from the web page
@@ -40,6 +41,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ user
       });
 
   const profile = username.user.profile;
+  // Mobile pro-upgrade addendum M9 profile pass: web's own profile page
+  // (`[username]/page.tsx`) already shows followingCount and an isPremium
+  // badge — both were just missing from this route's response, not
+  // features that don't exist yet. isProfilePremium mirrors that page's
+  // own isPremium derivation exactly (same `platform-billing.ts` helper),
+  // not re-derived.
+  const isPremium = await isProfilePremium(profile.id);
   return Response.json(
     {
       username: handle,
@@ -48,7 +56,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ user
       avatarUrl: profile.avatarUrl,
       coverUrl: profile.coverUrl,
       isVerified: profile.isVerified,
+      isPremium,
       followerCount: profile.followerCount,
+      followingCount: profile.followingCount,
       isOwnProfile,
       followStatus: isOwnProfile ? null : (followRow?.status ?? "none"),
     },
