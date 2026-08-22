@@ -20,18 +20,20 @@ export default async function ExplorePage({
 
   const { items: posts, nextCursor } = await getFeedPosts({ cursor, viewerId: currentUser?.id ?? null });
 
+  // All five independent of each other — one batch instead of two halves
+  // the round trips this stage pays against the network DB.
   const postIds = posts.map((p) => p.id);
-  const [likedPostIds, bookmarkedPostIds] = currentUser
-    ? await Promise.all([
-        db.postLike
+  const [likedPostIds, bookmarkedPostIds, votedOptionIds, postableBusinesses, ownTiers] = await Promise.all([
+    currentUser
+      ? db.postLike
           .findMany({ where: { userId: currentUser.id, postId: { in: postIds } }, select: { postId: true } })
-          .then((rows) => new Set(rows.map((r) => r.postId))),
-        db.bookmark
+          .then((rows) => new Set(rows.map((r) => r.postId)))
+      : Promise.resolve(new Set<string>()),
+    currentUser
+      ? db.bookmark
           .findMany({ where: { userId: currentUser.id, postId: { in: postIds } }, select: { postId: true } })
-          .then((rows) => new Set(rows.map((r) => r.postId))),
-      ])
-    : [new Set<string>(), new Set<string>()];
-  const [votedOptionIds, postableBusinesses, ownTiers] = await Promise.all([
+          .then((rows) => new Set(rows.map((r) => r.postId)))
+      : Promise.resolve(new Set<string>()),
     getVotedPollOptionIds(currentUser?.id, posts),
     currentUser ? getPostableBusinesses(currentUser.id) : Promise.resolve([]),
     currentUser

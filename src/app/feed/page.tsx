@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
@@ -40,17 +41,17 @@ export default async function FeedPage({
 
   const { items: posts, nextCursor } = await getFeedPosts({ authorFilter, cursor, viewerId: currentUser.id });
 
+  // These five queries are all independent of each other (posts is already
+  // resolved above) — one batch instead of two halves the round trips this
+  // stage pays, each one a network hop to the libsql backend.
   const postIds = posts.map((p) => p.id);
-  const [likedPostIds, bookmarkedPostIds] = await Promise.all([
+  const [likedPostIds, bookmarkedPostIds, votedOptionIds, postableBusinesses, ownTiers] = await Promise.all([
     db.postLike
       .findMany({ where: { userId: currentUser.id, postId: { in: postIds } }, select: { postId: true } })
       .then((rows) => new Set(rows.map((r) => r.postId))),
     db.bookmark
       .findMany({ where: { userId: currentUser.id, postId: { in: postIds } }, select: { postId: true } })
       .then((rows) => new Set(rows.map((r) => r.postId))),
-  ]);
-
-  const [votedOptionIds, postableBusinesses, ownTiers] = await Promise.all([
     getVotedPollOptionIds(currentUser.id, posts),
     getPostableBusinesses(currentUser.id),
     db.membershipTier.findMany({
@@ -60,28 +61,7 @@ export default async function FeedPage({
     }),
   ]);
 
-  // phase-5: quick entry points into the creator's own monetization tools,
-  // deep-linking to the matching #section on the settings page (§3-§11)
-  // rather than duplicating any of that UI here. Skipped entirely for a
-  // viewer with no claimed username — same gate ComposeBox already applies,
-  // since none of this is reachable without a profile anyway.
   const handle = currentUser.username?.handle;
-  const creatorStudio = handle
-    ? await (async () => {
-        const [payoutAccount, tierCount, productCount, courseCount, hasPodcast, newsletterSubscriberCount, programCount, livestreamCount] =
-          await Promise.all([
-            getMyPayoutAccount(currentUser.id),
-            db.membershipTier.count({ where: { creatorId: currentUser.id } }),
-            db.digitalProduct.count({ where: { creatorId: currentUser.id } }),
-            db.course.count({ where: { creatorId: currentUser.id } }),
-            db.podcast.count({ where: { creatorId: currentUser.id } }).then((n) => n > 0),
-            db.newsletterSubscription.count({ where: { creatorId: currentUser.id, unsubscribedAt: null } }),
-            db.affiliateProgram.count({ where: { creatorId: currentUser.id } }),
-            db.livestream.count({ where: { creatorId: currentUser.id } }),
-          ]);
-        return { payoutAccount, tierCount, productCount, courseCount, hasPodcast, newsletterSubscriberCount, programCount, livestreamCount };
-      })()
-    : null;
 
   return (
     <>
@@ -96,41 +76,70 @@ export default async function FeedPage({
         postableBusinesses={postableBusinesses}
         ownTiers={ownTiers}
       />
-      {handle && creatorStudio && (
-        <details className="profileEditToggle" style={{ marginTop: "1.5rem" }}>
-          <summary className="sectionHeading" style={{ display: "inline-block" }}>
-            Creator studio
-          </summary>
-          <div className="profileCard" style={{ marginTop: "0.75rem" }}>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
-              <Link href={`/s/${handle}#monetization`} className="button buttonSecondary buttonSmall">
-                Payouts: {creatorStudio.payoutAccount ? PAYOUT_STATUS_LABEL[creatorStudio.payoutAccount.status] ?? creatorStudio.payoutAccount.status : "Not set up"}
-              </Link>
-              <Link href={`/s/${handle}#memberships`} className="button buttonSecondary buttonSmall">
-                Memberships ({creatorStudio.tierCount})
-              </Link>
-              <Link href={`/s/${handle}#digital-products`} className="button buttonSecondary buttonSmall">
-                Digital products ({creatorStudio.productCount})
-              </Link>
-              <Link href={`/s/${handle}#courses`} className="button buttonSecondary buttonSmall">
-                Courses ({creatorStudio.courseCount})
-              </Link>
-              <Link href={`/s/${handle}#podcasts`} className="button buttonSecondary buttonSmall">
-                {creatorStudio.hasPodcast ? "Podcast" : "Start a podcast"}
-              </Link>
-              <Link href={`/s/${handle}#newsletter`} className="button buttonSecondary buttonSmall">
-                Newsletter ({creatorStudio.newsletterSubscriberCount})
-              </Link>
-              <Link href={`/s/${handle}#affiliate-programs`} className="button buttonSecondary buttonSmall">
-                Affiliate ({creatorStudio.programCount})
-              </Link>
-              <Link href={`/s/${handle}#livestreams`} className="button buttonSecondary buttonSmall">
-                Livestreams ({creatorStudio.livestreamCount})
-              </Link>
-            </div>
-          </div>
-        </details>
+      {/* Deep-links into the settings page's monetization sections — eight
+          more count/lookup queries that aren't needed to render the feed
+          itself, so they're deferred behind Suspense rather than adding to
+          this page's TTFB. */}
+      {handle && (
+        <Suspense fallback={null}>
+          <CreatorStudio userId={currentUser.id} handle={handle} />
+        </Suspense>
       )}
     </>
+  );
+}
+
+// phase-5: quick entry points into the creator's own monetization tools,
+// deep-linking to the matching #section on the settings page (§3-§11)
+// rather than duplicating any of that UI here. Only rendered for a viewer
+// with a claimed username — same gate ComposeBox already applies, since
+// none of this is reachable without a profile anyway.
+async function CreatorStudio({ userId, handle }: { userId: string; handle: string }) {
+  const [payoutAccount, tierCount, productCount, courseCount, hasPodcast, newsletterSubscriberCount, programCount, livestreamCount] =
+    await Promise.all([
+      getMyPayoutAccount(userId),
+      db.membershipTier.count({ where: { creatorId: userId } }),
+      db.digitalProduct.count({ where: { creatorId: userId } }),
+      db.course.count({ where: { creatorId: userId } }),
+      db.podcast.count({ where: { creatorId: userId } }).then((n) => n > 0),
+      db.newsletterSubscription.count({ where: { creatorId: userId, unsubscribedAt: null } }),
+      db.affiliateProgram.count({ where: { creatorId: userId } }),
+      db.livestream.count({ where: { creatorId: userId } }),
+    ]);
+
+  return (
+    <details className="profileEditToggle" style={{ marginTop: "1.5rem" }}>
+      <summary className="sectionHeading" style={{ display: "inline-block" }}>
+        Creator studio
+      </summary>
+      <div className="profileCard" style={{ marginTop: "0.75rem" }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+          <Link href={`/s/${handle}#monetization`} className="button buttonSecondary buttonSmall">
+            Payouts: {payoutAccount ? PAYOUT_STATUS_LABEL[payoutAccount.status] ?? payoutAccount.status : "Not set up"}
+          </Link>
+          <Link href={`/s/${handle}#memberships`} className="button buttonSecondary buttonSmall">
+            Memberships ({tierCount})
+          </Link>
+          <Link href={`/s/${handle}#digital-products`} className="button buttonSecondary buttonSmall">
+            Digital products ({productCount})
+          </Link>
+          <Link href={`/s/${handle}#courses`} className="button buttonSecondary buttonSmall">
+            Courses ({courseCount})
+          </Link>
+          <Link href={`/s/${handle}#podcasts`} className="button buttonSecondary buttonSmall">
+            {hasPodcast ? "Podcast" : "Start a podcast"}
+          </Link>
+          <Link href={`/s/${handle}#newsletter`} className="button buttonSecondary buttonSmall">
+            Newsletter ({newsletterSubscriberCount})
+          </Link>
+          <Link href={`/s/${handle}#affiliate-programs`} className="button buttonSecondary buttonSmall">
+            Affiliate ({programCount})
+          </Link>
+          <Link href={`/s/${handle}#livestreams`} className="button buttonSecondary buttonSmall">
+            Livestreams ({livestreamCount})
+          </Link>
+        </div>
+      </div>
+    </details>
   );
 }
