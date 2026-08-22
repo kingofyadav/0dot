@@ -55,7 +55,9 @@ type NotificationInput = {
     | "dmca_strike_issued"
     | "org_member_added"
     | "org_member_deactivated"
-    | "org_sso_configured";
+    | "org_sso_configured"
+    | "business_approved"
+    | "business_rejected";
   subjectType: "post" | "user" | "message" | "community" | "business" | "livestream" | "project" | "skill" | "article" | "wiki_page" | "book" | "published_file" | "event" | "trust_safety_case" | "appeal" | "dmca_takedown_notice" | "dmca_counter_notice" | "organization";
   subjectId: string;
 };
@@ -383,6 +385,31 @@ export function notifyOrgMemberDeactivated(args: { recipientId: string; actorId:
 
 export function notifyOrgSsoConfigured(args: { recipientId: string; actorId: string; organizationId: string }): Promise<void> {
   return createNotification({ recipientId: args.recipientId, actorId: args.actorId, type: "org_sso_configured", subjectType: "organization", subjectId: args.organizationId });
+}
+
+// spec §3.3: fires to the creator when a platform admin resolves their
+// pending business from /admin/businesses. System-initiated (no human
+// actor) — same posture as notifyModerationAction/notifyCaseResolved —
+// since which specific admin acted isn't something the recipient needs to
+// know, only the outcome. subjectId is the slug (business is still live),
+// so getNotificationHref can route straight to it.
+export async function notifyBusinessApproved(args: { recipientId: string; businessSlug: string }): Promise<void> {
+  await db.notification.create({
+    data: { recipientId: args.recipientId, actorId: null, type: "business_approved", subjectType: "business", subjectId: args.businessSlug },
+  });
+  publishToUsers([args.recipientId], { type: "notification" });
+}
+
+// The business itself is deleted on rejection (rejectBusinessAction), so
+// there's no slug left to route to — subjectId carries the name for
+// display purposes only. Falls through to getNotificationHref's default
+// ("/notifications"), the same posture report_acknowledged already uses
+// for "recipient has nothing further to act on."
+export async function notifyBusinessRejected(args: { recipientId: string; businessName: string }): Promise<void> {
+  await db.notification.create({
+    data: { recipientId: args.recipientId, actorId: null, type: "business_rejected", subjectType: "business", subjectId: args.businessName },
+  });
+  publishToUsers([args.recipientId], { type: "notification" });
 }
 
 // phase-2 spec §5: subjectId is the conversationId, not a single message id
@@ -795,6 +822,13 @@ export function getNotificationVerb(type: string, subjectType?: string): string 
       return "removed your organization access";
     case "org_sso_configured":
       return "updated your organization's SSO settings";
+    // System-initiated (actor always null, same as moderation_action above)
+    // — phrased as a continuation of the "Someone ___" prefix, not a
+    // standalone sentence.
+    case "business_approved":
+      return "approved your business";
+    case "business_rejected":
+      return "rejected your business listing";
     default:
       return "";
   }
@@ -893,6 +927,8 @@ export function getNotificationHref(
     case "org_member_deactivated":
     case "org_sso_configured":
       return `/org/${n.subjectId}`;
+    case "business_approved":
+      return `/b/${n.subjectId}`;
     default:
       return "/notifications";
   }

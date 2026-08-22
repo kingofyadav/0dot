@@ -61,11 +61,14 @@ function normalizeBusinessName(name: string): string {
 // decision to gate is being made now, not deferred." Scoped to existing
 // platform businesses only — a full "well-known external brands" check
 // would need a third-party data source this codebase doesn't have.
-async function hasActiveBusinessNameCollision(name: string): Promise<boolean> {
+// Exported (not just a boolean) so /admin/businesses can show *which*
+// active business a pending one collides with — the actual signal a
+// reviewer needs to tell impersonation apart from a coincidental name.
+export async function findCollidingActiveBusiness(name: string): Promise<{ id: string; name: string; slug: string } | null> {
   const normalized = normalizeBusinessName(name);
-  if (!normalized) return false;
-  const candidates = await db.business.findMany({ where: { status: "active" }, select: { name: true } });
-  return candidates.some((c) => normalizeBusinessName(c.name) === normalized);
+  if (!normalized) return null;
+  const candidates = await db.business.findMany({ where: { status: "active" }, select: { id: true, name: true, slug: true } });
+  return candidates.find((c) => normalizeBusinessName(c.name) === normalized) ?? null;
 }
 
 // phase-4 build plan decision #1: the launch-blocking claim gate from spec
@@ -85,7 +88,7 @@ export async function computeInitialBusinessStatus(args: {
   website: string | null;
   name: string;
 }): Promise<"active" | "pending"> {
-  if (await hasActiveBusinessNameCollision(args.name)) return "pending";
+  if (await findCollidingActiveBusiness(args.name)) return "pending";
   if (args.creatorIsVerified) return "active";
   if (args.website) {
     const emailDomain = extractEmailDomain(args.creatorEmail);
