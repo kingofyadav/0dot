@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
-import { requireTrustSafetyStaff } from "@/lib/auth-guards";
+import { requirePlatformRole } from "@/lib/auth-guards";
 import { resolveCaseAction } from "@/app/actions/trust-safety";
 
 const CASE_TYPE_LABELS: Record<string, string> = {
@@ -55,7 +55,7 @@ async function fetchSubjectPreview(subjectType: string, subjectId: string): Prom
 }
 
 export default async function AdminTrustSafetyPage() {
-  await requireTrustSafetyStaff("reviewer");
+  await requirePlatformRole("support");
 
   const cases = await db.trustSafetyCase.findMany({
     where: { status: { in: ["open", "in_review", "escalated"] } },

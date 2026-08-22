@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requirePlatformAdmin } from "@/lib/auth-guards";
+import { requirePlatformRole } from "@/lib/auth-guards";
 import { recordIapPayoutBatch, reconcileIapPayoutBatch } from "@/lib/payments";
 
 const PROCESSOR_VALUES = new Set(["apple_iap", "google_play_billing"]);
@@ -17,7 +17,7 @@ const PROCESSOR_VALUES = new Set(["apple_iap", "google_play_billing"]);
 // scope — a fake "disbursed" flip with no real transfer behind it would
 // be a false record, not a shortcut.
 export async function createIapPayoutBatchAction(formData: FormData): Promise<void> {
-  await requirePlatformAdmin();
+  await requirePlatformRole("admin");
 
   const processor = String(formData.get("processor") ?? "");
   if (!PROCESSOR_VALUES.has(processor)) return;
@@ -48,7 +48,7 @@ export async function createIapPayoutBatchAction(formData: FormData): Promise<vo
 }
 
 export async function reconcileIapPayoutBatchAction(formData: FormData): Promise<void> {
-  await requirePlatformAdmin();
+  await requirePlatformRole("admin");
 
   const batchId = String(formData.get("batchId") ?? "");
   if (!batchId) return;

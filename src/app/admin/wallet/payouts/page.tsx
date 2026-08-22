@@ -1,4 +1,4 @@
-import { requirePlatformAdmin } from "@/lib/auth-guards";
+import { requirePlatformRole } from "@/lib/auth-guards";
 import { db } from "@/lib/db";
 import { markPayoutPaid, rejectPayoutRequest } from "@/app/actions/wallet";
 
@@ -6,7 +6,7 @@ import { markPayoutPaid, rejectPayoutRequest } from "@/app/actions/wallet";
 // the money via UPI to the request's snapshotted vpa outside the app, then
 // records their own UTR/reference here as proof it went out.
 export default async function AdminWalletPayoutsPage() {
-  await requirePlatformAdmin();
+  await requirePlatformRole("admin");
 
   const requests = await db.coinPayoutRequest.findMany({
     where: { status: "pending" },

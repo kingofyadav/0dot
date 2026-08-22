@@ -24,11 +24,6 @@ model User {
   phone           String?   @unique
   passwordHash    String
   status          String    @default("active") // active | suspended | deactivated | deleted
-  // phase-4 build plan decision #1: manually granted via direct DB access,
-  // same "no self-serve flow" posture as Profile.isVerified. Gates
-  // /admin/businesses, the review queue for businesses that don't clear the
-  // weak-signal auto-approval in businesses.ts.
-  isPlatformAdmin Boolean   @default(false)
   // phase-12 spec §8.1/§8.2: nullable — every account created since Phase 1
   // predates this field. An unknown DOB gets the default protective
   // restriction set (age-controls.ts) until the user is prompted at next
@@ -218,7 +213,7 @@ model User {
   moderationFlagsHandled ModerationFlag[]
   uploadedFileAssets     FileAsset[]
 
-  trustSafetyStaffRole     TrustSafetyStaffRole?
+  platformRole             PlatformRole?
   trustSafetyCasesReported TrustSafetyCase[]     @relation("TrustSafetyCaseReporter")
   trustSafetyCasesAssigned TrustSafetyCase[]     @relation("TrustSafetyCaseAssignee")
   reportsFiled             Report[]
@@ -3327,15 +3322,23 @@ model ContentTranslation {
   @@unique([subjectType, subjectId, sourceRevisionKey, targetLanguage])
 }
 
-// phase-12 spec §3.2: manually granted, no self-serve flow — same posture
-// as User.isPlatformAdmin (phase-4) and Profile.isVerified. requireTrustSafetyStaff
-// (auth-guards.ts) upserts an `admin`-role row for any isPlatformAdmin user
-// on first use so the unified queue has a bootstrap path without a
-// dedicated role-management UI this phase doesn't need to build.
-model TrustSafetyStaffRole {
-  userId String @id
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role   String // reviewer | senior_reviewer | admin — senior_reviewer+ required for appeal review (§4.2) and the CSAM-adjacent pipeline (§3.2)
+// Unified platform-wide role, replacing the old User.isPlatformAdmin
+// boolean and the old TrustSafetyStaffRole table (merged so trust-safety
+// duties and platform-admin duties share one ranked tier instead of two
+// disconnected grant mechanisms). requirePlatformRole (auth-guards.ts)
+// ranks support(1) < admin(2) < super_admin(3): support = trust-safety
+// reviewer-level actions; admin = wallet/payout/IAP approval plus
+// appeal review and the CSAM-adjacent pipeline; super_admin = admin plus
+// the ability to grant/revoke other users' PlatformRole via
+// /admin/platform-roles (src/app/actions/platform-roles.ts) — the first
+// in-app grant path this ever had. grantedBy/grantedAt exist because the
+// old mechanisms had no audit trail of who granted access.
+model PlatformRole {
+  userId    String   @id
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      String // support | admin | super_admin
+  grantedBy String? // userId of the super_admin who granted/last changed this row; null for migration-seeded/bootstrap rows
+  grantedAt DateTime @default(now())
 }
 
 // phase-12 spec §3.1: the unified case-management layer over five

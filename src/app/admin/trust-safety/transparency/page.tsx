@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
-import { requireTrustSafetyStaff } from "@/lib/auth-guards";
+import { requirePlatformRole } from "@/lib/auth-guards";
 
 // phase-12 spec §9: "mostly a reporting/export job over existing data, not
 // a new core entity" — a straight aggregation over TrustSafetyCase/Appeal,
@@ -9,7 +9,7 @@ import { requireTrustSafetyStaff } from "@/lib/auth-guards";
 // without revealing exploitable detection thresholds is an explicit open
 // question for product/legal (§10), not resolved by this build.
 export default async function TrustSafetyTransparencyPage() {
-  await requireTrustSafetyStaff("reviewer");
+  await requirePlatformRole("support");
 
   const [byCaseType, byStatus, totalAppeals, overturnedAppeals] = await Promise.all([
     db.trustSafetyCase.groupBy({ by: ["caseType"], _count: { _all: true } }),

@@ -10,7 +10,8 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   const user = await getCurrentUser();
-  if (!user?.isPlatformAdmin) {
+  const platformRole = user ? await db.platformRole.findUnique({ where: { userId: user.id } }) : null;
+  if (!platformRole || (platformRole.role !== "admin" && platformRole.role !== "super_admin")) {
     return NextResponse.json({ error: "unauthorized" }, { status: 403 });
   }
 

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { requireVerifiedUser, requirePlatformAdmin, requireOwnProfile } from "@/lib/auth-guards";
+import { requireVerifiedUser, requirePlatformRole, requireOwnProfile } from "@/lib/auth-guards";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { purchaseProfilePremiumWithCoins } from "@/lib/platform-billing";
 import type { ActionState } from "@/app/actions/auth";
@@ -14,7 +14,7 @@ const BILLING_INTERVAL_VALUES = new Set(["monthly", "yearly"]);
 // request approved happen together so a crash between the two can't leave
 // coins credited without a matching "approved" row (or vice versa).
 export async function approveTopUpRequest(formData: FormData): Promise<void> {
-  const admin = await requirePlatformAdmin();
+  const { user: admin } = await requirePlatformRole("admin");
   const requestId = String(formData.get("requestId") ?? "");
 
   await db.$transaction(async (tx) => {
@@ -40,7 +40,7 @@ export async function approveTopUpRequest(formData: FormData): Promise<void> {
 }
 
 export async function rejectTopUpRequest(formData: FormData): Promise<void> {
-  const admin = await requirePlatformAdmin();
+  const { user: admin } = await requirePlatformRole("admin");
   const requestId = String(formData.get("requestId") ?? "");
   const reviewNote = String(formData.get("reviewNote") ?? "").trim() || undefined;
 
@@ -59,7 +59,7 @@ export async function rejectTopUpRequest(formData: FormData): Promise<void> {
 // direction. Gated on an atomic "pending" claim for the same double-click/
 // two-admin reason.
 export async function markPayoutPaid(formData: FormData): Promise<void> {
-  const admin = await requirePlatformAdmin();
+  const { user: admin } = await requirePlatformRole("admin");
   const requestId = String(formData.get("requestId") ?? "");
   const paidReference = String(formData.get("paidReference") ?? "").trim();
 
@@ -78,7 +78,7 @@ export async function markPayoutPaid(formData: FormData): Promise<void> {
 // one transaction, atomically gated on "pending" so a request can't be
 // rejected twice and refunded twice.
 export async function rejectPayoutRequest(formData: FormData): Promise<void> {
-  const admin = await requirePlatformAdmin();
+  const { user: admin } = await requirePlatformRole("admin");
   const requestId = String(formData.get("requestId") ?? "");
   const reviewNote = String(formData.get("reviewNote") ?? "").trim() || undefined;
 

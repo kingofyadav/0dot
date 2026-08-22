@@ -30,11 +30,11 @@ export async function createTrustSafetyCase(params: {
   });
 }
 
-// §3.3 acceptance criterion: assigned_to must hold a TrustSafetyStaffRole
+// §3.3 acceptance criterion: assigned_to must hold a PlatformRole
 // row — a user without one cannot be assigned a case.
 export async function assignTrustSafetyCase(caseId: string, assigneeId: string): Promise<void> {
-  const staffRole = await db.trustSafetyStaffRole.findUnique({ where: { userId: assigneeId } });
-  if (!staffRole) return;
+  const platformRole = await db.platformRole.findUnique({ where: { userId: assigneeId } });
+  if (!platformRole) return;
 
   await db.trustSafetyCase.update({
     where: { id: caseId },

@@ -1,4 +1,4 @@
-import { requirePlatformAdmin } from "@/lib/auth-guards";
+import { requirePlatformRole } from "@/lib/auth-guards";
 import { db } from "@/lib/db";
 import { createIapPayoutBatchAction, reconcileIapPayoutBatchAction } from "@/app/actions/iap-payouts";
 
@@ -15,7 +15,7 @@ import { createIapPayoutBatchAction, reconcileIapPayoutBatchAction } from "@/app
 // is dedicated finance/ops work this addendum was explicit about not
 // building.
 export default async function AdminIapBatchesPage() {
-  await requirePlatformAdmin();
+  await requirePlatformRole("admin");
 
   const batches = await db.iapPayoutBatch.findMany({
     orderBy: { createdAt: "desc" },

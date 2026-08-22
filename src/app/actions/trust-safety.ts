@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireTrustSafetyStaff, requireVerifiedUser } from "@/lib/auth-guards";
+import { requirePlatformRole, requireVerifiedUser } from "@/lib/auth-guards";
 import { resolveTrustSafetyCase, reviewAppeal, resolveSubjectOwnerId } from "@/lib/trust-safety";
 import { db } from "@/lib/db";
 
@@ -12,7 +12,7 @@ import { db } from "@/lib/db";
 // admin-businesses.ts/admin-marketplace.ts/admin-developer.ts/
 // admin-moderation.ts, retired by this phase).
 export async function resolveCaseAction(formData: FormData): Promise<void> {
-  const { user } = await requireTrustSafetyStaff("reviewer");
+  const { user } = await requirePlatformRole("support");
   const caseId = String(formData.get("caseId") ?? "");
   const decision = String(formData.get("decision") ?? "");
   const notes = String(formData.get("notes") ?? "").trim() || undefined;
@@ -22,11 +22,11 @@ export async function resolveCaseAction(formData: FormData): Promise<void> {
   revalidatePath("/admin/trust-safety");
 }
 
-// §5.2: appeal review requires senior_reviewer+ (auth-guards.ts) and a
-// different reviewer than the original case's assignee (enforced inside
-// reviewAppeal itself, not just here).
+// §5.2: appeal review requires the admin+ platform role (auth-guards.ts)
+// and a different reviewer than the original case's assignee (enforced
+// inside reviewAppeal itself, not just here).
 export async function reviewAppealAction(formData: FormData): Promise<void> {
-  const { user } = await requireTrustSafetyStaff("senior_reviewer");
+  const { user } = await requirePlatformRole("admin");
   const appealId = String(formData.get("appealId") ?? "");
   const decision = String(formData.get("decision") ?? "");
   if (!appealId || (decision !== "upheld_original" && decision !== "overturned")) return;

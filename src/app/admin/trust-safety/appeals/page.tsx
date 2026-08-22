@@ -1,14 +1,14 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
-import { requireTrustSafetyStaff } from "@/lib/auth-guards";
+import { requirePlatformRole } from "@/lib/auth-guards";
 import { reviewAppealAction } from "@/app/actions/trust-safety";
 
-// phase-12 spec §5.2: senior_reviewer+ only (requireTrustSafetyStaff) — the
+// phase-12 spec §5.2: admin+ platform role only (requirePlatformRole) — the
 // fairness requirement that an appeal isn't reviewed by whoever made the
 // original call is enforced again inside reviewAppeal (trust-safety.ts),
 // not just by this page's gating.
 export default async function AdminAppealsPage() {
-  await requireTrustSafetyStaff("senior_reviewer");
+  await requirePlatformRole("admin");
 
   const appeals = await db.appeal.findMany({
     where: { status: "pending" },

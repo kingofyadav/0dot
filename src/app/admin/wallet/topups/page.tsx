@@ -1,4 +1,4 @@
-import { requirePlatformAdmin } from "@/lib/auth-guards";
+import { requirePlatformRole } from "@/lib/auth-guards";
 import { db } from "@/lib/db";
 import { approveTopUpRequest, rejectTopUpRequest } from "@/app/actions/wallet";
 
@@ -8,7 +8,7 @@ import { approveTopUpRequest, rejectTopUpRequest } from "@/app/actions/wallet";
 // judgment call, so it stays off the moderation staff's plate. See the
 // coin-wallet plan doc for the fuller reasoning if this gets revisited.
 export default async function AdminWalletTopUpsPage() {
-  await requirePlatformAdmin();
+  await requirePlatformRole("admin");
 
   const requests = await db.coinTopUpRequest.findMany({
     where: { status: "submitted" },
