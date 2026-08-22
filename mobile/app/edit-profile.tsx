@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Image } from "expo-image";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -7,6 +7,8 @@ import { router } from "expo-router";
 import { getMe, updateProfile, ApiError, type LocalImage } from "../src/api/client";
 import { Avatar } from "../src/components/Avatar";
 import { DEFAULT_COVER_SOURCE } from "../src/components/defaultCover";
+import { BottomSheet } from "../src/components/BottomSheet";
+import { THEME_PRESET_OPTIONS } from "../src/utils/themePresets";
 import { pickImage } from "../src/utils/pickImage";
 import { haptics } from "../src/utils/haptics";
 import { useTheme, type Theme } from "../src/theme";
@@ -24,6 +26,10 @@ export default function EditProfileScreen() {
   const [coverUrl, setCoverUrl] = useState<string | null>(null);
   const [newAvatar, setNewAvatar] = useState<LocalImage | null>(null);
   const [newCover, setNewCover] = useState<LocalImage | null>(null);
+  const [isPrivate, setIsPrivate] = useState(false);
+  const [themePreset, setThemePreset] = useState("default");
+  const [isPremium, setIsPremium] = useState(false);
+  const [themePickerOpen, setThemePickerOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,6 +41,9 @@ export default function EditProfileScreen() {
         setBio(me.bio ?? "");
         setAvatarUrl(me.avatarUrl);
         setCoverUrl(me.coverUrl);
+        setIsPrivate(me.isPrivate);
+        setThemePreset(me.themePreset ?? "default");
+        setIsPremium(me.isPremium);
       } catch (err) {
         setError(err instanceof ApiError ? err.message : "Could not load your profile.");
       } finally {
@@ -69,6 +78,8 @@ export default function EditProfileScreen() {
       await updateProfile({
         displayName: displayName.trim(),
         bio: bio.trim(),
+        isPrivate,
+        themePreset,
         avatar: newAvatar ?? undefined,
         cover: newCover ?? undefined,
       });
@@ -169,10 +180,78 @@ export default function EditProfileScreen() {
               />
             </View>
 
+            <View style={styles.field}>
+              <Text style={styles.label}>Theme</Text>
+              <Pressable
+                onPress={() => {
+                  haptics.light();
+                  setThemePickerOpen(true);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Choose theme"
+                style={styles.themeRow}
+              >
+                <View style={[styles.themeSwatch, { backgroundColor: THEME_PRESET_OPTIONS.find((p) => p.key === themePreset)?.accent ?? theme.colors.accent }]} />
+                <Text style={styles.themeRowLabel}>{THEME_PRESET_OPTIONS.find((p) => p.key === themePreset)?.label ?? "Classic"}</Text>
+                <Ionicons name="chevron-forward" size={18} color={theme.colors.mutedForeground} />
+              </Pressable>
+              {!isPremium && (
+                <Text style={styles.hint}>
+                  Premium unlocks {THEME_PRESET_OPTIONS.filter((p) => p.premiumOnly).length} additional theme presets.
+                </Text>
+              )}
+            </View>
+
+            <View style={styles.field}>
+              <View style={styles.privacyRow}>
+                <View style={styles.privacyText}>
+                  <Text style={styles.label}>Private profile</Text>
+                  <Text style={styles.hint}>
+                    When private, only your name, avatar, and bio are visible to people who don&apos;t follow you — your posts stay
+                    hidden until they follow you.
+                  </Text>
+                </View>
+                <Switch
+                  value={isPrivate}
+                  onValueChange={setIsPrivate}
+                  trackColor={{ true: theme.colors.accent, false: theme.colors.border }}
+                  thumbColor={theme.colors.surface}
+                  accessibilityLabel="Private profile"
+                />
+              </View>
+            </View>
+
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
           </ScrollView>
         )}
       </SafeAreaView>
+
+      <BottomSheet visible={themePickerOpen} onClose={() => setThemePickerOpen(false)} title="Theme">
+        {THEME_PRESET_OPTIONS.map((preset) => {
+          const locked = preset.premiumOnly && !isPremium && preset.key !== themePreset;
+          return (
+            <Pressable
+              key={preset.key}
+              disabled={locked}
+              onPress={() => {
+                haptics.light();
+                setThemePreset(preset.key);
+                setThemePickerOpen(false);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={preset.label}
+              style={[styles.themeOptionRow, locked && { opacity: 0.4 }]}
+            >
+              <View style={[styles.themeSwatch, { backgroundColor: preset.accent }]} />
+              <Text style={styles.themeRowLabel}>
+                {preset.label}
+                {preset.premiumOnly ? " (Premium)" : ""}
+              </Text>
+              {preset.key === themePreset ? <Ionicons name="checkmark" size={18} color={theme.colors.accent} /> : null}
+            </Pressable>
+          );
+        })}
+      </BottomSheet>
     </KeyboardAvoidingView>
   );
 }
@@ -258,6 +337,29 @@ function createStyles(theme: Theme) {
       minHeight: 44,
     },
     bioInput: { minHeight: 88, textAlignVertical: "top" },
+    hint: { fontSize: theme.text.xs, color: theme.colors.mutedForeground, marginTop: theme.space[1] },
+    themeRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.space[3],
+      minHeight: 48,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.colors.border,
+      borderRadius: theme.radius.md,
+      backgroundColor: theme.colors.surface,
+      paddingHorizontal: theme.space[3],
+    },
+    themeSwatch: { width: 20, height: 20, borderRadius: 10 },
+    themeRowLabel: { flex: 1, color: theme.colors.foreground, fontSize: theme.text.base },
+    themeOptionRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.space[3],
+      minHeight: 48,
+      paddingHorizontal: theme.space[2],
+    },
+    privacyRow: { flexDirection: "row", alignItems: "center", gap: theme.space[3] },
+    privacyText: { flex: 1, gap: theme.space[1] },
     errorText: { color: theme.colors.danger, fontSize: theme.text.sm, paddingHorizontal: theme.space[4], marginTop: theme.space[3] },
   });
 }

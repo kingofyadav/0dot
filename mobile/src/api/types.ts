@@ -9,6 +9,9 @@ export type Me = {
   bio: string | null;
   avatarUrl: string | null;
   coverUrl: string | null;
+  themePreset: string | null;
+  isPrivate: boolean;
+  isPremium: boolean;
 };
 
 export type FollowStatus = "none" | "pending" | "accepted";
@@ -243,3 +246,38 @@ export type WalletTransferEntry = {
 };
 
 export type WalletResponse = { coinBalance: number; history: WalletTransferEntry[] };
+
+// M12 (settings/account parity) — mirror the corresponding
+// /api/v1/{privacy,blocks,account/*,preferences}* routes' response shapes.
+
+export type PrivacySettings = { allowDmsFrom: string; allowTagging: boolean; discoverableInSearch: boolean };
+
+export type BlockedUser = {
+  userId: string;
+  username: string | null;
+  displayName: string | null;
+  avatarUrl: string | null;
+  blockedAt: string;
+};
+
+export type BlockedUsersResponse = { items: BlockedUser[]; nextCursor: string | null };
+
+export type SessionInfo = { id: string; userAgent: string | null; ipAddress: string | null; lastSeenAt: string; createdAt: string };
+
+export type LoginEvent = {
+  id: string;
+  createdAt: string;
+  ipAddress: string | null;
+  userAgent: string | null;
+  success: boolean;
+  method: string;
+};
+
+export type SessionsResponse = { sessions: SessionInfo[]; loginEvents: LoginEvent[] };
+
+export type TwoFactorStatus = { enabled: boolean };
+export type TwoFactorEnrollment = { otpauthUrl: string; qrDataUrl: string };
+export type RecoveryCodes = { recoveryCodes: string[] };
+
+export type AccessibilityPrefs = { reducedMotion: boolean; fontScale: string; highContrast: boolean };
+export type PreferencesResponse = { locale: string | null; timezone: string | null; accessibilityPrefs: AccessibilityPrefs };

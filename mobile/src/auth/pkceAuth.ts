@@ -46,6 +46,16 @@ const SCOPES = [
   "events:write",
   "payments:read",
   "payments:write",
+  // M12 (settings/account parity): every scope that sub-phase's new
+  // /api/v1 routes require, same "request up front" reasoning as the
+  // comment above — added once here rather than per already-signed-in
+  // session having to be told to sign out and back in twice.
+  "privacy:read",
+  "privacy:write",
+  "account:read",
+  "account:write",
+  "preferences:read",
+  "preferences:write",
 ];
 
 // client_id is generated per-environment (first-party-apps.ts), not a

@@ -3,12 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireVerifiedUser } from "@/lib/auth-guards";
-import { LOCALES, TIMEZONES } from "@/lib/preferences";
+import { LOCALES, TIMEZONES, FONT_SCALES, type AccessibilityPrefs } from "@/lib/preferences";
 import type { ActionState } from "@/app/actions/auth";
-
-const FONT_SCALES = new Set(["default", "large", "larger"]);
-
-type AccessibilityPrefs = { reducedMotion: boolean; fontScale: string; highContrast: boolean };
 
 // addendum §11: locale/timezone are plain User columns; accessibility prefs
 // are hand-serialized JSON (User.accessibilityPrefsJson) since there's no

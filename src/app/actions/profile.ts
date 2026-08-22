@@ -12,6 +12,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { requireOwnProfile } from "@/lib/auth-guards";
 import { isSafeUrl } from "@/lib/url-safety";
 import { isProfilePremium, linkCapFor } from "@/lib/platform-billing";
+import { ALLOW_DMS_FROM_VALUES } from "@/lib/privacy";
 import type { ActionState } from "@/app/actions/auth";
 
 // Every mutation here affects both surfaces: the settings page itself
@@ -306,8 +307,6 @@ export async function deleteSocialLink(formData: FormData): Promise<void> {
 
   revalidateProfilePaths(user.username!.handle);
 }
-
-const ALLOW_DMS_FROM_VALUES = new Set(["everyone", "followers", "none"]);
 
 // addendum §9: three controls backed by Profile.allowDmsFrom/allowTagging/
 // discoverableInSearch. Enforcement at each field's call site (DM-send,

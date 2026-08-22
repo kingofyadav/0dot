@@ -1,0 +1,46 @@
+import { createHash } from "crypto";
+import { db } from "@/lib/db";
+import { resolveApiRequest, requireScope, requireVerifiedApiUser, apiError } from "@/lib/api-auth";
+import { checkApiRateLimit } from "@/lib/api-rate-limit";
+import { checkRateLimit } from "@/lib/rate-limit";
+
+function hashCode(code: string): string {
+  return createHash("sha256").update(code).digest("hex");
+}
+
+// Bearer-token counterpart to confirmPhoneChange (account-contact.ts).
+export async function POST(request: Request) {
+  const ctx = await resolveApiRequest(request);
+  if ("error" in ctx) return apiError(ctx.error, ctx.status);
+
+  const scopeError = requireScope(ctx, "account:write");
+  if (scopeError) return apiError(scopeError.error, scopeError.status);
+
+  const verifiedError = await requireVerifiedApiUser(ctx);
+  if (verifiedError) return apiError(verifiedError.error, verifiedError.status);
+
+  const { allowed, limit, remaining } = await checkApiRateLimit(ctx.appId);
+  if (!allowed) return apiError("Rate limit exceeded.", 429);
+
+  if (!checkRateLimit(`phone-change-confirm:user:${ctx.userId}`, { max: 8, windowMs: 15 * 60 * 1000 })) {
+    return apiError("Too many attempts. Please try again in a few minutes.", 429);
+  }
+
+  const payload = await request.json().catch(() => null);
+  const code = (typeof payload?.code === "string" ? payload.code : "").trim();
+
+  const pending = await db.pendingPhoneChange.findFirst({ where: { userId: ctx.userId }, orderBy: { createdAt: "desc" } });
+  if (!pending || pending.expiresAt < new Date() || pending.codeHash !== hashCode(code)) {
+    return apiError("That code is invalid or has expired.", 400);
+  }
+
+  await db.$transaction([
+    db.user.update({ where: { id: ctx.userId }, data: { phone: pending.newPhone } }),
+    db.pendingPhoneChange.deleteMany({ where: { userId: ctx.userId } }),
+  ]);
+
+  return Response.json(
+    { ok: true },
+    { headers: { "X-RateLimit-Limit": String(limit), "X-RateLimit-Remaining": String(remaining) } }
+  );
+}

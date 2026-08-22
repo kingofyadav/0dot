@@ -75,3 +75,16 @@ jest.mock("react-native-reanimated", () => {
 // (unlike reanimated's above) works as documented for the installed
 // version — no equivalent workaround needed.
 import "react-native-gesture-handler/jestSetup";
+
+// M12: theme.ts now pulls in themePreferences.tsx (ThemePreferencesProvider),
+// which reads AsyncStorage — previously nothing reachable from any test's
+// import graph touched this package (onboarding.ts's own AsyncStorage usage
+// never got test coverage), so no mock was needed until now. The package's
+// real native module is null under Jest's Node environment; its own
+// official mock is what the library's docs point to for this exact error.
+// `mock`-prefixed import, not require() — babel-plugin-jest-hoist exempts
+// "mock"-prefixed identifiers from jest.mock()'s usual "no outer-scope
+// reference" restriction (same fix wallet.test.tsx's own comment documents).
+import mockAsyncStorage from "@react-native-async-storage/async-storage/jest/async-storage-mock";
+
+jest.mock("@react-native-async-storage/async-storage", () => mockAsyncStorage);

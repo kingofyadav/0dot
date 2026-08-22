@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Constants from "expo-constants";
 import * as WebBrowser from "expo-web-browser";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -11,6 +11,11 @@ import { API_BASE_URL } from "../src/config";
 import { useTheme, type Theme } from "../src/theme";
 import { haptics } from "../src/utils/haptics";
 
+// M12 (settings/account parity): grouped into sections mirroring
+// settingsNavGroups() (web's own single source of truth for its Settings
+// nav) — Profile/Security/Notifications/Preferences/Account/Developer —
+// rather than one flat list, now that this screen has grown from 4 rows to
+// covering the same ground web's settings shell does.
 export default function SettingsScreen() {
   const { me, tokens, error, signOut } = useAuth();
   const theme = useTheme();
@@ -23,7 +28,7 @@ export default function SettingsScreen() {
   }
 
   return (
-    <View style={styles.screen}>
+    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <Pressable
         onPress={() => me?.username && router.push(`/${me.username}`)}
         accessibilityRole="button"
@@ -37,15 +42,46 @@ export default function SettingsScreen() {
         </View>
       </Pressable>
 
-      <View style={styles.group}>
-        <SettingsRow icon="person-outline" label="Edit profile" onPress={() => router.push("/edit-profile")} />
-        <SettingsRow icon="bookmark-outline" label="Bookmarks" onPress={() => router.push("/bookmarks")} />
-        <SettingsRow
-          icon="notifications-outline"
-          label="Notification preferences"
-          onPress={() => router.push("/notification-preferences")}
-        />
-        <SettingsRow icon="apps-outline" label="Connected apps" onPress={onOpenConnectedApps} />
+      <View style={styles.groups}>
+        <Text style={styles.groupLabel}>Profile</Text>
+        <View style={styles.group}>
+          <SettingsRow icon="person-outline" label="Edit profile" onPress={() => router.push("/edit-profile")} />
+          <SettingsRow icon="lock-closed-outline" label="Privacy" onPress={() => router.push("/privacy-settings")} />
+          <SettingsRow icon="ban-outline" label="Blocked users" onPress={() => router.push("/blocked-users")} />
+          <SettingsRow icon="bookmark-outline" label="Bookmarks" onPress={() => router.push("/bookmarks")} />
+        </View>
+
+        <Text style={styles.groupLabel}>Security</Text>
+        <View style={styles.group}>
+          <SettingsRow icon="key-outline" label="Change password" onPress={() => router.push("/change-password")} />
+          <SettingsRow icon="shield-checkmark-outline" label="Two-factor authentication" onPress={() => router.push("/two-factor")} />
+          <SettingsRow icon="desktop-outline" label="Active sessions" onPress={() => router.push("/sessions")} />
+          <SettingsRow icon="mail-outline" label="Email & phone" onPress={() => router.push("/contact-settings")} />
+        </View>
+
+        <Text style={styles.groupLabel}>Notifications</Text>
+        <View style={styles.group}>
+          <SettingsRow
+            icon="notifications-outline"
+            label="Notification preferences"
+            onPress={() => router.push("/notification-preferences")}
+          />
+        </View>
+
+        <Text style={styles.groupLabel}>Preferences</Text>
+        <View style={styles.group}>
+          <SettingsRow icon="options-outline" label="Language & accessibility" onPress={() => router.push("/preferences")} />
+        </View>
+
+        <Text style={styles.groupLabel}>Account</Text>
+        <View style={styles.group}>
+          <SettingsRow icon="warning-outline" label="Account management" onPress={() => router.push("/account-management")} />
+        </View>
+
+        <Text style={styles.groupLabel}>Developer</Text>
+        <View style={styles.group}>
+          <SettingsRow icon="apps-outline" label="Connected apps" onPress={onOpenConnectedApps} />
+        </View>
       </View>
 
       {tokens ? (
@@ -71,13 +107,14 @@ export default function SettingsScreen() {
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
       <Text style={styles.version}>0dot {Constants.expoConfig?.version ?? "1.0.0"}</Text>
-    </View>
+    </ScrollView>
   );
 }
 
 function createStyles(theme: Theme) {
   return StyleSheet.create({
-    screen: { flex: 1, backgroundColor: theme.colors.background, padding: theme.space[5], gap: theme.space[5] },
+    screen: { flex: 1, backgroundColor: theme.colors.background },
+    content: { padding: theme.space[5], gap: theme.space[4] },
     profileCard: {
       flexDirection: "row",
       alignItems: "center",
@@ -91,6 +128,14 @@ function createStyles(theme: Theme) {
     profileText: { flex: 1, gap: 2 },
     name: { fontSize: theme.text.lg, fontWeight: theme.weight.heading, color: theme.colors.foreground },
     handle: { fontSize: theme.text.sm, color: theme.colors.mutedForeground },
+    groups: { gap: theme.space[2] },
+    groupLabel: {
+      fontSize: theme.text.xs,
+      fontWeight: theme.weight.label,
+      color: theme.colors.mutedForeground,
+      textTransform: "uppercase",
+      marginTop: theme.space[2],
+    },
     group: {
       backgroundColor: theme.colors.surface,
       borderWidth: StyleSheet.hairlineWidth,
@@ -113,6 +158,6 @@ function createStyles(theme: Theme) {
     },
     signOutText: { color: theme.colors.danger, fontWeight: theme.weight.emphasis, fontSize: theme.text.base },
     errorText: { color: theme.colors.danger, textAlign: "center", fontSize: theme.text.sm },
-    version: { marginTop: "auto", textAlign: "center", color: theme.colors.mutedForeground, fontSize: theme.text.xs, paddingBottom: theme.space[4] },
+    version: { textAlign: "center", color: theme.colors.mutedForeground, fontSize: theme.text.xs },
   });
 }

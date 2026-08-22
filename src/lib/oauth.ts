@@ -88,6 +88,25 @@ export const OAUTH_SCOPES = [
   // a settings change rather than content access, same read/write split
   // reasoning as profile:write above.
   { key: "notifications:write", description: "Change your notification delivery preferences", sensitivity: "low" },
+  // Mobile pro-upgrade addendum M12: settings/account parity. Read/write
+  // split follows this catalog's own established convention throughout —
+  // privacy settings + blocked-user list are a lower-stakes read than the
+  // account-security domain below, so they get their own pair rather than
+  // folding into profile:read/write (a consent screen shouldn't lump "see my
+  // profile" in with "see who I've blocked").
+  { key: "privacy:read", description: "Read your privacy settings and blocked users", sensitivity: "low" },
+  { key: "privacy:write", description: "Change your privacy settings and block/unblock accounts", sensitivity: "medium" },
+  // Covers sessions/login activity/2FA status/data export — every one of
+  // these is account-takeover-adjacent (an attacker who can read this can
+  // scope out how to attack the account further), same "high" tier
+  // messages:read/payments:read already use for a similarly sensitive read.
+  { key: "account:read", description: "Read your sessions, login activity, two-factor status, and data export", sensitivity: "high" },
+  // Password/email/phone/2FA changes and deactivation/deletion are the same
+  // "high" tier as payments:write — getting this scope wrong lets a
+  // malicious app lock the real owner out of their own account.
+  { key: "account:write", description: "Change your password, email, phone, two-factor settings, or deactivate/delete your account", sensitivity: "high" },
+  { key: "preferences:read", description: "Read your language, timezone, and accessibility preferences", sensitivity: "low" },
+  { key: "preferences:write", description: "Change your language, timezone, and accessibility preferences", sensitivity: "low" },
 ] as const;
 
 export type OAuthScopeKey = (typeof OAUTH_SCOPES)[number]["key"];

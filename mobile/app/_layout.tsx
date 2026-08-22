@@ -7,6 +7,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { AuthProvider, useAuth } from "../src/auth/AuthContext";
 import { MessagesStreamProvider } from "../src/realtime/MessagesStreamContext";
+import { ThemePreferencesProvider } from "../src/themePreferences";
 import { SignInScreen } from "../src/screens/SignInScreen";
 import { LockScreen } from "../src/screens/LockScreen";
 import { OnboardingScreen } from "../src/screens/OnboardingScreen";
@@ -88,6 +89,14 @@ function RootNavigator() {
       <Stack.Screen name="notification-preferences" options={{ title: "Notifications" }} />
       <Stack.Screen name="settings" options={{ title: "Settings" }} />
       <Stack.Screen name="bookmarks" options={{ title: "Bookmarks" }} />
+      <Stack.Screen name="privacy-settings" options={{ title: "Privacy" }} />
+      <Stack.Screen name="blocked-users" options={{ title: "Blocked users" }} />
+      <Stack.Screen name="change-password" options={{ title: "Change password" }} />
+      <Stack.Screen name="two-factor" options={{ title: "Two-factor authentication" }} />
+      <Stack.Screen name="sessions" options={{ title: "Active sessions" }} />
+      <Stack.Screen name="contact-settings" options={{ title: "Email & phone" }} />
+      <Stack.Screen name="account-management" options={{ title: "Account management" }} />
+      <Stack.Screen name="preferences" options={{ title: "Language & accessibility" }} />
       <Stack.Screen name="messages/[id]" options={{ title: "Conversation" }} />
       <Stack.Screen name="messages/new" options={{ title: "New message", presentation: "modal" }} />
       <Stack.Screen name="communities" options={{ title: "Communities" }} />
@@ -111,10 +120,12 @@ function RootLayout() {
     <GestureHandlerRootView style={styles.flex}>
       <SafeAreaProvider>
         <AuthProvider>
-          <MessagesStreamProvider>
-            <RootNavigator />
-            <StatusBar style="auto" />
-          </MessagesStreamProvider>
+          <ThemePreferencesProvider>
+            <MessagesStreamProvider>
+              <RootNavigator />
+              <StatusBar style="auto" />
+            </MessagesStreamProvider>
+          </ThemePreferencesProvider>
         </AuthProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

@@ -97,7 +97,8 @@
         {
           "disableAutoUpload": true
         }
-      ]
+      ],
+      "expo-sharing"
     ],
     "runtimeVersion": {
       "policy": "appVersion"

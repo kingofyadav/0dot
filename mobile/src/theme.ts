@@ -1,4 +1,5 @@
 import { useColorScheme } from "react-native";
+import { useThemePreferences, type ThemePrefs } from "./themePreferences";
 
 // Mirrors src/app/globals.css / docs/DESIGN_SYSTEM.md on the web app
 // exactly (light/dark hex values, spacing, radius, type scale) rather than
@@ -150,6 +151,43 @@ const dark: Theme = {
   motion,
 };
 
+// M12 (settings/account parity): font-scale/high-contrast overrides,
+// mirroring globals.css's own html[data-font-scale]/[data-high-contrast]
+// rules exactly (same 112.5%/125% scale steps, same per-scheme override
+// colors) — a bounded set of token overrides, not a second theme, same
+// posture that CSS's own comment states. Applied as a pure function over
+// the existing static light/dark objects rather than a third palette, so
+// every other value (space/radius/shadow/motion) stays shared.
+const FONT_SCALE_MULTIPLIER: Record<ThemePrefs["fontScale"], number> = { default: 1, large: 1.125, larger: 1.25 };
+
+function scaleText(t: Theme["text"], multiplier: number): Theme["text"] {
+  return {
+    xs: t.xs * multiplier,
+    sm: t.sm * multiplier,
+    base: t.base * multiplier,
+    lg: t.lg * multiplier,
+    xl: t.xl * multiplier,
+    xxl: t.xxl * multiplier,
+  };
+}
+
+function applyThemePrefs(base: Theme, prefs: ThemePrefs): Theme {
+  if (prefs.fontScale === "default" && !prefs.highContrast) return base;
+
+  const colors = prefs.highContrast
+    ? {
+        ...base.colors,
+        ...(base.scheme === "dark"
+          ? { foreground: "#ffffff", mutedForeground: "#f0f0f0", border: "#ffffff" }
+          : { foreground: "#000000", mutedForeground: "#1a1a1a", border: "#000000" }),
+      }
+    : base.colors;
+
+  return { ...base, colors, text: scaleText(base.text, FONT_SCALE_MULTIPLIER[prefs.fontScale]) };
+}
+
 export function useTheme(): Theme {
-  return useColorScheme() === "dark" ? dark : light;
+  const base = useColorScheme() === "dark" ? dark : light;
+  const prefs = useThemePreferences();
+  return applyThemePrefs(base, prefs);
 }

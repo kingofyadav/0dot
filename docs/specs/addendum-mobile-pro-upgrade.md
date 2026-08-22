@@ -636,13 +636,128 @@ since this repo's `DATABASE_URL` points at `prisma/prod.db`, and
 fabricating an admin session to click through felt like the wrong call
 against a database named that without checking with the user first.
 
+### M12 — Mobile settings/account parity (built)
+
+Requested as a follow-up review found web's settings surface
+(`/s/[username]/*`, 12 groups, ~40 pages, per `addendum-account-settings-
+hardening.md`) had no mobile equivalent beyond Edit profile/Notification
+preferences/Connected apps — not just missing screens, but a missing
+bearer-token API layer: every web feature here lived only in cookie-session
+server actions a native client can't call.
+
+- **Security fix, done first**: `resolveApiRequest` (`src/lib/api-auth.ts`)
+  validated the bearer token and OAuth authorization/app status but never
+  checked `User.status` — unlike `getCurrentUser()` (web sessions), which
+  force-logs-out any non-`"active"` user on every read. A deactivated/
+  deleted account's existing mobile bearer tokens would have kept working
+  until natural expiry. Now checked on every `/api/v1/*` request, not just
+  the new routes this addendum adds.
+- **6 new OAuth scopes** (`src/lib/oauth.ts`'s `OAUTH_SCOPES`):
+  `privacy:read`/`write`, `account:read`/`write`, `preferences:read`/`write`
+  — added to mobile's `pkceAuth.ts` `SCOPES` array. `first-party-apps.ts`'s
+  `ensureFirstPartyApps()` already loops over every `OAUTH_SCOPES` entry and
+  auto-approves it per first-party app, so no change was needed there.
+- **18 new `/api/v1/*` routes**: `privacy` (GET/PATCH), `blocks` (GET/POST)
+  + `blocks/[id]` (DELETE), `account/sessions` (GET, folds in login history)
+  + `account/sessions/[id]` (DELETE) + `account/sessions/revoke-others`
+  (POST), `account/password`, `account/contact/email` +
+  `account/contact/phone` + `account/contact/phone/confirm`,
+  `account/two-factor` (GET) + `.../enroll` + `.../confirm` + `.../disable`
+  + `.../recovery-codes`, `account/lifecycle/deactivate` + `.../delete`
+  (the delete route re-exports deactivate's handler — same state transition
+  as web's own `scheduleDeactivation`), `account/export`, `preferences`
+  (GET/PATCH). `users/me`'s existing PATCH gained optional
+  `isPrivate`/`themePreset` fields (previously deliberately omitted; M12
+  closes that gap the same way M9's profile pass closed
+  `followingCount`/`isPremium` on the read side).
+- **Reused, not re-derived**: every route calls into the same `lib/`
+  primitives the web actions use (`lib/two-factor.ts`, `lib/preferences.ts`,
+  `lib/uploads.ts`, etc.) rather than reimplementing logic. Two web actions
+  were refactored to extract a plain, identity-agnostic core so both the
+  cookie-bound action and the new bearer-token route share one
+  implementation instead of two: `block.ts`'s `blockUser`/`unblockUser` now
+  wrap `blockUserById`/`unblockUserById`. `ALLOW_DMS_FROM_VALUES`
+  (`actions/profile.ts`) and `FONT_SCALES`/`AccessibilityPrefs`
+  (`actions/preferences.ts`) moved into `lib/privacy.ts`/`lib/preferences.ts`
+  respectively — a `"use server"` file may only export async functions, so
+  a plain `Set`/type living there was a production-build break
+  (`next build` catches this at page-data-collection time), not just a lint
+  nit.
+- **No reactivation endpoint, no login-time 2FA challenge on mobile** —
+  deliberately not built. Mobile sign-in opens `/oauth/authorize`, a real
+  0dot web page, in an in-app browser; if that flow redirects through
+  `/login` for a `deactivated` or `twoFactorEnabledAt` account, the existing
+  web pages already handle it, rendered in-browser. Only the in-app
+  *management* screens (enroll/disable 2FA, view sessions) needed building.
+- **8 new mobile screens** (`app/privacy-settings.tsx`, `blocked-users.tsx`,
+  `change-password.tsx`, `two-factor.tsx`, `sessions.tsx`,
+  `contact-settings.tsx`, `account-management.tsx`, `preferences.tsx`) plus
+  a "Block" entry point added to `ProfileScreenBody.tsx`'s header (only for
+  another user's profile) — a blocked-users *list* with no way to add to it
+  would have been half a feature. `settings.tsx` restructured from one flat
+  4-row list into grouped sections (Profile/Security/Notifications/
+  Preferences/Account/Developer) mirroring `settingsNavGroups()`'s own IA.
+  New `src/components/PasswordInput.tsx` (no native password field existed
+  anywhere before — sign-in itself is PKCE/web).
+- **Theme system gained a real provider**: `theme.ts`'s `useTheme()` was
+  fully static (light/dark from `useColorScheme()`, nothing else). New
+  `src/themePreferences.tsx` (`ThemePreferencesProvider`, mounted in
+  `app/_layout.tsx` alongside `AuthProvider`/`MessagesStreamProvider`)
+  fetches `/api/v1/preferences`, caches in `AsyncStorage` for instant
+  boot-time application, and `useTheme()` now derives a font-scale/
+  high-contrast variant from it — mirroring `globals.css`'s own
+  `[data-font-scale]`/`[data-high-contrast]` rules exactly (112.5%/125% text
+  scale steps, identical per-scheme override colors). Every existing
+  `useTheme()` call site keeps working unchanged.
+- **Deliberately no in-app "reduce motion" toggle**: this app already reads
+  the OS-level signal everywhere (`animateLayout.ts`'s own
+  `AccessibilityInfo` check, `Button`/`BottomSheet`'s Reanimated
+  `useReducedMotion()`) — a second control would just fight it. Instead,
+  `preferences.tsx` omits the toggle, but `animateLayout.ts` gained a
+  `setWebReduceMotionPreference()` setter that `ThemePreferencesProvider`
+  calls whenever the web-set `accessibilityPrefsJson.reducedMotion` value
+  changes, OR'd into the existing OS check — turning it on from web reduces
+  motion on mobile too, without a redundant switch. (Reanimated's own
+  `useReducedMotion()` call sites were left as-is — extending those to also
+  read this preference would mean replacing a library hook everywhere it's
+  used, a materially bigger change than this settings-parity pass scoped
+  for.)
+- Two mobile-only parallel data files were added rather than importing
+  across the web/mobile boundary (different bundler/runtime, no shared
+  `@/lib/*` resolution): `src/utils/countryCodes.ts` (mirrors
+  `lib/country-codes.ts`) and `src/utils/themePresets.ts` (mirrors
+  `lib/theme-presets.ts`'s `THEME_PRESETS`, picker-relevant fields only) —
+  same "kept separately here" posture `notification-preferences.tsx`'s own
+  `LABELS` constant already documents for an equivalent case.
+- New dependencies: `expo-sharing`, `expo-file-system` (account data export
+  — save-to-file then hand off to the OS share sheet, since a browser-style
+  download doesn't exist natively).
+- **Testing note**: `theme.ts` importing `themePreferences.tsx` (new) pulled
+  `@react-native-async-storage/async-storage` into every test's import graph
+  that touches `useTheme()` — previously nothing reachable from any test
+  exercised that package (`onboarding.ts`'s own usage had no coverage), so
+  no mock existed. Added the package's official Jest mock to
+  `jest.setup.js`, referenced via a `mock`-prefixed `import` rather than
+  `require()` (same `babel-plugin-jest-hoist` exemption `wallet.test.tsx`'s
+  own comment documents) to keep root lint's `no-require-imports` clean.
+- Verification: `npx tsc --noEmit` clean (mobile and root), root `npm run
+  lint` — 0 new errors/warnings from any file this pass touched (same 11
+  pre-existing errors/17 warnings as M8-M11's own baseline), `npm test` —
+  mobile 55/55 passing, root 44/44 passing. Root `npx next build` — clean
+  production build, all 18 new `/api/v1/*` routes present in the route
+  manifest (this also caught the `"use server"`-export build break above,
+  which `tsc`/`lint`/tests alone did not). `npx expo export --platform web`
+  bundles successfully. No dedicated manual/simulator verification, same
+  stated limitation as every other sub-phase here.
+
 ### Sequencing
 
 M8 first, regardless of the other three — it's the only track that makes
 every subsequent change safer to ship. M9 and M10 touch disjoint code and
 can run in parallel. M11's schema half turned out to already exist (§6);
 its purchase-flow half is gated on non-engineering sign-off, not on any
-other sub-phase here.
+other sub-phase here. M12 depended on none of M9-M11 — its only real
+prerequisite was M8's reliability foundation, same as everything else.
 
 ## 7. Dependency vulnerability (image-size DoS) — fixed 2026-08-21
 

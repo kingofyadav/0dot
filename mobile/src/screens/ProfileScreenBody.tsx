@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import { ActivityIndicator, Pressable, Share, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, Share, StyleSheet, Text, View } from "react-native";
 import { Image } from "expo-image";
 import Animated, {
   Extrapolation,
@@ -10,7 +10,7 @@ import Animated, {
 } from "react-native-reanimated";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router, useFocusEffect } from "expo-router";
-import { getProfile, getUserPosts, followUser, unfollowUser, likePost, repostPost, toggleBookmark, ApiError } from "../api/client";
+import { getProfile, getUserPosts, followUser, unfollowUser, likePost, repostPost, toggleBookmark, blockUser, ApiError } from "../api/client";
 import { Avatar } from "../components/Avatar";
 import { DEFAULT_COVER_SOURCE } from "../components/defaultCover";
 import { Button } from "../components/Button";
@@ -54,6 +54,14 @@ export function ProfileScreenBody({ username, showSettingsShortcut = false }: { 
   // lightbox regardless of which one, since only one can be open at a
   // time. null both means closed.
   const [lightboxUri, setLightboxUri] = useState<string | null>(null);
+
+  // M12 (settings/account parity): "Block" lives on the profile itself,
+  // same as web's own [username]/page.tsx button — a blocked-users *list*
+  // with no way to add to it from the app would be half a feature (this
+  // addendum's own precedent for avoiding that: M9's ConversationRow
+  // archive-action scope cut). Alert.alert's own destructive-confirm style
+  // is enough for a single action — no BottomSheet menu needed for one item.
+  const [blocking, setBlocking] = useState(false);
 
   // Drives the cover's overscroll "stretch" on pull-down (Twitter/
   // Instagram's own profile cover behavior) — a transform (scale +
@@ -194,6 +202,33 @@ export function ProfileScreenBody({ username, showSettingsShortcut = false }: { 
     }
   }
 
+  function onBlockPress() {
+    if (!profile) return;
+    Alert.alert(
+      `Block @${profile.username}?`,
+      "They won't be able to follow you, message you, or see your posts.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Block",
+          style: "destructive",
+          onPress: async () => {
+            setBlocking(true);
+            try {
+              await blockUser(username);
+              haptics.medium();
+              router.back();
+            } catch (err) {
+              haptics.warning();
+              setBlocking(false);
+              Alert.alert("Couldn't block this account", err instanceof ApiError ? err.message : "Please try again.");
+            }
+          },
+        },
+      ]
+    );
+  }
+
   const styles = createStyles(theme);
 
   if (loading) {
@@ -265,6 +300,17 @@ export function ProfileScreenBody({ username, showSettingsShortcut = false }: { 
                     style={styles.headerButton}
                   >
                     <Ionicons name="settings-outline" size={20} color="#fff" />
+                  </Pressable>
+                ) : !profile.isOwnProfile ? (
+                  <Pressable
+                    onPress={onBlockPress}
+                    disabled={blocking}
+                    accessibilityRole="button"
+                    accessibilityLabel="More options"
+                    hitSlop={8}
+                    style={[styles.headerButton, blocking && { opacity: 0.6 }]}
+                  >
+                    <Ionicons name="ellipsis-horizontal" size={20} color="#fff" />
                   </Pressable>
                 ) : null}
               </View>

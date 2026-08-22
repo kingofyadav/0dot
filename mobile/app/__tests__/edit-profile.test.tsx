@@ -35,6 +35,9 @@ const ME: Me = {
   bio: "Passionate about Boss. Always open to connecting.",
   avatarUrl: null,
   coverUrl: null,
+  themePreset: "default",
+  isPrivate: false,
+  isPremium: false,
 };
 
 // Regression coverage for two blank-placeholder bugs: edit-profile used to

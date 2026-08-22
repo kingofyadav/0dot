@@ -22,21 +22,30 @@ function revalidateBlockPaths(a: string | null, b: string | null) {
 export async function blockUser(formData: FormData): Promise<void> {
   const user = await requireVerifiedUser();
   const blockedId = String(formData.get("blockedId") ?? "");
+  await blockUserById(user.id, blockedId);
+}
 
-  if (!blockedId || blockedId === user.id) return;
+// M12: extracted from blockUser's own body so /api/v1/blocks (a
+// bearer-token caller, no cookie session to derive `user` from) can reuse
+// the exact same transaction rather than a second copy of it — same
+// "extract once a second caller needs the same logic under a different
+// identity source" precedent as session-management.ts's own
+// revokeAllOtherSessions split.
+export async function blockUserById(blockerId: string, blockedId: string): Promise<void> {
+  if (!blockedId || blockedId === blockerId) return;
   // Light, defense-in-depth limit — block/unblock mostly only affects the
   // actor's own view, unlike follow which is a real spam vector.
-  if (!checkRateLimit(`block:user:${user.id}`, { max: 20, windowMs: 5 * 60 * 1000 })) return;
+  if (!checkRateLimit(`block:user:${blockerId}`, { max: 20, windowMs: 5 * 60 * 1000 })) return;
 
   const existing = await db.block.findUnique({
-    where: { blockerId_blockedId: { blockerId: user.id, blockedId } },
+    where: { blockerId_blockedId: { blockerId, blockedId } },
   });
   if (existing) return; // idempotent
 
-  const blocked = await db.user.findUnique({
-    where: { id: blockedId },
-    include: { username: true, profile: true },
-  });
+  const [blocker, blocked] = await Promise.all([
+    db.user.findUnique({ where: { id: blockerId }, include: { username: true } }),
+    db.user.findUnique({ where: { id: blockedId }, include: { username: true, profile: true } }),
+  ]);
   if (!blocked) return;
 
   // Removes any existing follow between the two accounts, in either
@@ -45,8 +54,8 @@ export async function blockUser(formData: FormData): Promise<void> {
   const existingFollows = await db.follow.findMany({
     where: {
       OR: [
-        { followerId: user.id, followeeId: blockedId },
-        { followerId: blockedId, followeeId: user.id },
+        { followerId: blockerId, followeeId: blockedId },
+        { followerId: blockedId, followeeId: blockerId },
       ],
     },
   });
@@ -61,7 +70,7 @@ export async function blockUser(formData: FormData): Promise<void> {
     where: {
       kind: "direct",
       AND: [
-        { participants: { some: { userId: user.id } } },
+        { participants: { some: { userId: blockerId } } },
         { participants: { some: { userId: blockedId } } },
       ],
     },
@@ -69,7 +78,7 @@ export async function blockUser(formData: FormData): Promise<void> {
   });
 
   await db.$transaction([
-    db.block.create({ data: { blockerId: user.id, blockedId } }),
+    db.block.create({ data: { blockerId, blockedId } }),
     ...existingFollows.flatMap((follow) => [
       db.follow.delete({
         where: { followerId_followeeId: { followerId: follow.followerId, followeeId: follow.followeeId } },
@@ -80,29 +89,37 @@ export async function blockUser(formData: FormData): Promise<void> {
     ...(sharedDirectConversation
       ? [
           db.conversationParticipant.update({
-            where: { conversationId_userId: { conversationId: sharedDirectConversation.id, userId: user.id } },
+            where: { conversationId_userId: { conversationId: sharedDirectConversation.id, userId: blockerId } },
             data: { hiddenAt: new Date() },
           }),
         ]
       : []),
   ]);
 
-  revalidateBlockPaths(user.username?.handle ?? null, blocked.username?.handle ?? null);
+  revalidateBlockPaths(blocker?.username?.handle ?? null, blocked.username?.handle ?? null);
   if (sharedDirectConversation) revalidatePath("/messages");
 }
 
 export async function unblockUser(formData: FormData): Promise<void> {
   const user = await requireVerifiedUser();
   const blockedId = String(formData.get("blockedId") ?? "");
+  await unblockUserById(user.id, blockedId);
+}
 
+// M12: same extraction reasoning as blockUserById above — /api/v1/blocks/[id]
+// (bearer-token caller) reuses this instead of a second copy.
+export async function unblockUserById(blockerId: string, blockedId: string): Promise<void> {
   if (!blockedId) return;
 
   const existing = await db.block.findUnique({
-    where: { blockerId_blockedId: { blockerId: user.id, blockedId } },
+    where: { blockerId_blockedId: { blockerId, blockedId } },
   });
   if (!existing) return;
 
-  const blocked = await db.user.findUnique({ where: { id: blockedId }, include: { username: true } });
+  const [blocker, blocked] = await Promise.all([
+    db.user.findUnique({ where: { id: blockerId }, include: { username: true } }),
+    db.user.findUnique({ where: { id: blockedId }, include: { username: true } }),
+  ]);
 
   // Restoring conversation visibility on unblock (unlike the follow
   // relationship below, which is a deliberate one-way effect — "follow
@@ -115,7 +132,7 @@ export async function unblockUser(formData: FormData): Promise<void> {
     where: {
       kind: "direct",
       AND: [
-        { participants: { some: { userId: user.id } } },
+        { participants: { some: { userId: blockerId } } },
         { participants: { some: { userId: blockedId } } },
       ],
     },
@@ -126,17 +143,17 @@ export async function unblockUser(formData: FormData): Promise<void> {
   // that was removed when the block was created. That removal was a
   // one-way effect, not a pause.
   await db.$transaction([
-    db.block.delete({ where: { blockerId_blockedId: { blockerId: user.id, blockedId } } }),
+    db.block.delete({ where: { blockerId_blockedId: { blockerId, blockedId } } }),
     ...(sharedDirectConversation
       ? [
           db.conversationParticipant.update({
-            where: { conversationId_userId: { conversationId: sharedDirectConversation.id, userId: user.id } },
+            where: { conversationId_userId: { conversationId: sharedDirectConversation.id, userId: blockerId } },
             data: { hiddenAt: null },
           }),
         ]
       : []),
   ]);
 
-  revalidateBlockPaths(user.username?.handle ?? null, blocked?.username?.handle ?? null);
+  revalidateBlockPaths(blocker?.username?.handle ?? null, blocked?.username?.handle ?? null);
   if (sharedDirectConversation) revalidatePath("/messages");
 }

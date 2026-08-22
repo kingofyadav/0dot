@@ -26,6 +26,13 @@ import type {
   EventDetail,
   EventRsvpStatus,
   WalletResponse,
+  PrivacySettings,
+  BlockedUsersResponse,
+  SessionsResponse,
+  TwoFactorStatus,
+  TwoFactorEnrollment,
+  RecoveryCodes,
+  PreferencesResponse,
 } from "./types";
 import type { NativePlatform } from "../config";
 
@@ -336,17 +343,26 @@ export function getUserPosts(username: string, cursor?: string | null): Promise<
   return authorizedRequest<FeedResponse>(`/api/v1/profiles/${encodeURIComponent(username)}/posts${query}`);
 }
 
-export function updateProfile(args: { displayName?: string; bio?: string; avatar?: LocalImage; cover?: LocalImage }): Promise<Profile> {
+export function updateProfile(args: {
+  displayName?: string;
+  bio?: string;
+  isPrivate?: boolean;
+  themePreset?: string;
+  avatar?: LocalImage;
+  cover?: LocalImage;
+}): Promise<Profile> {
   const hasFiles = args.avatar || args.cover;
   if (!hasFiles) {
     return authorizedRequest<Profile>("/api/v1/users/me", {
       method: "PATCH",
-      body: JSON.stringify({ displayName: args.displayName, bio: args.bio }),
+      body: JSON.stringify({ displayName: args.displayName, bio: args.bio, isPrivate: args.isPrivate, themePreset: args.themePreset }),
     });
   }
   const form = new FormData();
   if (args.displayName !== undefined) form.append("displayName", args.displayName);
   if (args.bio !== undefined) form.append("bio", args.bio);
+  if (args.isPrivate !== undefined) form.append("isPrivate", String(args.isPrivate));
+  if (args.themePreset !== undefined) form.append("themePreset", args.themePreset);
   if (args.avatar) appendImage(form, "avatar", args.avatar, 0);
   if (args.cover) appendImage(form, "cover", args.cover, 0);
   return authorizedRequest<Profile>("/api/v1/users/me", { method: "PATCH", body: form }, UPLOAD_TIMEOUT_MS);
@@ -362,4 +378,111 @@ export function updateNotificationPreference(args: {
   enabled: boolean;
 }): Promise<{ ok: true }> {
   return authorizedRequest<{ ok: true }>("/api/v1/notification-preferences", { method: "PATCH", body: JSON.stringify(args) });
+}
+
+// M12 (settings/account parity) — one function per /api/v1 route added for
+// that sub-phase; see this addendum's own plan doc for the full route list.
+
+export function getPrivacySettings(): Promise<PrivacySettings> {
+  return authorizedRequest<PrivacySettings>("/api/v1/privacy");
+}
+
+export function updatePrivacySettings(args: Partial<PrivacySettings>): Promise<PrivacySettings> {
+  return authorizedRequest<PrivacySettings>("/api/v1/privacy", { method: "PATCH", body: JSON.stringify(args) });
+}
+
+export function getBlockedUsers(cursor?: string | null): Promise<BlockedUsersResponse> {
+  const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
+  return authorizedRequest<BlockedUsersResponse>(`/api/v1/blocks${query}`);
+}
+
+export function blockUser(username: string): Promise<{ ok: true }> {
+  return authorizedRequest<{ ok: true }>("/api/v1/blocks", { method: "POST", body: JSON.stringify({ username }) });
+}
+
+export function unblockUser(userId: string): Promise<{ ok: true }> {
+  return authorizedRequest<{ ok: true }>(`/api/v1/blocks/${encodeURIComponent(userId)}`, { method: "DELETE" });
+}
+
+export function getSessions(): Promise<SessionsResponse> {
+  return authorizedRequest<SessionsResponse>("/api/v1/account/sessions");
+}
+
+export function revokeSession(id: string): Promise<{ ok: true }> {
+  return authorizedRequest<{ ok: true }>(`/api/v1/account/sessions/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+export function revokeOtherSessions(): Promise<{ ok: true }> {
+  return authorizedRequest<{ ok: true }>("/api/v1/account/sessions/revoke-others", { method: "POST" });
+}
+
+export function changePassword(args: { currentPassword: string; newPassword: string }): Promise<{ ok: true }> {
+  return authorizedRequest<{ ok: true }>("/api/v1/account/password", { method: "POST", body: JSON.stringify(args) });
+}
+
+export function requestEmailChange(args: { currentPassword: string; newEmail: string }): Promise<{ ok: true }> {
+  return authorizedRequest<{ ok: true }>("/api/v1/account/contact/email", { method: "POST", body: JSON.stringify(args) });
+}
+
+export function requestPhoneChange(args: { currentPassword: string; phoneDialCode: string; phoneNumber: string }): Promise<{ ok: true }> {
+  return authorizedRequest<{ ok: true }>("/api/v1/account/contact/phone", { method: "POST", body: JSON.stringify(args) });
+}
+
+export function confirmPhoneChange(code: string): Promise<{ ok: true }> {
+  return authorizedRequest<{ ok: true }>("/api/v1/account/contact/phone/confirm", { method: "POST", body: JSON.stringify({ code }) });
+}
+
+export function getTwoFactorStatus(): Promise<TwoFactorStatus> {
+  return authorizedRequest<TwoFactorStatus>("/api/v1/account/two-factor");
+}
+
+export function enrollTwoFactor(): Promise<TwoFactorEnrollment> {
+  return authorizedRequest<TwoFactorEnrollment>("/api/v1/account/two-factor/enroll", { method: "POST" });
+}
+
+export function confirmTwoFactor(code: string): Promise<RecoveryCodes> {
+  return authorizedRequest<RecoveryCodes>("/api/v1/account/two-factor/confirm", { method: "POST", body: JSON.stringify({ code }) });
+}
+
+export function disableTwoFactor(currentPassword: string): Promise<{ ok: true }> {
+  return authorizedRequest<{ ok: true }>("/api/v1/account/two-factor/disable", { method: "POST", body: JSON.stringify({ currentPassword }) });
+}
+
+export function regenerateRecoveryCodes(currentPassword: string): Promise<RecoveryCodes> {
+  return authorizedRequest<RecoveryCodes>("/api/v1/account/two-factor/recovery-codes", {
+    method: "POST",
+    body: JSON.stringify({ currentPassword }),
+  });
+}
+
+export function deactivateAccount(currentPassword: string): Promise<{ ok: true }> {
+  return authorizedRequest<{ ok: true }>("/api/v1/account/lifecycle/deactivate", { method: "POST", body: JSON.stringify({ currentPassword }) });
+}
+
+export function deleteAccount(currentPassword: string): Promise<{ ok: true }> {
+  return authorizedRequest<{ ok: true }>("/api/v1/account/lifecycle/delete", { method: "POST", body: JSON.stringify({ currentPassword }) });
+}
+
+// Returns the raw exported JSON as text — the caller (account-management.tsx)
+// writes it to a file via expo-file-system and hands it to the share sheet,
+// so there's no benefit to parsing it here first.
+export async function exportAccountData(): Promise<string> {
+  const tokens = await loadTokens();
+  if (!tokens) throw new ApiError("Not signed in.", 401);
+  const res = await fetchWithTimeout(`${API_BASE_URL}/api/v1/account/export`, {
+    headers: { Authorization: `Bearer ${tokens.accessToken}` },
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new ApiError(body?.error ?? `Request failed (${res.status}).`, res.status);
+  }
+  return res.text();
+}
+
+export function getPreferences(): Promise<PreferencesResponse> {
+  return authorizedRequest<PreferencesResponse>("/api/v1/preferences");
+}
+
+export function updatePreferences(args: { locale?: string; timezone?: string; fontScale?: string; highContrast?: boolean }): Promise<PreferencesResponse> {
+  return authorizedRequest<PreferencesResponse>("/api/v1/preferences", { method: "PATCH", body: JSON.stringify(args) });
 }
