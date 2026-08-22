@@ -1,5 +1,6 @@
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaLibSql } from "@prisma/adapter-libsql";
+import { ROLE_VALUES } from "../src/lib/platform-roles";
 
 // One-time bootstrap for the very first PlatformRole row(s). Every
 // subsequent grant should go through /admin/platform-roles (requires an
@@ -7,8 +8,6 @@ import { PrismaLibSql } from "@prisma/adapter-libsql";
 // since that path has an audit trail (grantedBy) and this one doesn't.
 //
 // Usage: EMAIL=someone@example.com [ROLE=super_admin|admin|support] [PHONE=+91...] npx tsx scripts/grant-super-admin.ts
-
-const ROLE_VALUES = new Set(["support", "admin", "super_admin"]);
 
 async function main() {
   const email = process.env.EMAIL?.trim().toLowerCase();

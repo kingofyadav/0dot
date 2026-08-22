@@ -2,10 +2,28 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
+import { Prisma } from "@/generated/prisma/client";
 import { requirePlatformRole } from "@/lib/auth-guards";
+import { ROLE_VALUES } from "@/lib/platform-roles";
 import type { ActionState } from "@/app/actions/auth";
 
-const ROLE_VALUES = new Set(["support", "admin", "super_admin"]);
+// True if this change would leave zero super_admins — the target currently
+// holds super_admin and is losing it, and no one else holds it. Must run
+// inside the same transaction as the write that acts on it: a plain
+// findUnique-then-count outside a transaction is a check-then-act race
+// where two concurrent demotions of two different (of exactly two)
+// remaining super_admins can both read count===2 and both proceed.
+async function wouldOrphanSuperAdmins(
+  tx: Prisma.TransactionClient,
+  targetUserId: string,
+  keepsSuperAdmin: boolean,
+): Promise<boolean> {
+  if (keepsSuperAdmin) return false;
+  const target = await tx.platformRole.findUnique({ where: { userId: targetUserId } });
+  if (target?.role !== "super_admin") return false;
+  const superAdminCount = await tx.platformRole.count({ where: { role: "super_admin" } });
+  return superAdminCount <= 1;
+}
 
 // super_admin-only. Grants an *existing* 0dot user a platform role by
 // email — the first in-app path this ever had; before this every grant
@@ -42,17 +60,12 @@ export async function updatePlatformRole(formData: FormData): Promise<void> {
   // Guard against demoting the last super_admin, mirroring the "can't
   // remove the last owner" guard businesses.ts/organizations.ts already
   // use for their own top role.
-  if (roleRaw !== "super_admin") {
-    const target = await db.platformRole.findUnique({ where: { userId: targetUserId } });
-    if (target?.role === "super_admin") {
-      const superAdminCount = await db.platformRole.count({ where: { role: "super_admin" } });
-      if (superAdminCount <= 1) return;
-    }
-  }
-
-  await db.platformRole.update({
-    where: { userId: targetUserId },
-    data: { role: roleRaw, grantedBy: user.id, grantedAt: new Date() },
+  await db.$transaction(async (tx) => {
+    if (await wouldOrphanSuperAdmins(tx, targetUserId, roleRaw === "super_admin")) return;
+    await tx.platformRole.updateMany({
+      where: { userId: targetUserId },
+      data: { role: roleRaw, grantedBy: user.id, grantedAt: new Date() },
+    });
   });
 
   revalidatePath("/admin/platform-roles");
@@ -65,14 +78,10 @@ export async function revokePlatformRole(formData: FormData): Promise<void> {
   const targetUserId = String(formData.get("userId") ?? "");
   if (!targetUserId) return;
 
-  const target = await db.platformRole.findUnique({ where: { userId: targetUserId } });
-  if (!target) return;
-  if (target.role === "super_admin") {
-    const superAdminCount = await db.platformRole.count({ where: { role: "super_admin" } });
-    if (superAdminCount <= 1) return;
-  }
-
-  await db.platformRole.delete({ where: { userId: targetUserId } });
+  await db.$transaction(async (tx) => {
+    if (await wouldOrphanSuperAdmins(tx, targetUserId, false)) return;
+    await tx.platformRole.deleteMany({ where: { userId: targetUserId } });
+  });
 
   revalidatePath("/admin/platform-roles");
 }

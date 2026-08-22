@@ -1,5 +1,6 @@
 import { requirePlatformRole } from "@/lib/auth-guards";
 import { db } from "@/lib/db";
+import { PLATFORM_ROLE_RANK } from "@/lib/platform-roles";
 import { updatePlatformRole, revokePlatformRole } from "@/app/actions/platform-roles";
 import { GrantRoleForm } from "./GrantRoleForm";
 
@@ -9,10 +10,12 @@ import { GrantRoleForm } from "./GrantRoleForm";
 export default async function AdminPlatformRolesPage() {
   const { user } = await requirePlatformRole("super_admin");
 
-  const roles = await db.platformRole.findMany({
-    include: { user: { include: { username: true } } },
-    orderBy: [{ role: "desc" }, { grantedAt: "asc" }],
-  });
+  const roles = (
+    await db.platformRole.findMany({
+      include: { user: { include: { username: true } } },
+      orderBy: { grantedAt: "asc" },
+    })
+  ).sort((a, b) => PLATFORM_ROLE_RANK[b.role] - PLATFORM_ROLE_RANK[a.role]);
 
   return (
     <div className="profileCard">

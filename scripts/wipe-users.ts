@@ -26,7 +26,7 @@ const TABLES = [
   "MarketplaceListingReviewResponse","DeveloperApp","OAuthScope","DeveloperAppScope",
   "OAuthAuthorizationCode","OAuthAuthorization","OAuthToken","WebhookSubscription",
   "WebhookDelivery","ApiUsageCounter","AIGeneration","ModerationFlag","FileAsset",
-  "MediaAccessibilityMetadata","ContentTranslation","TrustSafetyStaffRole","TrustSafetyCase",
+  "MediaAccessibilityMetadata","ContentTranslation","PlatformRole","TrustSafetyCase",
   "Report","Appeal","AccountRiskSignal","ContentRevision","ContentLicense",
   "DMCATakedownNotice","DMCACounterNotice","OwnershipTransfer","JurisdictionRule",
   "Organization","OrganizationMember","SSOConnection","SSOIdentity","OrganizationAuditLog",
