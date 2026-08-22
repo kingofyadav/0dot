@@ -10,7 +10,6 @@ jest.mock("expo-router", () => ({
   // as a run-on-mount-and-on-dependency-change effect — the same shape
   // useFocusEffect gives it inside a real navigator.
   useFocusEffect: (callback: () => void) => {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
     mockUseEffect(callback, [callback]);
   },
 }));

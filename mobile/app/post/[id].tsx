@@ -32,24 +32,26 @@ export default function PostScreen() {
   const [sendingReply, setSendingReply] = useState(false);
   const [replyError, setReplyError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await getPost(id);
-      animateNextLayout();
-      setPost(result);
-    } catch (err) {
-      animateNextLayout();
-      setError(err instanceof ApiError ? err.message : "Could not load this post.");
-    } finally {
-      setLoading(false);
-    }
+  const load = useCallback(() => {
+    getPost(id)
+      .then((result) => {
+        animateNextLayout();
+        setPost(result);
+      })
+      .catch((err) => {
+        animateNextLayout();
+        setError(err instanceof ApiError ? err.message : "Could not load this post.");
+      })
+      .finally(() => setLoading(false));
   }, [id]);
 
-  useEffect(() => {
+  useEffect(load, [load]);
+
+  function onRetry() {
+    setLoading(true);
+    setError(null);
     load();
-  }, [load]);
+  }
 
   async function onShare() {
     if (!post) return;
@@ -148,7 +150,7 @@ export default function PostScreen() {
   if (!post) {
     return (
       <View style={[styles.screen, styles.scrollContent]}>
-        <EmptyState icon="document-text-outline" message={error ?? "Post not found."} onRetry={error ? load : undefined} />
+        <EmptyState icon="document-text-outline" message={error ?? "Post not found."} onRetry={error ? onRetry : undefined} />
       </View>
     );
   }

@@ -99,7 +99,7 @@ export default function EventScreen() {
       <Stack.Screen options={{ title: event.title }} />
       <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
         {event.coverImageUrl ? (
-          <Image source={{ uri: event.coverImageUrl }} style={styles.cover} contentFit="cover" />
+          <Image source={{ uri: event.coverImageUrl }} style={styles.cover} contentFit="cover" alt={`${event.title} cover image`} />
         ) : null}
 
         <View style={styles.body}>

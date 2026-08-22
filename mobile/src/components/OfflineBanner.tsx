@@ -13,7 +13,7 @@ export function OfflineBanner({ cachedAt }: { cachedAt: number }) {
   return (
     <View style={[styles.banner, { backgroundColor: theme.colors.warningSoft }]}>
       <Ionicons name="cloud-offline-outline" size={14} color={theme.colors.warning} />
-      <Text style={[styles.text, { color: theme.colors.foreground }]}>You're offline — showing posts saved {relativeTime(new Date(cachedAt).toISOString())}</Text>
+      <Text style={[styles.text, { color: theme.colors.foreground }]}>You&apos;re offline — showing posts saved {relativeTime(new Date(cachedAt).toISOString())}</Text>
     </View>
   );
 }

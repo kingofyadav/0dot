@@ -19,6 +19,18 @@ const eslintConfig = defineConfig([
       "react-hooks/immutability": "off",
     },
   },
+  // Server Actions bound to useActionState always receive (prevState,
+  // formData), even when a given action doesn't need one or either (e.g.
+  // session-driven actions that ignore formData entirely) — the `_`-prefix
+  // convention already marks these as intentionally unused throughout
+  // src/app/actions/*.ts; this just makes the linter honor it instead of
+  // only accidentally staying quiet when a later positional arg happens to
+  // be used (@typescript-eslint/no-unused-vars' default "after-used" mode).
+  {
+    rules: {
+      "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:

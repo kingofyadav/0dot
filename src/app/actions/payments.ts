@@ -18,7 +18,6 @@ import type { ActionState } from "@/app/actions/auth";
 // recipient Account's stripe_transfers capability doesn't go active until
 // that flow collects identity/bank info, so onboarding is never "done" the
 // moment the account row is created the way the old stub pretended.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- useActionState requires this exact (prevState, formData) signature; the action itself takes no input fields.
 export async function startCreatorOnboarding(_prevState: ActionState, _formData: FormData): Promise<ActionState> {
   const user = await requireVerifiedUser();
 

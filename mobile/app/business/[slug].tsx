@@ -73,7 +73,7 @@ export default function BusinessScreen() {
       <Stack.Screen options={{ title: business.name }} />
       <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
         {business.coverUrl ? (
-          <Image source={{ uri: business.coverUrl }} style={styles.cover} contentFit="cover" />
+          <Image source={{ uri: business.coverUrl }} style={styles.cover} contentFit="cover" alt={`${business.name} cover photo`} />
         ) : (
           <View style={[styles.cover, { backgroundColor: theme.colors.surface }]} />
         )}

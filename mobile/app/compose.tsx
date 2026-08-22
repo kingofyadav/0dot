@@ -100,7 +100,7 @@ export default function ComposeScreen() {
           <ScrollView horizontal style={styles.imageRow} contentContainerStyle={styles.imageRowContent}>
             {images.map((image, index) => (
               <View key={image.uri} style={styles.imageThumbWrap}>
-                <Image source={{ uri: image.uri }} style={styles.imageThumb} contentFit="cover" />
+                <Image source={{ uri: image.uri }} style={styles.imageThumb} contentFit="cover" alt={`Selected image ${index + 1}`} />
                 <Pressable
                   onPress={() => onRemoveImage(index)}
                   accessibilityRole="button"

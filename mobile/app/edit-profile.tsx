@@ -136,7 +136,7 @@ export default function EditProfileScreen() {
                 style={styles.cover}
                 contentFit="cover"
                 accessible
-                accessibilityLabel="Cover photo"
+                alt="Cover photo"
               />
               <View style={styles.coverEditBadge}>
                 <Ionicons name="camera" size={16} color={theme.colors.onAccent} />

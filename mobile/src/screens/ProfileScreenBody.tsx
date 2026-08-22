@@ -284,6 +284,7 @@ export function ProfileScreenBody({ username, showSettingsShortcut = false }: { 
                     source={profile.coverUrl ? { uri: profile.coverUrl } : DEFAULT_COVER_SOURCE}
                     style={styles.cover}
                     contentFit="cover"
+                    alt="Cover photo"
                   />
                 </Animated.View>
               </Pressable>

@@ -5,7 +5,7 @@
 // conflict-handling/duplicate-submission design questions it raises.
 const CACHE_NAME = "0dot-cache-v1";
 
-self.addEventListener("install", (event) => {
+self.addEventListener("install", () => {
   self.skipWaiting();
 });
 

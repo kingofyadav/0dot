@@ -12,6 +12,7 @@ import type * as NotificationsModule from "expo-notifications";
 // builds, which don't run inside Expo Go, load it normally.
 export const Notifications: typeof NotificationsModule | null = (() => {
   try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- must be `require`, not `import`: see comment above.
     return require("expo-notifications");
   } catch {
     return null;

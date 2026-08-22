@@ -1,6 +1,8 @@
 import { Image } from "expo-image";
 import { StyleSheet, View } from "react-native";
 import { useTheme } from "../theme";
+import logoDark from "../../assets/logo-dark.png";
+import logoLight from "../../assets/logo-light.png";
 
 type Props = {
   uri: string | null | undefined;
@@ -15,8 +17,8 @@ type Props = {
 // Keeps a missing avatarUrl looking the same "on-brand" way on both
 // platforms instead of mobile inventing its own initials-circle look.
 const LOGO_SOURCE = {
-  dark: require("../../assets/logo-dark.png"),
-  light: require("../../assets/logo-light.png"),
+  dark: logoDark,
+  light: logoLight,
 };
 
 // Shared by feed cards, notification rows, and the profile header — one
@@ -30,13 +32,13 @@ export function Avatar({ uri, name, size = 40 }: Props) {
 
   if (uri) {
     return (
-      <Image source={{ uri }} style={dimension} contentFit="cover" transition={150} accessible accessibilityLabel={label} />
+      <Image source={{ uri }} style={dimension} contentFit="cover" transition={150} accessible alt={label} />
     );
   }
 
   return (
     <View style={[dimension, styles.fallback, { backgroundColor: theme.colors.accentSoft }]} accessible accessibilityLabel={label}>
-      <Image source={LOGO_SOURCE[theme.scheme]} style={{ width: size * 0.62, height: size * 0.62 }} contentFit="contain" />
+      <Image source={LOGO_SOURCE[theme.scheme]} style={{ width: size * 0.62, height: size * 0.62 }} contentFit="contain" alt="" />
     </View>
   );
 }

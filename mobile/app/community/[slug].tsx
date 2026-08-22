@@ -183,7 +183,7 @@ export default function CommunityScreen() {
             ListHeaderComponent={
               <View>
                 {community.coverUrl ? (
-                  <Image source={{ uri: community.coverUrl }} style={styles.cover} contentFit="cover" />
+                  <Image source={{ uri: community.coverUrl }} style={styles.cover} contentFit="cover" alt={`${community.name} cover photo`} />
                 ) : (
                   <View style={[styles.cover, { backgroundColor: theme.colors.surface }]} />
                 )}

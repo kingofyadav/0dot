@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useState } from "react";
 import { Animated, Easing, StyleSheet, View, type DimensionValue } from "react-native";
 import { useTheme } from "../theme";
 
@@ -17,7 +17,7 @@ export function SkeletonBlock({
   style?: object;
 }) {
   const theme = useTheme();
-  const opacity = useRef(new Animated.Value(0.35)).current;
+  const [opacity] = useState(() => new Animated.Value(0.35));
 
   useEffect(() => {
     const loop = Animated.loop(

@@ -19,7 +19,7 @@ export function ImageLightbox({ uri, onClose }: Props) {
     <Modal visible={uri !== null} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
       <Pressable style={styles.backdrop} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close image">
         <SafeAreaView style={styles.safeArea} edges={["top"]}>
-          {uri ? <Image source={{ uri }} style={styles.image} contentFit="contain" /> : null}
+          {uri ? <Image source={{ uri }} style={styles.image} contentFit="contain" alt="Enlarged image" /> : null}
         </SafeAreaView>
       </Pressable>
     </Modal>
