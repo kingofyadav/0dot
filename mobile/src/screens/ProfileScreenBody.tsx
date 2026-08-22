@@ -12,6 +12,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { router, useFocusEffect } from "expo-router";
 import { getProfile, getUserPosts, followUser, unfollowUser, likePost, repostPost, toggleBookmark, ApiError } from "../api/client";
 import { Avatar } from "../components/Avatar";
+import { DEFAULT_COVER_SOURCE } from "../components/defaultCover";
 import { Button } from "../components/Button";
 import { VerifiedBadge } from "../components/VerifiedBadge";
 import { PremiumBadge } from "../components/PremiumBadge";
@@ -243,13 +244,13 @@ export function ProfileScreenBody({ username, showSettingsShortcut = false }: { 
                 accessibilityLabel="Cover photo"
                 disabled={!profile.coverUrl}
               >
-                {profile.coverUrl ? (
-                  <Animated.View style={coverAnimatedStyle}>
-                    <Image source={{ uri: profile.coverUrl }} style={styles.cover} contentFit="cover" />
-                  </Animated.View>
-                ) : (
-                  <View style={[styles.cover, { backgroundColor: theme.colors.surface }]} />
-                )}
+                <Animated.View style={coverAnimatedStyle}>
+                  <Image
+                    source={profile.coverUrl ? { uri: profile.coverUrl } : DEFAULT_COVER_SOURCE}
+                    style={styles.cover}
+                    contentFit="cover"
+                  />
+                </Animated.View>
               </Pressable>
               <View style={styles.headerButtons}>
                 <Pressable onPress={onShare} accessibilityRole="button" accessibilityLabel="Share profile" hitSlop={8} style={styles.headerButton}>

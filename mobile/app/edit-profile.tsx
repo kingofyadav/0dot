@@ -5,6 +5,8 @@ import { Image } from "expo-image";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
 import { getMe, updateProfile, ApiError, type LocalImage } from "../src/api/client";
+import { Avatar } from "../src/components/Avatar";
+import { DEFAULT_COVER_SOURCE } from "../src/components/defaultCover";
 import { pickImage } from "../src/utils/pickImage";
 import { haptics } from "../src/utils/haptics";
 import { useTheme, type Theme } from "../src/theme";
@@ -118,22 +120,22 @@ export default function EditProfileScreen() {
         ) : (
           <ScrollView contentContainerStyle={styles.scrollContent}>
             <Pressable onPress={onPickCover} accessibilityRole="button" accessibilityLabel="Change cover photo">
-              {displayedCoverUri ? (
-                <Image source={{ uri: displayedCoverUri }} style={styles.cover} contentFit="cover" />
-              ) : (
-                <View style={[styles.cover, styles.coverPlaceholder]} />
-              )}
+              <Image
+                source={displayedCoverUri ? { uri: displayedCoverUri } : DEFAULT_COVER_SOURCE}
+                style={styles.cover}
+                contentFit="cover"
+                accessible
+                accessibilityLabel="Cover photo"
+              />
               <View style={styles.coverEditBadge}>
                 <Ionicons name="camera" size={16} color={theme.colors.onAccent} />
               </View>
             </Pressable>
 
             <Pressable onPress={onPickAvatar} accessibilityRole="button" accessibilityLabel="Change avatar" style={styles.avatarWrap}>
-              {displayedAvatarUri ? (
-                <Image source={{ uri: displayedAvatarUri }} style={styles.avatar} contentFit="cover" />
-              ) : (
-                <View style={[styles.avatar, styles.avatarPlaceholder]} />
-              )}
+              <View style={styles.avatarBorder}>
+                <Avatar uri={displayedAvatarUri} name={displayName} size={66} />
+              </View>
               <View style={styles.avatarEditBadge}>
                 <Ionicons name="camera" size={14} color={theme.colors.onAccent} />
               </View>
@@ -205,7 +207,6 @@ function createStyles(theme: Theme) {
     saveButtonTextDisabled: { color: theme.colors.mutedForeground },
     scrollContent: { paddingBottom: theme.space[8] },
     cover: { width: "100%", height: 140 },
-    coverPlaceholder: { backgroundColor: theme.colors.surface },
     coverEditBadge: {
       position: "absolute",
       right: theme.space[3],
@@ -218,8 +219,16 @@ function createStyles(theme: Theme) {
       justifyContent: "center",
     },
     avatarWrap: { marginTop: -36, marginLeft: theme.space[4], width: 72, height: 72 },
-    avatar: { width: 72, height: 72, borderRadius: 36, borderWidth: 3, borderColor: theme.colors.background },
-    avatarPlaceholder: { backgroundColor: theme.colors.surface },
+    avatarBorder: {
+      width: 72,
+      height: 72,
+      borderRadius: 36,
+      borderWidth: 3,
+      borderColor: theme.colors.background,
+      overflow: "hidden",
+      alignItems: "center",
+      justifyContent: "center",
+    },
     avatarEditBadge: {
       position: "absolute",
       right: -2,

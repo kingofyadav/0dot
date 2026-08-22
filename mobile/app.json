@@ -14,6 +14,11 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "in.0dot.ios",
+      "icon": {
+        "light": "./assets/ios-icon-light.png",
+        "dark": "./assets/ios-icon-dark.png",
+        "tinted": "./assets/ios-icon-tinted.png"
+      },
       "associatedDomains": [
         "applinks:0dot.in"
       ],
@@ -25,7 +30,8 @@
       "package": "in.zerodot.android",
       "adaptiveIcon": {
         "backgroundColor": "#000000",
-        "foregroundImage": "./assets/android-icon-foreground.png"
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
       "intentFilters": [
