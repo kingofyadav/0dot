@@ -14,7 +14,12 @@ export function Card({ children, elevated, style }: { children: ReactNode; eleva
     <View
       style={[
         styles.card,
-        { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderRadius: theme.radius.lg },
+        {
+          backgroundColor: theme.colors.surface,
+          borderColor: theme.colors.border,
+          borderRadius: theme.radius.lg,
+          padding: theme.space[4],
+        },
         elevated ? theme.shadow.md : theme.shadow.sm,
         style,
       ]}
@@ -25,5 +30,5 @@ export function Card({ children, elevated, style }: { children: ReactNode; eleva
 }
 
 const styles = StyleSheet.create({
-  card: { borderWidth: StyleSheet.hairlineWidth, padding: 16 },
+  card: { borderWidth: StyleSheet.hairlineWidth },
 });

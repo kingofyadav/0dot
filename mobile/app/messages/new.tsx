@@ -1,11 +1,11 @@
 import { useCallback, useMemo, useState } from "react";
-import { FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { FlatList, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
-import Ionicons from "@expo/vector-icons/Ionicons";
 import { getMessageCandidates, startConversation, ApiError } from "../../src/api/client";
 import { Avatar } from "../../src/components/Avatar";
 import { EmptyState } from "../../src/components/EmptyState";
 import { ListRow } from "../../src/components/ListRow";
+import { SendButton } from "../../src/components/SendButton";
 import { FeedRowSkeleton } from "../../src/components/Skeleton";
 import { haptics } from "../../src/utils/haptics";
 import { useTheme, type Theme } from "../../src/theme";
@@ -88,19 +88,7 @@ export default function NewMessageScreen() {
             autoFocus
             accessibilityLabel="Message text"
           />
-          <Pressable
-            onPress={onSend}
-            disabled={!draft.trim() || sending}
-            accessibilityRole="button"
-            accessibilityLabel="Send message"
-            style={({ pressed }) => [
-              styles.sendButton,
-              (!draft.trim() || sending) && styles.sendButtonDisabled,
-              { opacity: pressed ? 0.7 : 1 },
-            ]}
-          >
-            <Ionicons name="arrow-up" size={18} color={theme.colors.onAccent} />
-          </Pressable>
+          <SendButton onPress={onSend} disabled={!draft.trim() || sending} accessibilityLabel="Send message" />
         </View>
       </KeyboardAvoidingView>
     );
@@ -168,14 +156,5 @@ function createStyles(theme: Theme) {
       paddingHorizontal: theme.space[3],
       paddingVertical: theme.space[2],
     },
-    sendButton: {
-      width: 44,
-      height: 44,
-      borderRadius: theme.radius.full,
-      backgroundColor: theme.colors.accent,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    sendButtonDisabled: { backgroundColor: theme.colors.border },
   });
 }

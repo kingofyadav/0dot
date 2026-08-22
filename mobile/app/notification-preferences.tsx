@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { getNotificationPreferences, updateNotificationPreference, ApiError } from "../src/api/client";
 import { getNotificationIcon } from "../src/utils/notificationIcon";
 import { EmptyState } from "../src/components/EmptyState";
+import { SettingsRowSkeleton } from "../src/components/Skeleton";
 import { haptics } from "../src/utils/haptics";
 import { useTheme, type Theme } from "../src/theme";
 import type { NotificationPreferenceChannel } from "../src/api/types";
@@ -75,9 +76,13 @@ export default function NotificationPreferencesScreen() {
 
   if (!push || !email) {
     return (
-      <View style={[styles.screen, styles.center]}>
-        <ActivityIndicator color={theme.colors.accent} />
-      </View>
+      <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+        <View style={styles.group}>
+          {[0, 1, 2, 3].map((i) => (
+            <SettingsRowSkeleton key={i} />
+          ))}
+        </View>
+      </ScrollView>
     );
   }
 
@@ -139,7 +144,6 @@ function PreferenceRow({ type, enabled, onToggle }: { type: string; enabled: boo
 function createStyles(theme: Theme) {
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: theme.colors.background },
-    center: { alignItems: "center", justifyContent: "center" },
     content: { padding: theme.space[5], gap: theme.space[2] },
     deviceNote: { color: theme.colors.mutedForeground, fontSize: theme.text.sm, marginBottom: theme.space[3] },
     sectionHeading: {

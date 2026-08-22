@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
+import Animated from "react-native-reanimated";
 import * as WebBrowser from "expo-web-browser";
 import { useFocusEffect } from "expo-router";
 import { getMarketplace, ApiError } from "../src/api/client";
@@ -8,6 +9,7 @@ import { EmptyState } from "../src/components/EmptyState";
 import { SegmentedControl } from "../src/components/SegmentedControl";
 import { FeedRowSkeleton } from "../src/components/Skeleton";
 import { haptics } from "../src/utils/haptics";
+import { usePressScale } from "../src/utils/usePressScale";
 import { useContentMaxWidth } from "../src/utils/responsive";
 import { API_BASE_URL } from "../src/config";
 import { useTheme, type Theme } from "../src/theme";
@@ -89,27 +91,51 @@ export default function MarketplaceScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.accent} />}
           ListEmptyComponent={<EmptyState icon={error ? "cloud-offline-outline" : "bag-outline"} message={error ?? "Nothing here yet."} />}
           renderItem={({ item }) => (
-            <Pressable
-              onPress={() => onOpenItem(item.href)}
-              accessibilityRole="button"
-              accessibilityLabel={`Open ${item.title}`}
-              style={({ pressed }) => [pressed && styles.cardPressed]}
-            >
-              <Card style={styles.card} elevated={false}>
-                <Text style={styles.categoryLabel}>{item.categoryLabel}</Text>
-                <Text style={styles.title} numberOfLines={2}>
-                  {item.title}
-                </Text>
-                <Text style={styles.subtitle} numberOfLines={2}>
-                  {item.subtitle}
-                </Text>
-                <Text style={styles.price}>{item.priceLabel}</Text>
-              </Card>
-            </Pressable>
+            <MarketplaceItemCard item={item} styles={styles} onOpen={() => onOpenItem(item.href)} />
           )}
         />
       )}
     </View>
+  );
+}
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+// Extracted so usePressScale (a hook) has a proper component to live in —
+// FlatList's renderItem is called per-row, not a place hooks can go
+// directly. Gives marketplace item cards the same press-spring feedback
+// every other tappable row in the app now has, instead of the plain
+// opacity dip this one previously used.
+function MarketplaceItemCard({
+  item,
+  styles,
+  onOpen,
+}: {
+  item: MarketplaceItem;
+  styles: ReturnType<typeof createStyles>;
+  onOpen: () => void;
+}) {
+  const { animatedStyle, onPressIn, onPressOut } = usePressScale({ scale: 0.97, opacity: 0.85 });
+  return (
+    <AnimatedPressable
+      onPress={onOpen}
+      onPressIn={onPressIn}
+      onPressOut={onPressOut}
+      accessibilityRole="button"
+      accessibilityLabel={`Open ${item.title}`}
+      style={animatedStyle}
+    >
+      <Card style={styles.card} elevated={false}>
+        <Text style={styles.categoryLabel}>{item.categoryLabel}</Text>
+        <Text style={styles.title} numberOfLines={2}>
+          {item.title}
+        </Text>
+        <Text style={styles.subtitle} numberOfLines={2}>
+          {item.subtitle}
+        </Text>
+        <Text style={styles.price}>{item.priceLabel}</Text>
+      </Card>
+    </AnimatedPressable>
   );
 }
 
@@ -120,7 +146,6 @@ function createStyles(theme: Theme) {
     tabsWrap: { paddingVertical: theme.space[3] },
     list: { paddingHorizontal: theme.space[4], gap: theme.space[3] },
     card: { gap: 2 },
-    cardPressed: { opacity: 0.7 },
     categoryLabel: { color: theme.colors.accent, fontSize: theme.text.xs, fontWeight: theme.weight.emphasis, textTransform: "uppercase" },
     title: { color: theme.colors.foreground, fontSize: theme.text.base, fontWeight: theme.weight.emphasis },
     subtitle: { color: theme.colors.mutedForeground, fontSize: theme.text.sm },

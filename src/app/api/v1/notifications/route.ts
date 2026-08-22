@@ -42,6 +42,7 @@ export async function GET(request: Request) {
               username: n.actor.username?.handle ?? null,
               displayName: n.actor.profile?.displayName ?? null,
               avatarUrl: n.actor.profile?.avatarUrl ?? null,
+              isVerified: n.actor.profile?.isVerified ?? false,
             }
           : null,
         isRead: n.readAt !== null,

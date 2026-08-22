@@ -1,7 +1,9 @@
 import type { ReactNode } from "react";
 import { Pressable, StyleSheet, type StyleProp, type ViewStyle } from "react-native";
-import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSpring } from "react-native-reanimated";
+import Animated from "react-native-reanimated";
 import { useTheme } from "../theme";
+import { haptics } from "../utils/haptics";
+import { usePressScale } from "../utils/usePressScale";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -26,26 +28,18 @@ type Props = {
 // row across the app already had.
 export function ListRow({ onPress, accessibilityLabel, highlighted, style, children }: Props) {
   const theme = useTheme();
-  const reduceMotion = useReducedMotion();
-  const scale = useSharedValue(1);
-  const opacity = useSharedValue(1);
-  const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }], opacity: opacity.value }));
+  const { animatedStyle, onPressIn, onPressOut } = usePressScale();
 
   return (
     <AnimatedPressable
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
-      onPress={onPress}
-      onPressIn={() => {
-        if (reduceMotion) return;
-        scale.value = withSpring(0.98, theme.motion.press);
-        opacity.value = withSpring(0.7, theme.motion.press);
+      onPress={() => {
+        haptics.light();
+        onPress();
       }}
-      onPressOut={() => {
-        if (reduceMotion) return;
-        scale.value = withSpring(1, theme.motion.press);
-        opacity.value = withSpring(1, theme.motion.press);
-      }}
+      onPressIn={onPressIn}
+      onPressOut={onPressOut}
       style={[
         styles.row,
         { borderBottomColor: theme.colors.border },

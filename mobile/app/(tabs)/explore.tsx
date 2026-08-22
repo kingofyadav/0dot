@@ -101,7 +101,6 @@ export default function ExploreScreen() {
   }
 
   async function onToggleLike(post: Post) {
-    haptics.light();
     const { isLiked, likeCount } = post;
     setPosts((prev) =>
       prev.map((p) => (p.id === post.id ? { ...p, isLiked: !isLiked, likeCount: likeCount + (isLiked ? -1 : 1) } : p))
@@ -116,7 +115,6 @@ export default function ExploreScreen() {
   }
 
   async function onToggleRepost(postId: string) {
-    haptics.light();
     try {
       const result = await repostPost(postId);
       setPosts((prev) => prev.map((p) => (p.id === postId ? { ...p, repostCount: result.repostCount } : p)));
@@ -126,7 +124,6 @@ export default function ExploreScreen() {
   }
 
   async function onToggleBookmark(post: Post) {
-    haptics.light();
     const { isBookmarked } = post;
     setPosts((prev) => prev.map((p) => (p.id === post.id ? { ...p, isBookmarked: !isBookmarked } : p)));
     try {

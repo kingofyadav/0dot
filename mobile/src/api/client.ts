@@ -105,7 +105,13 @@ function tryRefreshTokens(): Promise<boolean> {
   return refreshInFlight;
 }
 
-async function authorizedRequest<T>(path: string, init?: RequestInit, timeoutMs?: number, isRetry = false): Promise<T> {
+async function authorizedRequest<T>(
+  path: string,
+  init?: RequestInit,
+  timeoutMs?: number,
+  isRetry = false,
+  parseAs: "json" | "text" = "json"
+): Promise<T> {
   const tokens = await loadTokens();
   if (!tokens) throw new ApiError("Not signed in.", 401);
 
@@ -136,7 +142,7 @@ async function authorizedRequest<T>(path: string, init?: RequestInit, timeoutMs?
   // 401s (e.g. the authorization was revoked server-side, which
   // invalidates the refresh token too, so refresh itself fails first).
   if (res.status === 401 && !isRetry && (await tryRefreshTokens())) {
-    return authorizedRequest<T>(path, init, timeoutMs, true);
+    return authorizedRequest<T>(path, init, timeoutMs, true, parseAs);
   }
 
   if (!res.ok) {
@@ -147,7 +153,7 @@ async function authorizedRequest<T>(path: string, init?: RequestInit, timeoutMs?
     throw new ApiError(body?.error ?? `Request failed (${res.status}).`, res.status);
   }
 
-  return res.json() as Promise<T>;
+  return (parseAs === "text" ? res.text() : res.json()) as Promise<T>;
 }
 
 export function getMe(): Promise<Me> {
@@ -465,18 +471,12 @@ export function deleteAccount(currentPassword: string): Promise<{ ok: true }> {
 
 // Returns the raw exported JSON as text — the caller (account-management.tsx)
 // writes it to a file via expo-file-system and hands it to the share sheet,
-// so there's no benefit to parsing it here first.
-export async function exportAccountData(): Promise<string> {
-  const tokens = await loadTokens();
-  if (!tokens) throw new ApiError("Not signed in.", 401);
-  const res = await fetchWithTimeout(`${API_BASE_URL}/api/v1/account/export`, {
-    headers: { Authorization: `Bearer ${tokens.accessToken}` },
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => null)) as { error?: string } | null;
-    throw new ApiError(body?.error ?? `Request failed (${res.status}).`, res.status);
-  }
-  return res.text();
+// so there's no benefit to parsing it here first. Routed through
+// authorizedRequest (parseAs: "text") rather than a standalone fetch so an
+// expired access token gets the same silent refresh-and-retry every other
+// call gets, instead of surfacing a bare 401 only on this one screen.
+export function exportAccountData(): Promise<string> {
+  return authorizedRequest<string>("/api/v1/account/export", undefined, undefined, false, "text");
 }
 
 export function getPreferences(): Promise<PreferencesResponse> {

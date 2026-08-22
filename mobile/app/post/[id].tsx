@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from "react-native";
+import Animated, { useAnimatedStyle, useSharedValue, withSequence, withSpring } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -10,6 +11,8 @@ import { VerifiedBadge } from "../../src/components/VerifiedBadge";
 import { EmptyState } from "../../src/components/EmptyState";
 import { PostMediaGrid } from "../../src/components/PostMediaGrid";
 import { SkeletonBlock } from "../../src/components/Skeleton";
+import { StatButton, statButtonStyles } from "../../src/components/PostRow";
+import { SendButton } from "../../src/components/SendButton";
 import { animateNextLayout } from "../../src/utils/animateLayout";
 import { haptics } from "../../src/utils/haptics";
 import { useContentMaxWidth } from "../../src/utils/responsive";
@@ -73,7 +76,6 @@ export default function PostScreen() {
   // treatment.
   async function onToggleLike() {
     if (!post) return;
-    haptics.light();
     const { isLiked, likeCount } = post;
     setPost({ ...post, isLiked: !isLiked, likeCount: likeCount + (isLiked ? -1 : 1) });
     try {
@@ -87,7 +89,6 @@ export default function PostScreen() {
 
   async function onToggleRepost() {
     if (!post) return;
-    haptics.light();
     try {
       const result = await repostPost(post.id);
       setPost((prev) => (prev ? { ...prev, repostCount: result.repostCount } : prev));
@@ -98,7 +99,6 @@ export default function PostScreen() {
 
   async function onToggleBookmark() {
     if (!post) return;
-    haptics.light();
     const { isBookmarked } = post;
     setPost({ ...post, isBookmarked: !isBookmarked });
     try {
@@ -107,6 +107,27 @@ export default function PostScreen() {
     } catch {
       haptics.warning();
       setPost((prev) => (prev ? { ...prev, isBookmarked } : prev));
+    }
+  }
+
+  // Same like-bump + repost-pending affordances as PostRow's stat buttons
+  // (see that component's own comments) — this screen renders its own
+  // stats row rather than PostRow itself, so it re-derives the same two
+  // bits of local UI state independently.
+  const likeScale = useSharedValue(1);
+  const likeAnimatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: likeScale.value }] }));
+  useEffect(() => {
+    if (post?.isLiked) likeScale.value = withSequence(withSpring(1.3, theme.motion.press), withSpring(1, theme.motion.press));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only the like transition itself should trigger the bump
+  }, [post?.isLiked]);
+
+  const [repostPending, setRepostPending] = useState(false);
+  async function handleToggleRepost() {
+    setRepostPending(true);
+    try {
+      await onToggleRepost();
+    } finally {
+      setRepostPending(false);
     }
   }
 
@@ -195,41 +216,40 @@ export default function PostScreen() {
         {post.media.length > 0 ? <PostMediaGrid media={post.media} height={280} /> : null}
 
         <View style={styles.statsRow}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={post.isLiked ? "Unlike" : "Like"}
-            hitSlop={8}
-            onPress={onToggleLike}
-            style={styles.stat}
-          >
-            <Ionicons
-              name={post.isLiked ? "heart" : "heart-outline"}
-              size={17}
-              color={post.isLiked ? theme.colors.accent : theme.colors.mutedForeground}
-            />
+          <StatButton accessibilityLabel={post.isLiked ? "Unlike" : "Like"} selected={post.isLiked} onPress={onToggleLike}>
+            <Animated.View style={likeAnimatedStyle}>
+              <Ionicons
+                name={post.isLiked ? "heart" : "heart-outline"}
+                size={17}
+                color={post.isLiked ? theme.colors.accent : theme.colors.mutedForeground}
+              />
+            </Animated.View>
             <Text style={[styles.statText, post.isLiked && { color: theme.colors.accent }]}>{post.likeCount}</Text>
-          </Pressable>
+          </StatButton>
           <View style={styles.stat}>
             <Ionicons name="chatbubble-outline" size={16} color={theme.colors.mutedForeground} />
             <Text style={styles.statText}>{post.replyCount}</Text>
           </View>
-          <Pressable accessibilityRole="button" accessibilityLabel="Repost" hitSlop={8} onPress={onToggleRepost} style={styles.stat}>
-            <Ionicons name="repeat-outline" size={18} color={theme.colors.mutedForeground} />
+          <StatButton accessibilityLabel="Repost" onPress={handleToggleRepost}>
+            {repostPending ? (
+              <ActivityIndicator size="small" color={theme.colors.mutedForeground} />
+            ) : (
+              <Ionicons name="repeat-outline" size={18} color={theme.colors.mutedForeground} />
+            )}
             <Text style={styles.statText}>{post.repostCount}</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
+          </StatButton>
+          <StatButton
             accessibilityLabel={post.isBookmarked ? "Remove bookmark" : "Bookmark"}
-            hitSlop={8}
+            selected={post.isBookmarked}
             onPress={onToggleBookmark}
-            style={[styles.stat, styles.bookmarkStat]}
+            style={statButtonStyles.bookmarkStat}
           >
             <Ionicons
               name={post.isBookmarked ? "bookmark" : "bookmark-outline"}
               size={17}
               color={post.isBookmarked ? theme.colors.accent : theme.colors.mutedForeground}
             />
-          </Pressable>
+          </StatButton>
         </View>
 
         <Text style={styles.timestamp}>{new Date(post.createdAt).toLocaleString()}</Text>
@@ -248,19 +268,7 @@ export default function PostScreen() {
           maxLength={MAX_REPLY_LENGTH}
           accessibilityLabel="Reply text"
         />
-        <Pressable
-          onPress={onSendReply}
-          disabled={!replyBody.trim() || sendingReply}
-          accessibilityRole="button"
-          accessibilityLabel="Send reply"
-          style={({ pressed }) => [
-            styles.sendButton,
-            (!replyBody.trim() || sendingReply) && styles.sendButtonDisabled,
-            { opacity: pressed ? 0.7 : 1 },
-          ]}
-        >
-          <Ionicons name="arrow-up" size={18} color={theme.colors.onAccent} />
-        </Pressable>
+        <SendButton onPress={onSendReply} disabled={!replyBody.trim() || sendingReply} accessibilityLabel="Send reply" />
       </SafeAreaView>
       </View>
       </KeyboardAvoidingView>
@@ -289,7 +297,6 @@ function createStyles(theme: Theme) {
       borderColor: theme.colors.border,
     },
     stat: { flexDirection: "row", alignItems: "center", gap: theme.space[1] },
-    bookmarkStat: { marginLeft: "auto" },
     statText: { color: theme.colors.mutedForeground, fontSize: theme.text.sm },
     timestamp: { color: theme.colors.mutedForeground, fontSize: theme.text.xs },
     replyError: { color: theme.colors.danger, fontSize: theme.text.sm },
@@ -315,14 +322,5 @@ function createStyles(theme: Theme) {
       paddingHorizontal: theme.space[3],
       paddingVertical: theme.space[2],
     },
-    sendButton: {
-      width: 44,
-      height: 44,
-      borderRadius: theme.radius.full,
-      backgroundColor: theme.colors.accent,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    sendButtonDisabled: { backgroundColor: theme.colors.border },
   });
 }

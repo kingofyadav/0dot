@@ -219,7 +219,10 @@ function createStyles(theme: Theme) {
     screen: { flex: 1, backgroundColor: theme.colors.background },
     content: { padding: theme.space[5] },
     section: { gap: theme.space[3] },
-    sectionHeading: { fontSize: theme.text.lg, fontWeight: theme.weight.heading, color: theme.colors.foreground },
+    // Matches sessions.tsx/notification-preferences.tsx/settings.tsx/
+    // account-management.tsx's own section heading — this screen's own
+    // version had drifted to a larger non-uppercase foreground style.
+    sectionHeading: { fontSize: theme.text.sm, fontWeight: theme.weight.label, color: theme.colors.mutedForeground, textTransform: "uppercase" },
     divider: { height: StyleSheet.hairlineWidth, backgroundColor: theme.colors.border, marginVertical: theme.space[6] },
     field: { gap: theme.space[2] },
     label: { fontSize: theme.text.sm, fontWeight: theme.weight.label, color: theme.colors.mutedForeground },

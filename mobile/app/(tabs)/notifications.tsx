@@ -8,6 +8,7 @@ import { EmptyState } from "../../src/components/EmptyState";
 import { ListRow } from "../../src/components/ListRow";
 import { OfflineBanner } from "../../src/components/OfflineBanner";
 import { FeedRowSkeleton } from "../../src/components/Skeleton";
+import { VerifiedBadge } from "../../src/components/VerifiedBadge";
 import { relativeTime } from "../../src/utils/relativeTime";
 import { getNotificationIcon } from "../../src/utils/notificationIcon";
 import { animateNextLayout } from "../../src/utils/animateLayout";
@@ -163,7 +164,8 @@ export default function NotificationsScreen() {
             </View>
             <View style={styles.rowBody}>
               <Text style={styles.rowText}>
-                <Text style={styles.rowActor}>{actorName}</Text> {item.verb}
+                <Text style={styles.rowActor}>{actorName}</Text>
+                {item.actor?.isVerified ? <VerifiedBadge size={13} /> : null} {item.verb}
               </Text>
               <Text style={styles.time}>{relativeTime(item.createdAt)}</Text>
             </View>

@@ -129,8 +129,10 @@ function createStyles(theme: Theme) {
     name: { fontSize: theme.text.lg, fontWeight: theme.weight.heading, color: theme.colors.foreground },
     handle: { fontSize: theme.text.sm, color: theme.colors.mutedForeground },
     groups: { gap: theme.space[2] },
+    // Matches sessions.tsx/notification-preferences.tsx's own section
+    // heading exactly — this screen's own version drifted to text.xs.
     groupLabel: {
-      fontSize: theme.text.xs,
+      fontSize: theme.text.sm,
       fontWeight: theme.weight.label,
       color: theme.colors.mutedForeground,
       textTransform: "uppercase",

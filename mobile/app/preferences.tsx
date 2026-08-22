@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { getPreferences, updatePreferences, ApiError } from "../src/api/client";
 import { BottomSheet } from "../src/components/BottomSheet";
 import { EmptyState } from "../src/components/EmptyState";
+import { SettingsRowSkeleton } from "../src/components/Skeleton";
 import { haptics } from "../src/utils/haptics";
 import { useTheme, type Theme } from "../src/theme";
 import type { PreferencesResponse } from "../src/api/types";
@@ -103,9 +105,13 @@ export default function PreferencesScreen() {
 
   if (!prefs) {
     return (
-      <View style={[styles.screen, styles.center]}>
-        <ActivityIndicator color={theme.colors.accent} />
-      </View>
+      <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+        <View style={styles.group}>
+          {[0, 1, 2, 3].map((i) => (
+            <SettingsRowSkeleton key={i} />
+          ))}
+        </View>
+      </ScrollView>
     );
   }
 
@@ -159,6 +165,10 @@ export default function PreferencesScreen() {
   );
 }
 
+// Every instance of this row opens a BottomSheet picker (unlike
+// privacy-settings.tsx's own same-shaped Row, which also renders picker
+// *options* that shouldn't get a forward chevron) — so this one always
+// shows it, no separate prop needed.
 function SettingsRow({ label, value, onPress }: { label: string; value: string; onPress: () => void }) {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -174,6 +184,7 @@ function SettingsRow({ label, value, onPress }: { label: string; value: string; 
         {label}
       </Text>
       <Text style={[styles.rowLabel, { flex: 0, color: theme.colors.mutedForeground }]}>{value}</Text>
+      <Ionicons name="chevron-forward" size={16} color={theme.colors.mutedForeground} />
     </View>
   );
 }
@@ -198,7 +209,6 @@ function PickerRow({ label, selected, onPress }: { label: string; selected?: boo
 function createStyles(theme: Theme) {
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: theme.colors.background },
-    center: { alignItems: "center", justifyContent: "center" },
     content: { padding: theme.space[5], gap: theme.space[3] },
     group: {
       backgroundColor: theme.colors.surface,

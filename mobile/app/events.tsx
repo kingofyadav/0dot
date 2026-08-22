@@ -89,6 +89,7 @@ export default function EventsScreen() {
               {formatWhen(item.startsAt)} · {item.hostLabel}
             </Text>
           </View>
+          <Ionicons name="chevron-forward" size={16} color={theme.colors.mutedForeground} />
         </ListRow>
       )}
     />

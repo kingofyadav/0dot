@@ -60,7 +60,7 @@ export type NotificationItem = {
   subjectId: string;
   verb: string;
   href: string;
-  actor: { username: string | null; displayName: string | null; avatarUrl: string | null } | null;
+  actor: { username: string | null; displayName: string | null; avatarUrl: string | null; isVerified: boolean } | null;
   isRead: boolean;
   createdAt: string;
 };

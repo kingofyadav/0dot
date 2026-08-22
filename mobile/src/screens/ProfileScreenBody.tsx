@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, Share, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, RefreshControl, Share, StyleSheet, Text, View } from "react-native";
 import { Image } from "expo-image";
 import Animated, {
   Extrapolation,
@@ -49,6 +49,7 @@ export function ProfileScreenBody({ username, showSettingsShortcut = false }: { 
   const [posts, setPosts] = useState<Post[]>([]);
   const [postsNextCursor, setPostsNextCursor] = useState<string | null>(null);
   const [postsLoadingMore, setPostsLoadingMore] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   // M9 profile pass: tapping either image opens it full-screen — a shared
   // lightbox regardless of which one, since only one can be open at a
@@ -91,6 +92,16 @@ export function ProfileScreenBody({ username, showSettingsShortcut = false }: { 
     }
   }, [username]);
 
+  // Home/Messages/Notifications all have pull-to-refresh on their list —
+  // this screen's posts list didn't, despite reusing the same load()
+  // this focus effect below already calls.
+  async function onRefresh() {
+    setRefreshing(true);
+    haptics.light();
+    await load();
+    setRefreshing(false);
+  }
+
   const loadedUsername = useRef<string | null>(null);
   useFocusEffect(
     useCallback(() => {
@@ -124,7 +135,6 @@ export function ProfileScreenBody({ username, showSettingsShortcut = false }: { 
   }
 
   async function onToggleLike(post: Post) {
-    haptics.light();
     const { isLiked, likeCount } = post;
     setPosts((prev) =>
       prev.map((p) => (p.id === post.id ? { ...p, isLiked: !isLiked, likeCount: likeCount + (isLiked ? -1 : 1) } : p))
@@ -139,7 +149,6 @@ export function ProfileScreenBody({ username, showSettingsShortcut = false }: { 
   }
 
   async function onToggleRepost(postId: string) {
-    haptics.light();
     try {
       const result = await repostPost(postId);
       setPosts((prev) => prev.map((p) => (p.id === postId ? { ...p, repostCount: result.repostCount } : p)));
@@ -149,7 +158,6 @@ export function ProfileScreenBody({ username, showSettingsShortcut = false }: { 
   }
 
   async function onToggleBookmark(post: Post) {
-    haptics.light();
     const { isBookmarked } = post;
     setPosts((prev) => prev.map((p) => (p.id === post.id ? { ...p, isBookmarked: !isBookmarked } : p)));
     try {
@@ -259,6 +267,7 @@ export function ProfileScreenBody({ username, showSettingsShortcut = false }: { 
         scrollEventThrottle={16}
         onEndReached={onPostsEndReached}
         onEndReachedThreshold={0.4}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.accent} />}
         renderItem={({ item }: { item: Post }) => (
           <PostRow
             post={item}
@@ -269,7 +278,7 @@ export function ProfileScreenBody({ username, showSettingsShortcut = false }: { 
           />
         )}
         ListFooterComponent={postsLoadingMore ? <ActivityIndicator style={styles.footerSpinner} color={theme.colors.accent} /> : null}
-        ListEmptyComponent={<Text style={styles.emptyPosts}>No posts yet.</Text>}
+        ListEmptyComponent={<EmptyState icon="document-text-outline" message="No posts yet." />}
         ListHeaderComponent={
           <View>
             <View style={styles.coverClip}>
@@ -432,7 +441,6 @@ function createStyles(theme: Theme) {
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: theme.colors.border,
     },
-    emptyPosts: { textAlign: "center", color: theme.colors.mutedForeground, padding: theme.space[6] },
     footerSpinner: { paddingVertical: theme.space[4] },
   });
 }

@@ -1,9 +1,9 @@
 import { useCallback, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, View } from "react-native";
+import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
-import Ionicons from "@expo/vector-icons/Ionicons";
 import { getFeed, likePost, repostPost, toggleBookmark, ApiError } from "../../src/api/client";
 import { EmptyState } from "../../src/components/EmptyState";
+import { FAB } from "../../src/components/FAB";
 import { OfflineBanner } from "../../src/components/OfflineBanner";
 import { PostRow } from "../../src/components/PostRow";
 import { FeedRowSkeleton } from "../../src/components/Skeleton";
@@ -104,7 +104,6 @@ export default function HomeScreen() {
   // pre-tap snapshot on failure rather than left in a state the server
   // never actually confirmed.
   async function onToggleLike(post: Post) {
-    haptics.light();
     const { isLiked, likeCount } = post;
     setPosts((prev) =>
       prev.map((p) => (p.id === post.id ? { ...p, isLiked: !isLiked, likeCount: likeCount + (isLiked ? -1 : 1) } : p))
@@ -123,7 +122,6 @@ export default function HomeScreen() {
   // repost indicator either, see PostCard.tsx), so there's no known
   // direction to pre-apply. Waits for the server's own before/after count.
   async function onToggleRepost(postId: string) {
-    haptics.light();
     try {
       const result = await repostPost(postId);
       setPosts((prev) => prev.map((p) => (p.id === postId ? { ...p, repostCount: result.repostCount } : p)));
@@ -135,7 +133,6 @@ export default function HomeScreen() {
   // Optimistic, same known-direction posture as onToggleLike (the current
   // state is always known from the last GET).
   async function onToggleBookmark(post: Post) {
-    haptics.light();
     const { isBookmarked } = post;
     setPosts((prev) => prev.map((p) => (p.id === post.id ? { ...p, isBookmarked: !isBookmarked } : p)));
     try {
@@ -191,14 +188,7 @@ export default function HomeScreen() {
             />
           )}
         />
-        <Pressable
-          onPress={() => router.push("/compose")}
-          accessibilityRole="button"
-          accessibilityLabel="New post"
-          style={({ pressed }) => [styles.fab, { opacity: pressed ? 0.85 : 1 }]}
-        >
-          <Ionicons name="add" size={26} color={theme.colors.onAccent} />
-        </Pressable>
+        <FAB icon="add" accessibilityLabel="New post" onPress={() => router.push("/compose")} />
       </View>
     </View>
   );
@@ -210,22 +200,6 @@ function createStyles(theme: Theme) {
     contentWrap: { flex: 1 },
     screen: { flex: 1, backgroundColor: theme.colors.background },
     grow: { flexGrow: 1 },
-    fab: {
-      position: "absolute",
-      right: theme.space[5],
-      bottom: theme.space[5],
-      width: 56,
-      height: 56,
-      borderRadius: theme.radius.full,
-      backgroundColor: theme.colors.accent,
-      alignItems: "center",
-      justifyContent: "center",
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.2,
-      shadowRadius: 6,
-      elevation: 4,
-    },
     footerSpinner: { paddingVertical: theme.space[4] },
   });
 }

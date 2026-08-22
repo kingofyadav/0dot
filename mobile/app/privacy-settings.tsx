@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { getPrivacySettings, updatePrivacySettings as apiUpdatePrivacySettings, ApiError } from "../src/api/client";
 import { EmptyState } from "../src/components/EmptyState";
 import { BottomSheet } from "../src/components/BottomSheet";
+import { SettingsRowSkeleton } from "../src/components/Skeleton";
 import { haptics } from "../src/utils/haptics";
 import { useTheme, type Theme } from "../src/theme";
 import type { PrivacySettings } from "../src/api/types";
@@ -61,9 +63,13 @@ export default function PrivacySettingsScreen() {
 
   if (!settings) {
     return (
-      <View style={[styles.screen, styles.center]}>
-        <ActivityIndicator color={theme.colors.accent} />
-      </View>
+      <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+        <View style={styles.group}>
+          {[0, 1, 2].map((i) => (
+            <SettingsRowSkeleton key={i} />
+          ))}
+        </View>
+      </ScrollView>
     );
   }
 
@@ -76,6 +82,7 @@ export default function PrivacySettingsScreen() {
           label="Who can message you"
           value={dmLabel}
           onPress={() => setPickerOpen(true)}
+          showChevron
         />
         <ToggleRow
           label="Allow others to tag you"
@@ -114,11 +121,16 @@ function Row({
   value,
   selected,
   onPress,
+  showChevron,
 }: {
   label: string;
   value?: string;
   selected?: boolean;
   onPress: () => void;
+  // Only the row that actually navigates (opens the BottomSheet picker)
+  // passes this — the picker's own option rows use `selected` instead,
+  // where a forward chevron would be the wrong affordance.
+  showChevron?: boolean;
 }) {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -135,6 +147,7 @@ function Row({
       </Text>
       {value !== undefined ? <Text style={styles.rowValue}>{value}</Text> : null}
       {selected ? <Text style={[styles.rowValue, { color: theme.colors.accent }]}>✓</Text> : null}
+      {showChevron ? <Ionicons name="chevron-forward" size={16} color={theme.colors.mutedForeground} /> : null}
     </View>
   );
 }
@@ -169,7 +182,6 @@ function ToggleRow({
 function createStyles(theme: Theme) {
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: theme.colors.background },
-    center: { alignItems: "center", justifyContent: "center" },
     content: { padding: theme.space[5], gap: theme.space[3] },
     group: {
       backgroundColor: theme.colors.surface,

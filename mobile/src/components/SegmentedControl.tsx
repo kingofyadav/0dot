@@ -1,5 +1,7 @@
+import { useMemo } from "react";
 import { ScrollView, StyleSheet } from "react-native";
 import { Chip } from "./Chip";
+import { useTheme, type Theme } from "../theme";
 
 type Option<T extends string> = { key: T; label: string };
 
@@ -16,6 +18,8 @@ export function SegmentedControl<T extends string>({
   value: T;
   onChange: (value: T) => void;
 }) {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
       {options.map((option) => (
@@ -25,6 +29,8 @@ export function SegmentedControl<T extends string>({
   );
 }
 
-const styles = StyleSheet.create({
-  row: { flexDirection: "row", gap: 8, paddingHorizontal: 16 },
-});
+function createStyles(theme: Theme) {
+  return StyleSheet.create({
+    row: { flexDirection: "row", gap: theme.space[2], paddingHorizontal: theme.space[4] },
+  });
+}

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Image } from "expo-image";
 import {
   getTwoFactorStatus,
@@ -72,21 +72,34 @@ export default function TwoFactorScreen() {
     }
   }
 
-  async function onDisable() {
+  // Now gated behind a confirm, same as every other security-critical
+  // action in the app (deactivate/delete account, sign out everywhere) —
+  // this previously fired the instant the button was tapped, the one
+  // action in this class with no confirmation step at all.
+  function onDisable() {
     if (!currentPassword) return;
-    setSaving(true);
-    setError(null);
-    try {
-      await disableTwoFactor(currentPassword);
-      haptics.light();
-      setCurrentPassword("");
-      setStep("off");
-    } catch (err) {
-      haptics.warning();
-      setError(err instanceof ApiError ? err.message : "Could not disable two-factor authentication.");
-    } finally {
-      setSaving(false);
-    }
+    Alert.alert("Disable two-factor authentication?", "This removes the extra sign-in step protecting your account.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Disable",
+        style: "destructive",
+        onPress: async () => {
+          setSaving(true);
+          setError(null);
+          try {
+            await disableTwoFactor(currentPassword);
+            haptics.light();
+            setCurrentPassword("");
+            setStep("off");
+          } catch (err) {
+            haptics.warning();
+            setError(err instanceof ApiError ? err.message : "Could not disable two-factor authentication.");
+          } finally {
+            setSaving(false);
+          }
+        },
+      },
+    ]);
   }
 
   async function onRegenerate() {

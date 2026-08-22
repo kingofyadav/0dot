@@ -1,10 +1,11 @@
 import { useCallback, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, View } from "react-native";
+import { FlatList, RefreshControl, StyleSheet, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
-import Ionicons from "@expo/vector-icons/Ionicons";
 import { getConversations, markConversationRead, ApiError } from "../../src/api/client";
 import { ConversationRow } from "../../src/components/ConversationRow";
 import { EmptyState } from "../../src/components/EmptyState";
+import { FAB } from "../../src/components/FAB";
+import { ConversationRowSkeleton } from "../../src/components/Skeleton";
 import { useMessagesStreamEvents } from "../../src/realtime/MessagesStreamContext";
 import { animateNextLayout } from "../../src/utils/animateLayout";
 import { haptics } from "../../src/utils/haptics";
@@ -91,7 +92,9 @@ export default function MessagesScreen() {
   if (loading) {
     return (
       <View style={styles.screen}>
-        <ActivityIndicator style={styles.centerSpinner} color={theme.colors.accent} />
+        {[0, 1, 2, 3, 4].map((i) => (
+          <ConversationRowSkeleton key={i} />
+        ))}
       </View>
     );
   }
@@ -122,14 +125,7 @@ export default function MessagesScreen() {
             />
           )}
         />
-        <Pressable
-          onPress={() => router.push("/messages/new")}
-          accessibilityRole="button"
-          accessibilityLabel="New message"
-          style={({ pressed }) => [styles.fab, { opacity: pressed ? 0.85 : 1 }]}
-        >
-          <Ionicons name="create-outline" size={24} color={theme.colors.onAccent} />
-        </Pressable>
+        <FAB icon="create-outline" accessibilityLabel="New message" onPress={() => router.push("/messages/new")} />
       </View>
     </View>
   );
@@ -141,18 +137,5 @@ function createStyles(theme: Theme) {
     contentWrap: { flex: 1 },
     screen: { flex: 1, backgroundColor: theme.colors.background },
     grow: { flexGrow: 1 },
-    centerSpinner: { flex: 1 },
-    fab: {
-      position: "absolute",
-      right: theme.space[5],
-      bottom: theme.space[5],
-      width: 56,
-      height: 56,
-      borderRadius: theme.radius.full,
-      backgroundColor: theme.colors.accent,
-      alignItems: "center",
-      justifyContent: "center",
-      ...theme.shadow.md,
-    },
   });
 }

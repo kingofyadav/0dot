@@ -1,13 +1,17 @@
 import { useMemo, useState } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import Animated from "react-native-reanimated";
 import { Image } from "expo-image";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
 import { createPost, ApiError, type LocalImage } from "../src/api/client";
 import { pickImage } from "../src/utils/pickImage";
 import { haptics } from "../src/utils/haptics";
+import { usePressScale } from "../src/utils/usePressScale";
 import { useTheme, type Theme } from "../src/theme";
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 const MAX_LENGTH = 500;
 // Matches web's compose warning threshold posture (getting close to the
@@ -19,6 +23,7 @@ const MAX_IMAGES = 4;
 export default function ComposeScreen() {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const postPress = usePressScale({ scale: 0.94, opacity: 0.8 });
 
   const [body, setBody] = useState("");
   const [images, setImages] = useState<LocalImage[]>([]);
@@ -73,15 +78,20 @@ export default function ComposeScreen() {
           <Pressable onPress={onCancel} accessibilityRole="button" accessibilityLabel="Cancel" style={styles.topBarButton}>
             <Text style={styles.cancelText}>Cancel</Text>
           </Pressable>
-          <Pressable
+          <AnimatedPressable
             onPress={onPost}
+            onPressIn={() => {
+              if (canPost) postPress.onPressIn();
+            }}
+            onPressOut={postPress.onPressOut}
             disabled={!canPost}
             accessibilityRole="button"
             accessibilityLabel="Post"
-            style={({ pressed }) => [styles.postButton, !canPost && styles.postButtonDisabled, { opacity: pressed ? 0.8 : 1 }]}
+            accessibilityState={{ disabled: !canPost }}
+            style={[styles.postButton, !canPost && styles.postButtonDisabled, postPress.animatedStyle]}
           >
             <Text style={[styles.postButtonText, !canPost && styles.postButtonTextDisabled]}>Post</Text>
-          </Pressable>
+          </AnimatedPressable>
         </View>
 
         <TextInput

@@ -4,6 +4,7 @@ import { useFocusEffect } from "expo-router";
 import { getBlockedUsers, unblockUser, ApiError } from "../src/api/client";
 import { Avatar } from "../src/components/Avatar";
 import { EmptyState } from "../src/components/EmptyState";
+import { SettingsRowSkeleton } from "../src/components/Skeleton";
 import { haptics } from "../src/utils/haptics";
 import { useTheme, type Theme } from "../src/theme";
 import type { BlockedUser } from "../src/api/types";
@@ -48,7 +49,11 @@ export default function BlockedUsersScreen() {
   }
 
   async function onUnblock(user: BlockedUser) {
-    haptics.medium();
+    // haptics.medium() is reserved for a *confirmed* hard-to-undo action
+    // (haptics.ts's own doc) — unblocking has no confirm step and is
+    // trivially reversible (re-block any time), so light() is the correct
+    // tier here, not medium().
+    haptics.light();
     setUnblockingId(user.userId);
     try {
       await unblockUser(user.userId);
@@ -71,56 +76,73 @@ export default function BlockedUsersScreen() {
 
   if (!items) {
     return (
-      <View style={[styles.screen, styles.center]}>
-        <ActivityIndicator color={theme.colors.accent} />
+      <View style={styles.screen}>
+        <View style={styles.group}>
+          {[0, 1, 2, 3].map((i) => (
+            <SettingsRowSkeleton key={i} />
+          ))}
+        </View>
       </View>
     );
   }
 
   return (
-    <FlatList
-      style={styles.screen}
-      contentContainerStyle={styles.content}
-      data={items}
-      keyExtractor={(item) => item.userId}
-      onEndReached={onEndReached}
-      onEndReachedThreshold={0.4}
-      ListEmptyComponent={
-        <EmptyState icon="ban-outline" message="You haven't blocked anyone." />
-      }
-      ListFooterComponent={loadingMore ? <ActivityIndicator style={styles.footerSpinner} color={theme.colors.accent} /> : null}
-      renderItem={({ item }) => (
-        <View style={styles.row}>
-          <Avatar uri={item.avatarUrl} name={item.displayName ?? item.username} size={44} />
-          <View style={styles.rowText}>
-            <Text style={styles.displayName}>{item.displayName ?? "Unknown"}</Text>
-            {item.username ? <Text style={styles.handle}>@{item.username}</Text> : null}
-          </View>
-          <Pressable
-            onPress={() => onUnblock(item)}
-            disabled={unblockingId === item.userId}
-            accessibilityRole="button"
-            accessibilityLabel={`Unblock ${item.displayName ?? item.username ?? "user"}`}
-            style={({ pressed }) => [styles.unblockButton, { opacity: pressed || unblockingId === item.userId ? 0.6 : 1 }]}
-          >
-            <Text style={styles.unblockText}>Unblock</Text>
-          </Pressable>
-        </View>
-      )}
-    />
+    <View style={styles.screen}>
+      <View style={styles.group}>
+        <FlatList
+          contentContainerStyle={items.length === 0 ? styles.emptyContent : undefined}
+          data={items}
+          keyExtractor={(item) => item.userId}
+          onEndReached={onEndReached}
+          onEndReachedThreshold={0.4}
+          ListEmptyComponent={<EmptyState icon="ban-outline" message="You haven't blocked anyone." />}
+          ListFooterComponent={loadingMore ? <ActivityIndicator style={styles.footerSpinner} color={theme.colors.accent} /> : null}
+          renderItem={({ item }) => (
+            <View style={styles.row}>
+              <Avatar uri={item.avatarUrl} name={item.displayName ?? item.username} size={44} />
+              <View style={styles.rowText}>
+                <Text style={styles.displayName}>{item.displayName ?? "Unknown"}</Text>
+                {item.username ? <Text style={styles.handle}>@{item.username}</Text> : null}
+              </View>
+              <Pressable
+                onPress={() => onUnblock(item)}
+                disabled={unblockingId === item.userId}
+                accessibilityRole="button"
+                accessibilityLabel={`Unblock ${item.displayName ?? item.username ?? "user"}`}
+                style={({ pressed }) => [styles.unblockButton, { opacity: pressed || unblockingId === item.userId ? 0.6 : 1 }]}
+              >
+                <Text style={styles.unblockText}>Unblock</Text>
+              </Pressable>
+            </View>
+          )}
+        />
+      </View>
+    </View>
   );
 }
 
 function createStyles(theme: Theme) {
   return StyleSheet.create({
-    screen: { flex: 1, backgroundColor: theme.colors.background },
-    center: { alignItems: "center", justifyContent: "center" },
-    content: { padding: theme.space[4], flexGrow: 1 },
+    screen: { flex: 1, backgroundColor: theme.colors.background, padding: theme.space[5] },
+    // Matches sessions.tsx/privacy-settings.tsx/preferences.tsx/
+    // notification-preferences.tsx's own bordered/rounded row container —
+    // this screen previously rendered bare rows with only a bottom
+    // hairline, unlike every other settings-adjacent screen.
+    group: {
+      flex: 1,
+      backgroundColor: theme.colors.surface,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.colors.border,
+      borderRadius: theme.radius.lg,
+      overflow: "hidden",
+    },
+    emptyContent: { flexGrow: 1 },
     row: {
       flexDirection: "row",
       alignItems: "center",
       gap: theme.space[3],
       paddingVertical: theme.space[3],
+      paddingHorizontal: theme.space[4],
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: theme.colors.border,
     },

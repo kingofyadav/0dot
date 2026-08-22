@@ -86,7 +86,6 @@ export default function BookmarksScreen() {
   }
 
   async function onToggleLike(post: Post) {
-    haptics.light();
     const { isLiked, likeCount } = post;
     setPosts((prev) =>
       prev.map((p) => (p.id === post.id ? { ...p, isLiked: !isLiked, likeCount: likeCount + (isLiked ? -1 : 1) } : p))
@@ -101,7 +100,6 @@ export default function BookmarksScreen() {
   }
 
   async function onToggleRepost(postId: string) {
-    haptics.light();
     try {
       const result = await repostPost(postId);
       setPosts((prev) => prev.map((p) => (p.id === postId ? { ...p, repostCount: result.repostCount } : p)));
@@ -117,7 +115,6 @@ export default function BookmarksScreen() {
   // toggle is just one more stat among many on a post you're still
   // viewing for other reasons.
   async function onToggleBookmark(post: Post) {
-    haptics.light();
     animateNextLayout();
     setPosts((prev) => prev.filter((p) => p.id !== post.id));
     try {

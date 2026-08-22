@@ -37,7 +37,7 @@ export function Avatar({ uri, name, size = 40 }: Props) {
   }
 
   return (
-    <View style={[dimension, styles.fallback, { backgroundColor: theme.colors.accentSoft }]} accessible accessibilityLabel={label}>
+    <View style={[dimension, styles.fallback]} accessible accessibilityLabel={label}>
       <Image source={LOGO_SOURCE[theme.scheme]} style={{ width: size * 0.62, height: size * 0.62 }} contentFit="contain" alt="" />
     </View>
   );

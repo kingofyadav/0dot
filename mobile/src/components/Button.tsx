@@ -1,8 +1,9 @@
 import { useMemo } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, type StyleProp, type ViewStyle } from "react-native";
-import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSpring } from "react-native-reanimated";
+import Animated from "react-native-reanimated";
 import { useTheme, type Theme } from "../theme";
 import { haptics } from "../utils/haptics";
+import { usePressScale } from "../utils/usePressScale";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -35,18 +36,11 @@ export function Button({ label, onPress, variant = "primary", loading = false, d
 
   // M9: scale adds the "feels expensive" press-down X/Instagram's own
   // buttons have; opacity keeps the instant dip the old style-function
-  // form gave for free. Both driven from the same shared values (rather
-  // than Pressable's own `style={({pressed}) => ...}` callback) because
-  // AnimatedPressable intercepts the resolved `style` prop directly —
-  // it never sees inside a function passed as that prop, so an animated
-  // style can't be threaded through it. Skipped entirely under reduced
-  // motion, same OS signal animateLayout.ts's LayoutAnimation gate reads
-  // — Reanimated's own hook rather than that module's cached flag, since
-  // a worklet needs a reactive value, not a snapshot read once.
-  const reduceMotion = useReducedMotion();
-  const scale = useSharedValue(1);
-  const opacity = useSharedValue(1);
-  const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }], opacity: opacity.value }));
+  // form gave for free. usePressScale (shared with every other Pressable
+  // in the app now) handles the reduced-motion gate and shared-value
+  // plumbing — AnimatedPressable can't see inside a
+  // `style={({pressed}) => ...}` callback, hence that approach.
+  const { animatedStyle, onPressIn, onPressOut } = usePressScale({ scale: 0.96, opacity: 0.75 });
 
   return (
     <AnimatedPressable
@@ -56,15 +50,10 @@ export function Button({ label, onPress, variant = "primary", loading = false, d
         onPress();
       }}
       onPressIn={() => {
-        if (isDisabled || reduceMotion) return;
-        scale.value = withSpring(0.96, theme.motion.press);
-        opacity.value = withSpring(0.75, theme.motion.press);
+        if (isDisabled) return;
+        onPressIn();
       }}
-      onPressOut={() => {
-        if (reduceMotion) return;
-        scale.value = withSpring(1, theme.motion.press);
-        opacity.value = withSpring(1, theme.motion.press);
-      }}
+      onPressOut={onPressOut}
       disabled={isDisabled}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}

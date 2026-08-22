@@ -3,6 +3,7 @@ import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View
 import { useFocusEffect } from "expo-router";
 import { getSessions, revokeSession, revokeOtherSessions, ApiError } from "../src/api/client";
 import { EmptyState } from "../src/components/EmptyState";
+import { SettingsRowSkeleton } from "../src/components/Skeleton";
 import { haptics } from "../src/utils/haptics";
 import { useTheme, type Theme } from "../src/theme";
 import type { LoginEvent, SessionInfo, SessionsResponse } from "../src/api/types";
@@ -30,18 +31,30 @@ export default function SessionsScreen() {
 
   useFocusEffect(load);
 
-  async function onRevoke(session: SessionInfo) {
-    setRevokingId(session.id);
-    haptics.medium();
-    try {
-      await revokeSession(session.id);
-      setData((prev) => (prev ? { ...prev, sessions: prev.sessions.filter((s) => s.id !== session.id) } : prev));
-    } catch (err) {
-      haptics.warning();
-      setError(err instanceof ApiError ? err.message : "Could not revoke that session.");
-    } finally {
-      setRevokingId(null);
-    }
+  // Now gated behind the same Alert.alert confirm onRevokeAll already has
+  // — previously this fired immediately with no confirmation, the one
+  // inconsistency between the two revoke actions on this screen.
+  function onRevoke(session: SessionInfo) {
+    Alert.alert("Revoke this session?", "This signs it out immediately.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Revoke",
+        style: "destructive",
+        onPress: async () => {
+          setRevokingId(session.id);
+          try {
+            await revokeSession(session.id);
+            setData((prev) => (prev ? { ...prev, sessions: prev.sessions.filter((s) => s.id !== session.id) } : prev));
+            haptics.medium();
+          } catch (err) {
+            haptics.warning();
+            setError(err instanceof ApiError ? err.message : "Could not revoke that session.");
+          } finally {
+            setRevokingId(null);
+          }
+        },
+      },
+    ]);
   }
 
   function onRevokeAll() {
@@ -77,9 +90,13 @@ export default function SessionsScreen() {
 
   if (!data) {
     return (
-      <View style={[styles.screen, styles.center]}>
-        <ActivityIndicator color={theme.colors.accent} />
-      </View>
+      <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+        <View style={styles.group}>
+          {[0, 1, 2].map((i) => (
+            <SettingsRowSkeleton key={i} />
+          ))}
+        </View>
+      </ScrollView>
     );
   }
 
@@ -105,7 +122,11 @@ export default function SessionsScreen() {
                 accessibilityLabel="Revoke session"
                 style={({ pressed }) => [styles.revokeButton, { opacity: pressed || revokingId === session.id ? 0.6 : 1 }]}
               >
-                <Text style={styles.revokeText}>Revoke</Text>
+                {revokingId === session.id ? (
+                  <ActivityIndicator size="small" color={theme.colors.danger} />
+                ) : (
+                  <Text style={styles.revokeText}>Revoke</Text>
+                )}
               </Pressable>
             </View>
           ))}

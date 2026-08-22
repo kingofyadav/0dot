@@ -1,13 +1,13 @@
 import { useCallback, useMemo, useState } from "react";
-import { FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { FlatList, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack, useFocusEffect, useLocalSearchParams } from "expo-router";
-import Ionicons from "@expo/vector-icons/Ionicons";
 import { useAuth } from "../../src/auth/AuthContext";
 import { useMessagesStreamEvents } from "../../src/realtime/MessagesStreamContext";
 import { getMessages, sendConversationMessage, markConversationRead, ApiError } from "../../src/api/client";
 import { Avatar } from "../../src/components/Avatar";
 import { EmptyState } from "../../src/components/EmptyState";
+import { SendButton } from "../../src/components/SendButton";
 import { animateNextLayout } from "../../src/utils/animateLayout";
 import { haptics } from "../../src/utils/haptics";
 import { relativeTime } from "../../src/utils/relativeTime";
@@ -122,6 +122,7 @@ export default function ConversationScreen() {
     setMessages((prev) => [optimistic, ...prev]);
     try {
       const sent = await sendConversationMessage(id, body);
+      haptics.light();
       setMessages((prev) => prev.map((m) => (m.id === optimisticId ? sent : m)));
     } catch (err) {
       haptics.warning();
@@ -192,19 +193,7 @@ export default function ConversationScreen() {
             maxLength={MAX_MESSAGE_LENGTH}
             accessibilityLabel="Message text"
           />
-          <Pressable
-            onPress={onSend}
-            disabled={!draft.trim() || sending}
-            accessibilityRole="button"
-            accessibilityLabel="Send message"
-            style={({ pressed }) => [
-              styles.sendButton,
-              (!draft.trim() || sending) && styles.sendButtonDisabled,
-              { opacity: pressed ? 0.7 : 1 },
-            ]}
-          >
-            <Ionicons name="arrow-up" size={18} color={theme.colors.onAccent} />
-          </Pressable>
+          <SendButton onPress={onSend} disabled={!draft.trim() || sending} accessibilityLabel="Send message" />
         </SafeAreaView>
       </KeyboardAvoidingView>
     </>
@@ -249,14 +238,5 @@ function createStyles(theme: Theme) {
       paddingHorizontal: theme.space[3],
       paddingVertical: theme.space[2],
     },
-    sendButton: {
-      width: 44,
-      height: 44,
-      borderRadius: theme.radius.full,
-      backgroundColor: theme.colors.accent,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    sendButtonDisabled: { backgroundColor: theme.colors.border },
   });
 }

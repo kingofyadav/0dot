@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { RefreshControl, SectionList, StyleSheet, Text, View } from "react-native";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { router, useFocusEffect } from "expo-router";
 import { getCommunities, ApiError } from "../src/api/client";
 import { Avatar } from "../src/components/Avatar";
@@ -91,6 +92,7 @@ export default function CommunitiesScreen() {
               {item.memberCount} {item.memberCount === 1 ? "member" : "members"}
             </Text>
           </View>
+          <Ionicons name="chevron-forward" size={16} color={theme.colors.mutedForeground} />
         </ListRow>
       )}
     />
