@@ -6,6 +6,7 @@ import { getConversationPartnerIds } from "@/lib/messaging";
 import { markUserOnline, markUserOffline } from "@/lib/presence";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 300; // same as api/messages/stream/route.ts — see its comment
 
 const HEARTBEAT_MS = 20_000; // same idle-proxy-friendly interval api/messages/stream/route.ts uses
 
@@ -44,6 +45,7 @@ export async function GET(request: Request) {
   const stream = new ReadableStream({
     start(controller) {
       const encoder = new TextEncoder();
+      controller.enqueue(encoder.encode(`retry: 2000\n\n`));
       const send = (event: MessageEvent) => {
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
       };
@@ -61,9 +63,8 @@ export async function GET(request: Request) {
       unsubscribe?.();
       if (heartbeat) clearInterval(heartbeat);
 
-      const stillOnline = markUserOffline(userId);
       db.user.update({ where: { id: userId }, data: { lastActiveAt: new Date() } }).catch(() => {});
-      if (!stillOnline) broadcastPresence(userId, false);
+      markUserOffline(userId, () => broadcastPresence(userId, false));
     },
   });
 

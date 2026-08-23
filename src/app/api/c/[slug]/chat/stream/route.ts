@@ -5,6 +5,7 @@ import { isGatedFromCommunityContent } from "@/lib/organizations";
 import { subscribeToCommunityChat, type CommunityChatEvent } from "@/lib/community-chat-events";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 300; // same as api/messages/stream/route.ts — see its comment
 
 const HEARTBEAT_MS = 20_000; // keeps the connection alive through idle proxies/load balancers
 
@@ -38,6 +39,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
   const stream = new ReadableStream({
     start(controller) {
       const encoder = new TextEncoder();
+      controller.enqueue(encoder.encode(`retry: 2000\n\n`));
       const send = (event: CommunityChatEvent) => {
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
       };

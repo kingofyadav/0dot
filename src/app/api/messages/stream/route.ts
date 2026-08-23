@@ -5,6 +5,11 @@ import { getConversationPartnerIds } from "@/lib/messaging";
 import { markUserOnline, markUserOffline } from "@/lib/presence";
 
 export const dynamic = "force-dynamic";
+// Matches the platform's default function timeout, made explicit rather
+// than implicit — Vercel kills this connection at this ceiling regardless
+// (Task timed out after 300 seconds), so this documents the recycle
+// cadence the presence grace period (see markUserOffline) is tuned around.
+export const maxDuration = 300;
 
 const HEARTBEAT_MS = 20_000; // keeps the connection alive through idle proxies/load balancers
 
@@ -41,6 +46,11 @@ export async function GET() {
   const stream = new ReadableStream({
     start(controller) {
       const encoder = new TextEncoder();
+      // Tunes the browser's built-in reconnect delay explicitly (default is
+      // ~3s) instead of leaving it implicit — comfortably inside
+      // markUserOffline's PRESENCE_OFFLINE_GRACE_MS so a maxDuration recycle
+      // reconnects well before the grace period would broadcast offline.
+      controller.enqueue(encoder.encode(`retry: 2000\n\n`));
       const send = (event: MessageEvent) => {
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
       };
@@ -58,9 +68,8 @@ export async function GET() {
       unsubscribe?.();
       if (heartbeat) clearInterval(heartbeat);
 
-      const stillOnline = markUserOffline(user.id);
       db.user.update({ where: { id: user.id }, data: { lastActiveAt: new Date() } }).catch(() => {});
-      if (!stillOnline) broadcastPresence(user.id, false);
+      markUserOffline(user.id, () => broadcastPresence(user.id, false));
     },
   });
 
