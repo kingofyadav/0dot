@@ -34,6 +34,16 @@ export const PLATFORM_FEE_PERCENT = 0.1;
 // number to build pricing commitments on.
 export const PREMIUM_CREATOR_PLATFORM_FEE_PERCENT = 0.07;
 
+// Accounts v2 requires identity.country before it will let a create call
+// request the recipient configuration's stripe_transfers capability — see
+// the "identity_country_required" Stripe error. Nothing in the schema
+// (User, Business) collects a country today, and the platform is India-only
+// at launch, so this is a deliberate single-country placeholder rather than
+// a guess derived from e.g. phone dial code (ambiguous: +1 is both US and
+// CA). Revisit as a real per-account field the day payouts expand beyond
+// India.
+const PAYOUT_ACCOUNT_COUNTRY = "IN";
+
 export type PayoutAccountStatus = "onboarding" | "active" | "restricted";
 
 // spec §3: every feature that moves money (tips, memberships, digital
@@ -105,6 +115,7 @@ class StripeConnectPaymentProcessor implements PaymentProcessor {
     const account = await stripe.v2.core.accounts.create({
       contact_email: entity.email,
       dashboard: "express",
+      identity: { country: PAYOUT_ACCOUNT_COUNTRY },
       defaults: {
         responsibilities: { fees_collector: "application", losses_collector: "application" },
       },
