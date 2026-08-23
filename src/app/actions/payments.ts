@@ -7,6 +7,7 @@ import { getPaymentProcessor } from "@/lib/payments";
 import { getAppOrigin } from "@/lib/email";
 import { isBusinessStaff } from "@/lib/businesses";
 import { meetsPayoutAgeFloor, PAYOUT_MINIMUM_AGE_YEARS } from "@/lib/age-controls";
+import { isStripeConnectSupportedCountry } from "@/lib/stripe-connect-countries";
 import type { ActionState } from "@/app/actions/auth";
 
 // spec §3: idempotent so the settings UI can safely re-POST — a second
@@ -18,7 +19,7 @@ import type { ActionState } from "@/app/actions/auth";
 // recipient Account's stripe_transfers capability doesn't go active until
 // that flow collects identity/bank info, so onboarding is never "done" the
 // moment the account row is created the way the old stub pretended.
-export async function startCreatorOnboarding(_prevState: ActionState, _formData: FormData): Promise<ActionState> {
+export async function startCreatorOnboarding(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const user = await requireVerifiedUser();
 
   const existing = await db.creatorPayoutAccount.findUnique({ where: { userId: user.id } });
@@ -34,11 +35,19 @@ export async function startCreatorOnboarding(_prevState: ActionState, _formData:
 
   let processorAccountId = existing?.processorAccountId ?? null;
   if (!processorAccountId) {
-    const result = await getPaymentProcessor().createPayoutAccount({ id: user.id, email: user.email });
+    // Country is only collected (and only meaningful) at first creation —
+    // Stripe doesn't allow changing identity.country after the Account
+    // exists, so a retry on an already-created onboarding/restricted
+    // account skips straight to createOnboardingLink below.
+    const country = String(formData.get("country") ?? "");
+    if (!isStripeConnectSupportedCountry(country)) {
+      return { error: "Choose a valid payout country." };
+    }
+    const result = await getPaymentProcessor().createPayoutAccount({ id: user.id, email: user.email, country });
     processorAccountId = result.processorAccountId;
     await db.creatorPayoutAccount.upsert({
       where: { userId: user.id },
-      create: { userId: user.id, processor: getPaymentProcessor().name, processorAccountId, status: result.status },
+      create: { userId: user.id, processor: getPaymentProcessor().name, processorAccountId, status: result.status, country },
       update: { processorAccountId, status: result.status },
     });
   }
@@ -67,11 +76,15 @@ export async function startBusinessPayoutOnboarding(_prevState: ActionState, for
 
   let processorAccountId = existing?.processorAccountId ?? null;
   if (!processorAccountId) {
-    const result = await getPaymentProcessor().createPayoutAccount({ id: businessId, email: user.email });
+    const country = String(formData.get("country") ?? "");
+    if (!isStripeConnectSupportedCountry(country)) {
+      return { error: "Choose a valid payout country." };
+    }
+    const result = await getPaymentProcessor().createPayoutAccount({ id: businessId, email: user.email, country });
     processorAccountId = result.processorAccountId;
     await db.creatorPayoutAccount.upsert({
       where: { businessId },
-      create: { businessId, processor: getPaymentProcessor().name, processorAccountId, status: result.status },
+      create: { businessId, processor: getPaymentProcessor().name, processorAccountId, status: result.status, country },
       update: { processorAccountId, status: result.status },
     });
   }

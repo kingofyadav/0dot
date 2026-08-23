@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { updateEvent, publishEvent, cancelEvent, createTicketType, checkInTicket } from "@/app/actions/events";
 import { startBusinessPayoutOnboarding } from "@/app/actions/payments";
+import { STRIPE_CONNECT_SUPPORTED_COUNTRIES, PAYOUT_COUNTRY_COMING_SOON } from "@/lib/stripe-connect-countries";
 
 type EventDetails = {
   id: string;
@@ -130,7 +131,7 @@ function CheckInForm() {
   );
 }
 
-function BusinessPayoutButton({ businessId }: { businessId: string }) {
+function BusinessPayoutButton({ businessId, hasAccount }: { businessId: string; hasAccount: boolean }) {
   const [state, formAction, pending] = useActionState(startBusinessPayoutOnboarding, undefined);
   return (
     <form action={formAction}>
@@ -138,6 +139,23 @@ function BusinessPayoutButton({ businessId }: { businessId: string }) {
       <p className="mutedText" style={{ marginBottom: "0.4rem" }}>
         This business hasn&apos;t enabled payouts yet — required before selling paid tickets.
       </p>
+      {!hasAccount && (
+        <select name="country" required defaultValue="" className="input" aria-label="Payout country" style={{ marginBottom: "0.4rem" }}>
+          <option value="" disabled>
+            Select payout country
+          </option>
+          {STRIPE_CONNECT_SUPPORTED_COUNTRIES.map((c) => (
+            <option key={c.iso} value={c.iso}>
+              {c.name}
+            </option>
+          ))}
+          {PAYOUT_COUNTRY_COMING_SOON.map((c) => (
+            <option key={c.iso} value={c.iso} disabled>
+              {c.name}
+            </option>
+          ))}
+        </select>
+      )}
       <button type="submit" className="button buttonSecondary" disabled={pending}>
         {pending ? "Enabling…" : "Enable payouts"}
       </button>
@@ -150,10 +168,12 @@ export function EventHostPanel({
   event,
   hostedByBusinessId,
   businessPayoutActive,
+  businessPayoutAccountExists,
 }: {
   event: EventDetails;
   hostedByBusinessId: string | null;
   businessPayoutActive: boolean;
+  businessPayoutAccountExists: boolean;
 }) {
   const [showEdit, setShowEdit] = useState(false);
   const [showTicketForm, setShowTicketForm] = useState(false);
@@ -188,7 +208,7 @@ export function EventHostPanel({
 
       {hostedByBusinessId && !businessPayoutActive && (
         <div style={{ marginTop: "1rem" }}>
-          <BusinessPayoutButton businessId={hostedByBusinessId} />
+          <BusinessPayoutButton businessId={hostedByBusinessId} hasAccount={businessPayoutAccountExists} />
         </div>
       )}
 

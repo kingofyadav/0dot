@@ -170,6 +170,7 @@ export default async function EventPage({ params }: { params: Promise<{ slug: st
           }}
           hostedByBusinessId={event.hostedByBusinessId}
           businessPayoutActive={businessPayoutAccount?.status === "active"}
+          businessPayoutAccountExists={businessPayoutAccount?.processorAccountId != null}
         />
       )}
     </div>

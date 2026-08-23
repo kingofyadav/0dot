@@ -18,7 +18,7 @@ export default async function PayoutsSettingsPage() {
         <SettingsRow
           icon={Wallet}
           label="Payout account"
-          trailing={<PayoutOnboardingForm status={payoutAccount?.status ?? null} />}
+          trailing={<PayoutOnboardingForm status={payoutAccount?.status ?? null} hasAccount={payoutAccount?.processorAccountId != null} />}
         />
       </div>
     </div>

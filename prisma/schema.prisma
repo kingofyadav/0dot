@@ -1665,6 +1665,13 @@ model CreatorPayoutAccount {
   business           Business? @relation(fields: [businessId], references: [id], onDelete: Cascade)
   processor          String    @default("stub") // stub | stripe_connect
   processorAccountId String?
+  // ISO 3166-1 alpha-2 the Stripe v2 Account's identity.country was created
+  // with. Immutable after creation (Stripe doesn't allow changing
+  // identity.country post-creation) — this records what was chosen, not a
+  // live-editable preference. Nullable to cover rows created before this
+  // field existed (all "IN", from the PAYOUT_ACCOUNT_COUNTRY hardcode this
+  // replaces — backfilled by this field's migration).
+  country            String?
   status             String    @default("onboarding") // onboarding | active | restricted
   createdAt          DateTime  @default(now())
 }
