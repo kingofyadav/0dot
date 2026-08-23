@@ -24,7 +24,7 @@ export function PayoutOnboardingForm({ status, hasAccount }: { status: string | 
     <form action={formAction} style={{ display: "flex", alignItems: "center", gap: "0.6rem", flexWrap: "wrap" }}>
       {status && <span className="mutedText">{STATUS_LABEL[status] ?? status}</span>}
       {!hasAccount && (
-        <select name="country" required defaultValue="" className="input" aria-label="Payout country">
+        <select name="country" required defaultValue="" className="textInput" aria-label="Payout country">
           <option value="" disabled>
             Select payout country
           </option>

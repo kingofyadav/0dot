@@ -140,7 +140,7 @@ function BusinessPayoutButton({ businessId, hasAccount }: { businessId: string; 
         This business hasn&apos;t enabled payouts yet — required before selling paid tickets.
       </p>
       {!hasAccount && (
-        <select name="country" required defaultValue="" className="input" aria-label="Payout country" style={{ marginBottom: "0.4rem" }}>
+        <select name="country" required defaultValue="" className="textInput" aria-label="Payout country" style={{ marginBottom: "0.4rem" }}>
           <option value="" disabled>
             Select payout country
           </option>

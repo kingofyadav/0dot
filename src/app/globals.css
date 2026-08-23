@@ -1384,8 +1384,12 @@ html:not([data-theme="light"])[data-high-contrast="true"] {
    `color: inherit` (near-white in dark mode) for the option text, so every
    select in dark mode showed near-invisible pale text on a stray white
    list. Styling <option> directly is the one thing that reliably reaches
-   that separate surface in both browsers. */
-.field select option {
+   that separate surface in both browsers. Covers both markup patterns in
+   use: a <select> inside a .field wrapper (most forms), and a bare
+   <select className="textInput"> with no .field ancestor (e.g.
+   OfferingForm, PayoutOnboardingForm) — same underlying bug either way. */
+.field select option,
+.textInput option {
   background: var(--surface);
   color: var(--foreground);
 }
