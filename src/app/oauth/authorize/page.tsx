@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { requireVerifiedUser } from "@/lib/auth-guards";
-import { validateRedirectUri, resolveApprovableScopes, seedOAuthScopes } from "@/lib/oauth";
+import { validateRedirectUri, resolveApprovableScopes } from "@/lib/oauth";
 import { approveAuthorization, denyAuthorization } from "@/app/actions/oauth";
 import { ensureFirstPartyApps, isFirstPartyOwner } from "@/lib/first-party-apps";
 
@@ -39,7 +39,12 @@ export default async function AuthorizePage({
     return <ErrorPanel message="This application's redirect URI isn't registered." />;
   }
 
-  await seedOAuthScopes();
+  // seedOAuthScopes() is NOT called unconditionally here — instrumentation.ts's
+  // register() already seeds the full 29-entry catalog once at boot, and
+  // upserting all 29 rows again on every single page load (each one its own
+  // sequential DB round trip) was this route's dominant TTFB cost. The
+  // self-heal branch below still re-seeds (via ensureFirstPartyApps) on the
+  // rare path where boot-time seeding didn't happen.
   const requestedScopeKeys = (scope ?? "").split(" ").filter(Boolean);
   let grantable = await resolveApprovableScopes(app.id, JSON.stringify(requestedScopeKeys));
   if ("error" in grantable && (await isFirstPartyOwner(app.ownerUserId))) {

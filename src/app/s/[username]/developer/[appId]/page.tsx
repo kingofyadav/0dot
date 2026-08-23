@@ -2,7 +2,7 @@ import { redirect, notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { requireOwnedDeveloperApp } from "@/lib/developer-apps";
-import { OAUTH_SCOPES, seedOAuthScopes } from "@/lib/oauth";
+import { OAUTH_SCOPES } from "@/lib/oauth";
 import { ALLOWED_WEBHOOK_EVENT_TYPES } from "@/lib/webhooks";
 import { rotateClientSecret, requestScope, deleteWebhookSubscription } from "@/app/actions/developer-apps";
 import { RedirectUrisForm } from "@/components/RedirectUrisForm";
@@ -27,8 +27,9 @@ export default async function DeveloperAppDetailPage({
   const app = await requireOwnedDeveloperApp(appId, currentUser.id);
   if (!app) notFound();
 
-  await seedOAuthScopes();
-
+  // The OAuthScope catalog is seeded once at boot (instrumentation.ts) —
+  // re-upserting all 29 rows here on every page load was pure per-request
+  // waste (see the same fix on /oauth/authorize/page.tsx).
   const [appScopes, webhookSubscriptions, recentUsage] = await Promise.all([
     db.developerAppScope.findMany({ where: { appId }, include: { scope: true } }),
     db.webhookSubscription.findMany({ where: { appId }, orderBy: { createdAt: "desc" } }),
