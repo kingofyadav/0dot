@@ -3669,11 +3669,16 @@ body.hasBottomNav .appMain {
   font-size: var(--text-sm-plus);
 }
 
+/* NavLinks' copy of the search form is now redundant on >=1024px screens —
+   .desktopTopHeaderSearchCenter puts a real search box in the header itself
+   (see SiteHeader.tsx), so the sidebar doesn't need its own. */
+.desktopSidebar .siteHeaderSearch {
+  display: none;
+}
+
 /* Search already has its own icon on the mobile bottom tab bar (and, for a
    signed-out visitor, isn't worth the row) — the copy of the search form
-   NavLinks renders (shared with the desktop sidebar, which suppresses its
-   own copy the same way for the same reason: .desktopSidebar
-   .siteHeaderSearch above) is redundant weight in an already-tall dropdown. */
+   NavLinks renders is redundant weight in an already-tall dropdown here too. */
 .mobileNavPanel .siteHeaderSearch {
   display: none;
 }
@@ -3849,9 +3854,37 @@ body.hasBottomNav .mobileNavPanel {
   .desktopTopHeaderSearchWrap {
     display: flex;
     align-items: center;
-    justify-content: flex-end;
     gap: 0.75rem;
     grid-column: 2 / -1;
+  }
+
+  /* Takes the flexible space between the brand column and the icon
+     cluster, then centers the search box inside it — lines it up over the
+     main content column below (itself centered there via
+     .profileCard/.settingsSection's max-width + margin:auto convention)
+     instead of it hugging the sidebar edge. */
+  .desktopTopHeaderSearchCenter {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    justify-content: center;
+    margin-right: var(--rail-gap, 0px);
+  }
+
+  .desktopTopHeaderSearchCenter .siteHeaderSearch {
+    width: min(100%, 560px);
+    transition: width 0.15s ease;
+  }
+
+  .desktopTopHeaderSearchCenter .siteHeaderSearch:focus-within {
+    width: min(100%, 600px);
+  }
+
+  /* Pill shape in the header specifically (rather than the 10px radius
+     .textInput uses elsewhere) — a deliberate header-only accent, same
+     idea as the mocked design. */
+  .desktopTopHeaderSearchCenter .textInput {
+    border-radius: var(--radius-full);
   }
 
   .desktopSidebar {
@@ -3912,6 +3945,16 @@ body.hasBottomNav .mobileNavPanel {
      for consistency with the sidebar/main/aside track widths below it. */
   body.hasRail .desktopTopHeader {
     grid-template-columns: 240px 1fr 320px;
+  }
+
+  /* Consumed by .desktopTopHeaderSearchCenter below: on hasRail routes the
+     header's search wrap spans main+aside (2 / -1, so the icon cluster can
+     still reach the true right edge — see the comment on
+     .desktopTopHeaderSearchWrap), which would otherwise center the search
+     box across main+aside combined instead of over just the main column
+     the page content actually centers in. */
+  body.hasRail {
+    --rail-gap: 320px;
   }
 
   body.hasRail .contextualRail {

@@ -10,6 +10,7 @@ import { NavAction } from "./NavAction";
 import { NotificationBell } from "./NotificationBell";
 import { MessagesBadge } from "./MessagesBadge";
 import { AccountMenu } from "./AccountMenu";
+import { SearchForm } from "./SearchForm";
 
 export async function SiteHeader() {
   const user = await getCurrentUser();
@@ -56,6 +57,9 @@ export async function SiteHeader() {
           {greeting}
         </div>
         <div className="desktopTopHeaderSearchWrap">
+          <div className="desktopTopHeaderSearchCenter">
+            <SearchForm />
+          </div>
           <div className="siteHeaderActions">{iconCluster}</div>
         </div>
       </header>
