@@ -1,0 +1,882 @@
+================================================================================
+                              0DOT.IN — COMPLETE GUIDE
+                    One Identity. One Profile. Everything Else.
+================================================================================
+
+This is the official, end-to-end reference for 0dot.in: what it is, how to
+get started, how every tool works, and how to run a Community, a Business,
+or an Organization on the platform. It is organized so you can jump straight
+to what you need — use the table of contents below, or search this file for
+a section title.
+
+TABLE OF CONTENTS
+--------------------------------------------------------------------------
+  1. WHAT IS 0DOT.IN
+  2. GETTING STARTED
+     2.1  Creating an account
+     2.2  Verifying your email
+     2.3  Claiming a username (including "my account has no username")
+     2.4  Logging in, 2FA, and password reset
+     2.5  Your account settings map
+  3. YOUR PROFILE
+     3.1  Profile basics (avatar, cover, bio, theme)
+     3.2  Links (link-in-bio)
+     3.3  Custom domain
+  4. POSTING, FEED, AND DISCOVERY
+     4.1  Posts, replies, reposts
+     4.2  Feed, Explore, Trending, Search
+     4.3  Follow, notifications, messages
+     4.4  Blocking and reporting
+  5. CONTENT & CREATOR TOOLS
+     5.1  Articles, tutorials, notes
+     5.2  Wiki & documentation
+     5.3  Books
+     5.4  Files (PDFs)
+     5.5  Podcast
+     5.6  Newsletter
+     5.7  Portfolio (Projects, Skills, Resume, Repositories, Credentials)
+  6. MONETIZATION
+     6.1  Getting paid: payout accounts
+     6.2  Memberships & paid subscriptions
+     6.3  Tips
+     6.4  Digital products
+     6.5  Freelance services & appointments
+     6.6  Affiliate program
+     6.7  Courses & learning paths
+     6.8  Livestreams
+     6.9  Coin wallet & UPI top-up
+     6.10 Premium profile
+  7. COMMUNITIES (0dot.in/c)
+  8. BUSINESSES (0dot.in/b)
+  9. ORGANIZATIONS (0dot.in/org)
+ 10. EVENTS & TICKETING (0dot.in/e)
+ 11. MARKETPLACE (0dot.in/m)
+ 12. TOOLS: short links, calendar, forms, business card, auto-post, CRM
+ 13. AI TOOLS
+ 14. DEVELOPER PLATFORM (API, OAuth, webhooks)
+ 15. TRUST & SAFETY, COPYRIGHT/DMCA
+ 16. MOBILE APPS
+ 17. FOR PLATFORM OPERATORS (admin / platform roles)
+ 18. QUICK REFERENCE — "HOW DO I...?"
+
+================================================================================
+1. WHAT IS 0DOT.IN
+================================================================================
+
+0dot.in is an all-in-one identity and creator platform. Every account gets
+one permanent, public URL:
+
+    0dot.in/yourname
+
+That single link is simultaneously your social profile, your link-in-bio
+page, your portfolio, your storefront, and the front door to anything else
+you build on the platform — a community, a business, or an organization.
+The username is permanent: once claimed, it is never reassigned while your
+account is active (see §2.3).
+
+Everything in this guide hangs off that one identity.
+
+================================================================================
+2. GETTING STARTED
+================================================================================
+
+2.1  CREATING AN ACCOUNT
+--------------------------------------------------------------------------
+Go to 0dot.in/signup. You'll provide:
+
+  - Full name
+  - Username           (0dot.in/yourname — permanent, 3-30 chars, letters/
+                         numbers/underscore only)
+  - Email
+  - Password           (8+ characters)
+  - Mobile number       (with country code)
+  - Date of birth
+
+The username field checks availability live as you type. Reserved and
+platform-brand words can never be claimed.
+
+Signup is rate-limited per IP and per email, and a duplicate signup with an
+existing email, username, or phone number is rejected with a clear message
+telling you which field collided.
+
+2.2  VERIFYING YOUR EMAIL
+--------------------------------------------------------------------------
+After signup you land on a "check your email" screen and a verification
+link is sent. You are logged in immediately (you can browse), but full
+posting/interaction is expected only after verification. If the email
+doesn't arrive, the same screen has a resend option.
+
+2.3  CLAIMING A USERNAME
+--------------------------------------------------------------------------
+Normally, username claiming happens as part of signup (above) and can never
+be separated from your account. There is, however, a dedicated recovery
+route for the rare case where an account exists without one:
+
+    0dot.in/claim-username
+
+If you ever land in a state where your account has no working profile page
+(your own username 404s, or Settings is unreachable), this is the page that
+fixes it — enter your full name and desired username and submit. This is
+the correct, supported way to attach a username to an account; it should
+never require manual intervention.
+
+Renaming an existing username is NOT supported — usernames are permanent by
+design (this is a deliberate product decision, not a missing feature).
+
+2.4  LOGGING IN, 2FA, AND PASSWORD RESET
+--------------------------------------------------------------------------
+  Log in:            0dot.in/login
+                      Accepts email, username, OR mobile number as the
+                      identifier, plus your password.
+
+  Two-factor auth:    Settings > Security > Two-factor authentication
+                      Sets up an authenticator-app (TOTP) code plus a set
+                      of one-time recovery codes shown once at enrollment.
+                      Once enabled, login requires the code at
+                      0dot.in/login/2fa after your password succeeds.
+
+  Forgot password:    0dot.in/forgot-password
+                      Enter your email; a reset link is emailed to you
+                      (valid 1 hour, single-use). Follow it to
+                      0dot.in/reset-password?token=... and set a new
+                      password there.
+
+  IMPORTANT: if you're logging in with a reset password and keep getting
+  "Incorrect email/username/mobile number or password," double-check you're
+  typing your EMAIL (or the username you actually claimed) as the
+  identifier — a mistyped or unclaimed username will always fail this
+  check even with the correct password, and looks identical to a wrong
+  password from the error message alone.
+
+  Active sessions:    Settings > Security > Active sessions
+                      Lists every device with a live session; revoke any
+                      one remotely except the device you're on now.
+
+  Login history:      Same page — shows your recent login attempts,
+                      including failed ones, so you can spot anything you
+                      didn't do.
+
+2.5  YOUR ACCOUNT SETTINGS MAP
+--------------------------------------------------------------------------
+Everything account-related lives under:
+
+    0dot.in/s/yourname
+
+organized into these groups (this is the exact structure of the settings
+sidebar):
+
+  Profile        Edit profile, Links
+  Security       Change password, Two-factor authentication, Active
+                 sessions, Email & phone
+  Portfolio      Projects, Skills, Resume, Repositories, Credentials, Layout
+  Monetization   Payouts, Memberships, Digital products, Freelance
+                 services, Affiliate
+  Billing        Premium, Custom domain
+  Content        Articles, Wiki & Docs, Books, Files, Courses, Learning
+                 paths, Podcast, Newsletter, Livestreams
+  Tools          Business card, Short links, Calendar, Forms & surveys,
+                 Auto-post
+  Developer      Apps, Authorized apps
+  Notifications  Push & delivery
+  Privacy        Privacy, Blocked users
+  Account        Account management (export / deactivate / delete),
+                 Language & accessibility
+
+This settings shell only becomes reachable once your account has a claimed
+username (§2.3) — it's addressed at 0dot.in/s/<your-username>.
+
+================================================================================
+3. YOUR PROFILE
+================================================================================
+
+3.1  PROFILE BASICS
+--------------------------------------------------------------------------
+Settings > Profile > Edit profile lets you set:
+
+  - Display name, bio
+  - Avatar and cover photo
+  - Theme preset (a curated set of accent color / background / font
+    combinations — not free-form CSS; this is a deliberate security
+    choice, not a limitation you can lift)
+  - Social links row (X/Twitter, Instagram, GitHub, etc. from a fixed
+    platform allowlist)
+
+A Premium subscription (§6.10) unlocks a larger library of curated theme
+presets — still token-based, never raw markup.
+
+3.2  LINKS (LINK-IN-BIO)
+--------------------------------------------------------------------------
+Settings > Profile > Links. Add, edit, delete, and drag-to-reorder as many
+links as you like (up to a soft cap; Premium raises it). Each link can be:
+
+  - Featured (a small number can be visually pinned above the rest)
+  - Scheduled (set a start/end window — it's invisible to visitors outside
+    that window but stays visible, grayed out, to you)
+
+Every public click is recorded (no IP/user-agent stored) and rolled up
+into click analytics you can see as the owner. Free tier shows the
+trailing 30 days; Premium shows full history.
+
+3.3  CUSTOM DOMAIN
+--------------------------------------------------------------------------
+Settings > Billing > Custom domain (requires an active Premium or Business
+subscription — one domain is included). Point your own domain
+(yourname.com) at 0dot's edge via the DNS instructions shown; once it
+verifies, your entire profile (articles, projects, everything) mirrors at
+your domain in addition to 0dot.in/yourname, which always keeps working.
+Note: your custom domain is read-only browsing — likes, comments, and
+follows always happen back on 0dot.in, where your session actually lives.
+
+================================================================================
+4. POSTING, FEED, AND DISCOVERY
+================================================================================
+
+4.1  POSTS, REPLIES, REPOSTS
+--------------------------------------------------------------------------
+Compose from the Feed sidebar or the "+" compose action. A post is up to
+500 characters of text and/or up to 4 images/video. You can:
+
+  - Like / unlike
+  - Bookmark (private — 0dot.in/bookmarks, never visible to anyone else)
+  - Reply (one level of threading)
+  - Repost, with or without added commentary (quote-repost)
+
+Hashtags (#like-this) and @mentions are parsed automatically from what you
+type.
+
+4.2  FEED, EXPLORE, TRENDING, SEARCH
+--------------------------------------------------------------------------
+  0dot.in/feed       Posts from people you follow, plus your own — your
+                     personalized home timeline.
+  0dot.in/explore    Global, chronological feed across all public posts —
+                     good for finding accounts you don't follow yet.
+  0dot.in/trending   Ranked by engagement velocity (what's accelerating
+                     right now), not just what's newest or most-liked
+                     overall.
+  0dot.in/search     Spans users, posts, communities, businesses, projects,
+                     articles/docs, events, and marketplace listings.
+
+4.3  FOLLOW, NOTIFICATIONS, MESSAGES
+--------------------------------------------------------------------------
+  Follow             One click on any profile — no approval step needed
+                     (profiles are public by default).
+  Notifications      0dot.in/notifications — likes, comments, mentions,
+                     new followers, messages, and more, aggregated so
+                     "Alice and 12 others liked your post" doesn't flood
+                     you with one row per like.
+  Messages           0dot.in/messages — direct and group chats. A message
+                     from someone you don't follow (and who doesn't
+                     follow you) lands in a separate Requests list, not
+                     your main inbox, until you accept it. Content is
+                     encrypted at rest.
+
+4.4  BLOCKING AND REPORTING
+--------------------------------------------------------------------------
+Block from any profile's menu — this removes any existing follow between
+you both, stops them starting new conversations with you, and suppresses
+their notifications to you. Report any post, profile, or other content via
+the report action available wherever content appears; your identity as the
+reporter is never disclosed to the person you reported.
+
+================================================================================
+5. CONTENT & CREATOR TOOLS
+================================================================================
+All published under your own profile, e.g. 0dot.in/yourname/articles.
+
+5.1  ARTICLES, TUTORIALS, NOTES  —  Settings > Content > Articles
+--------------------------------------------------------------------------
+One unified long-form writing tool covering three formats you pick per
+piece:
+  - Article   — a polished, typically public long-form post
+  - Tutorial  — a single how-to document (not a multi-lesson course — for
+                that, see Courses in §6.7)
+  - Note      — a short, casual, typically PRIVATE personal note
+
+Each piece has a real three-tier visibility: Public, Unlisted (viewable
+only by direct link, not listed/searchable), or Private (genuinely
+access-controlled — never returned to anyone but you, by any path,
+including search).
+
+5.2  WIKI & DOCUMENTATION  —  Settings > Content > Wiki & Docs
+--------------------------------------------------------------------------
+A personal, nested, version-history-tracked page system (docs get a
+persistent table-of-contents sidebar; wiki presents more free-form). Every
+edit keeps its full revision history. You are the sole editor of your own
+personal wiki — for multi-author collaborative editing, create a private
+Community (§7) instead, which has its own multi-editor wiki.
+
+5.3  BOOKS  —  Settings > Content > Books
+--------------------------------------------------------------------------
+Author chapters natively (reusing the same wiki/revision engine as §5.2)
+and/or upload a finished ebook file (epub/pdf) — either path is valid on
+its own, or combine both.
+
+5.4  FILES  —  Settings > Content > Files
+--------------------------------------------------------------------------
+Publish a finished document as-is (report, whitepaper, zine). Public files
+get a stable, permanent URL; unlisted/private files are served through a
+short-lived, authorization-checked download link.
+
+5.5  PODCAST  —  Settings > Content > Podcast
+--------------------------------------------------------------------------
+Publish episodes with a real public RSS feed (works in Apple Podcasts,
+Spotify, etc.). Member-only bonus episodes are supported via a private
+per-subscriber feed URL — treat that private link as a secret; anyone who
+gets it can access gated episodes until you revoke it.
+
+5.6  NEWSLETTER  —  Settings > Content > Newsletter
+--------------------------------------------------------------------------
+Compose and send issues to subscribers (0dot account holders or email-only
+subscribers). Every send includes a one-click unsubscribe, honored
+immediately. Issues can be gated to a membership tier.
+
+5.7  PORTFOLIO  —  Settings > Portfolio
+--------------------------------------------------------------------------
+Your profile can double as a professional portfolio:
+
+  Projects       0dot.in/p/your-project-slug — title, description,
+                 gallery, collaborators (who don't need a 0dot account to
+                 be credited), status, and visibility (public/unlisted).
+  Skills         A free-text, endorsable skill list — anyone logged in
+                 can endorse a skill once.
+  Resume         Renders from your Work Experience + Education + Skills +
+                 any project you've marked "featured on resume" — no
+                 second, disconnected data entry. You can also attach an
+                 uploaded PDF resume alongside it.
+  Repositories   Link public GitHub/GitLab/Bitbucket repos; stars/
+                 description/language sync periodically from the
+                 provider. Public repos only — no OAuth/private-repo
+                 linking.
+  Credentials    Certificates, awards, and research papers — self-
+                 attested with an optional external verification link
+                 (like LinkedIn); 0dot does not itself verify authenticity
+                 with the issuing body.
+  Layout         Reorder or hide any portfolio section on your public
+                 profile.
+
+================================================================================
+6. MONETIZATION
+================================================================================
+
+6.1  GETTING PAID: PAYOUT ACCOUNTS  —  Settings > Monetization > Payouts
+--------------------------------------------------------------------------
+Every money-earning feature below (memberships, tips, digital products,
+freelance bookings, affiliate commissions, course sales, event tickets you
+sell as a host) shares ONE payout account and one payment ledger. Set this
+up once here — identity verification (KYC) and tax reporting are handled
+entirely by the payment processor's own onboarding, not by 0dot directly.
+You cannot receive a payout-requiring transaction until this account is
+active.
+
+6.2  MEMBERSHIPS & PAID SUBSCRIPTIONS  —  Monetization > Memberships
+--------------------------------------------------------------------------
+Create tiers (name, price, monthly or yearly billing) that fans subscribe
+to. A single "required tier" gate is reused everywhere gated content
+exists — gated posts, bonus podcast episodes, course access, paid
+livestreams — so one subscription can unlock all of it at once at the
+right tier level. Cancelling retains access through the end of the current
+billing period, never immediately.
+
+6.3  TIPS
+--------------------------------------------------------------------------
+A one-time payment with an optional public thank-you message, available
+from any creator's profile once they have an active payout account. The
+simplest monetization feature — no subscription state, just a single
+charge.
+
+6.4  DIGITAL PRODUCTS  —  Monetization > Digital products
+--------------------------------------------------------------------------
+Sell downloadable files (an ebook, a preset pack, a template) for a fixed
+price. Buyers get a short-lived, authorization-checked download link —
+never a permanently public URL — issued fresh only to verified buyers.
+
+6.5  FREELANCE SERVICES & APPOINTMENTS  —  Monetization > Freelance services
+--------------------------------------------------------------------------
+List a bookable service with a duration; set your weekly availability.
+Customers request a time slot; you confirm it (nothing auto-confirms into
+your calendar). Two confirmed bookings can never overlap. This is
+single-session, paid-up-front booking — there's no multi-milestone
+project/escrow system.
+
+6.6  AFFILIATE PROGRAM  —  Monetization > Affiliate
+--------------------------------------------------------------------------
+Run a commission program on your own membership tiers, digital products,
+or courses: set a commission %, and any 0dot user with their own payout
+account can generate a referral link and earn a cut on sales they drive
+(last-click attribution, 30-day window).
+
+6.7  COURSES & LEARNING PATHS  —  Content > Courses / Learning paths
+--------------------------------------------------------------------------
+Build a structured course (modules > lessons: video, text, or downloadable
+file). Sell it directly (one-time price) and/or bundle it into a
+membership tier — either grants access, and losing a membership only
+revokes membership-granted access, never a direct purchase. Group several
+courses into a Learning Path with quizzes; completing one auto-issues a
+Credential (see §5.7) to the learner's portfolio.
+
+6.8  LIVESTREAMS  —  Content > Livestreams
+--------------------------------------------------------------------------
+Single-host live broadcast with live chat, optionally gated to a
+membership tier, with optional recording (if you enable recording, every
+participant sees a clear, unmissable notice before/at the start — this is
+a legal requirement, not optional UI).
+
+6.9  COIN WALLET & UPI TOP-UP  —  0dot.in/wallet
+--------------------------------------------------------------------------
+An alternate, cash-first way to fund a Premium subscription (§6.10) for
+users who'd rather not use a card:
+
+  1. Pick a coin amount (1 coin = $1, fixed peg) — you get a QR code /
+     UPI deep link to pay the platform directly.
+  2. Pay via any UPI app, then type in the UTR (transaction reference)
+     your UPI app gave you as proof.
+  3. An admin manually verifies it against the platform's bank statement
+     and approves — your coin balance is credited.
+  4. Spend coins on Premium at Settings > Billing > Premium — a
+     coin-funded Premium subscription grants identical perks to a
+     card-funded one.
+
+You can also request a payout of your coin balance back to a UPI VPA
+(minimum 50 coins) — also manually reviewed and paid by an admin. New
+accounts start with a small welcome bonus.
+
+6.10  PREMIUM PROFILE  —  Settings > Billing > Premium
+--------------------------------------------------------------------------
+A personal paid tier (monthly or yearly, payable by card via Stripe or by
+coins, §6.9). Perks:
+  - One custom domain included (§3.3)
+  - Full link-click analytics history (free tier: 30 days)
+  - Higher link cap, and a larger curated theme-preset library
+  - A distinct Premium badge (never a substitute for account verification
+    — those are two different, never-conflated signals)
+  - A reduced platform fee on your own creator earnings
+
+Cancelling is non-destructive: links beyond the free cap go inactive
+rather than deleted, and reactivate instantly if you resubscribe;
+analytics data itself is never deleted, only the visible window narrows.
+
+================================================================================
+7. COMMUNITIES  (0dot.in/c)
+================================================================================
+
+Communities are shared spaces multiple people organize around — distinct
+from your personal profile.
+
+CREATE ONE:      0dot.in/c/new
+                  Set a name, unique slug (0dot.in/c/your-slug),
+                  description, and visibility:
+                    Public      — anyone can view and join instantly
+                    Restricted  — anyone can view; joining needs
+                                  moderator approval
+                    Private     — content visible to members only (the
+                                  community's existence is still
+                                  searchable by name)
+
+ROLES:            Owner (you, at creation — full control, including
+                  deleting the community), Moderator (remove posts/
+                  comments, mute/ban members, edit rules & wiki, pin
+                  posts), Member.
+
+WHAT YOU CAN BUILD INSIDE A COMMUNITY:
+  - A shared feed (the same post/like/comment/repost mechanics as your
+    personal feed, scoped to the community)
+  - Rules (an ordered list, editable by moderators)
+  - Discovery tags + per-post flair (moderator-defined labels like
+    "Question"/"Announcement")
+  - Polls (single or multi-choice, closeable)
+  - Q&A threads (mark a reply as the accepted answer)
+  - A community wiki (multi-editor, full revision history —
+    moderators-only or any-member editing, your choice)
+  - Live chat (a real-time broadcast channel, distinct from DMs)
+  - Voice rooms (scheduled live audio sessions, speaker/listener roles)
+  - Lightweight bulletin-board events, or a full ticketed Event hosted
+    by the community (§10)
+
+MODERATION:       Every moderator action (remove post, mute/ban member,
+                  edit rule/wiki, pin) is logged to an auditable modlog.
+                  There's no member-facing appeals flow inside a
+                  community — for platform-policy-level disputes, escalate
+                  through the general report/appeal system (§15).
+
+MANAGE:            0dot.in/c/your-slug — moderator/owner controls surface
+                  directly on the community page for anyone with the
+                  right role.
+
+================================================================================
+8. BUSINESSES  (0dot.in/b)
+================================================================================
+
+A Business page represents a company, not a person — with its own team,
+catalog, and public presence.
+
+CREATE ONE:       0dot.in/b/new
+                  Because a business page can be impersonated to damage a
+                  real company's reputation, creation goes through a
+                  claim/review gate before it's publicly live — this is
+                  by design, not a bug if your new business page doesn't
+                  appear instantly searchable.
+
+TEAM & ROLES:     Settings on the business page. Owner (full control,
+                  including transfer/delete), Admin (manage team, catalog,
+                  jobs, appointments, respond to reviews, post as the
+                  business), Editor (manage catalog/posts/jobs, no team/
+                  billing control), Member (internal-only association,
+                  optionally listed publicly on the Team tab — listing and
+                  write-permission are independent settings).
+
+POSTING AS THE BUSINESS: Anyone Editor+ can publish a post that displays
+                  with the business's name/logo instead of their own —
+                  your individual account stays recorded internally for
+                  accountability, just not shown publicly.
+
+WHAT A BUSINESS PAGE INCLUDES:
+  - Company info: locations & hours, contact info, category
+  - Products & Services (a unified catalog — services can be made
+    bookable)
+  - Store: a storefront view of your catalog with in-app checkout
+    (0dot.in/b/your-slug/store)
+  - Jobs: post openings, review applications (0dot.in/b/your-slug/jobs)
+  - Appointments: bookable services with staff availability and
+    confirm/decline
+  - Reviews: public star ratings + text, one official response per
+    review allowed — you cannot delete or hide a negative review
+  - Documents: a file library (brochures, spec sheets), public or
+    team-only
+  - A business post feed and business-authored content
+
+CONTACT FORM:      Visitors can message the business without an account
+                  (name + email required if logged out); Admin+ team
+                  members see submissions as a queue.
+
+CUSTOM DOMAIN:     Same mechanism as a personal profile (§3.3), gated on
+                  an active business subscription, managed by Owner/Admin.
+
+================================================================================
+9. ORGANIZATIONS  (0dot.in/org)
+================================================================================
+
+An Organization is different from a Business: it's a company's INTERNAL
+control plane over its own employees' accounts — not a public storefront.
+You can have a Business, an Organization, both linked together, or just
+one — they're independent.
+
+CREATE ONE:        0dot.in/org/new
+
+WHAT AN ORGANIZATION GIVES YOU:
+  - Team/employee management, independent of any Business team roles
+  - Internal communities: an existing Community can be restricted so only
+    active organization members can join/view it
+  - Single sign-on (SSO): connect your company's own identity provider
+    (SAML2/OIDC — Okta, Azure AD, Google Workspace, etc.) so employees log
+    in with corporate credentials. IMPORTANT: enabling SSO enforcement
+    never removes an employee's own non-employer login method for their
+    personal account — losing your job never locks you out of your own
+    0dot identity, only organization-scoped resources.
+  - An internal employee directory (name, title, department, contact) —
+    visible only to fellow active members of the same organization, never
+    public
+  - An audit log of organization-level actions (member changes, SSO
+    config changes, community changes) — visible only to that
+    organization's own admins
+
+MANAGE:            0dot.in/org/your-org-id/manage
+AUDIT LOG:         0dot.in/org/your-org-id/audit-log
+
+Deactivating an employee promptly removes their access to org-restricted
+communities and SSO sessions — it never touches their personal profile,
+posts, or any content built outside the organization's context.
+
+================================================================================
+10. EVENTS & TICKETING  (0dot.in/e)
+================================================================================
+
+CREATE ONE:        0dot.in/e/new
+                  Hosted by you personally, by a Business, or by a
+                  Community — pick one host. Format: in-person, virtual,
+                  or hybrid. For a virtual/hybrid event you can simply
+                  link out to an external meeting tool (Zoom, Meet) — no
+                  native streaming required to launch an event.
+
+RSVP:              Free "going / interested / not going." If the event
+                  has a capacity, "going" is capped once full (no
+                  waitlist) — "interested" always stays open.
+
+TICKETING:         Paid ticket tiers (General, VIP, etc.), using the same
+                  payment ledger as everything else in §6. Each ticket
+                  gets a genuine, unguessable QR check-in code. NOTE:
+                  community-hosted events are RSVP-only — paid ticketing
+                  requires a personal or business host.
+
+NATIVE LIVE SESSION: Optionally attach a livestream or voice room to the
+                  event, with the same recording-consent disclosure
+                  requirement as §6.8.
+
+Attendee list visibility (public / attendees-only / host-only) is
+configurable per event.
+
+================================================================================
+11. MARKETPLACE  (0dot.in/m)
+================================================================================
+
+Browse: 0dot.in/m — a single cross-category storefront spanning:
+  - Courses and Digital products (surfaced from what creators already
+    sell on their own profiles — buying here is identical to buying
+    directly from them)
+  - Freelance services (bookable individual services, §6.5)
+  - Themes, Templates, and Apps — third-party listings
+
+SELL A LISTING:    0dot.in/m/new (Themes/Templates/Apps category)
+                  Every listing goes through a review gate before going
+                  live — there is no direct-to-live publish path.
+                    - Themes: still the same token-based preset schema
+                      as your own profile theme — never raw CSS/HTML.
+                    - Templates: applying one pre-fills a normal creation
+                      form and goes through the same validation as typing
+                      it yourself.
+                    - Apps: sandboxed, declarative widgets by default
+                      (safe embeds, no arbitrary code); a listing can
+                      optionally be backed by a real OAuth-integrated
+                      Developer App (§14) for deeper functionality.
+
+INSTALL AN APP:    0dot.in/m/[id]/install — installs onto your profile,
+                  a business page, or a community.
+
+REVIEWS:           You can only review a listing you've actually
+                  purchased or installed (verified-purchase gating) —
+                  this is stricter than Business reviews (§8), which
+                  anyone can leave.
+
+================================================================================
+12. TOOLS
+================================================================================
+All under Settings > Tools (0dot.in/s/yourname/...).
+
+  Business card    A shareable quick-contact view of your profile (name,
+                   title, contact info, QR code) with a standard vCard
+                   (.vcf) export — the QR always resolves to your one
+                   canonical profile URL.
+  Short links      A general-purpose URL shortener (0dot.in/l/code) —
+                   shorten any destination URL, with click analytics.
+                   Distinct from your profile Links (§3.2), which are for
+                   your own link-in-bio list.
+  Calendar         A personal calendar aggregating your confirmed
+                   appointments and RSVP'd/ticketed events, plus manually
+                   added personal entries.
+  Forms & surveys  Build a form (structured fields: text, choice, rating,
+                   date) for your profile, business, organization, or
+                   community. "Survey" is the same tool with the
+                   analytics view emphasized.
+  Auto-post        Cross-post your content to connected external social
+                   platforms.
+  CRM              (Business-scoped) A lightweight contact pipeline —
+                   lead / customer / churned — that auto-logs activity
+                   from your existing contact-form messages, appointments,
+                   and store purchases, so you don't re-enter anything by
+                   hand.
+
+================================================================================
+13. AI TOOLS
+================================================================================
+
+AI features appear inline wherever they're useful (e.g. "Write my bio with
+AI" and "Draft & translate articles" in the Feed sidebar) rather than as a
+separate app:
+
+  AI profile/content writer   Produces a draft (bio, article, post,
+                              business description) that lands in the
+                              normal compose box for you to review and
+                              edit — AI output is never saved or published
+                              directly; it goes through the exact same
+                              validation a manually-typed draft would.
+  AI translation              On-demand translation of your published
+                              content into another language, cached per
+                              version — editing the source invalidates any
+                              stale cached translation automatically.
+  AI accessibility            Automatic alt-text/captions generated for
+                              new media uploads (never blocking your
+                              upload) — an AI-written caption you manually
+                              correct is never silently overwritten by a
+                              later re-generation.
+  AI moderation                Runs behind the scenes to flag potentially
+                              policy-violating content for human review —
+                              it never auto-removes ordinary content by
+                              itself; a person always makes the final call.
+  AI search & recommendations   A supplementary ranking signal blended
+                              into ordinary search/suggested-users results
+                              — private/unlisted content is never exposed
+                              through this layer any more than it already
+                              is through regular search.
+
+Every AI feature invocation is logged for audit purposes; content you mark
+private stays private through the AI pipeline as well — nothing you keep
+private becomes queryable or exposed through an AI feature.
+
+================================================================================
+14. DEVELOPER PLATFORM
+================================================================================
+
+For anyone building on top of 0dot rather than just using it.
+
+REGISTER AN APP:   Settings > Developer > Apps
+                  Get a client ID + a one-time-shown client secret, and
+                  register your redirect URIs (exact-match only).
+
+"SIGN IN WITH 0DOT":  Standard OAuth2 authorization-code + PKCE flow.
+                  Users can see and revoke any app's access at any time
+                  from Settings > Developer > Authorized apps — this
+                  includes 0dot's own first-party mobile/desktop apps,
+                  which authenticate through the identical mechanism as
+                  any third-party integration (no privileged shortcut).
+
+PUBLIC API:        0dot.in/api/v1/... — a versioned REST API covering
+                  posts, profiles, feed, messages, notifications, search,
+                  wallet, marketplace, and more. It enforces the exact
+                  same visibility/privacy rules as the website itself
+                  (private content, blocks, gated content) — there is no
+                  separate, looser access layer for API consumers.
+
+WEBHOOKS:          Subscribe your app to platform events (the same event
+                  catalog that drives in-app notifications) and receive
+                  signed HTTP callbacks — scoped strictly to what a given
+                  user has actually authorized your app to see.
+
+Sensitive scopes (e.g. reading private messages, posting on a user's
+behalf) require your app to pass a review step before you can even
+request them from users.
+
+================================================================================
+15. TRUST & SAFETY, COPYRIGHT/DMCA
+================================================================================
+
+REPORT:            One consistent "Report" action is available on any
+                  reportable content or account across the whole platform
+                  (0dot.in/trust-safety and inline wherever content
+                  appears). Your identity as the reporter is never
+                  disclosed to the person you report.
+
+APPEAL:            If enforcement action is taken against you, you can
+                  file an appeal (0dot.in/admin/trust-safety/appeals is
+                  the staff-facing queue; the appeal itself is filed from
+                  wherever the enforcement notice appeared). Reviewed, by
+                  policy, by someone other than the original decision-
+                  maker wherever staffing allows.
+
+COPYRIGHT / DMCA:  0dot.in/dmca — file a formal takedown notice if your
+                  copyrighted work was posted without permission, or file
+                  a counter-notice if your own content was taken down in
+                  error. Unlike ordinary reports, a DMCA complainant's
+                  contact information IS shared with the person who filed
+                  a counter-notice — this is a legal requirement of the
+                  process, not a privacy inconsistency.
+
+AGE:               New accounts collect date of birth at signup; accounts
+                  with no verified age are held to default protective
+                  restrictions until it's provided.
+
+================================================================================
+16. MOBILE APPS
+================================================================================
+
+0dot ships native iOS and Android apps (built on Expo/React Native) plus
+an installable PWA (the desktop "app" is this same installable web app,
+not a separate codebase).
+
+  - Every mobile screen mirrors a web feature 1:1 — feed, profile,
+    messages, communities, businesses, marketplace, wallet, events,
+    settings (two-factor, sessions, blocked users, privacy, account
+    management) all have direct mobile equivalents.
+  - The apps authenticate via the exact same OAuth2 + PKCE flow described
+    in §14 — not a separate, privileged login path.
+  - Universal/App Links: sharing any 0dot.in URL (a profile, a community,
+    a business, a project, an event) opens directly in the installed app
+    when you have it, and falls back to the mobile browser otherwise.
+  - Push notifications cover the same event catalog as in-app
+    notifications and email — manage delivery channel per notification
+    type at Settings > Notifications. A push notification about private
+    content (a DM, a private note) is always generic ("You have a new
+    message from Alex") and never shows the private content itself on
+    your lock screen.
+  - Face ID / fingerprint unlock is available as a local convenience layer
+    in front of your already-logged-in session — it's not a new login
+    method for the account itself.
+
+================================================================================
+17. FOR PLATFORM OPERATORS  (admin / platform roles)
+================================================================================
+
+This section is for 0dot's own staff, not end users.
+
+PLATFORM ROLES:     0dot.in/admin/platform-roles (super_admin only)
+                  A single ranked role — support < admin < super_admin —
+                  grants staff access to admin tooling in-app. This
+                  replaced two separate legacy mechanisms (a platform-
+                  admin boolean flag and a separate trust & safety staff
+                  role) that were unified into one system.
+
+TRUST & SAFETY QUEUE:  0dot.in/admin/trust-safety
+                  A unified staff case queue covering content reports,
+                  account reports, business-claim reviews, marketplace-
+                  listing reviews, sensitive OAuth-scope requests, and
+                  AI-flagged content — one workflow instead of several
+                  separate ones.
+  Appeals:          0dot.in/admin/trust-safety/appeals
+  Transparency:      0dot.in/admin/trust-safety/transparency
+                    (aggregate case-volume/resolution reporting, including
+                    the appeal-overturn rate as an accountability signal)
+
+WALLET REVIEW:      0dot.in/admin/wallet/topups and .../payouts
+                  Manual UPI top-up/payout approval queue (§6.9) — an
+                  admin's own verification against the bank statement is
+                  the entire fraud control in this flow; there is no
+                  automated reconciliation.
+
+PAYMENTS:           0dot.in/admin/payments/iap-batches
+                  Reconciliation for mobile in-app-purchase revenue
+                  (Apple/Google take their own cut independent of and in
+                  addition to the platform fee; this arrives as an
+                  aggregated lump sum that has to be tracked back to
+                  individual creators before payout).
+
+================================================================================
+18. QUICK REFERENCE — "HOW DO I...?"
+================================================================================
+
+  Create an account                     0dot.in/signup
+  Fix "my account has no username"       0dot.in/claim-username
+  Log in                                 0dot.in/login
+  Reset a forgotten password             0dot.in/forgot-password
+  Turn on two-factor auth                Settings > Security > Two-factor
+  See/revoke my logged-in devices        Settings > Security > Active sessions
+  Edit my bio, avatar, theme             Settings > Profile > Edit profile
+  Add/reorder link-in-bio links          Settings > Profile > Links
+  Set up a custom domain                 Settings > Billing > Custom domain
+  Get paid (set up payouts)              Settings > Monetization > Payouts
+  Sell a digital download                Settings > Monetization > Digital products
+  Offer a bookable service                Settings > Monetization > Freelance services
+  Start a paid membership tier            Settings > Monetization > Memberships
+  Run an affiliate program                Settings > Monetization > Affiliate
+  Publish an article / private note       Settings > Content > Articles
+  Start a personal wiki                   Settings > Content > Wiki & Docs
+  Publish a podcast                       Settings > Content > Podcast
+  Send a newsletter                       Settings > Content > Newsletter
+  Build a portfolio (projects/resume)     Settings > Portfolio
+  Top up coins via UPI                    0dot.in/wallet
+  Upgrade to Premium                      Settings > Billing > Premium
+  Create a Community                      0dot.in/c/new
+  Create a Business page                  0dot.in/b/new
+  Set up company SSO / internal comms     0dot.in/org/new
+  Host an event / sell tickets            0dot.in/e/new
+  Browse/sell on the Marketplace          0dot.in/m
+  Shorten a URL                           Settings > Tools > Short links
+  Build a form or survey                  Settings > Tools > Forms & surveys
+  Register a developer app / API access   Settings > Developer > Apps
+  See which apps can access my account    Settings > Developer > Authorized apps
+  Report content or a user                Report action on the content, or 0dot.in/trust-safety
+  File a copyright (DMCA) claim           0dot.in/dmca
+  Block/unblock someone                   Profile menu, or Settings > Privacy > Blocked users
+  Export or delete my account             Settings > Account > Account management
+  Change language/accessibility prefs     Settings > Account > Language & accessibility
+
+================================================================================
+                          End of guide — 0dot.in
+================================================================================
