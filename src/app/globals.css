@@ -3839,36 +3839,33 @@ body.hasBottomNav .mobileNavPanel {
     border-bottom: 1px solid var(--border);
   }
 
-  /* Icon cluster (messages/notifications/account avatar) pins to the far
-     right via plain flex.
-
-     grid-column: 2 / -1 (rather than relying on auto-placement into just
-     column 2) matters on hasRail routes: body.hasRail .desktopTopHeader
-     below adds a 3rd 320px column so the header's grid aligns with the
-     sidebar/main/aside body grid, but the header itself only ever renders
-     two children (brand, this wrap) — with auto-placement this wrap only
-     occupied column 2, leaving that 320px column empty *inside the header*
-     and pinning the icon cluster's flex-end 320px short of the true right
-     edge. Spanning to the last line reclaims that space on every column
-     count (a no-op on the 2-column, no-rail case). */
+  /* Unwraps so searchCenter and the icon cluster become independent grid
+     items of .desktopTopHeader itself, rather than sharing one flex row.
+     They used to be flex siblings with the icon cluster's rendered width
+     eaten out of searchCenter's flex-basis before it centered — which
+     dragged the search box left of the main column's true center by
+     (icon cluster width + gap)/2, worse once a margin-right hack tried to
+     also exclude the aside column's width (that width is fixed at 320px,
+     but the icon cluster's isn't — avatar/badge state changes it — so the
+     hack's cancellation was never exact). Grid items don't share layout
+     boxes, so each can be positioned independently below with zero
+     coupling to the other's width. */
   .desktopTopHeaderSearchWrap {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    grid-column: 2 / -1;
+    display: contents;
   }
 
-  /* Takes the flexible space between the brand column and the icon
-     cluster, then centers the search box inside it — lines it up over the
-     main content column below (itself centered there via
+  /* Exactly the header's own column 2 — the same track main/aside sit in
+     one row down — so centering the search box inside this element lines
+     it up over the main content column below (itself centered there via
      .profileCard/.settingsSection's max-width + margin:auto convention)
-     instead of it hugging the sidebar edge. */
+     regardless of the icon cluster's width or the header's horizontal
+     padding (which shifts column 2's edges inward by the same amount on
+     both sides, leaving its center unchanged). */
   .desktopTopHeaderSearchCenter {
-    flex: 1 1 auto;
+    grid-column: 2;
     min-width: 0;
     display: flex;
     justify-content: center;
-    margin-right: var(--rail-gap, 0px);
   }
 
   .desktopTopHeaderSearchCenter .siteHeaderSearch {
@@ -3885,6 +3882,15 @@ body.hasBottomNav .mobileNavPanel {
      idea as the mocked design. */
   .desktopTopHeaderSearchCenter .textInput {
     border-radius: var(--radius-full);
+  }
+
+  /* Spans column 2 through the last column and pins to its end, reaching
+     the true right edge on every column count (2-col no-rail, 3-col
+     hasRail) — a separate grid item from .desktopTopHeaderSearchCenter
+     above, so its width never affects where the search box centers. */
+  .siteHeaderActions {
+    grid-column: 2 / -1;
+    justify-self: end;
   }
 
   .desktopSidebar {
@@ -3945,16 +3951,6 @@ body.hasBottomNav .mobileNavPanel {
      for consistency with the sidebar/main/aside track widths below it. */
   body.hasRail .desktopTopHeader {
     grid-template-columns: 240px 1fr 320px;
-  }
-
-  /* Consumed by .desktopTopHeaderSearchCenter below: on hasRail routes the
-     header's search wrap spans main+aside (2 / -1, so the icon cluster can
-     still reach the true right edge — see the comment on
-     .desktopTopHeaderSearchWrap), which would otherwise center the search
-     box across main+aside combined instead of over just the main column
-     the page content actually centers in. */
-  body.hasRail {
-    --rail-gap: 320px;
   }
 
   body.hasRail .contextualRail {
