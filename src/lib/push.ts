@@ -144,7 +144,7 @@ export async function dispatchPushEvent(args: { recipientId: string; actorId?: s
     // to avoid a load-time cycle (notifications.ts imports this module for
     // its own dispatch call).
     const { getNotificationVerb, getNotificationHref } = await import("@/lib/notifications");
-    const body = getNotificationVerb(args.type, args.subjectType) || "You have a new notification";
+    const body = getNotificationVerb(args.type, args.subjectType, args.subjectId) || "You have a new notification";
 
     // href reuses the exact same routing getNotificationHref already
     // computes for the in-app rail (mobile/src/api/v1/notifications

@@ -3874,6 +3874,8 @@ model FundraisingCampaign {
   organizerOrganizationId String?
   organizerOrganization   Organization? @relation(fields: [organizerOrganizationId], references: [id], onDelete: Cascade)
   title                   String // 1-160 chars, validated at the app layer
+  description             String        @default("") // 0-500 chars, validated at the app layer — same cap as Community.description
+  coverImageUrl           String?
   goalAmount              Float? // nullable = ongoing, no stated goal
   currency                String
   raisedAmount            Float         @default(0) // denormalized, same pattern used throughout

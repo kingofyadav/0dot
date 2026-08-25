@@ -2,8 +2,7 @@ import Link from "next/link";
 import type { getCurrentUser } from "@/lib/session";
 import { EmptyState } from "@/components/EmptyState";
 import { PostCard, type FeedPost } from "@/components/PostCard";
-import { ComposeBox } from "@/app/feed/ComposeBox";
-import { PollComposeForm } from "@/app/feed/PollComposeForm";
+import { PostComposer } from "@/app/feed/PostComposer";
 
 // Mirrors src/app/feed/FeedList.tsx's shape (compose box + list + "load
 // more" cursor link) — the two differ only in where posts come from
@@ -44,19 +43,7 @@ export function CommunityFeedList({
 
   return (
     <div className="profileCard">
-      {canPost && (
-        <>
-          <ComposeBox communityId={communityId} flairs={flairs} ownTiers={ownTiers} />
-          <details className="profileEditToggle" style={{ marginBottom: "1.5rem" }}>
-            <summary className="mutedText" style={{ fontSize: "0.85rem", cursor: "pointer" }}>
-              + Poll
-            </summary>
-            <div style={{ marginTop: "0.6rem" }}>
-              <PollComposeForm communityId={communityId} flairs={flairs} />
-            </div>
-          </details>
-        </>
-      )}
+      {canPost && <PostComposer communityId={communityId} flairs={flairs} ownTiers={ownTiers} />}
 
       {flairs.length > 0 && (
         <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap", marginBottom: "1rem" }}>

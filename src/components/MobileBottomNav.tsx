@@ -15,7 +15,13 @@ import { isPathActive } from "./NavLinks";
 // posture as ContextualRail, so this returns null rather than rendering a
 // half-working bar. RootLayout mirrors this exact condition via
 // body.hasBottomNav to reserve scroll space, see layout.tsx.
-export function MobileBottomNav({ profileHandle }: { profileHandle: string | null }) {
+export function MobileBottomNav({
+  profileHandle,
+  unreadNotificationCount = 0,
+}: {
+  profileHandle: string | null;
+  unreadNotificationCount?: number;
+}) {
   const pathname = usePathname();
   if (!profileHandle) return null;
 
@@ -59,15 +65,26 @@ export function MobileBottomNav({ profileHandle }: { profileHandle: string | nul
 
       {trailing.map(({ href, label, icon: Icon }) => {
         const isActive = isPathActive(pathname, href);
+        const isNotifications = href === "/notifications";
+        const badgeLabel =
+          isNotifications && unreadNotificationCount > 0
+            ? `${label}, ${unreadNotificationCount} unread`
+            : label;
         return (
           <Link
             key={href}
             href={href}
             className={`bottomNavLink${isActive ? " bottomNavLinkActive" : ""}`}
-            aria-label={label}
+            aria-label={badgeLabel}
             aria-current={isActive ? "page" : undefined}
+            style={isNotifications ? { position: "relative" } : undefined}
           >
             <Icon aria-hidden="true" size={22} />
+            {isNotifications && unreadNotificationCount > 0 && (
+              <span className="notificationBellBadge" aria-hidden="true">
+                {unreadNotificationCount > 99 ? "99+" : unreadNotificationCount}
+              </span>
+            )}
           </Link>
         );
       })}

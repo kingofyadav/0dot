@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requirePlatformRole } from "@/lib/auth-guards";
 import { db } from "@/lib/db";
 import { approveTopUpRequest, rejectTopUpRequest } from "@/app/actions/wallet";
@@ -19,7 +20,12 @@ export default async function AdminWalletTopUpsPage() {
 
   return (
     <div className="profileCard">
-      <h1 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "0.25rem" }}>Coin top-up review</h1>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "0.25rem" }}>
+        <h1 style={{ fontSize: "1.1rem", fontWeight: 700 }}>Coin top-up review</h1>
+        <Link href="/admin/wallet" className="mutedText" style={{ fontSize: "0.85rem" }}>
+          ← Wallet
+        </Link>
+      </div>
       <p className="mutedText" style={{ marginBottom: "1.25rem" }}>
         No payment gateway confirms these — cross-check each UTR against the platform&apos;s own UPI/bank statement
         before approving.

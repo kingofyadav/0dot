@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/session";
 import { parseCursor, paginate, POST_PAGE_SIZE } from "@/lib/pagination";
 import { getTierGatingCondition } from "@/lib/post-visibility";
 import { PostCard } from "@/components/PostCard";
+import { EmptyState } from "@/components/EmptyState";
 
 const authorInclude = { profile: true, username: true } as const;
 const mediaInclude = { orderBy: { position: "asc" as const } };
@@ -79,7 +80,7 @@ export default async function BookmarksPage({
     <div className="profileCard">
       <h1 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "1rem" }}>Bookmarks</h1>
       <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-        {posts.length === 0 && <p className="mutedText">No bookmarks yet.</p>}
+        {posts.length === 0 && <EmptyState message="No bookmarks yet." />}
         {posts.map((post) => (
           <PostCard
             key={post.id}

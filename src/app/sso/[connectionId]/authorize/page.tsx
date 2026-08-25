@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import Link from "next/link";
 import { db } from "@/lib/db";
 import { completeSsoLogin } from "@/app/actions/sso";
 
@@ -20,7 +20,24 @@ export default async function SsoAuthorizePage({
     where: { id: connectionId },
     include: { organization: { select: { name: true, domain: true } } },
   });
-  if (!connection || !email) notFound();
+  // A specific message rather than falling to the generic site 404 (which
+  // read as "this whole page is broken" rather than "this link is stale") —
+  // no anti-enumeration concern here unlike aff/r's codes: an SSO
+  // connectionId isn't a secret, just an internal id from a work-email
+  // lookup (see startSsoLogin), so naming the actual problem is fine.
+  if (!connection || !email) {
+    return (
+      <div className="profileCard" style={{ maxWidth: "420px", margin: "3rem auto" }}>
+        <h1 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "0.25rem" }}>Sign-in link unavailable</h1>
+        <p className="mutedText" style={{ marginBottom: "1.25rem" }}>
+          This SSO sign-in link is invalid or has expired. Try signing in again.
+        </p>
+        <Link href="/login" className="button">
+          Back to login
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="profileCard" style={{ maxWidth: "420px", margin: "3rem auto" }}>

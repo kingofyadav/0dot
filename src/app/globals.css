@@ -468,6 +468,16 @@ body {
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* Geist Sans's default "0" and capital "O" read as near-identical shapes
+     (live-site QA pass, 2026-08-25) — a real problem for a brand whose name
+     and every URL literally contain the digit. Requests the font's slashed/
+     dotted-zero glyph, if it exposes one via this OpenType feature tag; a
+     font that doesn't support "zero" just ignores the declaration (no
+     regression either way). Global rather than scoped to .mutedText — the
+     same ambiguity exists at full-opacity text too (e.g. "0dot.in/yourname"
+     in headings), and every "0dot.in" occurrence benefits, not just the
+     dozen+ call sites that happen to render it inside muted text. */
+  font-feature-settings: "zero" 1;
 }
 
 /* Only /login and /signup (isFixedViewportPath — route-context.ts) pin to
@@ -1392,6 +1402,39 @@ html:not([data-theme="light"])[data-high-contrast="true"] {
 .textInput option {
   background: var(--surface);
   color: var(--foreground);
+}
+
+/* input[type="file"] gets the same background/border reset as every other
+   field above, but its OS-drawn "Choose file" button was left completely
+   unstyled — no visible affordance, reads as plain unclickable text. Style
+   the button part like .buttonSecondary so it's obviously a button; the
+   filename text after it just inherits the field's own color/opacity. */
+.field input[type="file"],
+input[type="file"].textInput {
+  padding: 0.4rem;
+}
+
+.field input[type="file"]::file-selector-button,
+input[type="file"].textInput::file-selector-button,
+.field input[type="file"]::-webkit-file-upload-button,
+input[type="file"].textInput::-webkit-file-upload-button {
+  font: inherit;
+  font-weight: 600;
+  color: var(--foreground);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.45rem 0.75rem;
+  margin-right: 0.65rem;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.field input[type="file"]::file-selector-button:hover,
+input[type="file"].textInput::file-selector-button:hover,
+.field input[type="file"]::-webkit-file-upload-button:hover,
+input[type="file"].textInput::-webkit-file-upload-button:hover {
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
 }
 
 .field input::placeholder,

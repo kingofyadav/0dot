@@ -100,19 +100,36 @@ function groupRows(rows: NotificationRow[], recipientHandle: string | null): Dis
   return groups;
 }
 
+function relativeTime(date: Date): string {
+  const diffMs = Date.now() - date.getTime();
+  const minutes = Math.floor(diffMs / 60_000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d`;
+  return date.toLocaleDateString();
+}
+
 function GroupDescription({ group }: { group: DisplayGroup }) {
-  const verb = getNotificationVerb(group.type, group.subjectType);
+  const verb = getNotificationVerb(group.type, group.subjectType, group.subjectId);
   const [first, ...rest] = group.actorNames;
   return (
     <>
-      {first}
-      {group.firstActorVerified && (
-        <span className="verifiedBadge" title="Verified" aria-label="Verified">
-          <BadgeCheck size={14} aria-hidden="true" />
-        </span>
-      )}
-      {rest.length > 0 && ` and ${rest.length} other${rest.length === 1 ? "" : "s"}`}
-      {` ${verb}`}
+      <span style={{ fontWeight: group.isUnread ? 700 : 400 }}>
+        {first}
+        {group.firstActorVerified && (
+          <span className="verifiedBadge" title="Verified" aria-label="Verified">
+            <BadgeCheck size={14} aria-hidden="true" />
+          </span>
+        )}
+        {rest.length > 0 && ` and ${rest.length} other${rest.length === 1 ? "" : "s"}`}
+        {` ${verb}`}
+      </span>
+      <span className="mutedText" style={{ fontSize: "0.8rem", marginLeft: "0.5rem" }}>
+        {relativeTime(group.createdAt)}
+      </span>
     </>
   );
 }

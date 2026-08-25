@@ -3,8 +3,7 @@ import type { getCurrentUser } from "@/lib/session";
 import { EmptyState } from "@/components/EmptyState";
 import { PostCard, type FeedPost } from "@/components/PostCard";
 import { ListKeyNav } from "@/components/ListKeyNav";
-import { ComposeBox } from "./ComposeBox";
-import { PollComposeForm } from "./PollComposeForm";
+import { PostComposer } from "./PostComposer";
 
 // Shared between /feed (Home) and /explore — both pages differ only in
 // which posts they fetch (see src/lib/feed-query.ts), not in how the list
@@ -43,17 +42,7 @@ export function FeedList({
   return (
     <div className="profileCard">
       {showComposer && currentUser?.profile && (
-        <>
-          <ComposeBox postableBusinesses={postableBusinesses} ownTiers={ownTiers} />
-          <details className="profileEditToggle" style={{ marginBottom: "1.5rem" }}>
-            <summary className="mutedText" style={{ fontSize: "0.85rem", cursor: "pointer" }}>
-              Poll
-            </summary>
-            <div style={{ marginTop: "0.6rem" }}>
-              <PollComposeForm />
-            </div>
-          </details>
-        </>
+        <PostComposer postableBusinesses={postableBusinesses} ownTiers={ownTiers} />
       )}
 
       <ListKeyNav helpTitle="Feed" supportsLike supportsReply>

@@ -4,11 +4,19 @@ import { DigitalHomeVisual } from "@/components/DigitalHomeVisual";
 import { MarketingNav } from "@/components/marketing/MarketingNav";
 import { AuthTabs } from "@/components/AuthTabs";
 import { ExploreLiveLink } from "@/components/ExploreLiveLink";
+import { DismissibleNotice } from "@/components/DismissibleNotice";
 
-export default async function Home() {
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ link?: string }>;
+}) {
+  const { link } = await searchParams;
   const user = await getCurrentUser();
   if (user?.username) {
-    redirect("/feed");
+    // Forward the notice through to /feed — that's where a fully onboarded
+    // user actually lands, so the query param can't just die here.
+    redirect(link === "unavailable" ? "/feed?link=unavailable" : "/feed");
   }
 
   // MarketingNav is the only header on this page (single header, all
@@ -21,6 +29,7 @@ export default async function Home() {
 
       <div className="landingWrap">
         <section className="landingHero">
+          {link === "unavailable" && <DismissibleNotice message="That link isn't available." />}
           <h1>One identity. One profile. Infinite possibilities.</h1>
           <p>Your permanent home on the internet.</p>
           <ExploreLiveLink />

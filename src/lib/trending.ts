@@ -7,7 +7,14 @@ import { getBlockedEitherWayUserIds, getPostVisibilityConditions } from "@/lib/p
 // an old post with many likes accumulated slowly must not outrank a new
 // post accelerating fast. Tunable knobs, not fixed by the spec.
 const RECOMPUTE_INTERVAL_MS = 5 * 60 * 1000; // "every few minutes" per spec
-const ENGAGEMENT_WINDOW_MS = 6 * 60 * 60 * 1000; // "recent" lookback for the numerator
+// "recent" lookback for the numerator — widened from 6h to 24h (live-site
+// QA pass, 2026-08-25): at 6h, engagement on a lower-traffic install
+// routinely aged out of the window between visits, leaving /trending
+// showing "No posts yet." even with liked/replied-to posts on the page.
+// 24h keeps the velocity framing (rate = engagement / min(age, window), see
+// recomputeTrendingScores below) while giving a realistic install enough
+// lookback to actually surface something.
+const ENGAGEMENT_WINDOW_MS = 24 * 60 * 60 * 1000;
 const ENGAGEMENT_WINDOW_HOURS = ENGAGEMENT_WINDOW_MS / (60 * 60 * 1000);
 const MIN_AGE_HOURS_FLOOR = 1 / 6; // 10 min — stops one early like on a brand-new post from spiking
 const LIKE_WEIGHT = 1;

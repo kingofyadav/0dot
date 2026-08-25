@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { getCurrentUser } from "@/lib/session";
 import { isProfilePagePath } from "@/lib/route-context";
+import { getUnreadNotificationCount } from "@/lib/notifications";
 import { ThemeToggleLogo } from "./ThemeToggleLogo";
 import { Sidebar } from "./Sidebar";
 import { MobileNavMenu } from "./MobileNavMenu";
@@ -15,6 +16,10 @@ import { SearchForm } from "./SearchForm";
 export async function SiteHeader() {
   const user = await getCurrentUser();
   const profileHandle = user?.username?.handle ?? null;
+  // NotificationBell (desktop) already fetches/renders this count itself;
+  // MobileBottomNav's Bell icon has no server-fetching path of its own
+  // (it's "use client", rendered here so it can be handed this as a prop).
+  const unreadNotificationCount = user ? await getUnreadNotificationCount(user.id) : 0;
 
   // An anonymous visitor landing on someone's public profile (a common
   // discovery entry point, e.g. via a shared link) is a good moment for a
@@ -24,6 +29,10 @@ export async function SiteHeader() {
   const headersList = await headers();
   const pathname = headersList.get("x-pathname") ?? "";
   const isProfilePage = isProfilePagePath(pathname);
+  // /search already has its own in-page search box (autofocused, with
+  // live/debounced results) — the header's box right above it did exactly
+  // the same GET-to-/search thing, just as a second, unexplained input.
+  const onSearchPage = pathname === "/search";
 
   const hasProfile = Boolean(user?.profile);
   const showJoinCta = !hasProfile && isProfilePage;
@@ -58,7 +67,7 @@ export async function SiteHeader() {
         </div>
         <div className="desktopTopHeaderSearchWrap">
           <div className="desktopTopHeaderSearchCenter">
-            <SearchForm />
+            {!onSearchPage && <SearchForm />}
           </div>
           <div className="siteHeaderActions">{iconCluster}</div>
         </div>
@@ -88,7 +97,7 @@ export async function SiteHeader() {
         </MobileNavMenu>
       </header>
 
-      <MobileBottomNav profileHandle={profileHandle} />
+      <MobileBottomNav profileHandle={profileHandle} unreadNotificationCount={unreadNotificationCount} />
     </>
   );
 }

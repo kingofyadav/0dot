@@ -142,6 +142,21 @@ export default async function BusinessPage({ params }: { params: Promise<{ slug:
         </div>
       )}
 
+      {/* A primary CTA next to the header rather than a grid tile below —
+          previously the last tile in .profileActionsGrid, where it landed
+          alone on its own row whenever the grid's auto-fill column count
+          didn't divide the item count evenly (live-site QA pass,
+          2026-08-25). Messaging a business is also arguably a more
+          prominent action than "Documents"/"Catalog", not an equal peer. */}
+      <details style={{ marginTop: "0.75rem" }}>
+        <summary className="button" style={{ display: "inline-block", listStyle: "none" }}>
+          Message
+        </summary>
+        <div style={{ marginTop: "0.5rem" }}>
+          <BusinessContactForm businessId={business.id} isLoggedIn={Boolean(currentUser)} />
+        </div>
+      </details>
+
       <div className="profileActionsGrid">
         <Link href={`/b/${business.slug}/posts`} className="button buttonSecondary">
           Posts

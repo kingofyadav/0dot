@@ -27,6 +27,17 @@ export function NewMessageForm({
 }) {
   const [state, formAction, pending] = useActionState(startDirectConversation, undefined);
   const [recipientId, setRecipientId] = useState<string | null>(presetRecipient?.userId ?? null);
+  const [filter, setFilter] = useState("");
+  // Client-side filter over the already-fetched candidates array — no
+  // global user search exists (see this file's own comment above), so
+  // there's no API to call; this just stops the picker from being an
+  // unfilterable scroll once someone follows more than a handful of people.
+  const lowerFilter = filter.trim().toLowerCase();
+  const filteredCandidates = lowerFilter
+    ? candidates.filter(
+        (c) => c.displayName.toLowerCase().includes(lowerFilter) || c.handle?.toLowerCase().includes(lowerFilter)
+      )
+    : candidates;
 
   if (presetRecipient) {
     return (
@@ -50,11 +61,23 @@ export function NewMessageForm({
 
   return (
     <form action={formAction} style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+      {candidates.length > 5 && (
+        <input
+          type="text"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          placeholder="Filter by name or username…"
+          className="textInput"
+        />
+      )}
       <div className="conversationList" style={{ maxHeight: "320px", overflowY: "auto" }}>
         {candidates.length === 0 && (
           <p className="mutedText">Follow someone (or get followed) to start a conversation.</p>
         )}
-        {candidates.map((candidate) => (
+        {candidates.length > 0 && filteredCandidates.length === 0 && (
+          <p className="mutedText">No matches for &quot;{filter}&quot;.</p>
+        )}
+        {filteredCandidates.map((candidate) => (
           <label
             key={candidate.userId}
             className="profileLinkItem"

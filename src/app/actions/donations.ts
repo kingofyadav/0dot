@@ -8,6 +8,7 @@ import { requireVerifiedUser } from "@/lib/auth-guards";
 import { getPaymentProcessor, recordPaymentTransaction, resolveFeeRate } from "@/lib/payments";
 import { getAppOrigin } from "@/lib/email";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { saveUploadedImage } from "@/lib/uploads";
 import type { ActionState } from "@/app/actions/auth";
 
 const MIN_DONATION_AMOUNT = 1;
@@ -26,6 +27,9 @@ export async function createFundraisingCampaign(_prevState: ActionState, formDat
   const title = String(formData.get("title") ?? "").trim();
   if (title.length < 1 || title.length > 160) return { error: "Title must be 1-160 characters." };
 
+  const description = String(formData.get("description") ?? "").trim();
+  if (description.length > 500) return { error: "Description must be 500 characters or fewer." };
+
   const currency = String(formData.get("currency") ?? "usd").trim().toLowerCase();
   const goalRaw = String(formData.get("goalAmount") ?? "").trim();
   const goalAmount = goalRaw ? Number(goalRaw) : null;
@@ -37,11 +41,21 @@ export async function createFundraisingCampaign(_prevState: ActionState, formDat
   const endsAt = endsAtRaw ? new Date(endsAtRaw) : null;
   if (endsAt && Number.isNaN(endsAt.getTime())) return { error: "Invalid end date." };
 
+  let coverImageUrl: string | undefined;
+  const coverFile = formData.get("cover");
+  if (coverFile instanceof File && coverFile.size > 0) {
+    const result = await saveUploadedImage(coverFile, { uploadedById: user.id });
+    if ("error" in result) return { error: result.error };
+    coverImageUrl = result.url;
+  }
+
   const campaign = await db.fundraisingCampaign.create({
     data: {
       organizerType: "user",
       organizerUserId: user.id,
       title,
+      description,
+      coverImageUrl,
       goalAmount,
       currency,
       endsAt,

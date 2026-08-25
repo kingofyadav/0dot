@@ -7,6 +7,7 @@ import { parseCursor } from "@/lib/pagination";
 import { getFeedPosts, getVotedPollOptionIds } from "@/lib/feed-query";
 import { getPostableBusinesses } from "@/lib/businesses";
 import { getMyPayoutAccount } from "@/lib/payments";
+import { DismissibleNotice } from "@/components/DismissibleNotice";
 import { FeedList } from "./FeedList";
 
 const PAYOUT_STATUS_LABEL: Record<string, string> = {
@@ -23,12 +24,12 @@ const PAYOUT_STATUS_LABEL: Record<string, string> = {
 export default async function FeedPage({
   searchParams,
 }: {
-  searchParams: Promise<{ cursor?: string }>;
+  searchParams: Promise<{ cursor?: string; link?: string }>;
 }) {
   const currentUser = await getCurrentUser();
   if (!currentUser) redirect("/explore");
 
-  const { cursor: rawCursor } = await searchParams;
+  const { cursor: rawCursor, link } = await searchParams;
   const cursor = parseCursor(rawCursor);
 
   const followedIds = await db.follow.findMany({
@@ -65,6 +66,7 @@ export default async function FeedPage({
 
   return (
     <>
+      {link === "unavailable" && <DismissibleNotice message="That link isn't available." />}
       <FeedList
         posts={posts}
         currentUser={currentUser}

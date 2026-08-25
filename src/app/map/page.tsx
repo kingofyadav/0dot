@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
+import { EmptyState } from "@/components/EmptyState";
 
 type Pin = {
   id: string;
@@ -10,10 +11,22 @@ type Pin = {
   longitude: number;
 };
 
-function osmEmbedSrc(lat: number, lng: number): string {
-  const delta = 0.01;
+function osmEmbedSrc(lat: number, lng: number, delta = 0.01): string {
   const bbox = `${lng - delta},${lat - delta},${lng + delta},${lat + delta}`;
   return `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&marker=${lat},${lng}&layer=mapnik`;
+}
+
+// Default center when there's nothing to pin yet — India (the platform's
+// primary market per wallet's UPI/INR-only flow and signup's default +91
+// dial code), zoomed out to a country-level view (no marker). Reuses the
+// same no-JS-SDK OSM-embed approach as a real pin, just wider and unmarked,
+// so the page reads as "map, currently nothing on it" rather than unbuilt.
+const DEFAULT_CENTER = { latitude: 22.5, longitude: 79.0 };
+function defaultOsmEmbedSrc(): string {
+  const { latitude, longitude } = DEFAULT_CENTER;
+  const delta = 12;
+  const bbox = `${longitude - delta},${latitude - delta},${longitude + delta},${latitude + delta}`;
+  return `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik`;
 }
 
 // phase-16 spec §10.2: a live query over BusinessLocation and now-geo-tagged
@@ -58,7 +71,17 @@ export default async function MapPage() {
   return (
     <div className="profileCard">
       <h1 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "1rem" }}>Map</h1>
-      {pins.length === 0 && <p className="mutedText">No geo-tagged businesses or events yet.</p>}
+      {pins.length === 0 && (
+        <div style={{ marginBottom: "1.25rem" }}>
+          <EmptyState message="No geo-tagged businesses or events yet." />
+          <iframe
+            title="Map"
+            src={defaultOsmEmbedSrc()}
+            style={{ width: "100%", height: "280px", border: "1px solid var(--border)", borderRadius: "8px" }}
+            loading="lazy"
+          />
+        </div>
+      )}
       <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
         {pins.map((pin) => (
           <div key={pin.id}>

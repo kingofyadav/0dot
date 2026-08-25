@@ -734,7 +734,7 @@ export function getRecentNotificationsPreview(userId: string, limit: number) {
 // original post-only wording when subjectType is omitted so every existing
 // call site (which only ever produced post notifications) keeps working
 // unchanged.
-export function getNotificationVerb(type: string, subjectType?: string): string {
+export function getNotificationVerb(type: string, subjectType?: string, subjectId?: string): string {
   switch (type) {
     case "like":
       if (subjectType === "project") return "liked your project";
@@ -826,9 +826,15 @@ export function getNotificationVerb(type: string, subjectType?: string): string 
     // — phrased as a continuation of the "Someone ___" prefix, not a
     // standalone sentence.
     case "business_approved":
-      return "approved your business";
+      // subjectId is the business's slug (still live, see
+      // notifyBusinessApproved) — naming it beats the generic "Someone
+      // approved your business" the live-site QA pass flagged.
+      return subjectId ? `approved your business "${subjectId}"` : "approved your business";
     case "business_rejected":
-      return "rejected your business listing";
+      // subjectId is the business's *name* here, not a slug — the row is
+      // deleted on rejection (see notifyBusinessRejected), so there's
+      // nothing left to look up.
+      return subjectId ? `rejected your business listing "${subjectId}"` : "rejected your business listing";
     default:
       return "";
   }

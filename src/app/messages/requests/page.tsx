@@ -11,6 +11,7 @@ import { isUserOnline } from "@/lib/presence";
 import { acceptMessageRequest, declineMessageRequest } from "@/app/actions/messages";
 import { Logo } from "@/components/Logo";
 import { PresenceDot } from "@/components/PresenceDot";
+import { EmptyState } from "@/components/EmptyState";
 
 // Separate from the primary inbox by design (spec §5.2/§5.8): a DM from a
 // non-mutual, non-followed sender lands here, not in /messages, until
@@ -41,7 +42,7 @@ export default async function MessageRequestsPage({
       </div>
 
       <div className="conversationList">
-        {requests.length === 0 && <p className="mutedText">No pending requests.</p>}
+        {requests.length === 0 && <EmptyState message="No pending requests." />}
         {requests.map((conversation) => {
           const display = getConversationDisplayInfo(conversation, currentUser.id);
           return (

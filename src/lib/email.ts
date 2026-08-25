@@ -241,7 +241,7 @@ export async function dispatchEmailEvent(args: { recipientId: string; type: stri
     if (!recipient || !recipient.emailVerifiedAt) return; // unverified addresses never receive mail, same posture as every other outbound sender in this codebase
 
     const { getNotificationVerb } = await import("@/lib/notifications");
-    const verb = getNotificationVerb(args.type, args.subjectType);
+    const verb = getNotificationVerb(args.type, args.subjectType, args.subjectId);
     if (!verb) return; // no generic copy exists for this type — same "deliberately partial" catalog dispatchPushEvent/dispatchWebhookEvent already accept
 
     // Sent as-is, not prefixed with "Someone"/an actor name — same

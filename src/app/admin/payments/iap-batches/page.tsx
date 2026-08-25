@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requirePlatformRole } from "@/lib/auth-guards";
 import { db } from "@/lib/db";
 import { createIapPayoutBatchAction, reconcileIapPayoutBatchAction } from "@/app/actions/iap-payouts";
@@ -25,7 +26,12 @@ export default async function AdminIapBatchesPage() {
 
   return (
     <div className="profileCard">
-      <h1 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "0.25rem" }}>IAP payout batches</h1>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "0.25rem" }}>
+        <h1 style={{ fontSize: "1.1rem", fontWeight: 700 }}>IAP payout batches</h1>
+        <Link href="/admin/payments" className="mutedText" style={{ fontSize: "0.85rem" }}>
+          ← Payments
+        </Link>
+      </div>
       <p className="mutedText" style={{ marginBottom: "1.25rem" }}>
         Records an aggregated Apple/Google lump-sum payout, then attributes every succeeded, not-yet-reconciled
         transaction for that processor within the period to it. Doesn&apos;t disburse anything to creators — that

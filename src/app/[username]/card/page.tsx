@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { db } from "@/lib/db";
 import { getBusinessCard } from "@/lib/business-card";
 import { getSocialPlatformLabel, type SocialPlatform } from "@/lib/theme-presets";
 
@@ -10,7 +11,25 @@ export default async function BusinessCardPage({ params }: { params: Promise<{ u
   const handle = decodeURIComponent(rawParam).toLowerCase();
 
   const card = await getBusinessCard(handle);
-  if (!card) notFound();
+  if (!card) {
+    // getBusinessCard returns null both when the handle doesn't exist at all
+    // and when it exists but hasn't enabled a card — a real 404 is only
+    // correct for the former (live-site QA pass, 2026-08-25 flagged the
+    // latter case reading as a broken link rather than "not set up yet").
+    const username = await db.username.findUnique({ where: { handle }, include: { user: { include: { profile: true } } } });
+    if (!username) notFound();
+
+    return (
+      <div className="profileCard">
+        <Link href={`/${handle}`} className="mutedText" style={{ fontSize: "0.85rem" }}>
+          ← {username.user.profile?.displayName ?? handle}
+        </Link>
+        <p className="mutedText" style={{ marginTop: "0.75rem" }}>
+          {username.user.profile?.displayName ?? handle} hasn&apos;t set up a business card yet.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="profileCard">

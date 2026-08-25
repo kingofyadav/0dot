@@ -11,12 +11,23 @@ export function isProfilePagePath(pathname: string): boolean {
   return firstSegment.length > 0 && validateUsernameFormat(firstSegment) === null;
 }
 
-// The landing page ("/") and the standalone /login and /signup pages each
-// render their own self-contained hero/auth card with no site chrome at
-// all — matching the classic split-layout marketing pattern (logo/pitch
-// beside a login form, no header, no nav). All three opt out of the
-// SiteHeader/Sidebar/rail grid shell (see body.noChrome in globals.css).
-const CHROMELESS_PATHS = new Set(["/", "/login", "/signup"]);
+// The landing page ("/"), /login and /signup each render their own
+// self-contained hero/auth card with no site chrome at all — matching the
+// classic split-layout marketing pattern (logo/pitch beside a login form,
+// no header, no nav). /forgot-password, /reset-password, /verify/sent, and
+// /claim-username already use the same chromeless .authWrap/.authCard CSS
+// (globals.css) but were missing from this set (live-site QA pass,
+// 2026-08-25) — they rendered with the full SiteHeader/Sidebar shell wrapped
+// around a card visually designed to stand alone, which looked broken.
+const CHROMELESS_PATHS = new Set([
+  "/",
+  "/login",
+  "/signup",
+  "/forgot-password",
+  "/reset-password",
+  "/verify/sent",
+  "/claim-username",
+]);
 
 export function isChromelessPath(pathname: string): boolean {
   return CHROMELESS_PATHS.has(pathname);

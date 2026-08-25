@@ -52,12 +52,10 @@ export default async function UserServicesPage({
 
   return (
     <div className="profileCard">
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-        <h1 style={{ fontSize: "1.1rem", fontWeight: 700 }}>{displayName} — Services</h1>
-        <Link href={`/${username.handle}`} className="button buttonSecondary" style={{ fontSize: "0.85rem", padding: "0.4rem 0.7rem" }}>
-          Back to profile
-        </Link>
-      </div>
+      <Link href={`/${username.handle}`} className="mutedText" style={{ fontSize: "0.85rem" }}>
+        ← {displayName}
+      </Link>
+      <h1 style={{ fontSize: "1.2rem", fontWeight: 700, marginTop: "0.6rem", marginBottom: "1rem" }}>Services</h1>
 
       {offerings.length === 0 && <p className="mutedText">Nothing listed yet.</p>}
 

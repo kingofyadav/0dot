@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
-import { Camera, CircleHelp, X } from "lucide-react";
+import { BarChart3, Camera, CircleHelp, X } from "lucide-react";
 import { createPost } from "@/app/actions/posts";
 
 const MAX_MEDIA = 4;
@@ -11,6 +11,8 @@ export function ComposeBox({
   flairs,
   postableBusinesses,
   ownTiers,
+  showPoll,
+  onTogglePoll,
 }: {
   communityId?: string;
   // phase-3 spec §6: only ever passed alongside communityId — /feed and
@@ -25,6 +27,15 @@ export function ComposeBox({
   // as a "gate this post" picker — createPost re-validates ownership
   // server-side regardless (see posts.ts), this is just what's offered.
   ownTiers?: { id: string; name: string }[];
+  // Poll composing is a structurally separate <form> (see PollComposeForm's
+  // own comment) — can't nest inside this component's own <form> (invalid
+  // HTML). The toggle button still belongs in this action row next to
+  // Camera/Question for a single unified "attach" row (live-site QA pass,
+  // 2026-08-25 flagged "+ Poll" as a disconnected element below the
+  // composer); the caller (FeedList/CommunityFeedList) owns the actual
+  // show/hide state and renders PollComposeForm as this form's sibling.
+  showPoll?: boolean;
+  onTogglePoll?: () => void;
 } = {}) {
   const [state, formAction, pending] = useActionState(createPost, undefined);
   const formRef = useRef<HTMLFormElement>(null);
@@ -174,10 +185,37 @@ export function ComposeBox({
               style={{ display: "none" }}
             />
           </label>
-          <label className="mutedText" style={{ fontSize: "0.8rem", display: "inline-flex", alignItems: "center", gap: "0.3rem" }}>
+          <label
+            className="mutedText"
+            style={{ fontSize: "0.8rem", display: "inline-flex", alignItems: "center", gap: "0.3rem", cursor: "pointer" }}
+            title="Mark this as a question — replies to it can be marked as the accepted answer."
+          >
             <input type="checkbox" name="postType" value="question" />
             <CircleHelp size={14} aria-hidden="true" /> Question
           </label>
+          {onTogglePoll && (
+            <button
+              type="button"
+              onClick={onTogglePoll}
+              aria-pressed={showPoll}
+              className="mutedText"
+              style={{
+                fontSize: "0.8rem",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.3rem",
+                background: "none",
+                border: "none",
+                padding: 0,
+                font: "inherit",
+                cursor: "pointer",
+                color: showPoll ? "var(--accent)" : undefined,
+                opacity: showPoll ? 1 : 0.65,
+              }}
+            >
+              <BarChart3 size={14} aria-hidden="true" /> Poll
+            </button>
+          )}
         </span>
         <button type="submit" className="button" disabled={pending}>
           {pending ? "Posting…" : "Post"}

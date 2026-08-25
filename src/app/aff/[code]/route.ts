@@ -22,7 +22,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   const link = await db.affiliateLink.findUnique({ where: { code }, include: { program: true } });
   if (!link || link.program.status !== "active") {
-    return NextResponse.redirect(new URL("/", request.url));
+    // Same generic "?link=unavailable" for both "never existed" and
+    // "program no longer active" — never a distinguishing signal, see
+    // this file's own no-enumeration posture above.
+    return NextResponse.redirect(new URL("/?link=unavailable", request.url));
   }
 
   await db.affiliateClick.create({

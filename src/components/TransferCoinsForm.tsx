@@ -14,7 +14,7 @@ export function TransferCoinsForm() {
       </label>
       <label style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
         Coins
-        <input type="number" name="coinAmount" min={1} max={20} step={1} defaultValue={1} required />
+        <input type="number" name="coinAmount" min={1} max={20} step={1} placeholder="1" required />
       </label>
       <button type="submit" className="button buttonSecondary buttonSmall" disabled={pending} style={{ alignSelf: "flex-start" }}>
         {pending ? "Sending…" : "Send coins"}

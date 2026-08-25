@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { BadgeCheck, Search } from "lucide-react";
+import { BadgeCheck } from "lucide-react";
 import { EmptyState } from "@/components/EmptyState";
+import { SearchBox } from "./SearchBox";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { getPostVisibilityConditions } from "@/lib/post-visibility";
@@ -153,19 +154,7 @@ export default async function SearchPage({
 
   return (
     <div className="profileCard">
-      <form action="/search" method="GET" style={{ marginBottom: "1.25rem" }}>
-        <div className="searchFieldWrap">
-          <Search className="searchFieldIcon" size={16} aria-hidden="true" />
-          <input
-            type="search"
-            name="q"
-            defaultValue={q}
-            placeholder="Search users or posts…"
-            className="textInput"
-            autoFocus
-          />
-        </div>
-      </form>
+      <SearchBox defaultValue={q} tab={tab} />
 
       <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.25rem", flexWrap: "wrap" }}>
         {TABS.map((t) => (

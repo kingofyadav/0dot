@@ -18,6 +18,18 @@ export function NewEventForm({
   const [format, setFormat] = useState<"in_person" | "virtual" | "hybrid">("in_person");
   const { flash } = useBrowserTab();
   const wasPending = useRef(false);
+  // Uncontrolled + a direct ref mutation (not setState) — Intl would resolve
+  // the server's timezone during SSR, not the visitor's, so this can only
+  // happen client-side after mount; a controlled value={} set from state
+  // populated in an effect would hydration-mismatch (empty SSR markup vs.
+  // the client's immediately-set value) and trips react-hooks/set-state-in-
+  // effect besides. Still just a prefill — the field stays freely editable.
+  const timezoneRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (timezoneRef.current && !timezoneRef.current.value) {
+      timezoneRef.current.value = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    }
+  }, []);
 
   // Success redirects to the new event page before a "success" state would
   // ever render, so the transition is read off pending flipping back to
@@ -153,7 +165,15 @@ export function NewEventForm({
 
       <div className="field">
         <label htmlFor="timezone">Timezone</label>
-        <input id="timezone" name="timezone" type="text" placeholder="IANA timezone, e.g. America/New_York" maxLength={60} required />
+        <input
+          ref={timezoneRef}
+          id="timezone"
+          name="timezone"
+          type="text"
+          placeholder="IANA timezone, e.g. America/New_York"
+          maxLength={60}
+          required
+        />
       </div>
 
       <div className="field">

@@ -1,64 +1,18 @@
-"use client";
+import { redirect } from "next/navigation";
+import { getCurrentUser } from "@/lib/session";
+import { ClaimUsernameForm } from "./ClaimUsernameForm";
 
-import { useActionState } from "react";
-import { claimUsername } from "@/app/actions/profile";
-import { Logo } from "@/components/Logo";
+// A thin server wrapper around the client form — mirrors exactly the
+// guard already inside claimUsername (app/actions/profile.ts) itself, so a
+// visitor who can't successfully submit this form (not logged in, already
+// claimed, unverified email) doesn't see it rendered as if they could
+// (live-site QA pass, 2026-08-25: was previously unguarded at the page
+// level, unlike the action).
+export default async function ClaimUsernamePage() {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+  if (user.profile) redirect(`/${user.username!.handle}`);
+  if (!user.emailVerifiedAt) redirect("/verify/sent");
 
-export default function ClaimUsernamePage() {
-  const [state, formAction, pending] = useActionState(claimUsername, undefined);
-
-  return (
-    <div className="authWrap">
-      <form action={formAction} className="authCard">
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: "0.5rem",
-            marginBottom: "0.5rem",
-          }}
-        >
-          <Logo size={48} />
-          <p style={{ fontWeight: 600 }}>Almost there</p>
-        </div>
-        <h1>Claim your username</h1>
-        <p className="mutedText">One identity. One profile.</p>
-
-        <div className="field">
-          <label htmlFor="displayName">Full name</label>
-          <input
-            id="displayName"
-            name="displayName"
-            type="text"
-            autoComplete="name"
-            maxLength={50}
-            required
-          />
-        </div>
-
-        <div className="field">
-          <label htmlFor="username">Username</label>
-          <input
-            id="username"
-            name="username"
-            type="text"
-            placeholder="yourname"
-            autoComplete="username"
-            pattern="[a-zA-Z0-9_]{3,30}"
-            minLength={3}
-            maxLength={30}
-            required
-          />
-          <span className="mutedText">0dot.in/yourname — this is permanent.</span>
-        </div>
-
-        {state?.error && <p className="errorText">{state.error}</p>}
-
-        <button type="submit" className="button" disabled={pending}>
-          {pending ? "Claiming…" : "Claim username"}
-        </button>
-      </form>
-    </div>
-  );
+  return <ClaimUsernameForm />;
 }

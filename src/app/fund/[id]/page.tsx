@@ -32,12 +32,21 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
 
   return (
     <div className="profileCard">
+      {campaign.coverImageUrl && (
+        // eslint-disable-next-line @next/next/no-img-element -- user-supplied URL, not a local/optimizable asset
+        <img
+          src={campaign.coverImageUrl}
+          alt=""
+          style={{ width: "100%", maxHeight: "280px", objectFit: "cover", borderRadius: "10px", marginBottom: "0.75rem" }}
+        />
+      )}
       <h1 style={{ fontSize: "1.2rem", fontWeight: 700 }}>{campaign.title}</h1>
       {campaign.organizerUser?.username && (
         <p className="mutedText">
           by <Link href={`/${campaign.organizerUser.username.handle}`}>{campaign.organizerUser.profile?.displayName}</Link>
         </p>
       )}
+      {campaign.description && <p style={{ marginTop: "0.75rem", whiteSpace: "pre-wrap" }}>{campaign.description}</p>}
 
       <p style={{ marginTop: "0.75rem" }}>
         <strong>{campaign.raisedAmount.toLocaleString()} {campaign.currency.toUpperCase()}</strong> raised

@@ -28,7 +28,10 @@ export async function GET(
     // Same response as a nonexistent link — a scheduled-but-not-yet-live or
     // expired link shouldn't redirect just because someone has the URL
     // (bookmarked, cached, indexed) from outside its visibility window.
-    return NextResponse.redirect(new URL("/", request.url));
+    // "?link=unavailable" is identical for both cases too — a generic
+    // signal for the landing page's dismissible notice, never anything that
+    // would tell the visitor which case it was.
+    return NextResponse.redirect(new URL("/?link=unavailable", request.url));
   }
 
   await db.$transaction([
