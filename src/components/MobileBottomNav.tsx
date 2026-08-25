@@ -15,6 +15,10 @@ import { isPathActive } from "./NavLinks";
 // posture as ContextualRail, so this returns null rather than rendering a
 // half-working bar. RootLayout mirrors this exact condition via
 // body.hasBottomNav to reserve scroll space, see layout.tsx.
+// prefetch={false} on every Link below: same reasoning as NavItemLink's
+// comment in NavLinks.tsx — this bar is persistent chrome, not per-page
+// content, so eagerly prefetching every destination's dynamic RSC payload
+// on every page view was contributing to the same DB-connection-burst 503s.
 export function MobileBottomNav({
   profileHandle,
   unreadNotificationCount = 0,
@@ -46,6 +50,7 @@ export function MobileBottomNav({
           <Link
             key={href}
             href={href}
+            prefetch={false}
             className={`bottomNavLink${isActive ? " bottomNavLinkActive" : ""}`}
             aria-label={label}
             aria-current={isActive ? "page" : undefined}
@@ -59,7 +64,7 @@ export function MobileBottomNav({
           ComposeBox.tsx), which focuses itself on arrival — see the
           hashchange handling there. Not a separate "new post" route: the
           compose UI only exists inline on /feed today (NAVIGATION.md). */}
-      <Link href="/feed#compose-box" className="bottomNavCreate" aria-label="New post">
+      <Link href="/feed#compose-box" prefetch={false} className="bottomNavCreate" aria-label="New post">
         <Plus aria-hidden="true" size={24} />
       </Link>
 
@@ -74,6 +79,7 @@ export function MobileBottomNav({
           <Link
             key={href}
             href={href}
+            prefetch={false}
             className={`bottomNavLink${isActive ? " bottomNavLinkActive" : ""}`}
             aria-label={badgeLabel}
             aria-current={isActive ? "page" : undefined}

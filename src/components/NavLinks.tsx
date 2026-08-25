@@ -56,11 +56,24 @@ type NavItem = { href: string; label: string; icon: LucideIcon };
 // One nav destination row — shared by the flat top tier and every
 // NavSection below it, so the icon/label/active-state markup is written
 // once instead of once per tier.
+//
+// prefetch={false}: this row is part of the persistent chrome, mounted and
+// viewport-visible on every single authenticated page — Next.js's default
+// prefetch behavior would otherwise eagerly fetch every one of these ~10
+// destinations' full dynamic RSC payload (each running its own page's
+// getCurrentUser()/DB queries) on every page load, all at once. Confirmed
+// live (2026-08-25) as the cause of intermittent 503s on exactly this set
+// of routes (/trending, /messages, /notifications, /bookmarks, /wallet,
+// own profile) — a burst of ~10 concurrent data-fetching requests per page
+// view was overrunning the DB connection/concurrency budget. Turbo Link
+// still navigates instantly on click either way; this only removes the
+// speculative background fetch nothing was waiting on.
 function NavItemLink({ href, label, icon: Icon, pathname }: NavItem & { pathname: string }) {
   const isActive = isPathActive(pathname, href);
   return (
     <Link
       href={href}
+      prefetch={false}
       className={`navLink${isActive ? " navLinkActive" : ""}`}
       aria-current={isActive ? "page" : undefined}
     >
@@ -109,7 +122,7 @@ function SettingsNav({ pathname, profileHandle }: { pathname: string; profileHan
   return (
     <div className="navSettingsBlock">
       <div className={`navSectionSummary navSettingsRow${isActive ? " navLinkActive" : ""}`}>
-        <Link href={indexHref} className="navSettingsLink" aria-current={isActive ? "page" : undefined}>
+        <Link href={indexHref} prefetch={false} className="navSettingsLink" aria-current={isActive ? "page" : undefined}>
           <SettingsIcon size={14} aria-hidden="true" />
           Settings
         </Link>

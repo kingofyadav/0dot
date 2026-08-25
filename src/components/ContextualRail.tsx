@@ -37,7 +37,12 @@ export async function ContextualRail() {
           <h2>
             <Bell size={16} aria-hidden="true" /> Notifications
           </h2>
-          <Link href="/notifications">See all</Link>
+          {/* prefetch={false}: this rail is persistent chrome on every route
+              (see the component comment above) — eagerly prefetching these
+              fixed nav-style destinations on every single page view was
+              contributing to the DB-connection-burst 503s NavLinks.tsx's
+              own comment documents (same root cause, same fix). */}
+          <Link href="/notifications" prefetch={false}>See all</Link>
         </div>
         {notifications.length === 0 && <EmptyState message="Nothing yet." />}
         <div className="stack">
@@ -61,7 +66,7 @@ export async function ContextualRail() {
             <h2>
               <Users size={16} aria-hidden="true" /> Suggested for you
             </h2>
-            <Link href="/explore">See all</Link>
+            <Link href="/explore" prefetch={false}>See all</Link>
           </div>
           <div className="stack">
             {suggestedUsers.map((u) => (
@@ -88,11 +93,12 @@ export async function ContextualRail() {
           </h2>
         </div>
         <div className="railAiCardLinks">
-          <Link href={recipientHandle ? `/s/${recipientHandle}` : "/feed"} className="railAiCardLink">
+          <Link href={recipientHandle ? `/s/${recipientHandle}` : "/feed"} prefetch={false} className="railAiCardLink">
             <PenLine size={14} aria-hidden="true" /> Write my bio with AI
           </Link>
           <Link
             href={recipientHandle ? `/s/${recipientHandle}/content/articles` : "/feed"}
+            prefetch={false}
             className="railAiCardLink"
           >
             <Globe size={14} aria-hidden="true" /> Draft &amp; translate articles
@@ -119,7 +125,7 @@ export async function ContextualRail() {
               <Palette size={14} aria-hidden="true" /> Extra curated themes
             </div>
           </div>
-          <Link href={`/s/${recipientHandle}`} className="button buttonSmall railPlanCardCta">
+          <Link href={`/s/${recipientHandle}`} prefetch={false} className="button buttonSmall railPlanCardCta">
             See plans
           </Link>
         </section>
@@ -143,10 +149,10 @@ async function AnonymousContextualRail() {
           <div className="railPlanCardPerk">Log in to like, reply, and follow.</div>
         </div>
         <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.15rem" }}>
-          <Link href="/login" className="button buttonSmall" style={{ flex: 1, textAlign: "center" }}>
+          <Link href="/login" prefetch={false} className="button buttonSmall" style={{ flex: 1, textAlign: "center" }}>
             Log in
           </Link>
-          <Link href="/signup" className="button buttonSecondary buttonSmall" style={{ flex: 1, textAlign: "center" }}>
+          <Link href="/signup" prefetch={false} className="button buttonSecondary buttonSmall" style={{ flex: 1, textAlign: "center" }}>
             Sign up
           </Link>
         </div>
