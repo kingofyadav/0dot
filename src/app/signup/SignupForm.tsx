@@ -28,7 +28,9 @@ export function SignupForm() {
 
       <section className="landingHero">
         <h1>Claim your permanent link.</h1>
-        <p>0dot.in/yourname — one identity for everything you make.</p>
+        <p>
+          <span className="brandUrl">0dot.in</span>/yourname — one identity for everything you make.
+        </p>
         <ExploreLiveLink />
 
         <DigitalHomeVisual variant="calm" onProfileActivate={focusFirstField} />

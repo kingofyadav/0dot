@@ -81,7 +81,7 @@ export function UserListItem({
                 whiteSpace: "nowrap",
               }}
             >
-              0dot.in/{handle}
+              <span className="brandUrl">0dot.in</span>/{handle}
             </span>
           )}
         </span>

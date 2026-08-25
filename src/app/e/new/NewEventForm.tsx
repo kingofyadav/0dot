@@ -109,7 +109,9 @@ export function NewEventForm({
           maxLength={60}
           required
         />
-        <span className="mutedText">0dot.in/e/your-event — this is permanent.</span>
+        <span className="mutedText">
+          <span className="brandUrl">0dot.in</span>/e/your-event — this is permanent.
+        </span>
       </div>
 
       <div className="field">

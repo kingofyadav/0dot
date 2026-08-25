@@ -34,7 +34,9 @@ export default function NewBusinessPage() {
             maxLength={40}
             required
           />
-          <span className="mutedText">0dot.in/b/your-business — this is permanent.</span>
+          <span className="mutedText">
+            <span className="brandUrl">0dot.in</span>/b/your-business — this is permanent.
+          </span>
         </div>
 
         <div className="field">

@@ -81,7 +81,9 @@ export function LandingLiveShowcase() {
         <span className="landingPreviewDot" />
         <span className="landingPreviewDot" />
         <span className="landingPreviewDot" />
-        <span className="landingPreviewUrl">0dot.in/{profile.handle}</span>
+        <span className="landingPreviewUrl">
+          <span className="brandUrl">0dot.in</span>/{profile.handle}
+        </span>
       </div>
       <div className="landingPreviewBody" key={profile.handle}>
         <div className="landingPreviewCover" />

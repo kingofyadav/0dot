@@ -25,7 +25,9 @@ export function NewCommunityForm({ organizations }: { organizations: { id: strin
           maxLength={40}
           required
         />
-        <span className="mutedText">0dot.in/c/your-community — this is permanent.</span>
+        <span className="mutedText">
+          <span className="brandUrl">0dot.in</span>/c/your-community — this is permanent.
+        </span>
       </div>
 
       <div className="field">

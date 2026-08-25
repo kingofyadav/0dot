@@ -184,7 +184,7 @@ export default async function SearchPage({
                 </span>
               )}
               <span className="mutedText" style={{ marginLeft: "0.5rem" }}>
-                0dot.in/{row.handle}
+                <span className="brandUrl">0dot.in</span>/{row.handle}
               </span>
             </Link>
           ))}
@@ -208,7 +208,12 @@ export default async function SearchPage({
                     <BadgeCheck size={14} aria-hidden="true" />
                   </span>
                 )}
-                {post.author.username ? ` · 0dot.in/${post.author.username.handle}` : ""}
+                {post.author.username && (
+                  <>
+                    {" · "}
+                    <span className="brandUrl">0dot.in</span>/{post.author.username.handle}
+                  </>
+                )}
               </span>
               <span>{post.body}</span>
             </Link>

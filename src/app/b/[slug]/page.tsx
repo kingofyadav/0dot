@@ -192,12 +192,6 @@ export default async function BusinessPage({ params }: { params: Promise<{ slug:
             </button>
           </form>
         )}
-        <details className="profileActionsToggle">
-          <summary className="button buttonSecondary">Message</summary>
-          <div className="profileActionsExpand">
-            <BusinessContactForm businessId={business.id} isLoggedIn={Boolean(currentUser)} />
-          </div>
-        </details>
       </div>
 
       {business.locations.length > 0 && (

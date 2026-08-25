@@ -50,7 +50,9 @@ export function ClaimUsernameForm() {
             maxLength={30}
             required
           />
-          <span className="mutedText">0dot.in/yourname — this is permanent.</span>
+          <span className="mutedText">
+            <span className="brandUrl">0dot.in</span>/yourname — this is permanent.
+          </span>
         </div>
 
         {state?.error && <p className="errorText">{state.error}</p>}

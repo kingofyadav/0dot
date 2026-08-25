@@ -111,7 +111,11 @@ export function NewMessageForm({
             )}
             <span style={{ marginLeft: "0.6rem" }}>
               <span style={{ fontWeight: 600, display: "block" }}>{candidate.displayName}</span>
-              {candidate.handle && <span className="mutedText">0dot.in/{candidate.handle}</span>}
+              {candidate.handle && (
+                <span className="mutedText">
+                  <span className="brandUrl">0dot.in</span>/{candidate.handle}
+                </span>
+              )}
             </span>
           </label>
         ))}
