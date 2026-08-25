@@ -7,6 +7,7 @@ import { EmptyState } from "../../src/components/EmptyState";
 import { FAB } from "../../src/components/FAB";
 import { ConversationRowSkeleton } from "../../src/components/Skeleton";
 import { useMessagesStreamEvents } from "../../src/realtime/MessagesStreamContext";
+import { useUnreadBadges } from "../../src/realtime/UnreadBadgeContext";
 import { animateNextLayout } from "../../src/utils/animateLayout";
 import { haptics } from "../../src/utils/haptics";
 import { useContentMaxWidth } from "../../src/utils/responsive";
@@ -17,6 +18,7 @@ export default function MessagesScreen() {
   const theme = useTheme();
   const maxWidth = useContentMaxWidth();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const { refetch: refetchUnreadBadges } = useUnreadBadges();
 
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -87,6 +89,7 @@ export default function MessagesScreen() {
     animateNextLayout();
     setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, isUnread: false } : c)));
     markConversationRead(id).catch(() => {});
+    refetchUnreadBadges();
   }
 
   if (loading) {
@@ -119,7 +122,17 @@ export default function MessagesScreen() {
             <ConversationRow
               conversation={item}
               onPress={() =>
-                router.push({ pathname: "/messages/[id]", params: { id: item.id, title: item.title, avatarUrl: item.avatarUrl ?? "" } })
+                router.push({
+                  pathname: "/messages/[id]",
+                  params: {
+                    id: item.id,
+                    title: item.title,
+                    avatarUrl: item.avatarUrl ?? "",
+                    otherUserId: item.otherUserId ?? "",
+                    isOnline: item.isOnline ? "1" : "",
+                    otherLastActiveAt: item.otherLastActiveAt ?? "",
+                  },
+                })
               }
               onMarkRead={() => onMarkRead(item.id)}
             />

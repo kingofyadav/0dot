@@ -49,6 +49,21 @@ export function resolvePath(path: string): void {
     return;
   }
 
+  // Mobile pro-upgrade addendum M13: followers/following lists. Two
+  // segments, so these must be checked before the single-segment
+  // usernameMatch catch-all below (which only matches "/{username}",
+  // not "/{username}/followers").
+  const followersMatch = path.match(/^\/([^/?#]+)\/followers\/?$/);
+  if (followersMatch) {
+    router.push({ pathname: "/[username]/followers", params: { username: followersMatch[1] } });
+    return;
+  }
+  const followingMatch = path.match(/^\/([^/?#]+)\/following\/?$/);
+  if (followingMatch) {
+    router.push({ pathname: "/[username]/following", params: { username: followingMatch[1] } });
+    return;
+  }
+
   // Every other known top-level namespace this app doesn't have a native
   // screen for yet (marketplace items, businesses' sub-pages, ...) falls
   // through below — checked before the bare-username catch-all so e.g.

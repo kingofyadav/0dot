@@ -3,7 +3,13 @@ import { resolveApiRequest, requireScope, requireVerifiedApiUser, apiError } fro
 import { checkApiRateLimit } from "@/lib/api-rate-limit";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { isBlockedEitherWay } from "@/lib/blocks";
-import { getParticipant, getMessagesForConversation, otherParticipantIds, recordMessageAndNotify } from "@/lib/messaging";
+import {
+  getParticipant,
+  getMessagesForConversation,
+  otherParticipantIds,
+  recordMessageAndNotify,
+  resolveMessageAttachment,
+} from "@/lib/messaging";
 import { parseCursor } from "@/lib/pagination";
 import { revalidatePath } from "next/cache";
 
@@ -42,6 +48,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         senderId: m.senderId,
         attachmentType: m.attachmentType,
         attachmentUrl: m.attachmentUrl,
+        attachmentMimeType: m.attachmentMimeType,
+        attachmentDurationS: m.attachmentDurationS,
         createdAt: m.createdAt,
         deletedAt: m.deletedAt,
       })),
@@ -68,10 +76,30 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (verifiedError) return apiError(verifiedError.error, verifiedError.status);
 
   const { id: conversationId } = await params;
-  const payload = await request.json().catch(() => null);
-  const body = typeof payload?.body === "string" ? payload.body.trim() : "";
 
-  if (body.length < 1) return apiError("Message can't be empty.", 400);
+  // Same dual JSON/multipart shape as PATCH /api/v1/users/me and POST
+  // /api/v1/posts — an attachment (voice note or file) needs a real file
+  // upload; a text-only message doesn't need to pay for a multipart
+  // request. Mirrors actions/messages.ts's sendMessage exactly, including
+  // spec §5.1's "body is nullable if attachment-only" rule.
+  const isMultipart = (request.headers.get("content-type") ?? "").startsWith("multipart/form-data");
+  let body = "";
+  let attachmentResult: Awaited<ReturnType<typeof resolveMessageAttachment>> = { attachment: null };
+
+  if (isMultipart) {
+    const form = await request.formData().catch(() => null);
+    if (!form) return apiError("Invalid form data.", 400);
+    body = String(form.get("body") ?? "").trim();
+    attachmentResult = await resolveMessageAttachment(form, ctx.userId);
+  } else {
+    const payload = await request.json().catch(() => null);
+    body = typeof payload?.body === "string" ? payload.body.trim() : "";
+  }
+
+  if ("error" in attachmentResult) return apiError(attachmentResult.error, 400);
+  const { attachment } = attachmentResult;
+
+  if (body.length < 1 && !attachment) return apiError("Message can't be empty.", 400);
   if (body.length > MAX_MESSAGE_LENGTH) return apiError(`Messages are limited to ${MAX_MESSAGE_LENGTH} characters.`, 400);
   if (!checkRateLimit(`message:send:user:${ctx.userId}`, { max: 60, windowMs: 5 * 60 * 1000 })) {
     return apiError(RATE_LIMIT_ERROR, 429);
@@ -98,11 +126,25 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
   }
 
-  const message = await recordMessageAndNotify({ conversationId, senderId: ctx.userId, body, attachment: null });
+  const message = await recordMessageAndNotify({
+    conversationId,
+    senderId: ctx.userId,
+    body: body.length > 0 ? body : null,
+    attachment,
+  });
   revalidatePath("/messages");
 
   return Response.json(
-    { id: message.id, body: message.body, senderId: message.senderId, createdAt: message.createdAt },
+    {
+      id: message.id,
+      body: message.body,
+      senderId: message.senderId,
+      attachmentType: message.attachmentType,
+      attachmentUrl: message.attachmentUrl,
+      attachmentMimeType: message.attachmentMimeType,
+      attachmentDurationS: message.attachmentDurationS,
+      createdAt: message.createdAt,
+    },
     { status: 201, headers: { "X-RateLimit-Limit": String(limit), "X-RateLimit-Remaining": String(remaining) } }
   );
 }

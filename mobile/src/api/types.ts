@@ -66,6 +66,7 @@ export type NotificationItem = {
 };
 
 export type NotificationsResponse = {
+  unreadCount: number;
   items: NotificationItem[];
   nextCursor: string | null;
 };
@@ -89,6 +90,11 @@ export type SearchUser = {
 
 export type SearchUsersResponse = { items: SearchUser[] };
 
+// Mobile pro-upgrade addendum, sub-phase M13 (followers/following lists).
+// Same SearchUser row shape UserRow already renders, just cursor-paginated
+// like FeedResponse rather than the one-shot SearchUsersResponse.
+export type FollowListResponse = { items: SearchUser[]; nextCursor: string | null };
+
 // Mobile pro-upgrade addendum, sub-phase M3 — mirrors the /api/v1/conversations*
 // routes' response shapes exactly (see those routes on the server).
 export type ConversationSummary = {
@@ -98,13 +104,23 @@ export type ConversationSummary = {
   handle: string | null;
   avatarUrl: string | null;
   otherUserId: string | null;
+  // Mobile pro-upgrade addendum, sub-phase M13 (active/last-seen). Mirrors
+  // getConversationDisplayInfo's own otherUserId/otherLastActiveAt split —
+  // isOnline is presence.ts's in-memory "has an open SSE tab" read, taken
+  // once per request; otherLastActiveAt is the DB-persisted fallback for
+  // when they don't.
+  isOnline: boolean;
+  otherLastActiveAt: string | null;
   lastMessageAt: string;
   lastMessagePreview: string | null;
   isUnread: boolean;
   isRequest: boolean;
 };
 
-export type ConversationsResponse = { items: ConversationSummary[]; nextCursor: string | null };
+export type ConversationsResponse = { unreadCount: number; items: ConversationSummary[]; nextCursor: string | null };
+
+// Mobile pro-upgrade addendum, sub-phase M13 (tab-bar unread badges).
+export type UnreadCounts = { messages: number; notifications: number };
 
 export type MessageableCandidate = {
   userId: string;
@@ -119,6 +135,8 @@ export type MessageItem = {
   senderId: string;
   attachmentType: string | null;
   attachmentUrl: string | null;
+  attachmentMimeType: string | null;
+  attachmentDurationS: number | null;
   createdAt: string;
   deletedAt: string | null;
 };
@@ -205,6 +223,16 @@ export type EventSummary = {
 };
 
 export type EventsResponse = { items: EventSummary[] };
+
+// Mobile pro-upgrade addendum, sub-phase M13 (widened Explore search).
+// Lighter than EventSummary — GET /api/v1/search?type=events only selects
+// title+date (see that route's own comment for why), not the full host/
+// cover fields the events list screen shows.
+export type EventSearchResult = { slug: string; title: string; startsAt: string };
+
+export type CommunitySearchResponse = { items: CommunitySummary[] };
+export type BusinessSearchResponse = { items: BusinessSummary[] };
+export type EventSearchResponse = { items: EventSearchResult[] };
 
 export type EventRsvpStatus = "going" | "interested" | "not_going";
 

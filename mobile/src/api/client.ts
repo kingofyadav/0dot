@@ -1,3 +1,4 @@
+import { File } from "expo-file-system";
 import { API_BASE_URL } from "../config";
 import { loadTokens, saveTokens, clearTokens } from "../auth/tokenStorage";
 import { refreshAccessToken, RefreshFailedError } from "../auth/pkceAuth";
@@ -12,6 +13,11 @@ import type {
   NotificationPreferenceChannel,
   NotificationPreferencesResponse,
   SearchUsersResponse,
+  FollowListResponse,
+  CommunitySearchResponse,
+  BusinessSearchResponse,
+  EventSearchResponse,
+  UnreadCounts,
   ConversationsResponse,
   MessagesResponse,
   MessageItem,
@@ -46,11 +52,17 @@ export type LocalImage = { uri: string; mimeType?: string | null; fileName?: str
 // wrinkle in an otherwise standard FormData upload, centralized here so
 // every upload call site doesn't repeat the same fallback logic.
 function appendImage(form: FormData, field: string, image: LocalImage, index: number) {
-  form.append(field, {
-    uri: image.uri,
-    name: image.fileName ?? `${field}-${index}.jpg`,
-    type: image.mimeType ?? "image/jpeg",
-  } as unknown as Blob);
+  // A plain { uri, name, type } object — the long-standing RN convention —
+  // throws "Unsupported FormDataPart implementation" under Expo SDK 57's
+  // fetch (expo/src/winter/fetch/convertFormData.ts, whose own comment
+  // says outright: "uri is not supported for React Native's FormData").
+  // That converter accepts a real Blob or anything exposing `.bytes()`
+  // (File/ExpoBlob) — expo-file-system's File implements exactly that
+  // (plus `.name`/`.type`, which the multipart header logic also reads
+  // straight off the appended value), so wrapping the picked URI in one
+  // is the fix, not a new upload mechanism.
+  const file = new File(image.uri);
+  form.append(field, file as unknown as Blob, image.fileName ?? `${field}-${index}.jpg`);
 }
 
 // apiError (api-auth.ts) always responds { error: string } on the server
@@ -202,6 +214,13 @@ export function repostPost(id: string): Promise<{ reposted: boolean; repostCount
   return authorizedRequest(`/api/v1/posts/${encodeURIComponent(id)}/repost`, { method: "POST" });
 }
 
+// Mobile pro-upgrade addendum, sub-phase M13 (long-press quick actions,
+// own-post Delete). Mirrors actions/posts.ts's deletePost — soft delete,
+// author-only (enforced server-side, not just hidden client-side).
+export function deletePost(id: string): Promise<{ ok: true }> {
+  return authorizedRequest(`/api/v1/posts/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
 export function toggleBookmark(id: string): Promise<{ bookmarked: boolean }> {
   return authorizedRequest(`/api/v1/posts/${encodeURIComponent(id)}/bookmark`, { method: "POST" });
 }
@@ -211,6 +230,20 @@ export function getBookmarks(cursor?: string | null): Promise<FeedResponse> {
   return authorizedRequest<FeedResponse>(`/api/v1/bookmarks${query}`);
 }
 
+export function getUnreadCounts(): Promise<UnreadCounts> {
+  return authorizedRequest<UnreadCounts>("/api/v1/unread-counts");
+}
+
+export function getFollowers(username: string, cursor?: string | null): Promise<FollowListResponse> {
+  const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
+  return authorizedRequest<FollowListResponse>(`/api/v1/profiles/${encodeURIComponent(username)}/followers${query}`);
+}
+
+export function getFollowing(username: string, cursor?: string | null): Promise<FollowListResponse> {
+  const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
+  return authorizedRequest<FollowListResponse>(`/api/v1/profiles/${encodeURIComponent(username)}/following${query}`);
+}
+
 export function searchUsers(q: string): Promise<SearchUsersResponse> {
   return authorizedRequest<SearchUsersResponse>(`/api/v1/search?type=users&q=${encodeURIComponent(q)}`);
 }
@@ -218,6 +251,25 @@ export function searchUsers(q: string): Promise<SearchUsersResponse> {
 export function searchPosts(q: string, cursor?: string | null): Promise<FeedResponse> {
   const cursorQuery = cursor ? `&cursor=${encodeURIComponent(cursor)}` : "";
   return authorizedRequest<FeedResponse>(`/api/v1/search?type=posts&q=${encodeURIComponent(q)}${cursorQuery}`);
+}
+
+// Mobile pro-upgrade addendum, sub-phase M13 — widened Explore search.
+// None of these four paginate (mirrors GET /api/v1/search's own
+// per-type behavior: only posts/users cursor today).
+export function searchCommunities(q: string): Promise<CommunitySearchResponse> {
+  return authorizedRequest<CommunitySearchResponse>(`/api/v1/search?type=communities&q=${encodeURIComponent(q)}`);
+}
+
+export function searchBusinesses(q: string): Promise<BusinessSearchResponse> {
+  return authorizedRequest<BusinessSearchResponse>(`/api/v1/search?type=businesses&q=${encodeURIComponent(q)}`);
+}
+
+export function searchEvents(q: string): Promise<EventSearchResponse> {
+  return authorizedRequest<EventSearchResponse>(`/api/v1/search?type=events&q=${encodeURIComponent(q)}`);
+}
+
+export function searchMarketplace(q: string): Promise<MarketplaceResponse> {
+  return authorizedRequest<MarketplaceResponse>(`/api/v1/search?type=marketplace&q=${encodeURIComponent(q)}`);
 }
 
 // Sub-phase M3 (Messages/DMs). Polling-based, no live socket — see
@@ -240,11 +292,35 @@ export function getMessages(conversationId: string, cursor?: string | null): Pro
   return authorizedRequest<MessagesResponse>(`/api/v1/conversations/${encodeURIComponent(conversationId)}/messages${query}`);
 }
 
-export function sendConversationMessage(conversationId: string, body: string): Promise<MessageItem> {
-  return authorizedRequest(`/api/v1/conversations/${encodeURIComponent(conversationId)}/messages`, {
-    method: "POST",
-    body: JSON.stringify({ body }),
-  });
+export type MessageAttachmentUpload = {
+  uri: string;
+  name: string;
+  mimeType: string;
+  kind: "voice_note" | "file";
+  durationS?: number | null;
+};
+
+// Mobile pro-upgrade addendum, sub-phase M13 (voice notes + file attach).
+// Same dual JSON/multipart split every other upload-capable endpoint in
+// this file already uses (appendImage's own comment) — plain JSON stays
+// the common case (no attachment), multipart only pays for itself when
+// one is actually attached.
+export function sendConversationMessage(
+  conversationId: string,
+  body: string,
+  attachment?: MessageAttachmentUpload
+): Promise<MessageItem> {
+  const path = `/api/v1/conversations/${encodeURIComponent(conversationId)}/messages`;
+  if (!attachment) {
+    return authorizedRequest(path, { method: "POST", body: JSON.stringify({ body }) });
+  }
+  const form = new FormData();
+  form.append("body", body);
+  form.append("attachmentKind", attachment.kind);
+  if (attachment.durationS != null) form.append("attachmentDurationS", String(attachment.durationS));
+  const file = new File(attachment.uri);
+  form.append("attachment", file as unknown as Blob, attachment.name);
+  return authorizedRequest(path, { method: "POST", body: form }, UPLOAD_TIMEOUT_MS);
 }
 
 export function markConversationRead(conversationId: string): Promise<{ ok: true }> {

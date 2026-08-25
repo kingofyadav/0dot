@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Animated from "react-native-reanimated";
 import { Image } from "expo-image";
@@ -67,12 +67,20 @@ export default function ComposeScreen() {
   }
 
   function onCancel() {
+    if (body.trim().length === 0 && images.length === 0) {
+      haptics.light();
+      router.back();
+      return;
+    }
     haptics.light();
-    router.back();
+    Alert.alert("Discard post?", "Your draft will be lost.", [
+      { text: "Keep editing", style: "cancel" },
+      { text: "Discard", style: "destructive", onPress: () => router.back() },
+    ]);
   }
 
   return (
-    <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+    <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : "height"}>
       <SafeAreaView style={styles.flex} edges={["top", "bottom"]}>
         <View style={styles.topBar}>
           <Pressable onPress={onCancel} accessibilityRole="button" accessibilityLabel="Cancel" style={styles.topBarButton}>

@@ -29,7 +29,10 @@ export function ConversationRow({ conversation, onPress, onMarkRead }: Props) {
       onPress={onPress}
       highlighted={conversation.isUnread}
     >
-      <Avatar uri={conversation.avatarUrl} name={conversation.title} size={48} />
+      <View>
+        <Avatar uri={conversation.avatarUrl} name={conversation.title} size={48} />
+        {conversation.isOnline ? <View style={[styles.onlineDot, { borderColor: theme.colors.surface }]} /> : null}
+      </View>
       <View style={styles.body}>
         <View style={styles.topRow}>
           <Text style={[styles.name, conversation.isUnread && styles.nameUnread]} numberOfLines={1}>
@@ -87,5 +90,15 @@ function createStyles(theme: Theme) {
     previewUnread: { color: theme.colors.foreground, fontWeight: theme.weight.label },
     dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: theme.colors.accent },
     markReadAction: { width: 72, alignItems: "center", justifyContent: "center" },
+    onlineDot: {
+      position: "absolute",
+      right: -1,
+      bottom: -1,
+      width: 13,
+      height: 13,
+      borderRadius: 7,
+      backgroundColor: theme.colors.success,
+      borderWidth: 2,
+    },
   });
 }

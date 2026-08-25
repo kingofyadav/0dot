@@ -2,11 +2,14 @@ import { useCallback, useMemo, useState } from "react";
 import { FlatList, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, View } from "react-native";
 import { Image } from "expo-image";
 import { router, Stack, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { useAuth } from "../../src/auth/AuthContext";
 import { getCommunity, getCommunityPosts, joinCommunity, leaveCommunity, createCommunityPost, likePost, repostPost, toggleBookmark, ApiError } from "../../src/api/client";
 import { Avatar } from "../../src/components/Avatar";
 import { Button } from "../../src/components/Button";
 import { EmptyState } from "../../src/components/EmptyState";
+import { PostActionsSheet } from "../../src/components/PostActionsSheet";
 import { PostRow } from "../../src/components/PostRow";
+import { ReplySheet } from "../../src/components/ReplySheet";
 import { SkeletonBlock } from "../../src/components/Skeleton";
 import { animateNextLayout } from "../../src/utils/animateLayout";
 import { haptics } from "../../src/utils/haptics";
@@ -21,6 +24,7 @@ export default function CommunityScreen() {
   const theme = useTheme();
   const maxWidth = useContentMaxWidth();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const { me } = useAuth();
 
   const [community, setCommunity] = useState<CommunityDetail | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
@@ -28,6 +32,8 @@ export default function CommunityScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [joinBusy, setJoinBusy] = useState(false);
+  const [replyTarget, setReplyTarget] = useState<Post | null>(null);
+  const [actionsTarget, setActionsTarget] = useState<Post | null>(null);
   const [draft, setDraft] = useState("");
   const [posting, setPosting] = useState(false);
 
@@ -169,7 +175,7 @@ export default function CommunityScreen() {
   return (
     <>
       <Stack.Screen options={{ title: community.name }} />
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={90}>
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : "height"} keyboardVerticalOffset={90}>
         <View style={[styles.contentWrap, maxWidth ? { maxWidth, alignSelf: "center", width: "100%" } : null]}>
           <FlatList
             style={styles.flex}
@@ -227,11 +233,30 @@ export default function CommunityScreen() {
                 onToggleLike={() => onToggleLike(item)}
                 onToggleRepost={() => onToggleRepost(item.id)}
                 onToggleBookmark={() => onToggleBookmark(item)}
+                onReply={() => setReplyTarget(item)}
+                onLongPress={() => setActionsTarget(item)}
               />
             )}
           />
         </View>
       </KeyboardAvoidingView>
+      <ReplySheet
+        post={replyTarget}
+        onClose={() => setReplyTarget(null)}
+        onReplied={() => {
+          const repliedId = replyTarget?.id;
+          setPosts((prev) => prev.map((p) => (p.id === repliedId ? { ...p, replyCount: p.replyCount + 1 } : p)));
+        }}
+      />
+      <PostActionsSheet
+        post={actionsTarget}
+        isOwnPost={actionsTarget !== null && actionsTarget.author === me?.username}
+        onClose={() => setActionsTarget(null)}
+        onDeleted={() => {
+          const deletedId = actionsTarget?.id;
+          setPosts((prev) => prev.filter((p) => p.id !== deletedId));
+        }}
+      />
     </>
   );
 }

@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { resolveApiRequest, requireScope, apiError } from "@/lib/api-auth";
 import { checkApiRateLimit } from "@/lib/api-rate-limit";
 import { parseCursor, cursorWhere, paginate, POST_PAGE_SIZE } from "@/lib/pagination";
-import { getNotificationVerb, getNotificationHref } from "@/lib/notifications";
+import { getNotificationVerb, getNotificationHref, getUnreadNotificationCount } from "@/lib/notifications";
 
 const actorInclude = { username: true, profile: true } as const;
 
@@ -20,16 +20,20 @@ export async function GET(request: Request) {
   const recipientHandle = recipient?.username?.handle ?? null;
 
   const cursor = parseCursor(new URL(request.url).searchParams.get("cursor") ?? undefined);
-  const rows = await db.notification.findMany({
-    where: { recipientId: ctx.userId, ...cursorWhere(cursor) },
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    take: POST_PAGE_SIZE + 1,
-    include: { actor: { include: actorInclude } },
-  });
+  const [rows, unreadCount] = await Promise.all([
+    db.notification.findMany({
+      where: { recipientId: ctx.userId, ...cursorWhere(cursor) },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: POST_PAGE_SIZE + 1,
+      include: { actor: { include: actorInclude } },
+    }),
+    getUnreadNotificationCount(ctx.userId),
+  ]);
   const { items, nextCursor } = paginate(rows);
 
   return Response.json(
     {
+      unreadCount,
       items: items.map((n) => ({
         id: n.id,
         type: n.type,

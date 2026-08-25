@@ -3,11 +3,13 @@ import { resolveApiRequest, requireScope, requireVerifiedApiUser, apiError } fro
 import { checkApiRateLimit } from "@/lib/api-rate-limit";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { isBlockedEitherWay } from "@/lib/blocks";
+import { isUserOnline } from "@/lib/presence";
 import {
   listInboxConversations,
   parseConversationCursor,
   getConversationDisplayInfo,
   isConversationUnreadFor,
+  getUnreadConversationCount,
   getOrCreateDirectConversation,
   determineInitialRequestStatus,
   canReceiveDmFrom,
@@ -32,10 +34,14 @@ export async function GET(request: Request) {
   if (!allowed) return apiError("Rate limit exceeded.", 429);
 
   const cursor = parseConversationCursor(new URL(request.url).searchParams.get("cursor") ?? undefined);
-  const { items, nextCursor } = await listInboxConversations(ctx.userId, cursor);
+  const [{ items, nextCursor }, unreadCount] = await Promise.all([
+    listInboxConversations(ctx.userId, cursor),
+    getUnreadConversationCount(ctx.userId),
+  ]);
 
   return Response.json(
     {
+      unreadCount,
       items: items.map((conversation) => {
         const display = getConversationDisplayInfo(conversation, ctx.userId);
         const myParticipant = conversation.participants.find((p) => p.userId === ctx.userId);
@@ -46,6 +52,14 @@ export async function GET(request: Request) {
           handle: display.handle,
           avatarUrl: display.avatarUrl,
           otherUserId: display.otherUserId,
+          // Same two raw ingredients the web inbox/conversation header
+          // combine for the green dot / "Active Xm ago" line
+          // (getConversationDisplayInfo's own comment) — isUserOnline is
+          // the in-memory SSE-connection tracker (presence.ts), read
+          // synchronously per row here the same way the web page reads it
+          // per conversation.
+          isOnline: display.otherUserId ? isUserOnline(display.otherUserId) : false,
+          otherLastActiveAt: display.otherLastActiveAt,
           lastMessageAt: conversation.lastMessageAt,
           lastMessagePreview: conversation.lastMessagePreview,
           isUnread: isConversationUnreadFor(ctx.userId, conversation, myParticipant),

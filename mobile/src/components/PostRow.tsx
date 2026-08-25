@@ -20,6 +20,8 @@ type Props = {
   onToggleLike: () => void;
   onToggleRepost: () => void | Promise<void>;
   onToggleBookmark: () => void;
+  onReply: () => void;
+  onLongPress?: () => void;
 };
 
 // Shared by the three stat toggles below (like/repost/bookmark) so each
@@ -73,7 +75,7 @@ export const statButtonStyles = shellStyles;
 // same row shape (avatar, byline, body/media, like/reply/repost/bookmark
 // stats), so this is the one place that shape is defined rather than two
 // screens each keeping their own copy in sync by hand.
-export function PostRow({ post, onPress, onToggleLike, onToggleRepost, onToggleBookmark }: Props) {
+export function PostRow({ post, onPress, onToggleLike, onToggleRepost, onToggleBookmark, onReply, onLongPress }: Props) {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
@@ -103,7 +105,7 @@ export function PostRow({ post, onPress, onToggleLike, onToggleRepost, onToggleB
   }
 
   return (
-    <ListRow accessibilityLabel={`Post by ${post.authorDisplayName ?? post.author ?? "someone"}`} onPress={onPress}>
+    <ListRow accessibilityLabel={`Post by ${post.authorDisplayName ?? post.author ?? "someone"}`} onPress={onPress} onLongPress={onLongPress}>
       <Avatar uri={post.authorAvatarUrl} name={post.authorDisplayName ?? post.author} size={44} />
       <View style={styles.postBody}>
         <View style={styles.byline}>
@@ -131,10 +133,10 @@ export function PostRow({ post, onPress, onToggleLike, onToggleRepost, onToggleB
             </Animated.View>
             <Text style={[styles.statText, post.isLiked && { color: theme.colors.accent }]}>{post.likeCount}</Text>
           </StatButton>
-          <View style={shellStyles.stat}>
+          <StatButton accessibilityLabel="Reply" onPress={onReply}>
             <Ionicons name="chatbubble-outline" size={14} color={theme.colors.mutedForeground} />
             <Text style={styles.statText}>{post.replyCount}</Text>
-          </View>
+          </StatButton>
           <StatButton accessibilityLabel="Repost" onPress={handleToggleRepost}>
             {repostPending ? (
               <ActivityIndicator size="small" color={theme.colors.mutedForeground} />

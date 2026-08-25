@@ -9,6 +9,7 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 type Props = {
   onPress: () => void;
+  onLongPress?: () => void;
   accessibilityLabel: string;
   highlighted?: boolean;
   style?: StyleProp<ViewStyle>;
@@ -26,7 +27,7 @@ type Props = {
 // own version of this change — AnimatedPressable can't see inside that
 // callback), gaining a small scale spring alongside the opacity dip every
 // row across the app already had.
-export function ListRow({ onPress, accessibilityLabel, highlighted, style, children }: Props) {
+export function ListRow({ onPress, onLongPress, accessibilityLabel, highlighted, style, children }: Props) {
   const theme = useTheme();
   const { animatedStyle, onPressIn, onPressOut } = usePressScale();
 
@@ -38,6 +39,14 @@ export function ListRow({ onPress, accessibilityLabel, highlighted, style, child
         haptics.light();
         onPress();
       }}
+      onLongPress={
+        onLongPress
+          ? () => {
+              haptics.light();
+              onLongPress();
+            }
+          : undefined
+      }
       onPressIn={onPressIn}
       onPressOut={onPressOut}
       style={[

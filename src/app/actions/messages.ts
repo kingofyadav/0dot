@@ -15,44 +15,16 @@ import {
   canReceiveDmFrom,
   markConversationRead,
   recordMessageAndNotify,
+  resolveMessageAttachment,
   otherParticipantIds,
   buildMessagePreview,
   GROUP_PARTICIPANT_CAP,
-  type ResolvedAttachment,
   type SentMessage,
 } from "@/lib/messaging";
 import { publishToUsers } from "@/lib/message-events";
-import { saveMessageAttachment } from "@/lib/uploads";
 import { encryptAtRestNullable, decryptAtRestNullableSafe } from "@/lib/message-crypto";
 import { parseCursor } from "@/lib/pagination";
 import type { ActionState } from "@/app/actions/auth";
-
-// Shared by startDirectConversation and sendMessage: pulls the optional
-// "attachment" File + "attachmentKind" out of the submitted form, uploads
-// it via saveMessageAttachment (spec §5.4), and returns a typed result the
-// caller can branch on — {attachment: null} when no file was submitted at
-// all, since that's not an error, just a text-only message.
-async function resolveMessageAttachment(
-  formData: FormData,
-  uploadedById: string
-): Promise<{ error: string } | { attachment: ResolvedAttachment | null }> {
-  const file = formData.get("attachment");
-  if (!(file instanceof File) || file.size === 0) return { attachment: null };
-
-  const kindRaw = String(formData.get("attachmentKind") ?? "");
-  if (kindRaw !== "voice_note" && kindRaw !== "file") return { error: "Invalid attachment type." };
-
-  const result = await saveMessageAttachment(file, kindRaw, uploadedById);
-  if ("error" in result) return { error: result.error };
-
-  // Client-supplied, trusted for display only (spec §5.4) — not
-  // re-measured server-side, same as the spec's own "client can render a
-  // duration label without downloading the file" reasoning.
-  const durationRaw = formData.get("attachmentDurationS");
-  const durationS = kindRaw === "voice_note" && durationRaw ? Number(durationRaw) || null : null;
-
-  return { attachment: { type: kindRaw, ...result, durationS } };
-}
 
 const RATE_LIMIT_ERROR = "You're sending messages too fast. Please slow down.";
 const START_RATE_LIMIT_ERROR = "Too many new conversations started. Please slow down.";

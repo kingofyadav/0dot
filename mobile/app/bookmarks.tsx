@@ -1,10 +1,13 @@
 import { useCallback, useMemo, useState } from "react";
 import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
+import { useAuth } from "../src/auth/AuthContext";
 import { getBookmarks, likePost, repostPost, toggleBookmark, ApiError } from "../src/api/client";
 import { EmptyState } from "../src/components/EmptyState";
 import { OfflineBanner } from "../src/components/OfflineBanner";
+import { PostActionsSheet } from "../src/components/PostActionsSheet";
 import { PostRow } from "../src/components/PostRow";
+import { ReplySheet } from "../src/components/ReplySheet";
 import { FeedRowSkeleton } from "../src/components/Skeleton";
 import { animateNextLayout } from "../src/utils/animateLayout";
 import { haptics } from "../src/utils/haptics";
@@ -23,6 +26,7 @@ export default function BookmarksScreen() {
   const theme = useTheme();
   const maxWidth = useContentMaxWidth();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const { me } = useAuth();
 
   const [posts, setPosts] = useState<Post[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -31,6 +35,8 @@ export default function BookmarksScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [offlineCachedAt, setOfflineCachedAt] = useState<number | null>(null);
+  const [replyTarget, setReplyTarget] = useState<Post | null>(null);
+  const [actionsTarget, setActionsTarget] = useState<Post | null>(null);
 
   const loadFirstPage = useCallback(async () => {
     setError(null);
@@ -169,8 +175,27 @@ export default function BookmarksScreen() {
             onToggleLike={() => onToggleLike(item)}
             onToggleRepost={() => onToggleRepost(item.id)}
             onToggleBookmark={() => onToggleBookmark(item)}
+            onReply={() => setReplyTarget(item)}
+            onLongPress={() => setActionsTarget(item)}
           />
         )}
+      />
+      <ReplySheet
+        post={replyTarget}
+        onClose={() => setReplyTarget(null)}
+        onReplied={() => {
+          const repliedId = replyTarget?.id;
+          setPosts((prev) => prev.map((p) => (p.id === repliedId ? { ...p, replyCount: p.replyCount + 1 } : p)));
+        }}
+      />
+      <PostActionsSheet
+        post={actionsTarget}
+        isOwnPost={actionsTarget !== null && actionsTarget.author === me?.username}
+        onClose={() => setActionsTarget(null)}
+        onDeleted={() => {
+          const deletedId = actionsTarget?.id;
+          setPosts((prev) => prev.filter((p) => p.id !== deletedId));
+        }}
       />
     </View>
   );

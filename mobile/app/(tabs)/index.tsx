@@ -1,11 +1,15 @@
 import { useCallback, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, View } from "react-native";
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { router, useFocusEffect } from "expo-router";
+import { useAuth } from "../../src/auth/AuthContext";
 import { getFeed, likePost, repostPost, toggleBookmark, ApiError } from "../../src/api/client";
 import { EmptyState } from "../../src/components/EmptyState";
 import { FAB } from "../../src/components/FAB";
 import { OfflineBanner } from "../../src/components/OfflineBanner";
+import { PostActionsSheet } from "../../src/components/PostActionsSheet";
 import { PostRow } from "../../src/components/PostRow";
+import { ReplySheet } from "../../src/components/ReplySheet";
 import { FeedRowSkeleton } from "../../src/components/Skeleton";
 import { animateNextLayout } from "../../src/utils/animateLayout";
 import { haptics } from "../../src/utils/haptics";
@@ -20,6 +24,7 @@ export default function HomeScreen() {
   const theme = useTheme();
   const maxWidth = useContentMaxWidth();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const { me } = useAuth();
 
   const [posts, setPosts] = useState<Post[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -28,6 +33,11 @@ export default function HomeScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [offlineCachedAt, setOfflineCachedAt] = useState<number | null>(null);
+  const [replyTarget, setReplyTarget] = useState<Post | null>(null);
+  const [actionsTarget, setActionsTarget] = useState<Post | null>(null);
+  const [hasNewPosts, setHasNewPosts] = useState(false);
+  const listRef = useRef<FlatList<Post>>(null);
+  const newestPostId = useRef<string | null>(null);
 
   // Phase 15 spec §5.2: read-time offline caching. A live fetch always
   // wins and refreshes the cache; the cache is only ever consulted after a
@@ -40,6 +50,8 @@ export default function HomeScreen() {
       setNextCursor(cursor);
       setOfflineCachedAt(null);
       setCached(CACHE_KEY, items);
+      newestPostId.current = items[0]?.id ?? null;
+      setHasNewPosts(false);
     } catch (err) {
       const cached = await getCached<Post[]>(CACHE_KEY);
       if (cached && cached.value.length > 0) {
@@ -81,6 +93,35 @@ export default function HomeScreen() {
     haptics.light();
     await loadFirstPage();
     setRefreshing(false);
+  }
+
+  // Mobile pro-upgrade addendum, sub-phase M13 — a "new posts" pill
+  // instead of silently doing nothing until a manual pull-to-refresh.
+  // Cheap existence check only (no state mutation beyond the pill itself)
+  // so it never disrupts scroll position; the pill tap is what actually
+  // reloads. 30s cadence while this tab is focused, same order-of-
+  // magnitude poll messages.tsx used pre-M10 before that screen had a
+  // push-driven stream to replace it — the feed has no equivalent stream.
+  useFocusEffect(
+    useCallback(() => {
+      const interval = setInterval(async () => {
+        try {
+          const { items } = await getFeed();
+          const latest = items[0];
+          if (latest && latest.id !== newestPostId.current) setHasNewPosts(true);
+        } catch {
+          // Best-effort — a failed background check just means the pill
+          // doesn't appear this cycle; the next interval tries again.
+        }
+      }, 30_000);
+      return () => clearInterval(interval);
+    }, [])
+  );
+
+  async function onNewPostsPress() {
+    haptics.light();
+    listRef.current?.scrollToOffset({ offset: 0, animated: true });
+    await loadFirstPage();
   }
 
   async function onEndReached() {
@@ -162,6 +203,7 @@ export default function HomeScreen() {
           window width behind it. */}
       <View style={[styles.contentWrap, maxWidth ? { maxWidth, alignSelf: "center", width: "100%" } : null]}>
         <FlatList
+          ref={listRef}
           style={styles.screen}
           contentContainerStyle={posts.length === 0 ? styles.grow : undefined}
           data={posts}
@@ -185,10 +227,40 @@ export default function HomeScreen() {
               onToggleLike={() => onToggleLike(item)}
               onToggleRepost={() => onToggleRepost(item.id)}
               onToggleBookmark={() => onToggleBookmark(item)}
+              onReply={() => setReplyTarget(item)}
+              onLongPress={() => setActionsTarget(item)}
             />
           )}
         />
         <FAB icon="add" accessibilityLabel="New post" onPress={() => router.push("/compose")} />
+        {hasNewPosts ? (
+          <Pressable
+            onPress={onNewPostsPress}
+            accessibilityRole="button"
+            accessibilityLabel="Show new posts"
+            style={[styles.newPostsPill, theme.shadow.sm]}
+          >
+            <Ionicons name="arrow-up" size={14} color={theme.colors.onAccent} />
+            <Text style={styles.newPostsPillText}>New posts</Text>
+          </Pressable>
+        ) : null}
+        <ReplySheet
+          post={replyTarget}
+          onClose={() => setReplyTarget(null)}
+          onReplied={() => {
+            const repliedId = replyTarget?.id;
+            setPosts((prev) => prev.map((p) => (p.id === repliedId ? { ...p, replyCount: p.replyCount + 1 } : p)));
+          }}
+        />
+        <PostActionsSheet
+          post={actionsTarget}
+          isOwnPost={actionsTarget !== null && actionsTarget.author === me?.username}
+          onClose={() => setActionsTarget(null)}
+          onDeleted={() => {
+            const deletedId = actionsTarget?.id;
+            setPosts((prev) => prev.filter((p) => p.id !== deletedId));
+          }}
+        />
       </View>
     </View>
   );
@@ -201,5 +273,18 @@ function createStyles(theme: Theme) {
     screen: { flex: 1, backgroundColor: theme.colors.background },
     grow: { flexGrow: 1 },
     footerSpinner: { paddingVertical: theme.space[4] },
+    newPostsPill: {
+      position: "absolute",
+      top: theme.space[3],
+      alignSelf: "center",
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.space[1],
+      paddingHorizontal: theme.space[4],
+      paddingVertical: theme.space[2],
+      borderRadius: theme.radius.full,
+      backgroundColor: theme.colors.accent,
+    },
+    newPostsPillText: { color: theme.colors.onAccent, fontSize: theme.text.sm, fontWeight: theme.weight.emphasis },
   });
 }

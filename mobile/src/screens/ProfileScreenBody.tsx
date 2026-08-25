@@ -10,6 +10,7 @@ import Animated, {
 } from "react-native-reanimated";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router, useFocusEffect } from "expo-router";
+import { useAuth } from "../auth/AuthContext";
 import { getProfile, getUserPosts, followUser, unfollowUser, likePost, repostPost, toggleBookmark, blockUser, ApiError } from "../api/client";
 import { Avatar } from "../components/Avatar";
 import { DEFAULT_COVER_SOURCE } from "../components/defaultCover";
@@ -18,7 +19,9 @@ import { VerifiedBadge } from "../components/VerifiedBadge";
 import { PremiumBadge } from "../components/PremiumBadge";
 import { ImageLightbox } from "../components/ImageLightbox";
 import { EmptyState } from "../components/EmptyState";
+import { PostActionsSheet } from "../components/PostActionsSheet";
 import { PostRow } from "../components/PostRow";
+import { ReplySheet } from "../components/ReplySheet";
 import { SkeletonBlock } from "../components/Skeleton";
 import { animateNextLayout } from "../utils/animateLayout";
 import { haptics } from "../utils/haptics";
@@ -41,6 +44,7 @@ const COVER_HEIGHT = 140;
 export function ProfileScreenBody({ username, showSettingsShortcut = false }: { username: string; showSettingsShortcut?: boolean }) {
   const theme = useTheme();
   const maxWidth = useContentMaxWidth();
+  const { me } = useAuth();
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -55,6 +59,8 @@ export function ProfileScreenBody({ username, showSettingsShortcut = false }: { 
   // lightbox regardless of which one, since only one can be open at a
   // time. null both means closed.
   const [lightboxUri, setLightboxUri] = useState<string | null>(null);
+  const [replyTarget, setReplyTarget] = useState<Post | null>(null);
+  const [actionsTarget, setActionsTarget] = useState<Post | null>(null);
 
   // M12 (settings/account parity): "Block" lives on the profile itself,
   // same as web's own [username]/page.tsx button — a blocked-users *list*
@@ -275,6 +281,8 @@ export function ProfileScreenBody({ username, showSettingsShortcut = false }: { 
             onToggleLike={() => onToggleLike(item)}
             onToggleRepost={() => onToggleRepost(item.id)}
             onToggleBookmark={() => onToggleBookmark(item)}
+            onReply={() => setReplyTarget(item)}
+            onLongPress={() => setActionsTarget(item)}
           />
         )}
         ListFooterComponent={postsLoadingMore ? <ActivityIndicator style={styles.footerSpinner} color={theme.colors.accent} /> : null}
@@ -342,15 +350,25 @@ export function ProfileScreenBody({ username, showSettingsShortcut = false }: { 
               <Text style={styles.handle}>@{profile.username}</Text>
               {profile.bio ? <Text style={styles.bio}>{profile.bio}</Text> : null}
               <View style={styles.statPill}>
-                <View style={styles.statGroup}>
+                <Pressable
+                  onPress={() => router.push({ pathname: "/[username]/followers", params: { username } })}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${profile.followerCount} ${profile.followerCount === 1 ? "follower" : "followers"}`}
+                  style={styles.statGroup}
+                >
                   <Text style={styles.statNumber}>{profile.followerCount}</Text>
                   <Text style={styles.statLabel}>{profile.followerCount === 1 ? "follower" : "followers"}</Text>
-                </View>
+                </Pressable>
                 <View style={styles.statDivider} />
-                <View style={styles.statGroup}>
+                <Pressable
+                  onPress={() => router.push({ pathname: "/[username]/following", params: { username } })}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${profile.followingCount} following`}
+                  style={styles.statGroup}
+                >
                   <Text style={styles.statNumber}>{profile.followingCount}</Text>
                   <Text style={styles.statLabel}>following</Text>
-                </View>
+                </Pressable>
               </View>
               {profile.isOwnProfile ? (
                 <Button
@@ -377,6 +395,23 @@ export function ProfileScreenBody({ username, showSettingsShortcut = false }: { 
         }
       />
       <ImageLightbox uri={lightboxUri} onClose={() => setLightboxUri(null)} />
+      <ReplySheet
+        post={replyTarget}
+        onClose={() => setReplyTarget(null)}
+        onReplied={() => {
+          const repliedId = replyTarget?.id;
+          setPosts((prev) => prev.map((p) => (p.id === repliedId ? { ...p, replyCount: p.replyCount + 1 } : p)));
+        }}
+      />
+      <PostActionsSheet
+        post={actionsTarget}
+        isOwnPost={actionsTarget !== null && actionsTarget.author === me?.username}
+        onClose={() => setActionsTarget(null)}
+        onDeleted={() => {
+          const deletedId = actionsTarget?.id;
+          setPosts((prev) => prev.filter((p) => p.id !== deletedId));
+        }}
+      />
     </>
   );
 }

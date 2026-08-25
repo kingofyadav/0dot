@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { getNotifications, markNotificationsRead, ApiError } from "../../src/api/client";
+import { useUnreadBadges } from "../../src/realtime/UnreadBadgeContext";
 import { resolvePath } from "../../src/links/resolvePath";
 import { Avatar } from "../../src/components/Avatar";
 import { EmptyState } from "../../src/components/EmptyState";
@@ -24,6 +25,7 @@ export default function NotificationsScreen() {
   const theme = useTheme();
   const maxWidth = useContentMaxWidth();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const { refetch: refetchUnreadBadges } = useUnreadBadges();
 
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -92,6 +94,7 @@ export default function NotificationsScreen() {
     setItems((prev) => prev.map((item) => ({ ...item, isRead: true })));
     try {
       await markNotificationsRead();
+      refetchUnreadBadges();
     } catch {
       haptics.warning();
       await loadFirstPage();

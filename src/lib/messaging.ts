@@ -5,6 +5,7 @@ import { parseCursor, cursorWhere, paginate, POST_PAGE_SIZE, type PostCursor } f
 import { decryptAtRestNullableSafe, encryptAtRestNullable } from "@/lib/message-crypto";
 import { notifyMessage } from "@/lib/notifications";
 import { publishToUsers } from "@/lib/message-events";
+import { saveMessageAttachment } from "@/lib/uploads";
 
 // phase-2 spec §5.3: "a number to confirm with product, not a hard
 // architectural limit" — same treatment as Phase 1's link cap.
@@ -477,6 +478,34 @@ export type ResolvedAttachment = {
   sizeBytes: number;
   durationS: number | null;
 };
+
+// Moved here from actions/messages.ts (mobile pro-upgrade addendum, sub-
+// phase M13) — same "use server" boundary reasoning as ResolvedAttachment's
+// own comment above: POST /api/v1/conversations/[id]/messages needs this
+// exact validate-and-upload sequence too, and a route handler can't import
+// a server action. sendMessage/startDirectConversation now call this
+// export instead of a private copy.
+export async function resolveMessageAttachment(
+  formData: FormData,
+  uploadedById: string
+): Promise<{ error: string } | { attachment: ResolvedAttachment | null }> {
+  const file = formData.get("attachment");
+  if (!(file instanceof File) || file.size === 0) return { attachment: null };
+
+  const kindRaw = String(formData.get("attachmentKind") ?? "");
+  if (kindRaw !== "voice_note" && kindRaw !== "file") return { error: "Invalid attachment type." };
+
+  const result = await saveMessageAttachment(file, kindRaw, uploadedById);
+  if ("error" in result) return { error: result.error };
+
+  // Client-supplied, trusted for display only (spec §5.4) — not
+  // re-measured server-side, same as the spec's own "client can render a
+  // duration label without downloading the file" reasoning.
+  const durationRaw = formData.get("attachmentDurationS");
+  const durationS = kindRaw === "voice_note" && durationRaw ? Number(durationRaw) || null : null;
+
+  return { attachment: { type: kindRaw, ...result, durationS } };
+}
 
 const messageSelect = {
   id: true,

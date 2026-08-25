@@ -69,7 +69,7 @@ export default function NewMessageScreen() {
 
   if (recipient) {
     return (
-      <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={90}>
+      <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === "ios" ? "padding" : "height"} keyboardVerticalOffset={90}>
         <View style={styles.recipientHeader}>
           <Avatar uri={recipient.avatarUrl} name={recipient.displayName} size={40} />
           <Text style={styles.recipientName}>{recipient.displayName}</Text>

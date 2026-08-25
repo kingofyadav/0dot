@@ -20,13 +20,16 @@ jest.mock("../../src/api/client", () => {
   return { getMe: jest.fn(), updateProfile: jest.fn(), ApiError };
 });
 
-import { render } from "@testing-library/react-native";
+import { Alert } from "react-native";
+import { render, fireEvent } from "@testing-library/react-native";
+import { router } from "expo-router";
 import EditProfileScreen from "../edit-profile";
 import { getMe } from "../../src/api/client";
 import { DEFAULT_COVER_SOURCE } from "../../src/components/defaultCover";
 import type { Me } from "../../src/api/types";
 
 const mockGetMe = getMe as jest.Mock;
+const mockRouterBack = router.back as jest.Mock;
 
 const ME: Me = {
   id: "u1",
@@ -74,5 +77,62 @@ describe("EditProfileScreen avatar/cover fallbacks", () => {
     // expo-image's host component normalizes a single source into a
     // one-element array internally.
     expect(getByLabelText("Cover photo").props.source).toEqual([DEFAULT_COVER_SOURCE]);
+  });
+});
+
+// M13: previously Save was enabled the instant the screen loaded (before
+// any field changed) and Cancel discarded silently regardless of unsaved
+// changes — both a bug (no-op PATCH on a stray tap; unrecoverable data
+// loss on a stray Cancel). Both are now gated on a real diff against the
+// snapshot captured at load.
+describe("EditProfileScreen dirty-gate and discard-confirm", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it("disables Save until a field actually changes, then enables it", async () => {
+    mockGetMe.mockResolvedValue(ME);
+    const { findByDisplayValue, getByLabelText } = await render(<EditProfileScreen />);
+    await findByDisplayValue("Amit Ku Yadav");
+
+    expect(getByLabelText("Save").props.accessibilityState.disabled).toBe(true);
+
+    await fireEvent.changeText(getByLabelText("Display name"), "Amit Yadav Jr.");
+
+    expect(getByLabelText("Save").props.accessibilityState.disabled).toBe(false);
+  });
+
+  it("Cancel with no changes goes back immediately, no confirmation", async () => {
+    mockGetMe.mockResolvedValue(ME);
+    const alertSpy = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+    const { findByDisplayValue, getByLabelText } = await render(<EditProfileScreen />);
+    await findByDisplayValue("Amit Ku Yadav");
+
+    await fireEvent.press(getByLabelText("Cancel"));
+
+    expect(alertSpy).not.toHaveBeenCalled();
+    expect(mockRouterBack).toHaveBeenCalledTimes(1);
+  });
+
+  it("Cancel with unsaved changes shows a discard confirmation and doesn't go back until confirmed", async () => {
+    mockGetMe.mockResolvedValue(ME);
+    const alertSpy = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+    const { findByDisplayValue, getByLabelText } = await render(<EditProfileScreen />);
+    await findByDisplayValue("Amit Ku Yadav");
+
+    await fireEvent.changeText(getByLabelText("Bio"), "Updated bio");
+    await fireEvent.press(getByLabelText("Cancel"));
+
+    expect(alertSpy).toHaveBeenCalledWith(
+      "Discard changes?",
+      "Your edits will be lost.",
+      expect.arrayContaining([expect.objectContaining({ text: "Discard", onPress: expect.any(Function) })])
+    );
+    expect(mockRouterBack).not.toHaveBeenCalled();
+
+    // Simulate tapping "Discard" in the native alert.
+    const discardButton = alertSpy.mock.calls[0][2]?.find((b) => b.text === "Discard");
+    discardButton?.onPress?.();
+    expect(mockRouterBack).toHaveBeenCalledTimes(1);
   });
 });

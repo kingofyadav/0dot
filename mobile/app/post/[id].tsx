@@ -1,14 +1,16 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withSequence, withSpring } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { useAuth } from "../../src/auth/AuthContext";
 import { getPost, createPost, likePost, repostPost, toggleBookmark, ApiError } from "../../src/api/client";
 import { resolvePath } from "../../src/links/resolvePath";
 import { Avatar } from "../../src/components/Avatar";
 import { VerifiedBadge } from "../../src/components/VerifiedBadge";
 import { EmptyState } from "../../src/components/EmptyState";
+import { PostActionsSheet } from "../../src/components/PostActionsSheet";
 import { PostMediaGrid } from "../../src/components/PostMediaGrid";
 import { SkeletonBlock } from "../../src/components/Skeleton";
 import { StatButton, statButtonStyles } from "../../src/components/PostRow";
@@ -17,13 +19,13 @@ import { animateNextLayout } from "../../src/utils/animateLayout";
 import { haptics } from "../../src/utils/haptics";
 import { useContentMaxWidth } from "../../src/utils/responsive";
 import { useTheme, type Theme } from "../../src/theme";
-import { API_BASE_URL } from "../../src/config";
 import type { Post } from "../../src/api/types";
 
 const MAX_REPLY_LENGTH = 500;
 
 export default function PostScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { me } = useAuth();
   const theme = useTheme();
   const maxWidth = useContentMaxWidth();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -34,6 +36,8 @@ export default function PostScreen() {
   const [replyBody, setReplyBody] = useState("");
   const [sendingReply, setSendingReply] = useState(false);
   const [replyError, setReplyError] = useState<string | null>(null);
+  const replyInputRef = useRef<TextInput>(null);
+  const [showActions, setShowActions] = useState(false);
 
   const load = useCallback(() => {
     getPost(id)
@@ -54,21 +58,6 @@ export default function PostScreen() {
     setLoading(true);
     setError(null);
     load();
-  }
-
-  async function onShare() {
-    if (!post) return;
-    haptics.light();
-    const url = `${API_BASE_URL}/p/${post.id}`;
-    // `url` is iOS-only (renders as a proper link in the share sheet);
-    // `message` is what Android actually uses — passing both covers each
-    // platform's own reading of the API rather than picking one.
-    try {
-      await Share.share({ message: url, url });
-    } catch {
-      // User-cancelled or platform share-sheet failure — nothing to
-      // recover from, same posture as a dismissed native picker.
-    }
   }
 
   // Same optimistic-with-known-direction posture as the feed screen's
@@ -181,15 +170,21 @@ export default function PostScreen() {
       <Stack.Screen
         options={{
           headerRight: () => (
-            <Pressable onPress={onShare} accessibilityRole="button" accessibilityLabel="Share post" hitSlop={8} style={styles.headerButton}>
-              <Ionicons name="share-outline" size={20} color={theme.colors.foreground} />
+            <Pressable
+              onPress={() => setShowActions(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Post options"
+              hitSlop={8}
+              style={styles.headerButton}
+            >
+              <Ionicons name="ellipsis-horizontal" size={20} color={theme.colors.foreground} />
             </Pressable>
           ),
         }}
       />
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
       >
       <View style={[styles.contentWrap, maxWidth ? { maxWidth, alignSelf: "center", width: "100%" } : null]}>
@@ -226,10 +221,10 @@ export default function PostScreen() {
             </Animated.View>
             <Text style={[styles.statText, post.isLiked && { color: theme.colors.accent }]}>{post.likeCount}</Text>
           </StatButton>
-          <View style={styles.stat}>
+          <StatButton accessibilityLabel="Reply" onPress={() => replyInputRef.current?.focus()}>
             <Ionicons name="chatbubble-outline" size={16} color={theme.colors.mutedForeground} />
             <Text style={styles.statText}>{post.replyCount}</Text>
-          </View>
+          </StatButton>
           <StatButton accessibilityLabel="Repost" onPress={handleToggleRepost}>
             {repostPending ? (
               <ActivityIndicator size="small" color={theme.colors.mutedForeground} />
@@ -259,6 +254,7 @@ export default function PostScreen() {
 
       <SafeAreaView edges={["bottom"]} style={styles.composerBar}>
         <TextInput
+          ref={replyInputRef}
           style={styles.composerInput}
           placeholder="Reply to this post…"
           placeholderTextColor={theme.colors.mutedForeground}
@@ -272,6 +268,15 @@ export default function PostScreen() {
       </SafeAreaView>
       </View>
       </KeyboardAvoidingView>
+      <PostActionsSheet
+        post={showActions ? post : null}
+        isOwnPost={post !== null && post.author === me?.username}
+        onClose={() => setShowActions(false)}
+        onDeleted={() => {
+          haptics.light();
+          router.back();
+        }}
+      />
     </>
   );
 }

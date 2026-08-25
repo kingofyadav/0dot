@@ -7,6 +7,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { AuthProvider, useAuth } from "../src/auth/AuthContext";
 import { MessagesStreamProvider } from "../src/realtime/MessagesStreamContext";
+import { UnreadBadgeProvider } from "../src/realtime/UnreadBadgeContext";
 import { ThemePreferencesProvider } from "../src/themePreferences";
 import { SignInScreen } from "../src/screens/SignInScreen";
 import { LockScreen } from "../src/screens/LockScreen";
@@ -84,6 +85,8 @@ function RootNavigator() {
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="post/[id]" options={{ title: "Post" }} />
       <Stack.Screen name="[username]" options={{ title: "Profile" }} />
+      <Stack.Screen name="[username]/followers" options={{ title: "Followers" }} />
+      <Stack.Screen name="[username]/following" options={{ title: "Following" }} />
       <Stack.Screen name="compose" options={{ headerShown: false, presentation: "modal" }} />
       <Stack.Screen name="edit-profile" options={{ headerShown: false, presentation: "modal" }} />
       <Stack.Screen name="notification-preferences" options={{ title: "Notifications" }} />
@@ -122,8 +125,10 @@ function RootLayout() {
         <AuthProvider>
           <ThemePreferencesProvider>
             <MessagesStreamProvider>
-              <RootNavigator />
-              <StatusBar style="auto" />
+              <UnreadBadgeProvider>
+                <RootNavigator />
+                <StatusBar style="auto" />
+              </UnreadBadgeProvider>
             </MessagesStreamProvider>
           </ThemePreferencesProvider>
         </AuthProvider>

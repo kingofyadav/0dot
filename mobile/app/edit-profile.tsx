@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Image } from "expo-image";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -33,6 +33,20 @@ export default function EditProfileScreen() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Snapshot of what was actually loaded, captured once — compared against
+  // current field state to gate Save/discard-confirm on a real diff rather
+  // than "the screen is open," which used to let a stray tap fire a no-op
+  // update or silently drop an in-progress edit on Cancel. A real (state)
+  // value, not a ref: this is read during render to compute `isDirty`
+  // below, and react-hooks/refs flags reading `ref.current` there — refs
+  // are for values render doesn't need, which this one is.
+  const [initialSnapshot, setInitialSnapshot] = useState<{
+    displayName: string;
+    bio: string;
+    isPrivate: boolean;
+    themePreset: string;
+  } | null>(null);
+
   useEffect(() => {
     (async () => {
       try {
@@ -44,6 +58,12 @@ export default function EditProfileScreen() {
         setIsPrivate(me.isPrivate);
         setThemePreset(me.themePreset ?? "default");
         setIsPremium(me.isPremium);
+        setInitialSnapshot({
+          displayName: me.displayName ?? "",
+          bio: me.bio ?? "",
+          isPrivate: me.isPrivate,
+          themePreset: me.themePreset ?? "default",
+        });
       } catch (err) {
         setError(err instanceof ApiError ? err.message : "Could not load your profile.");
       } finally {
@@ -68,7 +88,16 @@ export default function EditProfileScreen() {
     }
   }
 
-  const canSave = displayName.trim().length > 0 && displayName.length <= 50 && bio.length <= MAX_BIO_LENGTH && !saving;
+  const isDirty = initialSnapshot
+    ? displayName !== initialSnapshot.displayName ||
+      bio !== initialSnapshot.bio ||
+      isPrivate !== initialSnapshot.isPrivate ||
+      themePreset !== initialSnapshot.themePreset ||
+      newAvatar !== null ||
+      newCover !== null
+    : false;
+
+  const canSave = isDirty && displayName.trim().length > 0 && displayName.length <= 50 && bio.length <= MAX_BIO_LENGTH && !saving;
 
   async function onSave() {
     if (!canSave) return;
@@ -94,15 +123,23 @@ export default function EditProfileScreen() {
   }
 
   function onCancel() {
+    if (!isDirty) {
+      haptics.light();
+      router.back();
+      return;
+    }
     haptics.light();
-    router.back();
+    Alert.alert("Discard changes?", "Your edits will be lost.", [
+      { text: "Keep editing", style: "cancel" },
+      { text: "Discard", style: "destructive", onPress: () => router.back() },
+    ]);
   }
 
   const displayedCoverUri = newCover?.uri ?? coverUrl ?? null;
   const displayedAvatarUri = newAvatar?.uri ?? avatarUrl ?? null;
 
   return (
-    <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+    <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : "height"}>
       <SafeAreaView style={styles.flex} edges={["top", "bottom"]}>
         <View style={styles.topBar}>
           <Pressable onPress={onCancel} accessibilityRole="button" accessibilityLabel="Cancel" style={styles.topBarButton}>

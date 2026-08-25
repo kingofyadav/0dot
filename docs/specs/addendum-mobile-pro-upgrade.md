@@ -1,9 +1,10 @@
 # Addendum — Mobile Pro-Level Upgrade
 
-Status: M1–M10 built. M11's schema half already existed pre-addendum
-(verified) and its missing admin trigger surface is now built too (see
-§6) — only the legal-gated native-purchase flow and finance-ops
-disbursement remain, neither buildable by this addendum alone.
+Status: M1–M10, M12, M13, M14 built. M11's schema half already existed
+pre-addendum (verified) and its missing admin trigger surface is now
+built too (see §6) — only the legal-gated native-purchase flow and
+finance-ops disbursement remain, neither buildable by this addendum
+alone.
 Owner: TBD
 Related: [phase-15-mobile-apps.md](phase-15-mobile-apps.md), [phase-10-developer-platform.md](phase-10-developer-platform.md), [phase-2-social-platform.md](phase-2-social-platform.md)
 
@@ -750,6 +751,314 @@ server actions a native client can't call.
   bundles successfully. No dedicated manual/simulator verification, same
   stated limitation as every other sub-phase here.
 
+### M13 — Bug fixes + closing a stale search deferral + pro-level polish (built)
+
+Requested as a live audit of the shipped app (all 5 tabs + key flows,
+compared screen-by-screen against the web platform) that found 5 concrete
+bugs and several places the app fell short of a "world-class pro" bar.
+Scoped to close those plus a handful of new functions that either fix a
+documented, now-stale deferral or add standard-for-the-category polish —
+deliberately not a bolt-on of the out-of-scope items §1/§4 already name
+(native purchase/create flows, the full web creator-portfolio surface).
+
+**5 bugs, all fixed:**
+
+1. **Reply icon was a bare `View`, not tappable** (`PostRow.tsx`). Fixed
+   as a real feature, not just a dead-`onPress` patch: new
+   `src/components/ReplySheet.tsx` (`BottomSheet` + inline composer,
+   reusing `createPost({ replyToId })`, already supported server-side)
+   opens from the reply icon on every screen that renders `PostRow`
+   (feed, explore, bookmarks, community, profile). `post/[id].tsx`
+   already had its own persistent reply composer bar at the bottom — its
+   reply icon focuses that (`TextInput` ref) instead of opening a second
+   composer.
+2. **Compose discarded drafts with zero confirmation.** `onCancel` now
+   checks `body.trim().length > 0 || images.length > 0` (the same
+   expression `canPost` already used) before showing an `Alert.alert`
+   discard confirmation — empty drafts still discard silently.
+3. **Edit Profile had the same silent-discard bug**, higher stakes (bio,
+   name, avatar, cover, theme, privacy toggle). Same `Alert.alert` pattern,
+   gated on a real diff (see #4).
+4. **Edit Profile's Save button wasn't dirty-gated** — enabled the
+   instant the screen loaded. Both #3 and #4 share one fix: a snapshot of
+   what `getMe()` actually returned, captured once into **state** (not a
+   `useRef` — `react-hooks/refs` flags reading `ref.current` during
+   render, and `isDirty` needs to be computed during render; a ref is for
+   values render doesn't need, this one is read there). `canSave` becomes
+   `isDirty && <existing validity checks>`; Cancel diffs current field
+   state against the snapshot (plus `newAvatar`/`newCover` non-null) to
+   decide whether to confirm.
+5. **Followers/following unreachable** — the profile stat pills were
+   plain `View`s with no destination, and no route/API existed at all.
+   Built as a real feature: two new bearer-token routes,
+   `GET /api/v1/profiles/[username]/followers` and `.../following`
+   (`src/app/api/v1/profiles/[username]/{followers,following}/route.ts`),
+   modeled directly on `bookmarks/route.ts`'s composite-PK
+   `(createdAt, id)` cursor pagination and mirroring
+   `[username]/followers|following/page.tsx`'s exact query + private-
+   account gate (owner or an `accepted` `Follow` row, else a 404 — same
+   posture private content already 404s elsewhere in `/api/v1` rather
+   than the web page's inline message) — `profile:read` already covers
+   this, no new scope. Rows lacking a claimed `Username` (optional on
+   `User`) are excluded rather than surfaced with a null handle, since
+   there'd be no profile URL for `UserRow` to navigate to. Mobile: one
+   shared `src/screens/FollowListScreen.tsx` (`{username, mode}`, same
+   "one implementation, not two near-identical screens" posture
+   `ProfileScreenBody` already established) behind two thin routes,
+   `app/[username]/followers.tsx` / `.../following.tsx` — coexisting on
+   disk with the existing `app/[username].tsx` file exactly the way
+   `(tabs)/messages.tsx` (`/messages`) and `messages/[id].tsx`
+   (`/messages/:id`) already coexist across the `(tabs)` group boundary;
+   confirmed no routing conflict via a clean `npx expo export --platform
+   web`. `ProfileScreenBody.tsx`'s stat pills became `Pressable`s;
+   `resolvePath.ts` gained two-segment `/username/followers` and
+   `/username/following` branches, ordered **before** the single-segment
+   username catch-all (which only matches one path segment) so a
+   universal link or notification into either opens natively.
+
+**New pro-level functions:**
+
+- **Widened Explore search, 2 tabs → 6.** `GET /api/v1/search`'s own
+  comment said communities/businesses/events/marketplace were left out
+  because mobile had no screen to navigate a result into — no longer
+  true since M4-M6. `searchCommunities`/`rankCommunities`,
+  `searchBusinesses`/`rankBusinesses`, and `searchEvents`/`rankEvents`
+  were **extracted from `search/page.tsx` into a new `src/lib/search.ts`**
+  (the page now imports them) so the v1 route calls the exact same
+  query+rank logic the web page does, not a second copy — same "shared
+  infra, built once" posture M3's `recordMessageAndNotify` and M12's
+  `blockUserById`/`unblockUserById` extractions already established.
+  Marketplace reuses `fetchAllMarketplaceCategories` directly (already
+  exported, already what `GET /api/v1/marketplace` wraps). Each new type
+  gated behind its already-granted scope
+  (`communities:read`/`businesses:read`/`events:read`/`marketplace:read`,
+  all provisioned since M4-M6 — no new scopes). Events search returns a
+  lighter row (`{slug, title, startsAt}`, new `EventSearchResult` type)
+  than the full events list screen's `EventSummary` — `searchEvents`'s
+  own query never joined the host relation web's own search page doesn't
+  either, and adding one here would mean this route diverging from what
+  it's supposed to mirror; tapping a result still opens the real event
+  detail screen, which shows the rest. `(tabs)/explore.tsx`'s
+  `SegmentedControl` grows to 6 segments, each with its own state and a
+  `ListRow`-based result row matching each domain's own list-screen row
+  shape (communities.tsx/businesses.tsx/events.tsx render these inline,
+  not as an extracted component, so the same shape is repeated here
+  rather than imported).
+- **Tab-bar unread badges (Messages + Notifications).** Zero badge
+  support existed before this. The counts already existed server-side —
+  `getUnreadConversationCount` (`lib/messaging.ts`) and
+  `getUnreadNotificationCount` (`lib/notifications.ts`) already power the
+  web tab-favicon badge (`api/browser-tab/unread-count/route.ts`), just
+  summed there instead of split. New `GET /api/v1/unread-counts`
+  (`{messages, notifications}`, both scopes checked since it spans both
+  domains) calls the same two functions, split. `GET /api/v1/notifications`
+  and `GET /api/v1/conversations` also each gained an `unreadCount` field
+  on their existing paginated response (one extra cheap query each,
+  reusing the same two functions) for screens that already fetch that
+  list to use directly. Mobile: new `UnreadBadgeContext`
+  (`src/realtime/UnreadBadgeContext.tsx`), mounted once in `_layout.tsx`
+  inside `MessagesStreamProvider`, refetches on sign-in, on app
+  foreground (`AppState`), and — the nice discovery mid-build — on
+  **every** stream event, not just message ones: `message-events.ts`'s
+  bus already carries a bare `{type: "notification"}` event alongside
+  `new-message`/`conversation-updated` (every `notify*` helper in
+  `notifications.ts` already publishes to it), so both counts stay live
+  off the one connection `MessagesStreamContext` already holds open, with
+  no new stream and no polling loop for notifications. `messages.tsx`,
+  `messages/[id].tsx`, and `notifications.tsx` also call the context's
+  `refetch()` right after their own mark-read actions, so a badge clears
+  the instant a screen actually reads the thing it's counting rather than
+  waiting for the next stream event. `(tabs)/_layout.tsx` renders a small
+  `theme.colors.danger` count bubble (capped "9+") absolutely positioned
+  over each icon — Ionicons has no badge slot of its own.
+- **"New posts" pill on the Home feed.** Previously silent — no signal
+  beyond a manual pull-to-refresh that newer posts exist. A 30s interval
+  while the tab is focused calls `getFeed()` (no cursor, same call
+  pull-to-refresh already makes) and compares the newest returned post's
+  `id` against the currently-loaded newest; on a mismatch, a small pill
+  appears above the list rather than silently inserting anything. Tapping
+  it scrolls the `FlatList` to offset 0 and re-runs `loadFirstPage()`
+  (dismissing the pill as a side effect of that call resetting the
+  tracked newest-id). No new API route.
+- **Long-press quick actions on posts.** No `onLongPress` existed
+  anywhere in the app before this — `ListRow` (the shared row shell
+  behind essentially every tappable row) gained an optional `onLongPress`
+  prop, `PostRow` threads it through. Opens a new
+  `src/components/PostActionsSheet.tsx` (`BottomSheet`): **Share**
+  (mirrors `post/[id].tsx`'s existing header Share button),
+  **Copy link** (new `expo-clipboard` dependency — nothing in the app
+  needed clipboard access before), and — **own posts only** — **Delete**.
+  No Report action: unlike Delete, no `reportPost`/`reportContent` action
+  exists anywhere on web to mirror, and wiring a button to a mutation
+  with nothing to call would be exactly the half-built affordance M9's
+  `ConversationRow` archive-action scope cut already rejected once.
+  Delete needed a real gap closed first — no bearer-token delete route
+  existed at all (`GET /api/v1/posts/[id]` was read-only): added `DELETE`
+  to that same route file, mirroring `actions/posts.ts`'s `deletePost`
+  exactly (author-only lookup, reuses the already-shared
+  `softDeletePostAndDecrementCounts` from `lib/post-moderation.ts` —
+  `posts:write`, already granted, no new scope). `post/[id].tsx`'s header
+  Share button became a "Post options" (`ellipsis-horizontal`) button
+  opening the same sheet, so Delete/Copy link are reachable from the
+  detail screen too, not just long-press; deleting there calls
+  `router.back()` since there's nothing left to render.
+
+**Testing note**: `app/__tests__/edit-profile.test.tsx` gained a second
+describe block (3 new tests) covering the dirty-gate/discard-confirm fix
+(#4/#3 above) — Save disabled until a real field change, Cancel-with-no-
+changes skipping the confirm entirely, Cancel-with-changes showing it and
+only calling `router.back()` once "Discard" is actually pressed. Compose's
+analogous (simpler) discard logic stayed untested by choice, same
+"cosmetic/lower-risk screens don't all need coverage" posture M8 already
+took, rather than duplicating an already-demonstrated pattern for
+marginal additional confidence.
+
+Verification: `npx tsc --noEmit` clean (mobile and root), root `npm run
+lint` — 0 errors from any file this pass touched (same pre-existing
+baseline every prior sub-phase already carried forward; one real finding
+during this pass — `react-hooks/refs` on the initial `useRef`-based
+dirty-gate snapshot — fixed by switching that snapshot to `useState`, not
+suppressed), `npm test` — mobile 58/58 passing (55 + 3 new), root 44/44
+passing. Root `npx next build` — clean production build, all new
+`/api/v1/*` routes (`profiles/[username]/followers`, `.../following`,
+`unread-counts`) present in the route manifest, widened `search` and the
+new posts `DELETE` handler included. `npx expo export --platform web`
+bundles successfully — also the practical confirmation that
+`app/[username].tsx` coexisting with the new `app/[username]/` directory
+routes correctly. Manual verification on the already-running
+Pixel_8_API_35 emulator, rebuilt for the new `expo-clipboard` native
+dependency (same "new native module needs a real rebuild, not just
+`expo start`" M12 lesson) and pointed at the local dev server
+(`http://10.0.2.2:3001`, the same `prisma/prod.db` the deployed app uses,
+so the existing session kept working without re-authenticating) — see
+below.
+
+### M14 — Live-testing fallout: 2 real bugs + presence + voice/file attachments (built)
+
+M13's own manual-verification pass (§5 above) found the app's *shape* worked
+but didn't exercise every write path against a live account. Once the user
+actually used the rebuilt app against production data, two real bugs
+surfaced immediately, plus two feature requests that came out of using it —
+all four handled in the same session, live-verified via Fast Refresh against
+the local dev server rather than only inferred from a rebuild-and-guess
+cycle.
+
+**Bug: profile picture/cover upload silently failed.** Reproduced live:
+`updateProfile`'s multipart path threw `Error: Unsupported FormDataPart
+implementation` from `expo/src/winter/fetch/convertFormData.ts` — Expo
+SDK 57's fetch layer, whose own source comment states outright "`uri` is
+not supported for React Native's FormData," rejects the long-standing
+`form.append(field, {uri, name, type})` convention `appendImage`
+(`api/client.ts`) used. That converter only accepts a real `Blob` or
+anything exposing `.bytes()` — `expo-file-system`'s `File` class does both
+(`.name`/`.type` too, which the multipart header logic also reads straight
+off the appended value). Fix: `appendImage` now does `new File(image.uri)`
+and appends that instead of the raw object — same call sites (avatar/cover
+upload, post images) get the fix for free, no per-caller change needed.
+Verified live: text-only saves worked throughout (isolating the bug to the
+multipart path specifically), then avatar upload succeeded end-to-end after
+the fix, confirmed by the profile screen showing the newly uploaded image
+after `router.back()`.
+
+**Bug: message/reply/compose text fields covered by the keyboard on
+Android.** All 6 `KeyboardAvoidingView` usages in the app
+(`compose.tsx`, `edit-profile.tsx`, `post/[id].tsx`,
+`community/[slug].tsx`, `messages/[id].tsx`, `messages/new.tsx`) shared
+`behavior={Platform.OS === "ios" ? "padding" : undefined}` — `undefined`
+means the component does nothing at all on Android, leaving the OS's own
+`windowSoftInputMode="adjustResize"` (AndroidManifest.xml) as the only
+mechanism, which is increasingly unreliable under RN's newer edge-to-edge
+display handling. Fixed all 6 to `behavior={Platform.OS === "ios" ?
+"padding" : "height"}` — a one-line, identical change repeated across every
+occurrence rather than a new abstraction for six call sites. Not visually
+confirmable on this emulator (it uses hardware-keyboard passthrough, so no
+on-screen keyboard ever renders to be covered by) — the fix is the
+documented, standard correction for this exact "no Android behavior +
+unreliable adjustResize" symptom, not a guess.
+
+**Feature: active/last-seen presence.** The web app already has this in
+full (`lib/presence.ts`'s in-memory `isUserOnline`, `PresenceStatus.tsx`'s
+"Active now" / "Active Xm ago" line) and `message-events.ts`'s SSE bus
+already carries a `{type: "presence", userId, online}` event mobile's
+stream client already typed but never consumed. `GET /api/v1/conversations`
+gained `isOnline`/`otherLastActiveAt` per item (reusing `isUserOnline` +
+`getConversationDisplayInfo`'s existing `otherLastActiveAt` — both already
+computed for the web page, just not surfaced here before). Mobile:
+`ConversationRow` gets a small green (`theme.colors.success`, a status
+color per `theme.ts`'s own convention) dot on the avatar when online;
+`(tabs)/messages.tsx` passes `otherUserId`/`isOnline`/`otherLastActiveAt`
+as route params (same pattern `title`/`avatarUrl` already used) to
+`messages/[id].tsx`, which seeds local state from them and then updates
+live off the *already-open* `MessagesStreamContext` connection on a
+matching `"presence"` event — no new connection, no polling. New
+`src/utils/presence.ts`'s `formatLastActive` mirrors web's
+`PresenceStatus.tsx` copy exactly ("Active just now" / "Active Xm ago" /
+etc.) so the phrasing doesn't diverge between clients.
+
+**Feature: voice notes + file attachments in DMs.** Mobile's
+`POST /api/v1/conversations/[id]/messages` was text-only by explicit
+original scope note ("no attachment upload"). Backend:
+`resolveMessageAttachment` — previously private to
+`actions/messages.ts`, a `"use server"` file a route handler can't import
+— moved to `lib/messaging.ts` and exported (same boundary reasoning
+`ResolvedAttachment`'s own comment already stated for the type; `messages.ts`
+now imports the moved function instead of keeping a duplicate). The route
+gained the same dual JSON/multipart shape `PATCH /api/v1/users/me` and
+`POST /api/v1/posts` already use, mirroring `sendMessage`'s exact
+validation including spec §5.1's "body is nullable if attachment-only"
+rule; GET's per-message mapping gained `attachmentMimeType`/
+`attachmentDurationS` (already-selected columns, just not serialized
+before). Mobile: two new dependencies, `expo-audio` (recording +
+playback — the SDK 52+ replacement for the deprecated `expo-av`) and
+`expo-document-picker`. New `useVoiceRecorder` hook wraps
+`useAudioRecorder`/`useAudioRecorderState` into start/stop/cancel plus a
+live duration; `src/utils/attachments.ts`'s `pickAttachmentFile` wraps
+`expo-document-picker`, filtered to the same MIME types
+`ALLOWED_MESSAGE_FILE_TYPES` (`lib/uploads.ts`) accepts so a doomed pick
+never reaches the upload step. `sendConversationMessage` gained an
+optional attachment param, building multipart via the same `File`-based
+fix M14's first bug closed rather than the broken uri-object convention.
+New `MessageAttachmentBubble` component renders both kinds: voice notes
+get a play/pause button (`expo-audio`'s `useAudioPlayer`) with a duration
+that counts down live once playing (falling back to the sender-supplied
+label beforehand — the same "client-side duration, trusted for display
+only" posture `resolveMessageAttachment`'s own comment already documents);
+files get a type icon + filename, tapping opens via `Linking.openURL` (not
+`expo-web-browser` — this may hand off to another app's viewer, e.g. a PDF
+reader, which WebBrowser's in-app tab isn't meant for). The thread
+composer's new attach (`+`) button opens a `BottomSheet` with "Record
+voice note" / "Attach file"; picking either populates a dismissable
+pending-attachment chip above the composer rather than sending
+immediately, so Send stays the one actual send action (matching how the
+text draft itself already works) — recording swaps the composer row for a
+live timer + stop/cancel controls instead of a separate screen.
+
+**Testing note**: no dedicated new automated tests for M14 — same posture
+M13's own "no dedicated manual/simulator verification" line already
+carried for most of this addendum, inverted here: this pass *was*
+manually/live verified (that's how the two bugs were found and confirmed
+fixed), but voice recording/playback specifically couldn't be
+meaningfully exercised on this emulator (hardware-keyboard passthrough
+means no on-screen keyboard either, and there's no real microphone input
+path) — confirmed no crash through the full attach-menu → file-picker
+round trip instead, which is the honest limit of what this environment
+can verify.
+
+Verification: `npx tsc --noEmit` clean (mobile and root) after every
+change in this pass, root `npm run lint` — 0 errors (one real transient
+false-positive during this pass: a stray `mobile/dist/` directory left
+over from M13's own `expo export --platform web` verification step got
+linted as source and produced ~8000 warnings on a minified bundle;
+correctly gitignored, deleted, not a real finding), `npm test` — mobile
+58/58, root 44/44 (one `auth.test.ts` timeout reproduced, confirmed the
+same pre-existing flake M9/M10 already documented by re-running it alone
+cleanly). Native rebuild required twice — once for `expo-clipboard`
+(already covered by M13's own rebuild) and once more for `expo-audio` +
+`expo-document-picker` — both installed via `npx expo install` (SDK-57-
+resolved versions) and both new manifest permissions/services (RECORD_AUDIO,
+MODIFY_AUDIO_SETTINGS) confirmed present via a clean `BUILD SUCCESSFUL` and
+a crash-free app launch afterward.
+
 ### Sequencing
 
 M8 first, regardless of the other three — it's the only track that makes
@@ -758,6 +1067,16 @@ can run in parallel. M11's schema half turned out to already exist (§6);
 its purchase-flow half is gated on non-engineering sign-off, not on any
 other sub-phase here. M12 depended on none of M9-M11 — its only real
 prerequisite was M8's reliability foundation, same as everything else.
+M13 depended on M2 (widened its search route), M4-M6 (the screens/scopes
+the widened search and the followers/following feature both needed
+already provisioned), and M9/M10 (`BottomSheet`, `usePressScale`,
+`MessagesStreamContext` — reused throughout, not rebuilt) — the first
+sub-phase here with a real dependency chain rather than only sharing M8's
+foundation. M14 depended on M13 directly (its own manual-verification pass
+is what surfaced both bugs) and M3/M10 (`sendConversationMessage`,
+`MessagesStreamContext`'s live event stream — presence and attachment
+sending both build on the same conversation/message infra M3 established
+and M10 made live).
 
 ## 7. Dependency vulnerability (image-size DoS) — fixed 2026-08-21
 

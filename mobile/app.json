@@ -99,7 +99,8 @@
         }
       ],
       "expo-sharing",
-      "@sentry/react-native"
+      "@sentry/react-native",
+      "expo-audio"
     ],
     "runtimeVersion": {
       "policy": "appVersion"
