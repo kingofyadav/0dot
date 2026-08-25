@@ -9,6 +9,7 @@ import { markAllNotificationsRead, clearAllNotifications } from "@/app/actions/n
 import { acceptFollowRequest, rejectFollowRequest } from "@/app/actions/follow";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { ListKeyNav } from "@/components/ListKeyNav";
+import { RefreshOnMount } from "@/components/RefreshOnMount";
 
 const actorInclude = { username: true, profile: true } as const;
 
@@ -196,6 +197,10 @@ export default async function NotificationsPage({
 
   return (
     <div className="profileCard">
+      {/* RootLayout's unread badge (NotificationBell, MobileBottomNav) won't
+          otherwise see this render's read-on-view write above — see
+          RefreshOnMount's comment. */}
+      {unreadIds.length > 0 && <RefreshOnMount />}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
         <h1 style={{ fontSize: "1.1rem", fontWeight: 700 }}>Notifications</h1>
         <div style={{ display: "flex", gap: "0.5rem" }}>

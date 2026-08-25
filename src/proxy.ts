@@ -63,13 +63,32 @@ function buildCsp(nonce: string): string {
   const scriptSrc = ["'self'", `'nonce-${nonce}'`, "'strict-dynamic'"];
   if (process.env.NODE_ENV !== "production") scriptSrc.push("'unsafe-eval'");
 
+  // VERCEL_ENV (not NODE_ENV, which is "production" for preview builds too)
+  // is how Vercel's own build distinguishes a real production deploy from a
+  // preview one. Preview deploys auto-inject the Vercel Toolbar, which
+  // embeds https://vercel.live in an <iframe> and talks to it over
+  // fetch/WebSocket — with no frame-src/connect-src/script-src entry for
+  // it, default-src 'self' silently blocked the iframe (a CSP violation
+  // logged to the console on every preview page load). Real production
+  // traffic never gets the toolbar, so it gets none of this allowance.
+  const isPreview = process.env.VERCEL_ENV && process.env.VERCEL_ENV !== "production";
+  if (isPreview) scriptSrc.push("https://vercel.live");
+
+  const connectSrc = ["'self'", "https://*.public.blob.vercel-storage.com", "https://vitals.vercel-insights.com", ...livekitConnectSrc()];
+  const frameSrc = ["'self'"];
+  if (isPreview) {
+    connectSrc.push("https://vercel.live", "wss://*.pusher.com");
+    frameSrc.push("https://vercel.live");
+  }
+
   return [
     "default-src 'self'",
     `script-src ${scriptSrc.join(" ")}`,
     "style-src 'self' 'unsafe-inline'", // Tailwind's runtime + component-library inline styles have no static hash/nonce to pin
     "img-src 'self' data: https://*.public.blob.vercel-storage.com",
     "media-src 'self' https://*.public.blob.vercel-storage.com",
-    ["connect-src", "'self'", "https://*.public.blob.vercel-storage.com", "https://vitals.vercel-insights.com", ...livekitConnectSrc()].join(" "),
+    `connect-src ${connectSrc.join(" ")}`,
+    `frame-src ${frameSrc.join(" ")}`,
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",

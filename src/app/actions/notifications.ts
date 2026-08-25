@@ -22,6 +22,11 @@ export async function markNotificationRead(formData: FormData): Promise<void> {
   });
 
   revalidatePath("/notifications");
+  // The unread-count badge (NotificationBell, MobileBottomNav) renders in
+  // RootLayout, not on /notifications itself — revalidating only the page
+  // path leaves that badge stale after a client-side nav back to it, since
+  // Next.js doesn't re-fetch a shared layout that didn't change segments.
+  revalidatePath("/", "layout");
 }
 
 export async function markAllNotificationsRead(): Promise<void> {
@@ -33,6 +38,7 @@ export async function markAllNotificationsRead(): Promise<void> {
   });
 
   revalidatePath("/notifications");
+  revalidatePath("/", "layout");
 }
 
 // Destructive counterpart to markAllNotificationsRead — removes every row
@@ -46,4 +52,5 @@ export async function clearAllNotifications(): Promise<void> {
   });
 
   revalidatePath("/notifications");
+  revalidatePath("/", "layout");
 }
