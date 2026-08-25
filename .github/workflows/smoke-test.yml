@@ -1,0 +1,33 @@
+name: Post-deploy smoke test
+
+# Vercel's GitHub integration posts a deployment_status event whenever a
+# deployment (however it was triggered — git push or `vercel --prod`)
+# finishes, for both Preview and Production. This only reacts to a
+# successful Production one — the thing we actually want confirmed is "did
+# the code that just went live on 0dot.in actually match what clients
+# expect", which a Preview deploy or a failed build doesn't tell us.
+#
+# workflow_dispatch is here too so this can be re-run by hand against the
+# current production state without needing a new deployment.
+on:
+  deployment_status:
+  workflow_dispatch:
+
+jobs:
+  smoke-test:
+    if: github.event_name == 'workflow_dispatch' || (github.event.deployment_status.state == 'success' && github.event.deployment_status.environment == 'Production')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      # Vercel aliases a Production deployment to the production domain(s)
+      # as part of promoting it, but that alias can lag the deployment_status
+      # event by a few seconds — scripts/smoke-test.mjs already retries each
+      # check a few times with a delay to absorb that, rather than needing a
+      # fixed sleep here.
+      - name: Smoke test production
+        run: node scripts/smoke-test.mjs
