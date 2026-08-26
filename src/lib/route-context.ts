@@ -27,6 +27,12 @@ const CHROMELESS_PATHS = new Set([
   "/reset-password",
   "/verify/sent",
   "/claim-username",
+  // Public app-download landing page (src/app/download/page.tsx) — the
+  // link shared from app-store listings, QR codes, and social bios, so it
+  // needs to stand on its own with MarketingNav like "/", not the logged-in
+  // SiteHeader/Sidebar shell wrapped around a page anonymous visitors land
+  // on directly.
+  "/download",
 ]);
 
 export function isChromelessPath(pathname: string): boolean {

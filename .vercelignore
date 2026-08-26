@@ -1,0 +1,10 @@
+# The Next.js web app (this project's Vercel deployment) never reads from
+# mobile/ — it's a separate Expo/React Native app in the same repo. Its own
+# mobile/.gitignore excludes node_modules/ and the native android/ios build
+# output from git, but the Vercel CLI's upload step doesn't honor nested
+# .gitignore files, only the root one plus this file — so a local Android
+# build under mobile/android/app/build (gradle intermediates, some 200MB+
+# per .so file) was getting swept into the upload and failing with "File
+# size limit exceeded (100 MB)". Excluding the whole directory here since
+# none of it belongs in a Next.js deployment anyway.
+/mobile
