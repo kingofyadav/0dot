@@ -13,7 +13,7 @@ export function AuthTopBar() {
       <ThemeToggleLogo size={32} />
       <Link href="/" className="authTopBarBack">
         <ArrowLeft size={14} aria-hidden="true" />
-        Back to 0dot
+        Back to <span className="brandUrl">0dot</span>
       </Link>
     </div>
   );

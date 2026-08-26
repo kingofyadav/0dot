@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/session";
 import { deleteEpisode } from "@/app/actions/podcasts";
 import { SettingsRow } from "@/components/SettingsRow";
 import { EmptyState } from "@/components/EmptyState";
+import { ConfirmButton } from "@/components/ConfirmButton";
 import { PodcastForm } from "../../PodcastForm";
 import { EpisodeForm } from "../../EpisodeForm";
 
@@ -70,7 +71,14 @@ export default async function PodcastSettingsPage() {
                   trailing={
                     <form action={deleteEpisode}>
                       <input type="hidden" name="episodeId" value={episode.id} />
-                      <button type="submit" className="button buttonSecondary buttonSmall">Delete</button>
+                      <ConfirmButton
+                        className="button buttonSecondary buttonSmall"
+                        title="Delete this episode?"
+                        description="This can't be undone."
+                        confirmLabel="Delete"
+                      >
+                        Delete
+                      </ConfirmButton>
                     </form>
                   }
                 />

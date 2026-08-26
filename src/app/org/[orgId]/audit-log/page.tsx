@@ -2,6 +2,7 @@ import { redirect, notFound } from "next/navigation";
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { db } from "@/lib/db";
 import { isOrgAdmin } from "@/lib/organizations";
+import { EmptyState } from "@/components/EmptyState";
 
 const ACTION_LABEL: Record<string, string> = {
   member_added: "Member added",
@@ -42,7 +43,7 @@ export default async function OrganizationAuditLogPage({ params }: { params: Pro
       <h1 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "1.25rem" }}>Audit log — {organization.name}</h1>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-        {entries.length === 0 && <p className="mutedText">No activity recorded yet.</p>}
+        {entries.length === 0 && <EmptyState message="No activity recorded yet." />}
         {entries.map((e) => (
           <div key={e.id} className="profileLinkItem" style={{ justifyContent: "space-between", flexWrap: "wrap", gap: "0.5rem" }}>
             <span>{ACTION_LABEL[e.action] ?? e.action}</span>

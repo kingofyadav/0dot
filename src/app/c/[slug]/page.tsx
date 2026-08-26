@@ -123,18 +123,22 @@ export default async function CommunityPage({
           </div>
         )}
 
+        {/* prefetch={false}: same burst-prefetch-triggers-503 mechanism as
+            the business page's tab row (see the "Disable prefetch on
+            persistent chrome nav links" commit) — dynamic, DB-backed
+            sub-routes mounted together. */}
         <div className="profileActionsGrid">
-          <Link href={`/c/${community.slug}/voice`} className="button buttonSecondary">
+          <Link href={`/c/${community.slug}/voice`} className="button buttonSecondary" prefetch={false}>
             Voice
           </Link>
-          <Link href={`/c/${community.slug}/chat`} className="button buttonSecondary">
+          <Link href={`/c/${community.slug}/chat`} className="button buttonSecondary" prefetch={false}>
             Chat
           </Link>
-          <Link href={`/c/${community.slug}/wiki`} className="button buttonSecondary">
+          <Link href={`/c/${community.slug}/wiki`} className="button buttonSecondary" prefetch={false}>
             Wiki
           </Link>
           {isStaff && (
-            <Link href={`/c/${community.slug}/manage`} className="button buttonSecondary">
+            <Link href={`/c/${community.slug}/manage`} className="button buttonSecondary" prefetch={false}>
               Manage
             </Link>
           )}

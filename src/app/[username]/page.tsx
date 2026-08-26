@@ -18,6 +18,7 @@ import { getFeedPosts, getVotedPollOptionIds } from "@/lib/feed-query";
 import { parseCursor } from "@/lib/pagination";
 import { Avatar } from "@/components/Avatar";
 import { EmptyState } from "@/components/EmptyState";
+import { ScrollToHashPost } from "@/components/ScrollToHashPost";
 import { SocialIcon } from "@/components/SocialIcon";
 import { CopyLinkButton } from "@/components/CopyLinkButton";
 import { PostCard } from "@/components/PostCard";
@@ -333,10 +334,10 @@ export default async function ProfilePage({
           <summary className="mutedText" style={{ fontSize: "0.85rem" }}>
             Share
           </summary>
-          <div style={{ marginTop: "0.85rem", display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
+          <div className="row-lg" style={{ marginTop: "0.85rem", flexWrap: "wrap" }}>
             {/* eslint-disable-next-line @next/next/no-img-element -- server-generated SVG route, not a static asset */}
             <img src={`/qr/${username.handle}`} alt={`QR code for ${profileUrl}`} width={120} height={120} style={{ borderRadius: "12px", background: "#fff" }} />
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+            <div className="stack">
               <span className="mutedText">{profileUrl}</span>
               <CopyLinkButton url={profileUrl} />
             </div>
@@ -390,7 +391,7 @@ export default async function ProfilePage({
               <summary className="mutedText" style={{ fontSize: "0.85rem" }}>
                 Block @{username.handle}
               </summary>
-              <div style={{ marginTop: "0.6rem", display: "flex", flexDirection: "column", gap: "0.6rem", maxWidth: "32ch" }}>
+              <div className="disclosureBody">
                 <p className="mutedText" style={{ fontSize: "0.85rem" }}>
                   Removes any follow between you, hides their notifications
                   from you going forward, and stops suggesting them to
@@ -409,7 +410,7 @@ export default async function ProfilePage({
       </div>
 
       {canViewFullProfile && recentTips.length > 0 && (
-        <div style={{ marginTop: "0.75rem", display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+        <div className="stack" style={{ marginTop: "0.75rem" }}>
           <p className="sectionHeading">Recent tips</p>
           {recentTips.map((tip) => (
             <p key={tip.id} className="mutedText" style={{ fontSize: "0.85rem" }}>
@@ -678,7 +679,7 @@ async function ProfileMonetizationAndPortfolio({
         <summary className="mutedText" style={{ fontSize: "0.85rem" }}>
           Projects
         </summary>
-        <div style={{ marginTop: "0.6rem", display: "flex", flexDirection: "column", gap: "0.4rem", maxWidth: "32ch" }}>
+        <div className="disclosureBody">
           {visibleProjects.map((project) => (
             <Link key={project.id} href={`/p/${project.slug}`} style={{ fontSize: "0.9rem" }}>
               {project.title}
@@ -695,7 +696,7 @@ async function ProfileMonetizationAndPortfolio({
         <summary className="mutedText" style={{ fontSize: "0.85rem" }}>
           Skills
         </summary>
-        <div style={{ marginTop: "0.6rem", display: "flex", flexWrap: "wrap", gap: "0.5rem", maxWidth: "32ch" }}>
+        <div className="disclosureBodyWrap" style={{ maxWidth: "32ch" }}>
           {profile.skills.map((skill) =>
             currentUser && !isOwner ? (
               <form key={skill.id} action={endorseSkill}>
@@ -725,7 +726,7 @@ async function ProfileMonetizationAndPortfolio({
         <summary className="mutedText" style={{ fontSize: "0.85rem" }}>
           Repositories
         </summary>
-        <div style={{ marginTop: "0.6rem", display: "flex", flexDirection: "column", gap: "0.4rem", maxWidth: "32ch" }}>
+        <div className="disclosureBody">
           {standaloneRepositories.map((repo) => (
             <a key={repo.id} href={repo.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: "0.9rem" }}>
               {repo.displayName}
@@ -745,7 +746,7 @@ async function ProfileMonetizationAndPortfolio({
         <summary className="mutedText" style={{ fontSize: "0.85rem" }}>
           Connected content
         </summary>
-        <div style={{ marginTop: "0.6rem", display: "flex", flexWrap: "wrap", gap: "0.6rem" }}>
+        <div className="disclosureBodyWrap">
           {connectedContentItems.map((item) => (
             <a key={item.id} href={item.contentUrl} target="_blank" rel="noopener noreferrer" style={{ width: "120px" }}>
               {item.thumbnailUrl && (
@@ -756,7 +757,7 @@ async function ProfileMonetizationAndPortfolio({
                   style={{ width: "120px", height: "68px", objectFit: "cover", borderRadius: "8px", border: "1px solid var(--border)" }}
                 />
               )}
-              <span style={{ display: "flex", alignItems: "center", gap: "0.3rem", marginTop: "0.3rem", fontSize: "0.8rem" }}>
+              <span className="row-sm" style={{ marginTop: "0.3rem", fontSize: "0.8rem" }}>
                 <SocialIcon platform={item.externalAccount.platform as SocialPlatform} />
                 {item.title}
               </span>
@@ -772,7 +773,7 @@ async function ProfileMonetizationAndPortfolio({
         <summary className="mutedText" style={{ fontSize: "0.85rem" }}>
           Research papers
         </summary>
-        <div style={{ marginTop: "0.6rem", display: "flex", flexDirection: "column", gap: "0.5rem", maxWidth: "32ch" }}>
+        <div className="disclosureBody">
           {publicResearchPapers.map((paper) => (
             <div key={paper.id} style={{ fontSize: "0.9rem" }}>
               <strong>{paper.title}</strong>
@@ -780,7 +781,7 @@ async function ProfileMonetizationAndPortfolio({
                 {paper.authors}
                 {paper.venue && ` · ${paper.venue}`}
               </p>
-              <span style={{ display: "flex", gap: "0.5rem", marginTop: "0.15rem" }}>
+              <span className="row" style={{ marginTop: "0.15rem" }}>
                 {paper.doiOrUrl && <a href={paper.doiOrUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: "0.8rem" }}>DOI/Link</a>}
                 {paper.fileUrl && <a href={paper.fileUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: "0.8rem" }}>PDF</a>}
               </span>
@@ -796,7 +797,7 @@ async function ProfileMonetizationAndPortfolio({
         <summary className="mutedText" style={{ fontSize: "0.85rem" }}>
           Certificates
         </summary>
-        <div style={{ marginTop: "0.6rem", display: "flex", flexDirection: "column", gap: "0.4rem", maxWidth: "32ch" }}>
+        <div className="disclosureBody">
           {publicCertificates.map((cert) => (
             <div key={cert.id} style={{ fontSize: "0.9rem" }}>
               {cert.credentialUrl ? (
@@ -817,7 +818,7 @@ async function ProfileMonetizationAndPortfolio({
         <summary className="mutedText" style={{ fontSize: "0.85rem" }}>
           Awards
         </summary>
-        <div style={{ marginTop: "0.6rem", display: "flex", flexDirection: "column", gap: "0.4rem", maxWidth: "32ch" }}>
+        <div className="disclosureBody">
           {publicAwards.map((award) => (
             <div key={award.id} style={{ fontSize: "0.9rem" }}>
               {award.link ? (
@@ -852,10 +853,10 @@ async function ProfileMonetizationAndPortfolio({
           <summary className="mutedText" style={{ fontSize: "0.85rem" }}>
             Memberships
           </summary>
-          <div style={{ marginTop: "0.6rem", display: "flex", flexDirection: "column", gap: "0.5rem", maxWidth: "32ch" }}>
+          <div className="disclosureBody">
             {activeTiers.map((tier) =>
               viewerTierAccessIds.has(tier.id) ? (
-                <p key={tier.id} className="mutedText" style={{ display: "flex", alignItems: "center", gap: "0.3rem", fontSize: "0.85rem" }}>
+                <p key={tier.id} className="mutedText row-sm" style={{ fontSize: "0.85rem" }}>
                   <Check size={14} aria-hidden="true" /> Subscribed — {tier.name}
                 </p>
               ) : (
@@ -875,7 +876,7 @@ async function ProfileMonetizationAndPortfolio({
           <summary className="mutedText" style={{ fontSize: "0.85rem" }}>
             Digital products
           </summary>
-          <div style={{ marginTop: "0.6rem", display: "flex", flexDirection: "column", gap: "0.6rem", maxWidth: "32ch" }}>
+          <div className="disclosureBody">
             {activeProducts.map((product) => (
               <DigitalProductCard key={product.id} product={product} owned={ownedProductIds.has(product.id)} />
             ))}
@@ -896,7 +897,7 @@ async function ProfileMonetizationAndPortfolio({
           <summary className="mutedText" style={{ fontSize: "0.85rem" }}>
             Courses
           </summary>
-          <div style={{ marginTop: "0.6rem", display: "flex", flexDirection: "column", gap: "0.4rem", maxWidth: "32ch" }}>
+          <div className="disclosureBody">
             {activeCourses.map((course) => (
               <Link key={course.id} href={`/${username.handle}/courses/${course.id}`} style={{ fontSize: "0.9rem" }}>
                 {course.title}
@@ -947,7 +948,7 @@ async function ProfileMonetizationAndPortfolio({
           <summary className="mutedText" style={{ fontSize: "0.85rem" }}>
             Livestreams
           </summary>
-          <div style={{ marginTop: "0.6rem", display: "flex", flexDirection: "column", gap: "0.4rem", maxWidth: "32ch" }}>
+          <div className="disclosureBody">
             {liveLivestreams.map((live) => (
               <Link key={live.id} href={`/live/${live.id}`} style={{ fontSize: "0.9rem" }}>
                 {live.status === "live" ? "🔴 " : ""}
@@ -968,10 +969,10 @@ async function ProfileMonetizationAndPortfolio({
           <summary className="mutedText" style={{ fontSize: "0.85rem" }}>
             Affiliate program
           </summary>
-          <div style={{ marginTop: "0.6rem", display: "flex", flexDirection: "column", gap: "0.5rem", maxWidth: "32ch" }}>
+          <div className="disclosureBody">
             {activeAffiliatePrograms.map((program) =>
               program.links.length > 0 ? (
-                <p key={program.id} className="mutedText" style={{ display: "flex", alignItems: "center", gap: "0.3rem", fontSize: "0.85rem" }}>
+                <p key={program.id} className="mutedText row-sm" style={{ fontSize: "0.85rem" }}>
                   <Check size={14} aria-hidden="true" /> Your link: /aff/{program.links[0].code}
                 </p>
               ) : (
@@ -1026,6 +1027,7 @@ async function ProfilePosts({
 
   return (
     <div className="postsSection">
+      <ScrollToHashPost />
       <p className="sectionHeading">Posts</p>
       {posts.length === 0 && <EmptyState message="No posts yet." />}
       <div className="itemStack">

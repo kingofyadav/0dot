@@ -477,6 +477,7 @@ export type ResolvedAttachment = {
   mimeType: string;
   sizeBytes: number;
   durationS: number | null;
+  fileName: string | null;
 };
 
 // Moved here from actions/messages.ts (mobile pro-upgrade addendum, sub-
@@ -517,6 +518,7 @@ const messageSelect = {
   attachmentMimeType: true,
   attachmentSizeBytes: true,
   attachmentDurationS: true,
+  attachmentFileName: true,
   deletedAt: true,
 } as const;
 
@@ -530,6 +532,7 @@ export type SentMessage = {
   attachmentMimeType: string | null;
   attachmentSizeBytes: number | null;
   attachmentDurationS: number | null;
+  attachmentFileName: string | null;
   deletedAt: Date | null;
 };
 
@@ -569,6 +572,7 @@ export async function recordMessageAndNotify(args: {
       attachmentMimeType: args.attachment?.mimeType ?? null,
       attachmentSizeBytes: args.attachment?.sizeBytes ?? null,
       attachmentDurationS: args.attachment?.durationS ?? null,
+      attachmentFileName: args.attachment?.fileName ?? null,
     },
     select: messageSelect,
   });

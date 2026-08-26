@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requirePlatformRole } from "@/lib/auth-guards";
 import { db } from "@/lib/db";
 import { markPayoutPaid, rejectPayoutRequest } from "@/app/actions/wallet";
+import { EmptyState } from "@/components/EmptyState";
 
 // Mirrors /admin/wallet/topups in the opposite direction — an admin sends
 // the money via UPI to the request's snapshotted vpa outside the app, then
@@ -30,7 +31,7 @@ export default async function AdminWalletPayoutsPage() {
       </p>
 
       {requests.length === 0 ? (
-        <p className="mutedText">Nothing pending.</p>
+        <EmptyState message="Nothing pending." />
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
           {requests.map((request) => (

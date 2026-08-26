@@ -8,6 +8,8 @@ import { rotateClientSecret, requestScope, deleteWebhookSubscription } from "@/a
 import { RedirectUrisForm } from "@/components/RedirectUrisForm";
 import { WebhookSubscriptionForm } from "@/components/WebhookSubscriptionForm";
 import { BillingPlanForm } from "./BillingPlanForm";
+import { EmptyState } from "@/components/EmptyState";
+import { ConfirmButton } from "@/components/ConfirmButton";
 
 const SCOPE_STATUS_LABEL: Record<string, string> = { pending: "Pending review", approved: "Approved", rejected: "Rejected" };
 
@@ -96,7 +98,7 @@ export default async function DeveloperAppDetailPage({
 
       <div style={{ marginBottom: "1.5rem" }}>
         <p className="sectionHeading">Webhooks</p>
-        {webhookSubscriptions.length === 0 && <p className="mutedText">No webhook subscriptions yet.</p>}
+        {webhookSubscriptions.length === 0 && <EmptyState message="No webhook subscriptions yet." />}
         <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem", marginBottom: "0.75rem" }}>
           {webhookSubscriptions.map((sub) => (
             <div key={sub.id} className="profileLinkItem" style={{ justifyContent: "space-between", alignItems: "center" }}>
@@ -105,9 +107,14 @@ export default async function DeveloperAppDetailPage({
               </span>
               <form action={deleteWebhookSubscription}>
                 <input type="hidden" name="subscriptionId" value={sub.id} />
-                <button type="submit" className="button buttonDanger buttonSmall">
+                <ConfirmButton
+                  className="button buttonDanger buttonSmall"
+                  title="Remove this webhook?"
+                  description="This can't be undone."
+                  confirmLabel="Remove"
+                >
                   Remove
-                </button>
+                </ConfirmButton>
               </form>
             </div>
           ))}
@@ -117,7 +124,7 @@ export default async function DeveloperAppDetailPage({
 
       <div style={{ marginBottom: "1.5rem" }}>
         <p className="sectionHeading">API usage (last 24 hourly windows)</p>
-        {recentUsage.length === 0 && <p className="mutedText">No API requests yet.</p>}
+        {recentUsage.length === 0 && <EmptyState message="No API requests yet." />}
         {recentUsage.length > 0 && (
           <p className="mutedText" style={{ fontSize: "0.85rem" }}>
             {recentUsage.reduce((sum, row) => sum + row.requestCount, 0)} requests total

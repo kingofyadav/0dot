@@ -70,7 +70,7 @@ export function renderWikiMarkdown(rawBody: string): ReactNode[] {
   const body = rawBody.replace(/\r\n/g, "\n");
   const blocks = body.split(/\n{2,}/).filter((b) => b.trim().length > 0);
 
-  return blocks.map((block, blockIndex) => {
+  return blocks.flatMap((block, blockIndex) => {
     const lines = block.split("\n").filter((l) => l.trim().length > 0);
     const key = `block-${blockIndex}`;
 
@@ -78,22 +78,42 @@ export function renderWikiMarkdown(rawBody: string): ReactNode[] {
     if (headingMatch) {
       const level = headingMatch[1].length;
       const content = renderInline(headingMatch[2], key);
-      if (level === 1) return <h2 key={key}>{content}</h2>;
-      if (level === 2) return <h3 key={key}>{content}</h3>;
-      return <h4 key={key}>{content}</h4>;
+      if (level === 1) return [<h2 key={key}>{content}</h2>];
+      if (level === 2) return [<h3 key={key}>{content}</h3>];
+      return [<h4 key={key}>{content}</h4>];
     }
 
-    const isList = lines.every((l) => l.trim().startsWith("- "));
-    if (isList) {
-      return (
-        <ul key={key}>
-          {lines.map((line, lineIndex) => (
-            <li key={`${key}-${lineIndex}`}>{renderInline(line.trim().slice(2), `${key}-${lineIndex}`)}</li>
-          ))}
-        </ul>
-      );
+    // Group consecutive lines by whether they're a "- " list item, instead
+    // of the previous all-or-nothing `lines.every(...)` check on the whole
+    // block — that required every line in a blank-line-separated block to
+    // be a bullet, so a block mixing an intro line immediately followed by
+    // bullets (no blank line between them, a common way to naturally write
+    // this) silently fell through to the paragraph branch and lost the
+    // list formatting entirely instead of rendering the intro as its own
+    // paragraph and the bullets as a real <ul>.
+    const runs: { isList: boolean; lines: string[] }[] = [];
+    for (const line of lines) {
+      const isListLine = line.trim().startsWith("- ");
+      const currentRun = runs[runs.length - 1];
+      if (currentRun && currentRun.isList === isListLine) {
+        currentRun.lines.push(line);
+      } else {
+        runs.push({ isList: isListLine, lines: [line] });
+      }
     }
 
-    return <p key={key}>{renderInline(lines.join(" "), key)}</p>;
+    return runs.map((run, runIndex) => {
+      const runKey = `${key}-r${runIndex}`;
+      if (run.isList) {
+        return (
+          <ul key={runKey}>
+            {run.lines.map((line, lineIndex) => (
+              <li key={`${runKey}-${lineIndex}`}>{renderInline(line.trim().slice(2), `${runKey}-${lineIndex}`)}</li>
+            ))}
+          </ul>
+        );
+      }
+      return <p key={runKey}>{renderInline(run.lines.join(" "), runKey)}</p>;
+    });
   });
 }

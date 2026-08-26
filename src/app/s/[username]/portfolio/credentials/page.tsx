@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/session";
 import { deleteResearchPaper, deleteCertificate, deleteAward } from "@/app/actions/credentials";
 import { SettingsRow } from "@/components/SettingsRow";
 import { EmptyState } from "@/components/EmptyState";
+import { ConfirmButton } from "@/components/ConfirmButton";
 import { ResearchPaperForm, CertificateForm, AwardForm } from "../../CredentialForms";
 
 // spec §7.4/§7.5: three independent, structurally-identical self-attested
@@ -40,7 +41,15 @@ export default async function CredentialsSettingsPage() {
               trailing={
                 <form action={deleteResearchPaper}>
                   <input type="hidden" name="researchPaperId" value={paper.id} />
-                  <button type="submit" className="button buttonSecondary iconButton" aria-label="Delete paper"><X size={16} aria-hidden="true" /></button>
+                  <ConfirmButton
+                    className="button buttonSecondary iconButton"
+                    title="Delete this paper?"
+                    description="This can't be undone."
+                    confirmLabel="Delete"
+                    aria-label="Delete paper"
+                  >
+                    <X size={16} aria-hidden="true" />
+                  </ConfirmButton>
                 </form>
               }
             />
@@ -76,7 +85,15 @@ export default async function CredentialsSettingsPage() {
               trailing={
                 <form action={deleteCertificate}>
                   <input type="hidden" name="certificateId" value={cert.id} />
-                  <button type="submit" className="button buttonSecondary iconButton" aria-label="Delete certificate"><X size={16} aria-hidden="true" /></button>
+                  <ConfirmButton
+                    className="button buttonSecondary iconButton"
+                    title="Delete this certificate?"
+                    description="This can't be undone."
+                    confirmLabel="Delete"
+                    aria-label="Delete certificate"
+                  >
+                    <X size={16} aria-hidden="true" />
+                  </ConfirmButton>
                 </form>
               }
             />
@@ -111,7 +128,15 @@ export default async function CredentialsSettingsPage() {
               trailing={
                 <form action={deleteAward}>
                   <input type="hidden" name="awardId" value={award.id} />
-                  <button type="submit" className="button buttonSecondary iconButton" aria-label="Delete award"><X size={16} aria-hidden="true" /></button>
+                  <ConfirmButton
+                    className="button buttonSecondary iconButton"
+                    title="Delete this award?"
+                    description="This can't be undone."
+                    confirmLabel="Delete"
+                    aria-label="Delete award"
+                  >
+                    <X size={16} aria-hidden="true" />
+                  </ConfirmButton>
                 </form>
               }
             />

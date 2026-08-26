@@ -2,6 +2,7 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { requirePlatformRole } from "@/lib/auth-guards";
 import { resolveCaseAction } from "@/app/actions/trust-safety";
+import { EmptyState } from "@/components/EmptyState";
 
 const CASE_TYPE_LABELS: Record<string, string> = {
   content_report: "Content report",
@@ -88,7 +89,7 @@ export default async function AdminTrustSafetyPage() {
       </p>
 
       {withPreviews.length === 0 ? (
-        <p className="mutedText">Nothing pending.</p>
+        <EmptyState message="Nothing pending." />
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
           {withPreviews.map(({ case: c, preview }) => (

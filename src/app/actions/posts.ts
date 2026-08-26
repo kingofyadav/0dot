@@ -11,6 +11,7 @@ import { resolveBusinessAuthorContext } from "@/lib/businesses";
 import { softDeletePostAndDecrementCounts } from "@/lib/post-moderation";
 import { checkDuplicatePostPattern } from "@/lib/account-risk";
 import { recordContentRevision } from "@/lib/content-revisions";
+import { revalidatePostSurfaces } from "@/lib/post-revalidation";
 import type { ActionState } from "@/app/actions/auth";
 
 const MAX_MEDIA_PER_POST = 4;
@@ -191,8 +192,7 @@ export async function toggleLike(formData: FormData): Promise<void> {
     await notifyLike({ recipientId: post.authorId, actorId: user.id, subjectId: postId });
   }
 
-  revalidatePath("/feed");
-  revalidatePath("/explore");
+  await revalidatePostSurfaces(postId);
 }
 
 export async function toggleBookmark(formData: FormData): Promise<void> {
@@ -246,8 +246,7 @@ export async function toggleRepost(formData: FormData): Promise<void> {
     }
   });
 
-  revalidatePath("/feed");
-  revalidatePath("/explore");
+  await revalidatePostSurfaces(postId);
   if (user.username) {
     revalidatePath(`/${user.username.handle}`);
   }

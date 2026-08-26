@@ -110,7 +110,7 @@ export async function ContextualRail() {
         <section className="railPlanCard">
           <div className="railPlanCardHeader">
             <h2>
-              <Sparkles size={16} aria-hidden="true" /> 0dot Pro
+              <Sparkles size={16} aria-hidden="true" /> <span className="brandUrl">0dot</span> Pro
             </h2>
             <span className="railPlanCardBadge">Upgrade</span>
           </div>

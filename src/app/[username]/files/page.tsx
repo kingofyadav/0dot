@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
+import { EmptyState } from "@/components/EmptyState";
 
 export default async function AuthorFilesPage({ params }: { params: Promise<{ username: string }> }) {
   const { username: rawParam } = await params;
@@ -21,7 +22,7 @@ export default async function AuthorFilesPage({ params }: { params: Promise<{ us
       </Link>
       <h1 style={{ fontSize: "1.2rem", fontWeight: 700, marginTop: "0.6rem" }}>Files</h1>
 
-      {files.length === 0 && <p className="mutedText" style={{ marginTop: "0.5rem" }}>No published files yet.</p>}
+      {files.length === 0 && <EmptyState message="No published files yet." />}
       <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "0.75rem" }}>
         {files.map((file) => (
           <Link key={file.id} href={`/${handle}/files/${file.slug}`} className="profileLinkItem" style={{ flexDirection: "column", alignItems: "stretch", gap: "0.15rem" }}>

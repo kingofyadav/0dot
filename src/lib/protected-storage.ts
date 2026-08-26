@@ -45,7 +45,17 @@ export async function saveProtectedFile(file: File, { maxBytes }: { maxBytes: nu
   if (file.size > maxBytes) return { error: `Files must be ${Math.floor(maxBytes / (1024 * 1024))}MB or smaller.` };
 
   const key = `${PROTECTED_PREFIX}${randomBytes(16).toString("hex")}.${ext}`;
-  await put(key, file, { access: "private", addRandomSuffix: false });
+  try {
+    await put(key, file, { access: "private", addRandomSuffix: false });
+  } catch (err) {
+    // Previously unguarded — any Blob API error (misconfigured
+    // BLOB_READ_WRITE_TOKEN, a transient outage) propagated uncaught out of
+    // the calling Server Action into a hard HTTP 500 instead of the
+    // {error: string} shape createProduct/updateProduct (and courses.ts's
+    // lesson upload) already know how to render as a normal form error.
+    console.error("saveProtectedFile: blob put() failed", err);
+    return { error: "Upload failed. Please try again." };
+  }
   return { key, mimeType: file.type, sizeBytes: file.size };
 }
 

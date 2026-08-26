@@ -4,6 +4,8 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
 import { sendChatMessage, deleteChatMessage } from "@/app/actions/community-chat";
+import { EmptyState } from "@/components/EmptyState";
+import { ConfirmButton } from "@/components/ConfirmButton";
 
 export type ChatMessageData = {
   id: string;
@@ -88,7 +90,7 @@ export function CommunityChatView({
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 10rem)" }}>
       <div ref={listRef} role="log" aria-live="polite" aria-label="Chat messages" className="messageList">
-        {messages.length === 0 && <p className="mutedText">No messages yet — say hello.</p>}
+        {messages.length === 0 && <EmptyState message="No messages yet — say hello." />}
         {messages.map((m) => {
           const displayName = m.sender.profile?.displayName ?? m.sender.username?.handle ?? "Unknown";
           return (
@@ -103,9 +105,15 @@ export function CommunityChatView({
                   <form action={deleteChatMessage}>
                     <input type="hidden" name="communityId" value={communityId} />
                     <input type="hidden" name="messageId" value={m.id} />
-                    <button type="submit" className="button buttonSecondary iconButton" aria-label="Remove message">
+                    <ConfirmButton
+                      className="button buttonSecondary iconButton"
+                      title="Remove this message?"
+                      description="This can't be undone."
+                      confirmLabel="Remove"
+                      aria-label="Remove message"
+                    >
                       <X size={14} />
-                    </button>
+                    </ConfirmButton>
                   </form>
                 )}
               </div>

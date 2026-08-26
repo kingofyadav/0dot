@@ -19,6 +19,8 @@ import { InviteTeamMemberForm } from "./InviteTeamMemberForm";
 import { ManageBusinessForm } from "./ManageBusinessForm";
 import { BusinessLinksForm } from "./BusinessLinksForm";
 import { LocationForm } from "./LocationForm";
+import { ConfirmButton } from "@/components/ConfirmButton";
+import { EmptyState } from "@/components/EmptyState";
 
 const ROLE_LABEL: Record<string, string> = {
   owner: "Owner",
@@ -64,7 +66,7 @@ export default async function ManageBusinessPage({ params }: { params: Promise<{
     <div className="profileCard">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
         <h1 style={{ fontSize: "1.1rem", fontWeight: 700 }}>Manage {business.name}</h1>
-        <span style={{ display: "flex", gap: "0.5rem" }}>
+        <span className="row">
           <Link href={`/b/${business.slug}/catalog`} className="button buttonSecondary" style={{ fontSize: "0.85rem", padding: "0.4rem 0.7rem" }}>
             Catalog
           </Link>
@@ -92,10 +94,10 @@ export default async function ManageBusinessPage({ params }: { params: Promise<{
 
       <div style={{ marginBottom: "1.5rem" }}>
         <p className="sectionHeading">Team</p>
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+        <div className="stack">
           {members.map((m) => (
             <div key={m.userId} className="profileLinkItem" style={{ justifyContent: "space-between", flexWrap: "wrap", gap: "0.5rem" }}>
-              <span style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <span className="row">
                 {m.user.profile?.avatarUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element -- user-supplied URL, not a local/optimizable asset
                   <img src={m.user.profile.avatarUrl} alt="" width={32} height={32} style={{ borderRadius: "50%", objectFit: "cover" }} />
@@ -113,8 +115,8 @@ export default async function ManageBusinessPage({ params }: { params: Promise<{
                 )}
               </span>
               {m.role !== "owner" && (
-                <span style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
-                  <form action={updateTeamMemberRole} style={{ display: "flex", gap: "0.3rem" }}>
+                <span className="row" style={{ flexWrap: "wrap" }}>
+                  <form action={updateTeamMemberRole} className="row-sm">
                     <input type="hidden" name="businessId" value={business.id} />
                     <input type="hidden" name="userId" value={m.userId} />
                     <select name="role" defaultValue={m.role} className="textInput" style={{ fontSize: "0.8rem" }}>
@@ -167,7 +169,7 @@ export default async function ManageBusinessPage({ params }: { params: Promise<{
 
       <div style={{ marginTop: "1.5rem" }}>
         <p className="sectionHeading">Locations</p>
-        {business.locations.length === 0 && <p className="mutedText">No locations yet.</p>}
+        {business.locations.length === 0 && <EmptyState message="No locations yet." />}
         {business.locations.map((location) => (
           <div key={location.id} className="profileLinkItem" style={{ flexDirection: "column", alignItems: "stretch", gap: "0.35rem", marginBottom: "0.5rem" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -176,7 +178,14 @@ export default async function ManageBusinessPage({ params }: { params: Promise<{
               </span>
               <form action={deleteLocation}>
                 <input type="hidden" name="locationId" value={location.id} />
-                <button type="submit" className="button buttonDanger buttonSmall">Delete</button>
+                <ConfirmButton
+                  className="button buttonDanger buttonSmall"
+                  title="Delete this location?"
+                  description="This can't be undone."
+                  confirmLabel="Delete"
+                >
+                  Delete
+                </ConfirmButton>
               </form>
             </div>
             <details className="profileEditToggle">
@@ -200,17 +209,17 @@ export default async function ManageBusinessPage({ params }: { params: Promise<{
 
       <div className="linksSection" style={{ marginTop: "1.5rem" }}>
         <p className="sectionHeading">Links</p>
-        {links.length === 0 && <p className="mutedText">No links yet.</p>}
+        {links.length === 0 && <EmptyState message="No links yet." />}
         {links.map((link, index) => (
           <div key={link.id} className="profileLinkItem" style={{ flexDirection: "column", alignItems: "stretch", gap: "0.35rem" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <div className="row">
               <a href={`/r/${link.id}`} target="_blank" rel="noopener noreferrer nofollow" style={{ flex: 1, fontWeight: 600 }}>
                 {link.label}
               </a>
               <span className="mutedText" style={{ fontSize: "0.8rem" }}>
                 {link.clickCount} click{link.clickCount === 1 ? "" : "s"}
               </span>
-              <div style={{ display: "flex", gap: "0.35rem" }}>
+              <div className="row-sm">
                 <form action={moveBusinessLink}>
                   <input type="hidden" name="businessId" value={business.id} />
                   <input type="hidden" name="linkId" value={link.id} />
@@ -226,7 +235,15 @@ export default async function ManageBusinessPage({ params }: { params: Promise<{
                 <form action={deleteBusinessLink}>
                   <input type="hidden" name="businessId" value={business.id} />
                   <input type="hidden" name="linkId" value={link.id} />
-                  <button type="submit" className="button buttonSecondary iconButton" aria-label="Delete"><X size={16} aria-hidden="true" /></button>
+                  <ConfirmButton
+                    className="button buttonSecondary iconButton"
+                    title="Delete this link?"
+                    description="This can't be undone."
+                    confirmLabel="Delete"
+                    aria-label="Delete"
+                  >
+                    <X size={16} aria-hidden="true" />
+                  </ConfirmButton>
                 </form>
               </div>
             </div>
@@ -245,11 +262,11 @@ export default async function ManageBusinessPage({ params }: { params: Promise<{
               <summary className="mutedText" style={{ fontSize: "0.85rem" }}>
                 Transfer ownership
               </summary>
-              <div style={{ marginTop: "0.6rem", display: "flex", flexDirection: "column", gap: "0.6rem", maxWidth: "32ch" }}>
+              <div className="disclosureBody">
                 <p className="mutedText" style={{ fontSize: "0.85rem" }}>
                   You&apos;ll become an admin. The new owner is the only one who can transfer it again.
                 </p>
-                <form action={transferBusinessOwnership} style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                <form action={transferBusinessOwnership} className="stack">
                   <input type="hidden" name="businessId" value={business.id} />
                   <select name="userId" required>
                     {transferCandidates.map((m) => (
@@ -270,16 +287,21 @@ export default async function ManageBusinessPage({ params }: { params: Promise<{
             <summary className="mutedText" style={{ fontSize: "0.85rem" }}>
               Delete business
             </summary>
-            <div style={{ marginTop: "0.6rem", display: "flex", flexDirection: "column", gap: "0.6rem", maxWidth: "32ch" }}>
+            <div className="disclosureBody">
               <p className="mutedText" style={{ fontSize: "0.85rem" }}>
                 Permanently deletes {business.name} — team, catalog, reviews, jobs, appointments, and
                 documents all go with it. This cannot be undone.
               </p>
               <form action={deleteBusiness}>
                 <input type="hidden" name="businessId" value={business.id} />
-                <button type="submit" className="button buttonDanger buttonSmall">
+                <ConfirmButton
+                  className="button buttonDanger buttonSmall"
+                  title={`Delete ${business.name}?`}
+                  description={`Permanently deletes ${business.name} — team, catalog, reviews, jobs, appointments, and documents all go with it. This cannot be undone.`}
+                  confirmLabel={`Yes, delete ${business.name}`}
+                >
                   Yes, delete {business.name}
-                </button>
+                </ConfirmButton>
               </form>
             </div>
           </details>

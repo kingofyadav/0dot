@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/session";
 import { cancelFundraisingCampaign } from "@/app/actions/donations";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { DonateForm } from "./DonateForm";
+import { EmptyState } from "@/components/EmptyState";
 
 // spec §11: is_anonymous hides the donor's name from *public* display
 // only — the organizer still sees who donated (§11.1's acceptance
@@ -82,7 +83,7 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
 
       <div style={{ marginTop: "1.5rem" }}>
         <p className="sectionHeading">Donations</p>
-        {donations.length === 0 && <p className="mutedText">No donations yet.</p>}
+        {donations.length === 0 && <EmptyState message="No donations yet." />}
         <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
           {donations.map((donation) => {
             // isAnonymous hides identity from every viewer except the

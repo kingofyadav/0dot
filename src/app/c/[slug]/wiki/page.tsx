@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/session";
 import { getCommunityMember } from "@/lib/communities";
 import { isGatedFromCommunityContent } from "@/lib/organizations";
 import { listWikiPages } from "@/lib/wiki";
+import { EmptyState } from "@/components/EmptyState";
 
 // Public listing, same visibility posture as the community feed (spec
 // §3.1/§17.1: private communities gate content to members).
@@ -44,7 +45,7 @@ export default async function WikiListPage({ params }: { params: Promise<{ slug:
         </span>
       </div>
 
-      {pages.length === 0 && <p className="mutedText">No wiki pages yet.</p>}
+      {pages.length === 0 && <EmptyState message="No wiki pages yet." />}
       <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
         {pages.map((page) => (
           <Link key={page.id} href={`/c/${community.slug}/wiki/${page.slug}`} className="profileLinkItem">

@@ -23,13 +23,23 @@ export async function translateArticle(articleId: string, targetLanguage: string
   }
   if (!article.body.trim()) return { error: "Nothing to translate." };
 
-  const { translatedText } = await getOrCreateTranslation({
-    subjectType: "article",
-    subjectId: article.id,
-    sourceRevisionKey: article.updatedAt.toISOString(),
-    targetLanguage,
-    sourceText: article.body,
-    requestedById: currentUser?.id ?? null,
-  });
-  return { text: translatedText };
+  try {
+    const { translatedText } = await getOrCreateTranslation({
+      subjectType: "article",
+      subjectId: article.id,
+      sourceRevisionKey: article.updatedAt.toISOString(),
+      targetLanguage,
+      sourceText: article.body,
+      requestedById: currentUser?.id ?? null,
+    });
+    return { text: translatedText };
+  } catch (err) {
+    // getOrCreateTranslation no longer swallows a provider failure into a
+    // fake "translation" that's just the original text back — this is the
+    // one place that turns a real failure into the {error} shape the UI
+    // already knows how to show (TranslateArticleButton's errorText), same
+    // as every other Server Action here.
+    console.error(`translateArticle failed for article ${article.id} -> ${targetLanguage}`, err);
+    return { error: "Translation failed. Please try again." };
+  }
 }

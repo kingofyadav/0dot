@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/session";
 import { sendIssue, deleteIssue } from "@/app/actions/newsletter";
 import { SettingsRow } from "@/components/SettingsRow";
 import { EmptyState } from "@/components/EmptyState";
+import { ConfirmButton } from "@/components/ConfirmButton";
 import { NewsletterIssueForm } from "../../NewsletterIssueForm";
 
 export default async function NewsletterSettingsPage() {
@@ -38,7 +39,14 @@ export default async function NewsletterSettingsPage() {
                   </form>
                   <form action={deleteIssue}>
                     <input type="hidden" name="issueId" value={issue.id} />
-                    <button type="submit" className="button buttonSecondary buttonSmall">Delete</button>
+                    <ConfirmButton
+                      className="button buttonSecondary buttonSmall"
+                      title="Delete this issue?"
+                      description="This can't be undone."
+                      confirmLabel="Delete"
+                    >
+                      Delete
+                    </ConfirmButton>
                   </form>
                 </>
               ) : undefined

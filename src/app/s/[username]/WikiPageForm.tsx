@@ -40,15 +40,15 @@ export function WikiPageForm({ page, otherPages }: { page?: WikiPageFormPage; ot
         <label htmlFor={`wikiBody-${idSuffix}`}>Content</label>
         <textarea id={`wikiBody-${idSuffix}`} name="body" defaultValue={page?.body} rows={10} required />
       </div>
-      <div style={{ display: "flex", gap: "0.5rem" }}>
-        <div className="field" style={{ flex: 1 }}>
+      <div className="fieldRow">
+        <div className="field">
           <label htmlFor={`wikiKind-${idSuffix}`}>Kind</label>
           <select id={`wikiKind-${idSuffix}`} name="kind" defaultValue={page?.kind ?? "wiki"} className="textInput">
             <option value="wiki">Wiki page</option>
             <option value="documentation">Documentation</option>
           </select>
         </div>
-        <div className="field" style={{ flex: 1 }}>
+        <div className="field">
           <label htmlFor={`wikiVisibility-${idSuffix}`}>Visibility</label>
           <select id={`wikiVisibility-${idSuffix}`} name="visibility" defaultValue={page?.visibility ?? "public"} className="textInput">
             <option value="public">Public</option>
@@ -57,8 +57,8 @@ export function WikiPageForm({ page, otherPages }: { page?: WikiPageFormPage; ot
           </select>
         </div>
       </div>
-      <div style={{ display: "flex", gap: "0.5rem" }}>
-        <div className="field" style={{ flex: 1 }}>
+      <div className="fieldRow">
+        <div className="field">
           <label htmlFor={`wikiParent-${idSuffix}`}>Parent page</label>
           <select id={`wikiParent-${idSuffix}`} name="parentPageId" defaultValue={page?.parentPageId ?? ""} className="textInput">
             <option value="">None (top-level)</option>
@@ -67,7 +67,7 @@ export function WikiPageForm({ page, otherPages }: { page?: WikiPageFormPage; ot
             ))}
           </select>
         </div>
-        <div className="field" style={{ flex: 1 }}>
+        <div className="field">
           <label htmlFor={`wikiPosition-${idSuffix}`}>Position</label>
           <input id={`wikiPosition-${idSuffix}`} name="position" type="number" defaultValue={page?.position ?? 0} className="textInput" />
         </div>

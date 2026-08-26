@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { fileAppealAction } from "@/app/actions/trust-safety";
 import { DmcaCounterNoticeForm } from "./DmcaCounterNoticeForm";
+import { EmptyState } from "@/components/EmptyState";
 
 const CASE_TYPE_LABELS: Record<string, string> = {
   content_report: "Content removed following a report",
@@ -57,7 +58,7 @@ export default async function TrustSafetyPage() {
       </p>
 
       {cases.length === 0 ? (
-        <p className="mutedText">No enforcement actions on file.</p>
+        <EmptyState message="No enforcement actions on file." />
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
           {cases.map((c) => {

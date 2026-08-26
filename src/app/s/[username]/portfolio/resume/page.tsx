@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { deleteWorkExperience, moveWorkExperience, deleteEducation, moveEducation } from "@/app/actions/resume";
 import { SettingsRow } from "@/components/SettingsRow";
+import { ConfirmButton } from "@/components/ConfirmButton";
 import { WorkExperienceForm } from "../../WorkExperienceForm";
 import { EducationForm } from "../../EducationForm";
 import { ResumePdfForm } from "../../ResumePdfForm";
@@ -59,7 +60,15 @@ export default async function ResumeSettingsPage() {
                 </form>
                 <form action={deleteWorkExperience}>
                   <input type="hidden" name="workExperienceId" value={item.id} />
-                  <button type="submit" className="button buttonSecondary iconButton" aria-label="Delete"><X size={16} aria-hidden="true" /></button>
+                  <ConfirmButton
+                    className="button buttonSecondary iconButton"
+                    title="Delete this work experience entry?"
+                    description="This can't be undone."
+                    confirmLabel="Delete"
+                    aria-label="Delete"
+                  >
+                    <X size={16} aria-hidden="true" />
+                  </ConfirmButton>
                 </form>
               </>
             }
@@ -113,7 +122,15 @@ export default async function ResumeSettingsPage() {
                 </form>
                 <form action={deleteEducation}>
                   <input type="hidden" name="educationId" value={item.id} />
-                  <button type="submit" className="button buttonSecondary iconButton" aria-label="Delete"><X size={16} aria-hidden="true" /></button>
+                  <ConfirmButton
+                    className="button buttonSecondary iconButton"
+                    title="Delete this education entry?"
+                    description="This can't be undone."
+                    confirmLabel="Delete"
+                    aria-label="Delete"
+                  >
+                    <X size={16} aria-hidden="true" />
+                  </ConfirmButton>
                 </form>
               </>
             }

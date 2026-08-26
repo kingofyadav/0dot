@@ -7,6 +7,7 @@ import { renderWikiMarkdown } from "@/lib/wiki-markdown";
 import { toggleReaction, deleteComment } from "@/app/actions/reactions";
 import { ArticleCommentForm } from "./ArticleCommentForm";
 import { TranslateArticleButton } from "./TranslateArticleButton";
+import { ConfirmButton } from "@/components/ConfirmButton";
 
 const FORMAT_LABEL: Record<string, string> = { article: "Article", tutorial: "Tutorial", note: "Note" };
 const LICENSE_LABEL: Record<string, string> = {
@@ -145,9 +146,15 @@ export default async function ArticlePage({ params }: { params: Promise<{ userna
               {currentUser && (currentUser.id === comment.authorId || currentUser.id === article.authorId) && (
                 <form action={deleteComment} style={{ alignSelf: "flex-end" }}>
                   <input type="hidden" name="commentId" value={comment.id} />
-                  <button type="submit" className="button buttonSecondary iconButton" aria-label="Delete comment">
+                  <ConfirmButton
+                    className="button buttonSecondary iconButton"
+                    title="Delete this comment?"
+                    description="This can't be undone."
+                    confirmLabel="Delete"
+                    aria-label="Delete comment"
+                  >
                     <X size={16} aria-hidden="true" />
-                  </button>
+                  </ConfirmButton>
                 </form>
               )}
             </div>

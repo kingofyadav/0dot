@@ -202,6 +202,7 @@ export async function deleteMessage(formData: FormData): Promise<void> {
       attachmentMimeType: null,
       attachmentSizeBytes: null,
       attachmentDurationS: null,
+      attachmentFileName: null,
       deletedAt: new Date(),
     },
   });

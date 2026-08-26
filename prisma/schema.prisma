@@ -912,6 +912,12 @@ model Message {
   attachmentMimeType  String?
   attachmentSizeBytes Int?
   attachmentDurationS Int? // voice_note only
+  // Previously never captured at all (src/lib/uploads.ts only kept mime
+  // type/size) — MessageBubble.tsx had nothing but the MIME type left to
+  // show next to a file attachment. file-kind only (see
+  // saveMessageAttachment); null for voice notes and for every row written
+  // before this column existed.
+  attachmentFileName  String?
 
   createdAt DateTime  @default(now())
   // Sender-only soft delete (spec §5.1). Deleting clears body/attachment*

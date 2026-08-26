@@ -1,8 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Trash2, X, Paperclip } from "lucide-react";
+import { Trash2, X, Paperclip, Image as ImageIcon, FileText } from "lucide-react";
 import { Modal } from "@/components/Modal";
+
+// Message file attachments are limited to images, PDF, or plain text (see
+// ALLOWED_MESSAGE_FILE_TYPES, src/lib/uploads.ts) — a generic paperclip for
+// all three read as "an attachment landed here," not what kind. Falls back
+// to Paperclip for a mime type outside that set (shouldn't happen from this
+// upload path, but the v1 API's own attachment upload isn't necessarily
+// bound by the same allow-list).
+function attachmentIcon(mimeType: string | null | undefined) {
+  if (mimeType?.startsWith("image/")) return ImageIcon;
+  if (mimeType === "application/pdf" || mimeType === "text/plain") return FileText;
+  return Paperclip;
+}
 
 export type MessageBubbleData = {
   id: string;
@@ -13,6 +25,7 @@ export type MessageBubbleData = {
   attachmentUrl?: string | null;
   attachmentMimeType?: string | null;
   attachmentDurationS?: number | null;
+  attachmentFileName?: string | null;
   deletedAt?: Date | null;
 };
 
@@ -88,17 +101,23 @@ export function MessageBubble({
       {message.attachmentType === "voice_note" && message.attachmentUrl && (
         <audio controls src={message.attachmentUrl} style={{ maxWidth: "220px" }} />
       )}
-      {message.attachmentType === "file" && message.attachmentUrl && (
-        <a
-          href={message.attachmentUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="messageAttachmentFile"
-          style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}
-        >
-          <Paperclip size={14} /> {message.attachmentMimeType ?? "Attachment"}
-        </a>
-      )}
+      {message.attachmentType === "file" && message.attachmentUrl && (() => {
+        const AttachmentIcon = attachmentIcon(message.attachmentMimeType);
+        return (
+          <a
+            href={message.attachmentUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="messageAttachmentFile"
+            style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}
+          >
+            {/* attachmentFileName is only populated for messages sent after
+                this column was added — older rows fall back to the mime type
+                (still better than nothing), then "Attachment". */}
+            <AttachmentIcon size={14} aria-hidden="true" /> {message.attachmentFileName ?? message.attachmentMimeType ?? "Attachment"}
+          </a>
+        );
+      })()}
       {message.body && <p style={{ margin: 0 }}>{message.body}</p>}
       <MessageTimestamp date={message.createdAt} />
       {isOwn && onDelete && (

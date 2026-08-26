@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
 import type { Prisma } from "@/generated/prisma/client";
+import { EmptyState } from "@/components/EmptyState";
 
 const EMPLOYMENT_TYPE_LABEL: Record<string, string> = {
   full_time: "Full-time",
@@ -68,7 +69,7 @@ export default async function JobsBoardPage({
       </form>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-        {jobs.length === 0 && <p className="mutedText">No open jobs match your search.</p>}
+        {jobs.length === 0 && <EmptyState message="No open jobs match your search." />}
         {jobs.map((job) => (
           <Link
             key={job.id}

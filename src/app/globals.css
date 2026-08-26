@@ -1377,6 +1377,30 @@ html:not([data-theme="light"])[data-high-contrast="true"] {
   opacity: 0.75;
 }
 
+/* A row of two (occasionally three) .field children side by side — Start
+   date/End date, Degree/Field of study, Issue date/Expiry date, Price/
+   Currency, and similar pairs repeated across ~13 forms (resume/education/
+   credentials/tier/article/book/course/wiki/product settings forms, plus
+   business location). Previously each was its own inline
+   style={{display:"flex",gap:"0.5rem"}} wrapping children with
+   style={{flex:1}} and no wrap — fine on a wide screen, but several of
+   these forms cap their own width at 32ch, and native <input type="date">/
+   type="number"> pickers have their own minimum usable width, so two of
+   them sharing half of an already-narrow container is exactly the class of
+   overflow QA found in OfferingForm's Price/Currency row. flex-basis 140px
+   is small enough that two fields still sit side by side in every form's
+   normal (wider) width, and large enough that the row wraps to one field
+   per line rather than clipping once real space drops below that. */
+.fieldRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.fieldRow > .field {
+  flex: 1 1 140px;
+}
+
 .field input,
 .field textarea,
 .field select,
@@ -1500,6 +1524,26 @@ input[type="file"].textInput::-webkit-file-upload-button:hover {
   color: var(--foreground);
   opacity: 0.4;
   pointer-events: none;
+}
+
+/* SearchBox.tsx swaps the static icon for this one while a debounced
+   live-search request is in flight (UX_GUIDELINES.md #11 — the 300ms
+   debounce window plus the actual navigation was previously a silent gap
+   with no feedback at all). The keyframe re-states translateY(-50%) on
+   every frame so the spin doesn't fight .searchFieldIcon's own centering
+   transform. The blanket prefers-reduced-motion override below already
+   zeroes this for anyone who's asked for it. */
+@keyframes searchSpin {
+  from {
+    transform: translateY(-50%) rotate(0deg);
+  }
+  to {
+    transform: translateY(-50%) rotate(360deg);
+  }
+}
+
+.searchFieldSpinner {
+  animation: searchSpin 0.8s linear infinite;
 }
 
 input[type="search"]::-webkit-search-cancel-button {
@@ -1705,7 +1749,7 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
   border-radius: 10px;
   padding: 0.7rem 1.1rem;
   cursor: pointer;
-  transition: background-color 0.15s ease, transform 0.05s ease;
+  transition: background-color var(--transition-base), transform var(--transition-fast);
 }
 
 .button:hover:not(:disabled) {
@@ -3057,6 +3101,18 @@ a.profileMetaItem:hover {
   box-shadow: var(--shadow);
 }
 
+/* Applied briefly by ScrollToHashPost.tsx after a notification link
+   (`/${handle}#post-<id>`) scrolls this post into view — without it,
+   landing on a busy profile page after clicking "X liked your post" reads
+   as "the page silently jumped," not "here's the post." Removed after 2s;
+   the global prefers-reduced-motion override (below) already zeroes this
+   transition for anyone who's asked for it. */
+.postHighlight {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  transition: border-color var(--transition-base), box-shadow var(--transition-base);
+}
+
 /* Reply/quoted-original rendering nested one level inside a .postCard
    (MiniPostCard) — same shape, quieter: no elevation hover of its own
    (it's already inside a hoverable card), tighter padding to read as a
@@ -3108,11 +3164,78 @@ a.profileMetaItem:hover {
 
 /* Generic vertical-stack utility (DESIGN_CONSISTENCY.md: a repeated inline
    style={{display:"flex",flexDirection:"column",gap:...}} object should
-   become a class, not stay copy-pasted per call site). */
+   become a class, not stay copy-pasted per call site). Sized variants added
+   alongside .row below — same three-step scale (sm/base/lg), built on the
+   --space-* tokens rather than each inline style's own slightly-different
+   ad hoc gap value (0.3rem/0.4rem/0.5rem/1rem seen across the ~1,700
+   existing style={{}} occurrences this pair is meant to start absorbing —
+   DESIGN_CONSISTENCY.md: "new spacing values should visually match the
+   existing rem values already in use," i.e. the token scale is what
+   absorbs that drift, not a fourth one-off value per call site). */
 .stack {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--space-2);
+}
+
+.stack-sm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.stack-lg {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* Generic horizontal-row utility — the .stack pattern's counterpart for the
+   equally-common style={{display:"flex",alignItems:"center",gap:...}}
+   inline object (e.g. an icon + label, a byline + timestamp). */
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.row-sm {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.row-lg {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+/* Content wrapper for a <details> disclosure's body — first extracted from
+   [username]/page.tsx's portfolio sections (Projects/Skills/Credentials/
+   Resume/Repositories/etc.), then reused as-is by the community/business
+   manage pages' own disclosures once the identical shape turned up there
+   too. The exact same style={{marginTop:"0.6rem", display:"flex",
+   flexDirection:"column", gap:"0.4rem"|"0.5rem"|"0.6rem", maxWidth:...}}
+   object was repeated across call sites; the gap value is normalized to
+   --space-2 (0.5rem) here rather than kept as several near-identical
+   one-off values, per DESIGN_CONSISTENCY.md's "new spacing values should
+   absorb into the existing scale" rule. .disclosureBodyWrap is the same
+   shape for sections (Skills' endorsement chips, Credentials) that wrap a
+   row of items instead of stacking a column. */
+.disclosureBody {
+  margin-top: 0.6rem;
+  max-width: 32ch;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.disclosureBodyWrap {
+  margin-top: 0.6rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 
 .railSectionHeader {

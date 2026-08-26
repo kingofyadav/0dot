@@ -54,13 +54,13 @@ export function SafariInstallPrompt() {
       <p className="iosInstallBannerText">
         {platform === "ios" ? (
           <>
-            Install 0dot: tap <Share size={15} aria-hidden="true" className="iosInstallBannerIcon" /> then{" "}
+            Install <span className="brandUrl">0dot</span>: tap <Share size={15} aria-hidden="true" className="iosInstallBannerIcon" /> then{" "}
             <strong>Add to Home Screen</strong>
             <SquarePlus size={15} aria-hidden="true" className="iosInstallBannerIcon" />
           </>
         ) : (
           <>
-            Install 0dot: click <Share size={15} aria-hidden="true" className="iosInstallBannerIcon" /> in the
+            Install <span className="brandUrl">0dot</span>: click <Share size={15} aria-hidden="true" className="iosInstallBannerIcon" /> in the
             toolbar, then <strong>Add to Dock</strong>
             <SquarePlus size={15} aria-hidden="true" className="iosInstallBannerIcon" />
             {" "}(older Safari: <strong>Add to Home Screen</strong>)

@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/session";
 import { getCommunityMember } from "@/lib/communities";
 import { isGatedFromCommunityContent } from "@/lib/organizations";
 import { listVoiceRooms } from "@/lib/voice-rooms";
+import { EmptyState } from "@/components/EmptyState";
 
 const STATUS_LABEL: Record<string, string> = {
   live: "🔴 Live",
@@ -49,7 +50,7 @@ export default async function VoiceRoomListPage({ params }: { params: Promise<{ 
         </span>
       </div>
 
-      {rooms.length === 0 && <p className="mutedText">No voice rooms right now.</p>}
+      {rooms.length === 0 && <EmptyState message="No voice rooms right now." />}
       <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
         {rooms.map((room) => {
           const creatorName = room.creator.profile?.displayName ?? room.creator.username?.handle ?? "Unknown";

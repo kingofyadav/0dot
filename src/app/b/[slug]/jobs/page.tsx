@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/session";
 import { getBusinessMember, canManageCatalog } from "@/lib/businesses";
 import { closeJob } from "@/app/actions/jobs";
 import { JobForm } from "./JobForm";
+import { EmptyState } from "@/components/EmptyState";
 
 const EMPLOYMENT_TYPE_LABEL: Record<string, string> = {
   full_time: "Full-time",
@@ -62,7 +63,7 @@ export default async function JobsPage({ params }: { params: Promise<{ slug: str
         </details>
       )}
 
-      {jobs.length === 0 && <p className="mutedText">No open positions right now.</p>}
+      {jobs.length === 0 && <EmptyState message="No open positions right now." />}
 
       <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
         {jobs.map((job) => {

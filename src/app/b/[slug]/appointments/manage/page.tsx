@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { canManageCatalog, isBusinessStaff } from "@/lib/businesses";
 import { createAvailabilityRule, deleteAvailabilityRule, confirmAppointment, cancelAppointment } from "@/app/actions/appointments";
+import { EmptyState } from "@/components/EmptyState";
 
 const DAY_LABEL = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const STATUS_LABEL: Record<string, string> = {
@@ -109,7 +110,7 @@ export default async function ManageAppointmentsPage({ params }: { params: Promi
 
       <div>
         <p className="sectionHeading">Requests & upcoming</p>
-        {appointments.length === 0 && <p className="mutedText">Nothing scheduled.</p>}
+        {appointments.length === 0 && <EmptyState message="Nothing scheduled." />}
         <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
           {appointments.map((a) => {
             const customerName = a.customer.profile?.displayName ?? a.customer.username?.handle ?? "Unknown";

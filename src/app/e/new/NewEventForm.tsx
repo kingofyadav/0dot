@@ -103,14 +103,14 @@ export function NewEventForm({
           id="slug"
           name="slug"
           type="text"
-          placeholder="your-event"
+          placeholder="your_event"
           pattern="[a-zA-Z0-9_]{3,60}"
           minLength={3}
           maxLength={60}
           required
         />
         <span className="mutedText">
-          <span className="brandUrl">0dot.in</span>/e/your-event — this is permanent.
+          <span className="brandUrl">0dot.in</span>/e/your_event — letters, numbers, and underscores only. This is permanent.
         </span>
       </div>
 

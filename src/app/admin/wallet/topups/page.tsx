@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requirePlatformRole } from "@/lib/auth-guards";
 import { db } from "@/lib/db";
 import { approveTopUpRequest, rejectTopUpRequest } from "@/app/actions/wallet";
+import { EmptyState } from "@/components/EmptyState";
 
 // A dedicated finance-review page rather than folding into the unified
 // /admin/trust-safety queue (TrustSafetyCase) — verifying a bank transfer
@@ -32,7 +33,7 @@ export default async function AdminWalletTopUpsPage() {
       </p>
 
       {requests.length === 0 ? (
-        <p className="mutedText">Nothing pending.</p>
+        <EmptyState message="Nothing pending." />
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
           {requests.map((request) => (

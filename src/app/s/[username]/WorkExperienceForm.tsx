@@ -37,12 +37,12 @@ export function WorkExperienceForm({ item }: { item?: WorkExperienceFormItem }) 
         <label htmlFor={`weLocation-${idSuffix}`}>Location</label>
         <input id={`weLocation-${idSuffix}`} name="location" defaultValue={item?.location ?? ""} />
       </div>
-      <div style={{ display: "flex", gap: "0.5rem" }}>
-        <div className="field" style={{ flex: 1 }}>
+      <div className="fieldRow">
+        <div className="field">
           <label htmlFor={`weStart-${idSuffix}`}>Start date</label>
           <input id={`weStart-${idSuffix}`} name="startDate" type="date" defaultValue={toDateInputValue(item?.startDate ?? null)} required />
         </div>
-        <div className="field" style={{ flex: 1 }}>
+        <div className="field">
           <label htmlFor={`weEnd-${idSuffix}`}>End date (blank = current)</label>
           <input id={`weEnd-${idSuffix}`} name="endDate" type="date" defaultValue={toDateInputValue(item?.endDate ?? null)} />
         </div>

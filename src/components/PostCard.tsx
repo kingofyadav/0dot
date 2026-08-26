@@ -5,16 +5,14 @@ import {
   Camera,
   Check,
   CircleHelp,
-  Heart,
   Lock,
   Pin,
   Repeat2,
   ShieldX,
   X,
 } from "lucide-react";
-import { toggleLike, toggleBookmark, toggleRepost, deletePost } from "@/app/actions/posts";
+import { toggleBookmark, toggleRepost, deletePost } from "@/app/actions/posts";
 import { pinPost, unpinPost, removeCommunityPost } from "@/app/actions/communities";
-import { castVote } from "@/app/actions/polls";
 import { acceptAnswer, unacceptAnswer } from "@/app/actions/qa";
 import { linkifyPostBody, splitPostBody } from "@/lib/linkify";
 import { flairColorStyle } from "@/lib/flair-colors";
@@ -24,6 +22,8 @@ import { QuoteRepostForm } from "@/app/feed/QuoteRepostForm";
 import { ReportButton } from "@/components/ReportButton";
 import { PostOwnerMenu } from "@/app/feed/PostOwnerMenu";
 import { ConfirmButton } from "@/components/ConfirmButton";
+import { LikeButton } from "@/components/LikeButton";
+import { PollBlock } from "@/components/PollBlock";
 
 // Replies stay flat/inline (phase-1 spec §5.3) but a busy thread shouldn't
 // dump every reply into view the moment "Reply (N)" is opened — the first
@@ -31,14 +31,6 @@ import { ConfirmButton } from "@/components/ConfirmButton";
 // disclosure one level deeper (same nested-progressive-disclosure posture
 // as the reply toggle itself).
 const INLINE_REPLY_PREVIEW_COUNT = 3;
-
-// Plain helper, not called directly in a component body — same reasoning
-// as relativeTime just below: react-hooks/purity flags Date.now() called
-// directly inside a component's render, not inside an ordinary function it
-// calls into.
-function isPollClosed(closesAt: Date): boolean {
-  return closesAt.getTime() <= Date.now();
-}
 
 function relativeTime(date: Date): string {
   const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
@@ -96,69 +88,6 @@ type BasicPost = {
     options: { id: string; label: string; _count: { votes: number } }[];
   } | null;
 };
-
-function PollBlock({
-  poll,
-  votedOptionIds,
-}: {
-  poll: NonNullable<BasicPost["poll"]>;
-  votedOptionIds: Set<string>;
-}) {
-  const totalVotes = poll.options.reduce((sum, o) => sum + o._count.votes, 0);
-  const isClosed = isPollClosed(poll.closesAt);
-
-  return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: "0.4rem",
-        border: "1px solid var(--border)",
-        borderRadius: "10px",
-        padding: "0.6rem",
-      }}
-    >
-      {poll.options.map((option) => {
-        const pct = totalVotes > 0 ? Math.round((option._count.votes / totalVotes) * 100) : 0;
-        const voted = votedOptionIds.has(option.id);
-        return (
-          <form key={option.id} action={castVote}>
-            <input type="hidden" name="pollOptionId" value={option.id} />
-            <button
-              type="submit"
-              disabled={isClosed}
-              className="button buttonSecondary"
-              style={{
-                width: "100%",
-                display: "flex",
-                justifyContent: "space-between",
-                position: "relative",
-                overflow: "hidden",
-                borderColor: voted ? "var(--accent)" : undefined,
-              }}
-            >
-              <span
-                aria-hidden="true"
-                style={{ position: "absolute", inset: 0, width: `${pct}%`, background: "var(--accent-soft)" }}
-              />
-              <span style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: "0.3rem" }}>
-                {voted && <Check size={14} aria-hidden="true" />}
-                {option.label}
-              </span>
-              <span className="mutedText" style={{ position: "relative", fontSize: "0.8rem" }}>
-                {pct}% ({option._count.votes})
-              </span>
-            </button>
-          </form>
-        );
-      })}
-      <p className="mutedText" style={{ fontSize: "0.75rem", margin: 0 }}>
-        {totalVotes} vote{totalVotes === 1 ? "" : "s"} ·{" "}
-        {isClosed ? "Closed" : `Closes ${poll.closesAt.toLocaleDateString()}`}
-      </p>
-    </div>
-  );
-}
 
 function FlairPill({ flair }: { flair: { label: string; color: string } }) {
   const style = flairColorStyle(flair.color);
@@ -308,6 +237,8 @@ function PostMediaGrid({ media, authorName }: { media: MediaItem[]; authorName: 
           src={item.url}
           alt={`Image ${index + 1} posted by ${authorName}`}
           className="postMediaItem"
+          loading="lazy"
+          decoding="async"
         />
       ))}
     </div>
@@ -357,7 +288,7 @@ function MiniPostCard({
             </span>
           )}
         </span>
-        <span style={{ display: "flex", gap: "0.3rem" }}>
+        <span className="row-sm">
           {canAcceptAnswer && questionId && (
             <form action={isAcceptedAnswer ? unacceptAnswer : acceptAnswer}>
               <input type="hidden" name="questionId" value={questionId} />
@@ -436,13 +367,13 @@ export function PostCard({
     // not fixed here; the browser just jumps to the first match.
     <div id={`post-${post.id}`} className="postCard" data-nav-item>
       {isPureRepost && (
-        <p className="mutedText" style={{ display: "flex", alignItems: "center", gap: "0.3rem", fontSize: "0.85rem" }}>
+        <p className="mutedText row-sm" style={{ fontSize: "0.85rem" }}>
           <Repeat2 size={14} aria-hidden="true" /> {post.author.profile?.displayName ?? "Someone"} reposted
         </p>
       )}
 
       {isPinned && (
-        <p className="mutedText" style={{ display: "flex", alignItems: "center", gap: "0.3rem", fontSize: "0.85rem" }}>
+        <p className="mutedText row-sm" style={{ fontSize: "0.85rem" }}>
           <Pin size={14} aria-hidden="true" /> Pinned
         </p>
       )}
@@ -470,7 +401,7 @@ export function PostCard({
                 </span>
               )}
             </span>
-            <span style={{ display: "flex", gap: "0.3rem" }}>
+            <span className="row-sm">
               {canModerate && (
                 <form action={isPinned ? unpinPost : pinPost}>
                   <input type="hidden" name="communityId" value={post.communityId ?? ""} />
@@ -520,36 +451,14 @@ export function PostCard({
 
       {!isPureRepost && (
         <div className="postActionsRow">
-          <form action={toggleLike}>
-            <input type="hidden" name="postId" value={post.id} />
-            <button
-              type="submit"
-              className="button buttonSecondary iconButton"
-              data-nav-like
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "0.3rem",
-                ...(isLiked ? { borderColor: "var(--accent)", color: "var(--accent)" } : undefined),
-              }}
-              aria-pressed={isLiked}
-            >
-              <Heart size={16} aria-hidden="true" fill={isLiked ? "currentColor" : "none"} /> {formatCount(post.likeCount)}
-            </button>
-          </form>
+          <LikeButton postId={post.id} liked={isLiked} count={post.likeCount} />
 
           <form action={toggleRepost}>
             <input type="hidden" name="postId" value={post.id} />
             <button
               type="submit"
-              className="button buttonSecondary iconButton"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "0.3rem",
-                borderColor: "var(--accent)",
-                color: "var(--accent)",
-              }}
+              className="button buttonSecondary iconButton row-sm"
+              style={{ borderColor: "var(--accent)", color: "var(--accent)" }}
               aria-label="Repost"
             >
               <Repeat2 size={16} aria-hidden="true" /> {formatCount(post.repostCount)}
@@ -605,7 +514,7 @@ export function PostCard({
               const restReplies = orderedReplies.slice(INLINE_REPLY_PREVIEW_COUNT);
 
               return (
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "0.6rem" }}>
+                <div className="stack" style={{ marginTop: "0.6rem" }}>
                   {previewReplies.map((reply) => (
                     <MiniPostCard
                       key={reply.id}
@@ -622,7 +531,7 @@ export function PostCard({
                       <summary className="mutedText" style={{ fontSize: "0.85rem", cursor: "pointer" }}>
                         View all {formatCount(post.replies.length)} replies
                       </summary>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "0.6rem" }}>
+                      <div className="stack" style={{ marginTop: "0.6rem" }}>
                         {restReplies.map((reply) => (
                           <MiniPostCard
                             key={reply.id}

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
+import { EmptyState } from "@/components/EmptyState";
 
 const FORMAT_LABEL: Record<string, string> = { article: "Article", tutorial: "Tutorial", note: "Note" };
 
@@ -27,7 +28,7 @@ export default async function AuthorArticlesPage({ params }: { params: Promise<{
       </Link>
       <h1 style={{ fontSize: "1.2rem", fontWeight: 700, marginTop: "0.6rem" }}>Articles</h1>
 
-      {articles.length === 0 && <p className="mutedText" style={{ marginTop: "0.5rem" }}>No published articles yet.</p>}
+      {articles.length === 0 && <EmptyState message="No published articles yet." />}
       <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "0.75rem" }}>
         {articles.map((article) => (
           <Link key={article.id} href={`/${handle}/articles/${article.slug}`} className="profileLinkItem" style={{ flexDirection: "column", alignItems: "stretch", gap: "0.15rem" }}>

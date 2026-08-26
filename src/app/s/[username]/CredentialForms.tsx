@@ -84,12 +84,12 @@ export function CertificateForm() {
         <label htmlFor="certIssuingOrg">Issuing organization</label>
         <input id="certIssuingOrg" name="issuingOrg" maxLength={150} required className="textInput" />
       </div>
-      <div style={{ display: "flex", gap: "0.5rem" }}>
-        <div className="field" style={{ flex: 1 }}>
+      <div className="fieldRow">
+        <div className="field">
           <label htmlFor="certIssueDate">Issue date</label>
           <input id="certIssueDate" name="issueDate" type="date" required className="textInput" />
         </div>
-        <div className="field" style={{ flex: 1 }}>
+        <div className="field">
           <label htmlFor="certExpiryDate">Expiry date</label>
           <input id="certExpiryDate" name="expiryDate" type="date" className="textInput" />
         </div>

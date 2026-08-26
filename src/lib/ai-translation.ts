@@ -35,17 +35,18 @@ export async function getOrCreateTranslation(params: {
   if (existing) return { translatedText: existing.translatedText, cached: true };
 
   const provider = getAIProvider();
-  let result: Awaited<ReturnType<typeof provider.translate>>;
-  try {
-    result = await provider.translate({ text: params.sourceText, targetLanguage: params.targetLanguage });
-  } catch (err) {
-    // Degrade to showing the original text rather than throwing into
-    // whatever page called this — a broken translation is a worse outcome
-    // than no translation for a nice-to-have feature. Not cached (so the
-    // next request retries against the real provider).
-    console.error(`getOrCreateTranslation failed for ${params.subjectType}:${params.subjectId} -> ${params.targetLanguage}`, err);
-    return { translatedText: params.sourceText, cached: false };
-  }
+  // Previously caught here and degraded to `translatedText: params.sourceText`
+  // — meant to be a graceful fallback for a "nice-to-have" feature, but in
+  // practice it's indistinguishable from a successful translation: the
+  // caller (translateArticle) had no error to show, so a provider failure
+  // (bad/missing API key, rate limit, timeout) silently rendered the
+  // original English text back to the user under a "Translated" label with
+  // no indication anything went wrong. Letting it throw here and turning
+  // that into a real `{ error }` at the translateArticle boundary (per
+  // UX_GUIDELINES.md #1/#8: no silent failures, specific and actionable
+  // errors) means a real failure now looks like a failure, and a real
+  // translation is the only thing that gets shown as one.
+  const result = await provider.translate({ text: params.sourceText, targetLanguage: params.targetLanguage });
 
   const generation = await logAIGeneration({
     feature: "translation",

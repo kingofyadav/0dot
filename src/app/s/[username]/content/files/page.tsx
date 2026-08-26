@@ -6,6 +6,7 @@ import { getCurrentUser } from "@/lib/session";
 import { deletePublishedFile } from "@/app/actions/published-files";
 import { SettingsRow } from "@/components/SettingsRow";
 import { EmptyState } from "@/components/EmptyState";
+import { ConfirmButton } from "@/components/ConfirmButton";
 import { PublishedFileForm } from "../../PublishedFileForm";
 
 export default async function FilesSettingsPage() {
@@ -35,7 +36,14 @@ export default async function FilesSettingsPage() {
                 )}
                 <form action={deletePublishedFile}>
                   <input type="hidden" name="fileId" value={file.id} />
-                  <button type="submit" className="button buttonSecondary buttonSmall">Delete</button>
+                  <ConfirmButton
+                    className="button buttonSecondary buttonSmall"
+                    title="Delete this file?"
+                    description="This can't be undone."
+                    confirmLabel="Delete"
+                  >
+                    Delete
+                  </ConfirmButton>
                 </form>
               </>
             }

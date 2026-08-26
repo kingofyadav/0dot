@@ -81,7 +81,9 @@ export async function saveDocumentFile(
 
 export type MessageAttachmentKind = "voice_note" | "file";
 
-export type MessageAttachmentResult = { url: string; mimeType: string; sizeBytes: number } | { error: string };
+export type MessageAttachmentResult =
+  | { url: string; mimeType: string; sizeBytes: number; fileName: string | null }
+  | { error: string };
 
 const MESSAGE_ATTACHMENT_LIMITS: Record<
   MessageAttachmentKind,
@@ -117,5 +119,11 @@ export async function saveMessageAttachment(
       kind === "voice_note" ? "audio" : file.type.startsWith("image/") ? "image" : "document";
     await createFileAsset({ url, contentType, uploadedById });
   }
-  return { url, mimeType: file.type, sizeBytes: file.size };
+  // Previously dropped entirely — MessageBubble.tsx had nothing but the
+  // MIME type left to display for a file attachment. Voice notes get no
+  // name here (the recorded Blob's own .name, typically "blob", isn't a
+  // real filename worth showing next to the player UI that already renders
+  // for them); a plain file's original name is worth keeping.
+  const fileName = kind === "file" && file.name ? file.name : null;
+  return { url, mimeType: file.type, sizeBytes: file.size, fileName };
 }

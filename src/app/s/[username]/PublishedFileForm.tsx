@@ -27,12 +27,12 @@ export function PublishedFileForm({ file }: { file?: PublishedFileFormFile }) {
         <label htmlFor={`fileDescription-${idSuffix}`}>Description</label>
         <textarea id={`fileDescription-${idSuffix}`} name="description" defaultValue={file?.description} rows={4} maxLength={2000} />
       </div>
-      <div style={{ display: "flex", gap: "0.5rem" }}>
-        <div className="field" style={{ flex: 1 }}>
+      <div className="fieldRow">
+        <div className="field">
           <label htmlFor={`fileCover-${idSuffix}`}>Cover image</label>
           <input id={`fileCover-${idSuffix}`} name="coverImage" type="file" accept="image/png,image/jpeg,image/webp,image/gif" />
         </div>
-        <div className="field" style={{ flex: 1 }}>
+        <div className="field">
           <label htmlFor={`filePdf-${idSuffix}`}>PDF{file ? " (leave blank to keep current)" : ""}</label>
           <input id={`filePdf-${idSuffix}`} name="file" type="file" accept="application/pdf" required={!file} />
         </div>

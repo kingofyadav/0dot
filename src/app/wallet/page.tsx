@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { getActiveProfileSubscription, COIN_FUNDED_MARKER, TEST_MODE_VIP_COIN_COST } from "@/lib/platform-billing";
 import { PurchaseVipForm } from "@/components/PurchaseVipForm";
 import { TransferCoinsForm } from "@/components/TransferCoinsForm";
+import { EmptyState } from "@/components/EmptyState";
 
 export default async function WalletPage() {
   const user = await requireVerifiedUser();
@@ -71,7 +72,7 @@ export default async function WalletPage() {
         Recent transfers
       </h2>
       <div className="settingsGroup" style={{ padding: transfers.length ? "0.4rem" : "0.9rem 1rem" }}>
-        {transfers.length === 0 && <p className="mutedText">No transfers yet.</p>}
+        {transfers.length === 0 && <EmptyState message="No transfers yet." />}
         {transfers.map((t) => (
           <div key={t.id} className="navLink" style={{ justifyContent: "space-between" }}>
             <span>

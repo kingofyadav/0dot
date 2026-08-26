@@ -7,6 +7,7 @@ import { deleteArticle } from "@/app/actions/articles";
 import { setContentLicense } from "@/app/actions/licenses";
 import { SettingsRow } from "@/components/SettingsRow";
 import { EmptyState } from "@/components/EmptyState";
+import { ConfirmButton } from "@/components/ConfirmButton";
 import { ArticleForm } from "../../ArticleForm";
 
 const FORMAT_LABEL: Record<string, string> = { article: "Article", tutorial: "Tutorial", note: "Note" };
@@ -56,7 +57,14 @@ export default async function ArticlesSettingsPage() {
                 )}
                 <form action={deleteArticle}>
                   <input type="hidden" name="articleId" value={article.id} />
-                  <button type="submit" className="button buttonSecondary buttonSmall">Delete</button>
+                  <ConfirmButton
+                    className="button buttonSecondary buttonSmall"
+                    title="Delete this article?"
+                    description="This can't be undone."
+                    confirmLabel="Delete"
+                  >
+                    Delete
+                  </ConfirmButton>
                 </form>
               </>
             }

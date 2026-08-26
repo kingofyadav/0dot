@@ -6,6 +6,7 @@ import { getCurrentUser } from "@/lib/session";
 import { getBusinessMember, canManageCatalog } from "@/lib/businesses";
 import { deleteDocument } from "@/app/actions/business-documents";
 import { DocumentForm } from "./DocumentForm";
+import { ConfirmButton } from "@/components/ConfirmButton";
 
 // build plan step 9 / spec §12: a simple file library. §12.2's literal
 // acceptance criterion — team_only documents never reach a non-team-member
@@ -66,9 +67,14 @@ export default async function DocumentsPage({ params }: { params: Promise<{ slug
               {canManage && (
                 <form action={deleteDocument}>
                   <input type="hidden" name="documentId" value={doc.id} />
-                  <button type="submit" className="button buttonDanger buttonSmall">
+                  <ConfirmButton
+                    className="button buttonDanger buttonSmall"
+                    title="Delete this document?"
+                    description="This can't be undone — anyone with the link will lose access."
+                    confirmLabel="Delete"
+                  >
                     Delete
-                  </button>
+                  </ConfirmButton>
                 </form>
               )}
             </span>

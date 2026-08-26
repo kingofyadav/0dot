@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { listProfileWikiPages } from "@/lib/wiki";
+import { EmptyState } from "@/components/EmptyState";
 
 const KIND_LABEL: Record<string, string> = { wiki: "Wiki page", documentation: "Documentation" };
 
@@ -25,7 +26,7 @@ export default async function ProfileWikiListPage({ params }: { params: Promise<
       </Link>
       <h1 style={{ fontSize: "1.2rem", fontWeight: 700, marginTop: "0.6rem" }}>Wiki &amp; Documentation</h1>
 
-      {pages.length === 0 && <p className="mutedText" style={{ marginTop: "0.5rem" }}>No pages yet.</p>}
+      {pages.length === 0 && <EmptyState message="No pages yet." />}
       <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "0.75rem" }}>
         {pages.map((page) => (
           <Link key={page.id} href={`/${handle}/wiki/${page.slug}`} className="profileLinkItem">

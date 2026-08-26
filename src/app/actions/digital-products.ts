@@ -55,9 +55,14 @@ export async function createProduct(_prevState: ActionState, formData: FormData)
   const saved = await saveProtectedFile(file, { maxBytes: MAX_FILE_BYTES });
   if ("error" in saved) return saved;
 
-  await db.digitalProduct.create({
-    data: { creatorId: user.id, ...fields, fileKey: saved.key, fileMimeType: saved.mimeType, fileSizeBytes: saved.sizeBytes },
-  });
+  try {
+    await db.digitalProduct.create({
+      data: { creatorId: user.id, ...fields, fileKey: saved.key, fileMimeType: saved.mimeType, fileSizeBytes: saved.sizeBytes },
+    });
+  } catch (err) {
+    console.error("createProduct: db write failed", err);
+    return { error: "Couldn't save this product. Please try again." };
+  }
 
   if (user.username) revalidatePath(`/s/${user.username.handle}`);
   return undefined;
@@ -86,7 +91,12 @@ export async function updateProduct(_prevState: ActionState, formData: FormData)
     fileData = { fileKey: saved.key, fileMimeType: saved.mimeType, fileSizeBytes: saved.sizeBytes };
   }
 
-  await db.digitalProduct.update({ where: { id: product.id }, data: { ...fields, ...fileData } });
+  try {
+    await db.digitalProduct.update({ where: { id: product.id }, data: { ...fields, ...fileData } });
+  } catch (err) {
+    console.error("updateProduct: db write failed", err);
+    return { error: "Couldn't save this product. Please try again." };
+  }
 
   if (user.username) revalidatePath(`/s/${user.username.handle}`);
   return undefined;

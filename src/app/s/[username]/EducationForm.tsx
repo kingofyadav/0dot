@@ -29,22 +29,22 @@ export function EducationForm({ item }: { item?: EducationFormItem }) {
         <label htmlFor={`eduInstitution-${idSuffix}`}>Institution</label>
         <input id={`eduInstitution-${idSuffix}`} name="institution" defaultValue={item?.institution} maxLength={100} required />
       </div>
-      <div style={{ display: "flex", gap: "0.5rem" }}>
-        <div className="field" style={{ flex: 1 }}>
+      <div className="fieldRow">
+        <div className="field">
           <label htmlFor={`eduDegree-${idSuffix}`}>Degree</label>
           <input id={`eduDegree-${idSuffix}`} name="degree" defaultValue={item?.degree ?? ""} />
         </div>
-        <div className="field" style={{ flex: 1 }}>
+        <div className="field">
           <label htmlFor={`eduField-${idSuffix}`}>Field of study</label>
           <input id={`eduField-${idSuffix}`} name="fieldOfStudy" defaultValue={item?.fieldOfStudy ?? ""} />
         </div>
       </div>
-      <div style={{ display: "flex", gap: "0.5rem" }}>
-        <div className="field" style={{ flex: 1 }}>
+      <div className="fieldRow">
+        <div className="field">
           <label htmlFor={`eduStart-${idSuffix}`}>Start date</label>
           <input id={`eduStart-${idSuffix}`} name="startDate" type="date" defaultValue={toDateInputValue(item?.startDate ?? null)} required />
         </div>
-        <div className="field" style={{ flex: 1 }}>
+        <div className="field">
           <label htmlFor={`eduEnd-${idSuffix}`}>End date</label>
           <input id={`eduEnd-${idSuffix}`} name="endDate" type="date" defaultValue={toDateInputValue(item?.endDate ?? null)} />
         </div>

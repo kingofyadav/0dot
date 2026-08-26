@@ -8,6 +8,7 @@ import { archiveOffering } from "@/app/actions/offerings";
 import { createAvailabilityRule, deleteAvailabilityRule, confirmAppointment, cancelAppointment } from "@/app/actions/appointments";
 import { SettingsRow } from "@/components/SettingsRow";
 import { EmptyState } from "@/components/EmptyState";
+import { ConfirmButton } from "@/components/ConfirmButton";
 
 const DAY_LABEL = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const STATUS_LABEL: Record<string, string> = { draft: "Draft", active: "Active", archived: "Archived" };
@@ -128,7 +129,14 @@ export default async function FreelanceServicesSettingsPage() {
               trailing={
                 <form action={deleteAvailabilityRule}>
                   <input type="hidden" name="ruleId" value={rule.id} />
-                  <button type="submit" className="button buttonDanger buttonSmall">Remove</button>
+                  <ConfirmButton
+                    className="button buttonDanger buttonSmall"
+                    title="Remove this availability window?"
+                    description="This can't be undone."
+                    confirmLabel="Remove"
+                  >
+                    Remove
+                  </ConfirmButton>
                 </form>
               }
             />
@@ -194,7 +202,14 @@ export default async function FreelanceServicesSettingsPage() {
                     )}
                     <form action={cancelAppointment}>
                       <input type="hidden" name="appointmentId" value={a.id} />
-                      <button type="submit" className="button buttonDanger buttonSmall">Cancel</button>
+                      <ConfirmButton
+                        className="button buttonDanger buttonSmall"
+                        title="Cancel this appointment?"
+                        description={`This notifies ${customerName} that it's been cancelled. This can't be undone.`}
+                        confirmLabel="Cancel appointment"
+                      >
+                        Cancel
+                      </ConfirmButton>
                     </form>
                   </>
                 }

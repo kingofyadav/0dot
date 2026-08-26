@@ -2,6 +2,7 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { Logo } from "@/components/Logo";
+import { EmptyState } from "@/components/EmptyState";
 
 // Lightweight index — just enough to make step 1 usable without a direct
 // /c/{slug} link in hand. Full search integration (phase-3 spec §16) is a
@@ -84,7 +85,7 @@ export default async function CommunitiesIndexPage() {
       <div>
         <p className="sectionHeading">Discover</p>
         <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
-          {recentPublic.length === 0 && <p className="mutedText">No public communities yet.</p>}
+          {recentPublic.length === 0 && <EmptyState message="No public communities yet." />}
           {recentPublic.map((c) => (
             <CommunityRow key={c.id} slug={c.slug} name={c.name} avatarUrl={c.avatarUrl} memberCount={c.memberCount} />
           ))}

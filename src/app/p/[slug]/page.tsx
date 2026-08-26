@@ -6,6 +6,7 @@ import { getCurrentUser } from "@/lib/session";
 import { renderWikiMarkdown } from "@/lib/wiki-markdown";
 import { toggleProjectLike, deleteProjectComment } from "@/app/actions/projects";
 import { ProjectCommentForm } from "./ProjectCommentForm";
+import { ConfirmButton } from "@/components/ConfirmButton";
 
 const STATUS_LABEL: Record<string, string> = {
   in_progress: "In progress",
@@ -200,9 +201,15 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
               {currentUser && (currentUser.id === comment.authorId || currentUser.id === project.ownerId) && (
                 <form action={deleteProjectComment} style={{ alignSelf: "flex-end" }}>
                   <input type="hidden" name="commentId" value={comment.id} />
-                  <button type="submit" className="button buttonSecondary iconButton" aria-label="Delete comment">
+                  <ConfirmButton
+                    className="button buttonSecondary iconButton"
+                    title="Delete this comment?"
+                    description="This can't be undone."
+                    confirmLabel="Delete"
+                    aria-label="Delete comment"
+                  >
                     <X size={16} aria-hidden="true" />
-                  </button>
+                  </ConfirmButton>
                 </form>
               )}
             </div>

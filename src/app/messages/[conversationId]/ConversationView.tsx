@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { Paperclip, Mic, Square, X, Circle } from "lucide-react";
 import { sendMessage, deleteMessage, loadOlderMessages } from "@/app/actions/messages";
 import { MessageBubble, type MessageBubbleData } from "@/components/MessageBubble";
+import { EmptyState } from "@/components/EmptyState";
 
 // phase-2 spec §5.3's voice-note duration cap suggestion ("recommend 2
 // minutes as a starting point") — a UX/product cap, not architectural;
@@ -181,6 +182,7 @@ export function ConversationView({
               attachmentUrl: null,
               attachmentMimeType: null,
               attachmentDurationS: null,
+              attachmentFileName: null,
               deletedAt: new Date(),
             }
           : m
@@ -243,7 +245,7 @@ export function ConversationView({
             {isLoadingOlder ? "Loading…" : "Load older messages"}
           </button>
         )}
-        {messages.length === 0 && <p className="mutedText">No messages yet — say hello.</p>}
+        {messages.length === 0 && <EmptyState message="No messages yet — say hello." />}
         {messages.map((message) => (
           <MessageBubble
             key={message.id}

@@ -8,9 +8,11 @@ import { canManageListing, hasVerifiedListingAccess } from "@/lib/marketplace";
 import { archiveMarketplaceListing, deleteListingReview, respondToListingReview } from "@/app/actions/marketplace";
 import { MarketplacePurchaseButton } from "@/components/MarketplacePurchaseButton";
 import { MarketplaceListingForm } from "@/components/MarketplaceListingForm";
+import { ConfirmButton } from "@/components/ConfirmButton";
 import { LinkDeveloperAppForm } from "@/components/LinkDeveloperAppForm";
 import { InstallAppForm, UninstallAppButton } from "./InstallAppForm";
 import { ListingReviewForm } from "./ListingReviewForm";
+import { EmptyState } from "@/components/EmptyState";
 
 const CATEGORY_LABELS: Record<string, string> = { theme: "Theme", template: "Template", app: "App" };
 const STATUS_LABELS: Record<string, string> = {
@@ -205,7 +207,7 @@ export default async function MarketplaceListingPage({ params }: { params: Promi
           </details>
         )}
 
-        {listing.reviews.length === 0 && <p className="mutedText">No reviews yet.</p>}
+        {listing.reviews.length === 0 && <EmptyState message="No reviews yet." />}
 
         <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginTop: "0.75rem" }}>
           {listing.reviews.map((review) => {
@@ -223,9 +225,14 @@ export default async function MarketplaceListingPage({ params }: { params: Promi
                 {currentUser?.id === review.authorId && (
                   <form action={deleteListingReview}>
                     <input type="hidden" name="reviewId" value={review.id} />
-                    <button type="submit" className="button buttonDanger buttonSmall">
+                    <ConfirmButton
+                      className="button buttonDanger buttonSmall"
+                      title="Delete this review?"
+                      description="This can't be undone."
+                      confirmLabel="Delete"
+                    >
                       Delete
-                    </button>
+                    </ConfirmButton>
                   </form>
                 )}
                 {review.response ? (

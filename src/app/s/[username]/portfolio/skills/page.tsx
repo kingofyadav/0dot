@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/session";
 import { deleteSkill, moveSkill } from "@/app/actions/skills";
 import { SettingsRow } from "@/components/SettingsRow";
 import { EmptyState } from "@/components/EmptyState";
+import { ConfirmButton } from "@/components/ConfirmButton";
 import { AddSkillForm } from "../../AddSkillForm";
 
 export default async function SkillsSettingsPage() {
@@ -43,7 +44,15 @@ export default async function SkillsSettingsPage() {
                   </form>
                   <form action={deleteSkill}>
                     <input type="hidden" name="skillId" value={skill.id} />
-                    <button type="submit" className="button buttonSecondary iconButton" aria-label="Delete skill"><X size={16} aria-hidden="true" /></button>
+                    <ConfirmButton
+                      className="button buttonSecondary iconButton"
+                      title="Delete this skill?"
+                      description="This can't be undone."
+                      confirmLabel="Delete"
+                      aria-label="Delete skill"
+                    >
+                      <X size={16} aria-hidden="true" />
+                    </ConfirmButton>
                   </form>
                 </>
               }

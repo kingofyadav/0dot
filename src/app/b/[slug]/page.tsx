@@ -157,30 +157,34 @@ export default async function BusinessPage({ params }: { params: Promise<{ slug:
         </div>
       </details>
 
+      {/* prefetch={false}: 7-8 sibling Links here all mount at once, same
+          burst-prefetch-triggers-503 mechanism the persistent chrome nav
+          hit (see the "Disable prefetch on persistent chrome nav links"
+          commit) — these are dynamic, DB-backed sub-routes too. */}
       <div className="profileActionsGrid">
-        <Link href={`/b/${business.slug}/posts`} className="button buttonSecondary">
+        <Link href={`/b/${business.slug}/posts`} className="button buttonSecondary" prefetch={false}>
           Posts
         </Link>
-        <Link href={`/b/${business.slug}/catalog`} className="button buttonSecondary">
+        <Link href={`/b/${business.slug}/catalog`} className="button buttonSecondary" prefetch={false}>
           Catalog
         </Link>
-        <Link href={`/b/${business.slug}/store`} className="button buttonSecondary">
+        <Link href={`/b/${business.slug}/store`} className="button buttonSecondary" prefetch={false}>
           Store
         </Link>
-        <Link href={`/b/${business.slug}/reviews`} className="button buttonSecondary">
+        <Link href={`/b/${business.slug}/reviews`} className="button buttonSecondary" prefetch={false}>
           Reviews
         </Link>
-        <Link href={`/b/${business.slug}/jobs`} className="button buttonSecondary">
+        <Link href={`/b/${business.slug}/jobs`} className="button buttonSecondary" prefetch={false}>
           Jobs
         </Link>
-        <Link href={`/b/${business.slug}/appointments`} className="button buttonSecondary">
+        <Link href={`/b/${business.slug}/appointments`} className="button buttonSecondary" prefetch={false}>
           Appointments
         </Link>
-        <Link href={`/b/${business.slug}/documents`} className="button buttonSecondary">
+        <Link href={`/b/${business.slug}/documents`} className="button buttonSecondary" prefetch={false}>
           Documents
         </Link>
         {isStaff && (
-          <Link href={`/b/${business.slug}/manage`} className="button buttonSecondary">
+          <Link href={`/b/${business.slug}/manage`} className="button buttonSecondary" prefetch={false}>
             Manage
           </Link>
         )}

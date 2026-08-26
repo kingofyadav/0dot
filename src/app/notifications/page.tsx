@@ -10,6 +10,7 @@ import { acceptFollowRequest, rejectFollowRequest } from "@/app/actions/follow";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { ListKeyNav } from "@/components/ListKeyNav";
 import { RefreshOnMount } from "@/components/RefreshOnMount";
+import { EmptyState } from "@/components/EmptyState";
 
 const actorInclude = { username: true, profile: true } as const;
 
@@ -229,7 +230,7 @@ export default async function NotificationsPage({
 
       <ListKeyNav helpTitle="Notifications">
         <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-          {groups.length === 0 && <p className="mutedText">No notifications yet.</p>}
+          {groups.length === 0 && <EmptyState message="No notifications yet." />}
           {groups.map((group) => {
             // A still-pending follow_request gets Accept/Reject controls
             // instead of a plain navigate-away Link — see pendingRequesterIds

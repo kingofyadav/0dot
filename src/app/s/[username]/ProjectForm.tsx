@@ -54,7 +54,21 @@ export function ProjectForm({ project, ownSkills = [] }: { project?: ProjectForm
       {!project && (
         <div className="field">
           <label htmlFor={`projectSlug-${idSuffix}`}>Slug (0dot.in/p/…)</label>
-          <input id={`projectSlug-${idSuffix}`} name="slug" maxLength={60} required pattern="[a-z0-9_]{3,60}" />
+          <input
+            id={`projectSlug-${idSuffix}`}
+            name="slug"
+            maxLength={60}
+            required
+            pattern="[a-z0-9_]{3,60}"
+            placeholder="your_project"
+          />
+          {/* Same shared validateSlugFormat pattern as usernames/articles/
+              communities (src/lib/slug-validation.ts) — no hyphens, only
+              letters/numbers/underscores. Spelled out here since the field
+              previously gave no example at all, the same gap that made
+              NewCommunityForm's old hyphenated placeholder actively
+              misleading rather than just under-specified. */}
+          <span className="mutedText">Letters, numbers, and underscores only.</span>
         </div>
       )}
       <div className="field">
@@ -69,28 +83,28 @@ export function ProjectForm({ project, ownSkills = [] }: { project?: ProjectForm
         <label htmlFor={`projectDescription-${idSuffix}`}>Description</label>
         <textarea id={`projectDescription-${idSuffix}`} name="description" defaultValue={project?.description} rows={5} />
       </div>
-      <div style={{ display: "flex", gap: "0.5rem" }}>
-        <div className="field" style={{ flex: 1 }}>
+      <div className="fieldRow">
+        <div className="field">
           <label htmlFor={`projectCover-${idSuffix}`}>Cover image</label>
           <input id={`projectCover-${idSuffix}`} name="coverImage" type="file" accept="image/png,image/jpeg,image/webp,image/gif" />
         </div>
-        <div className="field" style={{ flex: 1 }}>
+        <div className="field">
           <label htmlFor={`projectGallery-${idSuffix}`}>Gallery (up to 12)</label>
           <input id={`projectGallery-${idSuffix}`} name="gallery" type="file" multiple accept="image/png,image/jpeg,image/webp,image/gif" />
         </div>
       </div>
-      <div style={{ display: "flex", gap: "0.5rem" }}>
-        <div className="field" style={{ flex: 1 }}>
+      <div className="fieldRow">
+        <div className="field">
           <label htmlFor={`projectStarted-${idSuffix}`}>Started</label>
           <input id={`projectStarted-${idSuffix}`} name="startedAt" type="date" defaultValue={toDateInputValue(project?.startedAt ?? null)} />
         </div>
-        <div className="field" style={{ flex: 1 }}>
+        <div className="field">
           <label htmlFor={`projectCompleted-${idSuffix}`}>Completed</label>
           <input id={`projectCompleted-${idSuffix}`} name="completedAt" type="date" defaultValue={toDateInputValue(project?.completedAt ?? null)} />
         </div>
       </div>
-      <div style={{ display: "flex", gap: "0.5rem" }}>
-        <div className="field" style={{ flex: 1 }}>
+      <div className="fieldRow">
+        <div className="field">
           <label htmlFor={`projectStatus-${idSuffix}`}>Status</label>
           <select id={`projectStatus-${idSuffix}`} name="status" defaultValue={project?.status ?? "in_progress"} className="textInput">
             <option value="in_progress">In progress</option>
@@ -98,7 +112,7 @@ export function ProjectForm({ project, ownSkills = [] }: { project?: ProjectForm
             <option value="archived">Archived</option>
           </select>
         </div>
-        <div className="field" style={{ flex: 1 }}>
+        <div className="field">
           <label htmlFor={`projectVisibility-${idSuffix}`}>Visibility</label>
           <select id={`projectVisibility-${idSuffix}`} name="visibility" defaultValue={project?.visibility ?? "public"} className="textInput">
             <option value="public">Public</option>

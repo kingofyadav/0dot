@@ -6,6 +6,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { resolvePostCommunityContext } from "@/lib/communities";
 import { notifyMentionsInBody } from "@/lib/notifications";
+import { revalidatePostSurfaces } from "@/lib/post-revalidation";
 import type { ActionState } from "@/app/actions/auth";
 
 const MIN_OPTIONS = 2;
@@ -138,7 +139,6 @@ export async function castVote(formData: FormData): Promise<void> {
     ]);
   }
 
-  revalidatePath("/feed");
-  revalidatePath("/explore");
+  await revalidatePostSurfaces(option.poll.postId);
   return undefined;
 }

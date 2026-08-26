@@ -2,6 +2,7 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { requirePlatformRole } from "@/lib/auth-guards";
 import { reviewAppealAction } from "@/app/actions/trust-safety";
+import { EmptyState } from "@/components/EmptyState";
 
 // phase-12 spec §5.2: admin+ platform role only (requirePlatformRole) — the
 // fairness requirement that an appeal isn't reviewed by whoever made the
@@ -32,7 +33,7 @@ export default async function AdminAppealsPage() {
       </p>
 
       {appeals.length === 0 ? (
-        <p className="mutedText">Nothing pending.</p>
+        <EmptyState message="Nothing pending." />
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
           {appeals.map((appeal) => (

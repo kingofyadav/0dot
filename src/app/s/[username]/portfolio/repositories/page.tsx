@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/session";
 import { deleteGitRepository } from "@/app/actions/git-repositories";
 import { SettingsRow } from "@/components/SettingsRow";
 import { EmptyState } from "@/components/EmptyState";
+import { ConfirmButton } from "@/components/ConfirmButton";
 import { GitRepositoryForm } from "../../GitRepositoryForm";
 
 export default async function RepositoriesSettingsPage() {
@@ -36,7 +37,15 @@ export default async function RepositoriesSettingsPage() {
               trailing={
                 <form action={deleteGitRepository}>
                   <input type="hidden" name="gitRepositoryId" value={repo.id} />
-                  <button type="submit" className="button buttonSecondary iconButton" aria-label="Delete repository"><X size={16} aria-hidden="true" /></button>
+                  <ConfirmButton
+                    className="button buttonSecondary iconButton"
+                    title="Delete this repository?"
+                    description="This can't be undone."
+                    confirmLabel="Delete"
+                    aria-label="Delete repository"
+                  >
+                    <X size={16} aria-hidden="true" />
+                  </ConfirmButton>
                 </form>
               }
             />

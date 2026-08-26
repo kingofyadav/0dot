@@ -8,6 +8,7 @@ import { deleteBook } from "@/app/actions/books";
 import { deleteBookChapter } from "@/app/actions/knowledge-pages";
 import { SettingsRow } from "@/components/SettingsRow";
 import { EmptyState } from "@/components/EmptyState";
+import { ConfirmButton } from "@/components/ConfirmButton";
 import { BookForm } from "../../BookForm";
 import { BookChapterForm } from "../../BookChapterForm";
 
@@ -51,7 +52,14 @@ export default async function BooksSettingsPage() {
                   )}
                   <form action={deleteBook}>
                     <input type="hidden" name="bookId" value={book.id} />
-                    <button type="submit" className="button buttonSecondary buttonSmall">Delete</button>
+                    <ConfirmButton
+                      className="button buttonSecondary buttonSmall"
+                      title="Delete this book?"
+                      description="This deletes every chapter too. This can't be undone."
+                      confirmLabel="Delete"
+                    >
+                      Delete
+                    </ConfirmButton>
                   </form>
                 </>
               }
@@ -65,7 +73,15 @@ export default async function BooksSettingsPage() {
                 trailing={
                   <form action={deleteBookChapter}>
                     <input type="hidden" name="pageId" value={chapter.id} />
-                    <button type="submit" className="button buttonSecondary iconButton" aria-label="Delete chapter"><X size={16} aria-hidden="true" /></button>
+                    <ConfirmButton
+                      className="button buttonSecondary iconButton"
+                      title="Delete this chapter?"
+                      description="This can't be undone."
+                      confirmLabel="Delete"
+                      aria-label="Delete chapter"
+                    >
+                      <X size={16} aria-hidden="true" />
+                    </ConfirmButton>
                   </form>
                 }
               />

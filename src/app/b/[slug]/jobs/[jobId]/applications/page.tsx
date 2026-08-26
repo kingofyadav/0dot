@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { isBusinessStaff } from "@/lib/businesses";
 import { updateApplicationStatus } from "@/app/actions/jobs";
+import { EmptyState } from "@/components/EmptyState";
 
 const STATUS_OPTIONS = ["submitted", "reviewed", "rejected", "hired"];
 const STATUS_LABEL: Record<string, string> = {
@@ -50,7 +51,7 @@ export default async function JobApplicationsPage({
         </Link>
       </div>
 
-      {applications.length === 0 && <p className="mutedText">No applications yet.</p>}
+      {applications.length === 0 && <EmptyState message="No applications yet." />}
 
       <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
         {applications.map((application) => {

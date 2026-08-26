@@ -64,8 +64,8 @@ export function ArticleForm({ article }: { article?: ArticleFormArticle }) {
         <label htmlFor={`articleTags-${idSuffix}`}>Tags (comma-separated)</label>
         <input id={`articleTags-${idSuffix}`} name="tags" defaultValue={article?.tags?.join(", ")} placeholder="cooking, travel" />
       </div>
-      <div style={{ display: "flex", gap: "0.5rem" }}>
-        <div className="field" style={{ flex: 1 }}>
+      <div className="fieldRow">
+        <div className="field">
           <label htmlFor={`articleFormat-${idSuffix}`}>Format</label>
           <select id={`articleFormat-${idSuffix}`} name="format" defaultValue={article?.format ?? "article"} className="textInput">
             <option value="article">Article</option>
@@ -73,20 +73,20 @@ export function ArticleForm({ article }: { article?: ArticleFormArticle }) {
             <option value="note">Note</option>
           </select>
         </div>
-        <div className="field" style={{ flex: 1 }}>
+        <div className="field">
           <label htmlFor={`articleCover-${idSuffix}`}>Cover image</label>
           <input id={`articleCover-${idSuffix}`} name="coverImage" type="file" accept="image/png,image/jpeg,image/webp,image/gif" />
         </div>
       </div>
-      <div style={{ display: "flex", gap: "0.5rem" }}>
-        <div className="field" style={{ flex: 1 }}>
+      <div className="fieldRow">
+        <div className="field">
           <label htmlFor={`articleStatus-${idSuffix}`}>Status</label>
           <select id={`articleStatus-${idSuffix}`} name="status" defaultValue={article?.status ?? "draft"} className="textInput">
             <option value="draft">Draft</option>
             <option value="published">Published</option>
           </select>
         </div>
-        <div className="field" style={{ flex: 1 }}>
+        <div className="field">
           <label htmlFor={`articleVisibility-${idSuffix}`}>Visibility</label>
           <select id={`articleVisibility-${idSuffix}`} name="visibility" defaultValue={article?.visibility ?? "public"} className="textInput">
             <option value="public">Public</option>

@@ -21,6 +21,7 @@ import { COMMUNITY_TAGS, MAX_TAGS_PER_COMMUNITY } from "@/lib/community-tags";
 import { FLAIR_COLORS, flairColorStyle, MAX_FLAIRS_PER_COMMUNITY } from "@/lib/flair-colors";
 import { Logo } from "@/components/Logo";
 import { ManageCommunityForm } from "./ManageCommunityForm";
+import { ConfirmButton } from "@/components/ConfirmButton";
 
 const MOD_ACTION_LABELS: Record<string, string> = {
   remove_post: "removed a post",
@@ -126,7 +127,7 @@ export default async function ManageCommunityPage({
     <div className="profileCard">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
         <h1 style={{ fontSize: "1.1rem", fontWeight: 700 }}>Manage {community.name}</h1>
-        <span style={{ display: "flex", gap: "0.5rem" }}>
+        <span className="row">
           <Link href={`/c/${community.slug}/analytics`} className="button buttonSecondary" style={{ fontSize: "0.85rem", padding: "0.4rem 0.7rem" }}>
             Analytics
           </Link>
@@ -139,10 +140,10 @@ export default async function ManageCommunityPage({
       {pendingMembers.length > 0 && (
         <div style={{ marginBottom: "1.5rem" }}>
           <p className="sectionHeading">Join requests</p>
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+          <div className="stack">
             {pendingMembers.map((pm) => (
               <div key={pm.userId} className="profileLinkItem" style={{ justifyContent: "space-between" }}>
-                <span style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <span className="row">
                   {pm.user.profile?.avatarUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element -- user-supplied URL, not a local/optimizable asset
                     <img src={pm.user.profile.avatarUrl} alt="" width={32} height={32} style={{ borderRadius: "50%", objectFit: "cover" }} />
@@ -151,7 +152,7 @@ export default async function ManageCommunityPage({
                   )}
                   {memberName(pm)}
                 </span>
-                <span style={{ display: "flex", gap: "0.5rem" }}>
+                <span className="row">
                   <form action={approveJoinRequest}>
                     <input type="hidden" name="communityId" value={community.id} />
                     <input type="hidden" name="userId" value={pm.userId} />
@@ -176,10 +177,10 @@ export default async function ManageCommunityPage({
       {activeMembers.length > 0 && (
         <div style={{ marginBottom: "1.5rem" }}>
           <p className="sectionHeading">Members</p>
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+          <div className="stack">
             {activeMembers.map((m) => (
               <div key={m.userId} className="profileLinkItem" style={{ justifyContent: "space-between", flexWrap: "wrap", gap: "0.5rem" }}>
-                <span style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <span className="row">
                   {m.user.profile?.avatarUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element -- user-supplied URL, not a local/optimizable asset
                     <img src={m.user.profile.avatarUrl} alt="" width={32} height={32} style={{ borderRadius: "50%", objectFit: "cover" }} />
@@ -198,7 +199,7 @@ export default async function ManageCommunityPage({
                     </span>
                   )}
                 </span>
-                <span style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                <span className="row" style={{ flexWrap: "wrap" }}>
                   {isOwner && m.role === "member" && (
                     <form action={appointModerator}>
                       <input type="hidden" name="communityId" value={community.id} />
@@ -258,10 +259,10 @@ export default async function ManageCommunityPage({
       {bannedMembers.length > 0 && (
         <div style={{ marginBottom: "1.5rem" }}>
           <p className="sectionHeading">Banned members</p>
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+          <div className="stack">
             {bannedMembers.map((m) => (
               <div key={m.userId} className="profileLinkItem" style={{ justifyContent: "space-between" }}>
-                <span style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <span className="row">
                   {m.user.profile?.avatarUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element -- user-supplied URL, not a local/optimizable asset
                     <img src={m.user.profile.avatarUrl} alt="" width={32} height={32} style={{ borderRadius: "50%", objectFit: "cover" }} />
@@ -286,7 +287,7 @@ export default async function ManageCommunityPage({
       {recentModActions.length > 0 && (
         <div style={{ marginBottom: "1.5rem" }}>
           <p className="sectionHeading">Recent activity</p>
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+          <div className="stack">
             {recentModActions.map((a) => {
               const moderatorName = a.moderator.profile?.displayName ?? a.moderator.username?.handle ?? "Unknown";
               const targetName = a.targetType === "user" ? targetUserNameById.get(a.targetId) : null;
@@ -305,14 +306,14 @@ export default async function ManageCommunityPage({
 
       <div style={{ marginBottom: "1.5rem" }}>
         <p className="sectionHeading">Rules</p>
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+        <div className="stack">
           {rules.map((rule, index) => (
             <details key={rule.id} className="profileEditToggle">
               <summary style={{ fontSize: "0.9rem" }}>
                 {index + 1}. {rule.title}
               </summary>
-              <div style={{ marginTop: "0.6rem", display: "flex", flexDirection: "column", gap: "0.5rem", maxWidth: "40ch" }}>
-                <form action={updateRule} style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+              <div className="stack" style={{ marginTop: "0.6rem", maxWidth: "40ch" }}>
+                <form action={updateRule} className="stack">
                   <input type="hidden" name="communityId" value={community.id} />
                   <input type="hidden" name="ruleId" value={rule.id} />
                   <input type="text" name="title" defaultValue={rule.title} maxLength={80} required className="textInput" />
@@ -321,7 +322,7 @@ export default async function ManageCommunityPage({
                     Save
                   </button>
                 </form>
-                <div style={{ display: "flex", gap: "0.4rem" }}>
+                <div className="row">
                   <form action={moveRule}>
                     <input type="hidden" name="communityId" value={community.id} />
                     <input type="hidden" name="ruleId" value={rule.id} />
@@ -341,9 +342,14 @@ export default async function ManageCommunityPage({
                   <form action={deleteRule}>
                     <input type="hidden" name="communityId" value={community.id} />
                     <input type="hidden" name="ruleId" value={rule.id} />
-                    <button type="submit" className="button buttonDanger buttonSmall">
+                    <ConfirmButton
+                      className="button buttonDanger buttonSmall"
+                      title="Delete this rule?"
+                      description="This can't be undone."
+                      confirmLabel="Delete"
+                    >
                       Delete
-                    </button>
+                    </ConfirmButton>
                   </form>
                 </div>
               </div>
@@ -354,7 +360,7 @@ export default async function ManageCommunityPage({
           <summary className="mutedText" style={{ fontSize: "0.85rem" }}>
             Add a rule
           </summary>
-          <form action={addRule} style={{ marginTop: "0.6rem", display: "flex", flexDirection: "column", gap: "0.5rem", maxWidth: "40ch" }}>
+          <form action={addRule} className="stack" style={{ marginTop: "0.6rem", maxWidth: "40ch" }}>
             <input type="hidden" name="communityId" value={community.id} />
             <input type="text" name="title" placeholder="Rule title" maxLength={80} required className="textInput" />
             <textarea name="body" placeholder="Details (optional)" maxLength={500} rows={2} className="textInput" />
@@ -368,12 +374,12 @@ export default async function ManageCommunityPage({
       {isOwner && (
         <div style={{ marginBottom: "1.5rem" }}>
           <p className="sectionHeading">Discovery tags</p>
-          <form action={setCommunityTags} style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+          <form action={setCommunityTags} className="stack">
             <input type="hidden" name="communityId" value={community.id} />
             <p className="mutedText" style={{ fontSize: "0.8rem", margin: 0 }}>
               Pick up to {MAX_TAGS_PER_COMMUNITY} — helps people find this community in search.
             </p>
-            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+            <div className="row" style={{ flexWrap: "wrap" }}>
               {COMMUNITY_TAGS.map((t) => (
                 <label
                   key={t.key}
@@ -402,11 +408,11 @@ export default async function ManageCommunityPage({
 
       <div style={{ marginBottom: "1.5rem" }}>
         <p className="sectionHeading">Post flair</p>
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+        <div className="stack">
           {flairs.map((f) => {
             const style = flairColorStyle(f.color);
             return (
-              <div key={f.id} style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+              <div key={f.id} className="row">
                 <span
                   style={{ ...style, fontSize: "0.75rem", fontWeight: 600, padding: "0.1rem 0.5rem", borderRadius: "999px" }}
                 >
@@ -415,9 +421,14 @@ export default async function ManageCommunityPage({
                 <form action={deletePostFlair}>
                   <input type="hidden" name="communityId" value={community.id} />
                   <input type="hidden" name="flairId" value={f.id} />
-                  <button type="submit" className="button buttonSecondary buttonSmall">
+                  <ConfirmButton
+                    className="button buttonSecondary buttonSmall"
+                    title="Delete this flair?"
+                    description="Posts using it keep their text but lose the flair badge. This can't be undone."
+                    confirmLabel="Delete"
+                  >
                     Delete
-                  </button>
+                  </ConfirmButton>
                 </form>
               </div>
             );
@@ -428,7 +439,7 @@ export default async function ManageCommunityPage({
             <summary className="mutedText" style={{ fontSize: "0.85rem" }}>
               Add flair
             </summary>
-            <form action={createPostFlair} style={{ marginTop: "0.6rem", display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
+            <form action={createPostFlair} className="row" style={{ marginTop: "0.6rem", flexWrap: "wrap" }}>
               <input type="hidden" name="communityId" value={community.id} />
               <input type="text" name="label" placeholder="Label" maxLength={30} required className="textInput" style={{ width: "12rem" }} />
               <select name="color" required className="textInput" style={{ width: "8rem" }}>
@@ -466,12 +477,12 @@ export default async function ManageCommunityPage({
               <summary className="mutedText" style={{ fontSize: "0.85rem" }}>
                 Transfer ownership
               </summary>
-              <div style={{ marginTop: "0.6rem", display: "flex", flexDirection: "column", gap: "0.6rem", maxWidth: "32ch" }}>
+              <div className="disclosureBody">
                 <p className="mutedText" style={{ fontSize: "0.85rem" }}>
                   You&apos;ll become a moderator. The new owner is the only one
                   who can transfer it again.
                 </p>
-                <form action={transferOwnership} style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                <form action={transferOwnership} className="stack">
                   <input type="hidden" name="communityId" value={community.id} />
                   <select name="userId" required>
                     {transferCandidates.map((m) => (
@@ -492,16 +503,21 @@ export default async function ManageCommunityPage({
             <summary className="mutedText" style={{ fontSize: "0.85rem" }}>
               Delete community
             </summary>
-            <div style={{ marginTop: "0.6rem", display: "flex", flexDirection: "column", gap: "0.6rem", maxWidth: "32ch" }}>
+            <div className="disclosureBody">
               <p className="mutedText" style={{ fontSize: "0.85rem" }}>
                 Permanently deletes {community.name} and removes all{" "}
                 {community.memberCount} member{community.memberCount === 1 ? "" : "s"}. This cannot be undone.
               </p>
               <form action={deleteCommunity}>
                 <input type="hidden" name="communityId" value={community.id} />
-                <button type="submit" className="button buttonDanger buttonSmall">
+                <ConfirmButton
+                  className="button buttonDanger buttonSmall"
+                  title={`Delete ${community.name}?`}
+                  description={`Permanently deletes ${community.name} and removes all ${community.memberCount} member${community.memberCount === 1 ? "" : "s"}. This cannot be undone.`}
+                  confirmLabel={`Yes, delete ${community.name}`}
+                >
                   Yes, delete {community.name}
-                </button>
+                </ConfirmButton>
               </form>
             </div>
           </details>

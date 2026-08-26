@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { isBusinessStaff } from "@/lib/businesses";
 import { markContactMessageRead, archiveContactMessage } from "@/app/actions/business-contact";
+import { EmptyState } from "@/components/EmptyState";
 
 function relativeTime(date: Date): string {
   const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
@@ -95,7 +96,7 @@ export default async function BusinessContactInboxPage({
         </Link>
       </div>
 
-      {messages.length === 0 && <p className="mutedText">No messages yet.</p>}
+      {messages.length === 0 && <EmptyState message="No messages yet." />}
 
       {newMessages.length > 0 && (
         <div style={{ marginBottom: "1.5rem" }}>

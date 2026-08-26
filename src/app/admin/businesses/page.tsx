@@ -5,6 +5,7 @@ import { findCollidingActiveBusiness } from "@/lib/businesses";
 import { businessCategoryLabel } from "@/lib/business-categories";
 import { approveBusinessAction, rejectBusinessAction } from "@/app/actions/business-approval";
 import { ConfirmButton } from "@/components/ConfirmButton";
+import { EmptyState } from "@/components/EmptyState";
 
 // admin+ platform role — same bar as /admin/trust-safety/appeals, since
 // approving puts a business live/searchable and rejecting deletes it
@@ -35,7 +36,7 @@ export default async function AdminBusinessesPage() {
       </p>
 
       {pending.length === 0 ? (
-        <p className="mutedText">Nothing pending.</p>
+        <EmptyState message="Nothing pending." />
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
           {pending.map((business, i) => {

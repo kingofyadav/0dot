@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requirePlatformRole } from "@/lib/auth-guards";
 import { db } from "@/lib/db";
 import { createIapPayoutBatchAction, reconcileIapPayoutBatchAction } from "@/app/actions/iap-payouts";
+import { EmptyState } from "@/components/EmptyState";
 
 // Mobile pro-upgrade addendum M11: the admin trigger surface for
 // recordIapPayoutBatch/reconcileIapPayoutBatch (lib/payments.ts), which
@@ -68,7 +69,7 @@ export default async function AdminIapBatchesPage() {
       </form>
 
       {batches.length === 0 ? (
-        <p className="mutedText">No batches recorded yet.</p>
+        <EmptyState message="No batches recorded yet." />
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
           {batches.map((batch) => {

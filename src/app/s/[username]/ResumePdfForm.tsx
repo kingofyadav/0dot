@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { uploadResumePdf, removeResumePdf } from "@/app/actions/resume";
+import { ConfirmButton } from "@/components/ConfirmButton";
 
 // spec §6.3: offered alongside the generated resume view, not instead of
 // it — this form only manages the optional PDF, the generated view itself
@@ -25,7 +26,14 @@ export function ResumePdfForm({ resumePdfUrl }: { resumePdfUrl: string | null })
       {state?.error && <p className="errorText">{state.error}</p>}
       {resumePdfUrl && (
         <form action={removeResumePdf}>
-          <button type="submit" className="button buttonSecondary buttonSmall">Remove PDF</button>
+          <ConfirmButton
+            className="button buttonSecondary buttonSmall"
+            title="Remove your resume PDF?"
+            description="This can't be undone — you can always upload a new one."
+            confirmLabel="Remove"
+          >
+            Remove PDF
+          </ConfirmButton>
         </form>
       )}
     </div>

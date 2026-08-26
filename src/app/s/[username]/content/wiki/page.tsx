@@ -7,6 +7,7 @@ import { listAllProfileWikiPages } from "@/lib/wiki";
 import { deleteProfileWikiPage } from "@/app/actions/knowledge-pages";
 import { SettingsRow } from "@/components/SettingsRow";
 import { EmptyState } from "@/components/EmptyState";
+import { ConfirmButton } from "@/components/ConfirmButton";
 import { WikiPageForm } from "../../WikiPageForm";
 
 const KIND_LABEL: Record<string, string> = { wiki: "Wiki page", documentation: "Documentation" };
@@ -40,7 +41,14 @@ export default async function WikiSettingsPage() {
                 )}
                 <form action={deleteProfileWikiPage}>
                   <input type="hidden" name="pageId" value={page.id} />
-                  <button type="submit" className="button buttonSecondary buttonSmall">Delete</button>
+                  <ConfirmButton
+                    className="button buttonSecondary buttonSmall"
+                    title="Delete this wiki page?"
+                    description="This can't be undone."
+                    confirmLabel="Delete"
+                  >
+                    Delete
+                  </ConfirmButton>
                 </form>
               </>
             }

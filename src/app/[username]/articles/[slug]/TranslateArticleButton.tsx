@@ -15,7 +15,15 @@ const LANGUAGES = [
 // just calls the shared translateArticle action and shows the result
 // alongside the original, it holds no translation logic of its own.
 export function TranslateArticleButton({ articleId }: { articleId: string }) {
-  const [language, setLanguage] = useState(LANGUAGES[0].code);
+  // The value sent to the server (and used as the cache key in
+  // ContentTranslation.targetLanguage) is the full language name
+  // ("Spanish"), not its ISO code ("es") — the code went straight into the
+  // model prompt ("Translate the given text to es") unambiguously enough
+  // that Claude usually still guessed right, but not reliably enough to
+  // trust, and a wrong guess had no error path to catch it (see
+  // getOrCreateTranslation's now-removed silent original-text fallback).
+  // The label is unambiguous either way and reads fine as a cache key too.
+  const [language, setLanguage] = useState(LANGUAGES[0].label);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [translated, setTranslated] = useState<string | null>(null);
@@ -45,7 +53,7 @@ export function TranslateArticleButton({ articleId }: { articleId: string }) {
           style={{ width: "auto" }}
         >
           {LANGUAGES.map((l) => (
-            <option key={l.code} value={l.code}>
+            <option key={l.code} value={l.label}>
               {l.label}
             </option>
           ))}

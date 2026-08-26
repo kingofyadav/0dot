@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { FolderGit2, Pencil, Plus, UserPlus } from "lucide-react";
+import { FolderGit2, Pencil, Plus, UserPlus, X } from "lucide-react";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { archiveProject, removeCollaborator } from "@/app/actions/projects";
 import { SettingsRow } from "@/components/SettingsRow";
 import { EmptyState } from "@/components/EmptyState";
+import { ConfirmButton } from "@/components/ConfirmButton";
 import { ProjectForm } from "../../ProjectForm";
 import { AddCollaboratorForm } from "../../AddCollaboratorForm";
 
@@ -56,7 +57,16 @@ export default async function ProjectsSettingsPage() {
                   {c.role && ` (${c.role})`}
                   <form action={removeCollaborator} style={{ display: "inline" }}>
                     <input type="hidden" name="collaboratorId" value={c.id} />
-                    <button type="submit" className="button buttonSecondary iconButton" style={{ marginLeft: "0.2rem" }} aria-label="Remove collaborator">✕</button>
+                    <ConfirmButton
+                      className="button buttonSecondary iconButton"
+                      style={{ marginLeft: "0.2rem" }}
+                      title="Remove this collaborator?"
+                      description="They'll lose their listed role on this project. This can't be undone."
+                      confirmLabel="Remove"
+                      aria-label="Remove collaborator"
+                    >
+                      <X size={14} aria-hidden="true" />
+                    </ConfirmButton>
                   </form>
                 </span>
               ))}

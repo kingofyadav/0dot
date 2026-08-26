@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { getCurrentUser, getCurrentSessionToken, hashToken } from "@/lib/session";
 import { revokeSession, revokeAllOtherSessionsAction } from "@/app/actions/session-management";
 import { SettingsRow } from "@/components/SettingsRow";
+import { EmptyState } from "@/components/EmptyState";
 
 // addendum §4/§10: lists every active Session row for the caller, newest
 // activity first, plus the last ~20 LoginEvent rows (§10) below it — kept on
@@ -64,7 +65,7 @@ export default async function ActiveSessionsPage() {
         Recent login activity
       </h2>
       {loginEvents.length === 0 ? (
-        <p className="mutedText">No login history yet.</p>
+        <EmptyState message="No login history yet." />
       ) : (
         <div className="settingsGroup">
           {loginEvents.map((event) => (

@@ -28,12 +28,12 @@ export function CourseForm({
         <label htmlFor={`courseDescription-${idSuffix}`}>Description</label>
         <textarea id={`courseDescription-${idSuffix}`} name="description" defaultValue={course?.description} maxLength={2000} rows={2} />
       </div>
-      <div style={{ display: "flex", gap: "0.5rem" }}>
-        <div className="field" style={{ flex: 1 }}>
+      <div className="fieldRow">
+        <div className="field">
           <label htmlFor={`coursePrice-${idSuffix}`}>Price (optional)</label>
           <input id={`coursePrice-${idSuffix}`} name="price" type="number" min="0.01" step="0.01" defaultValue={course?.price ?? undefined} />
         </div>
-        <div className="field" style={{ flex: 1 }}>
+        <div className="field">
           <label htmlFor={`courseCurrency-${idSuffix}`}>Currency</label>
           <input id={`courseCurrency-${idSuffix}`} name="currency" defaultValue={course?.currency ?? "usd"} maxLength={3} />
         </div>

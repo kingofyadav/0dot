@@ -48,8 +48,8 @@ export function BookChapterForm({
         <label htmlFor={`chapterBody-${idSuffix}`}>Content</label>
         <textarea id={`chapterBody-${idSuffix}`} name="body" defaultValue={chapter?.body} rows={10} required />
       </div>
-      <div style={{ display: "flex", gap: "0.5rem" }}>
-        <div className="field" style={{ flex: 1 }}>
+      <div className="fieldRow">
+        <div className="field">
           <label htmlFor={`chapterVisibility-${idSuffix}`}>Visibility</label>
           <select id={`chapterVisibility-${idSuffix}`} name="visibility" defaultValue={chapter?.visibility ?? "public"} className="textInput">
             <option value="public">Public</option>
@@ -57,7 +57,7 @@ export function BookChapterForm({
             <option value="private">Private (only you)</option>
           </select>
         </div>
-        <div className="field" style={{ flex: 1 }}>
+        <div className="field">
           <label htmlFor={`chapterParent-${idSuffix}`}>Parent chapter</label>
           <select id={`chapterParent-${idSuffix}`} name="parentPageId" defaultValue={chapter?.parentPageId ?? ""} className="textInput">
             <option value="">None (top-level)</option>
@@ -66,7 +66,7 @@ export function BookChapterForm({
             ))}
           </select>
         </div>
-        <div className="field" style={{ flex: 1 }}>
+        <div className="field">
           <label htmlFor={`chapterPosition-${idSuffix}`}>Position</label>
           <input id={`chapterPosition-${idSuffix}`} name="position" type="number" defaultValue={chapter?.position ?? 0} className="textInput" />
         </div>

@@ -35,12 +35,12 @@ export function TierForm({
         <label htmlFor={`tierLevel-${tier?.id ?? "new"}`}>Level (higher = more exclusive)</label>
         <input id={`tierLevel-${tier?.id ?? "new"}`} name="level" type="number" min="1" step="1" defaultValue={tier?.level ?? 1} required />
       </div>
-      <div style={{ display: "flex", gap: "0.5rem" }}>
-        <div className="field" style={{ flex: 1 }}>
+      <div className="fieldRow">
+        <div className="field">
           <label htmlFor={`tierPrice-${tier?.id ?? "new"}`}>Price</label>
           <input id={`tierPrice-${tier?.id ?? "new"}`} name="price" type="number" min="0.01" step="0.01" defaultValue={tier?.price} required />
         </div>
-        <div className="field" style={{ flex: 1 }}>
+        <div className="field">
           <label htmlFor={`tierCurrency-${tier?.id ?? "new"}`}>Currency</label>
           <input id={`tierCurrency-${tier?.id ?? "new"}`} name="currency" defaultValue={tier?.currency ?? "usd"} maxLength={3} required />
         </div>

@@ -28,14 +28,14 @@ export default function NewBusinessPage() {
             id="slug"
             name="slug"
             type="text"
-            placeholder="your-business"
+            placeholder="your_business"
             pattern="[a-zA-Z0-9_]{3,40}"
             minLength={3}
             maxLength={40}
             required
           />
           <span className="mutedText">
-            <span className="brandUrl">0dot.in</span>/b/your-business — this is permanent.
+            <span className="brandUrl">0dot.in</span>/b/your_business — letters, numbers, and underscores only. This is permanent.
           </span>
         </div>
 

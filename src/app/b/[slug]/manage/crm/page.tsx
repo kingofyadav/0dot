@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/session";
 import { isBusinessStaff } from "@/lib/businesses";
 import { ContactStageSelect } from "./ContactStageSelect";
 import { NewContactForm } from "./NewContactForm";
+import { EmptyState } from "@/components/EmptyState";
 
 const ACTIVITY_LABEL: Record<string, string> = {
   contact_message: "Sent a message",
@@ -51,7 +52,7 @@ export default async function CrmPage({ params }: { params: Promise<{ slug: stri
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-        {contacts.length === 0 && <p className="mutedText">No contacts yet.</p>}
+        {contacts.length === 0 && <EmptyState message="No contacts yet." />}
         {contacts.map((contact) => (
           <div key={contact.id} style={{ border: "1px solid var(--border)", borderRadius: "8px", padding: "0.75rem 1rem" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>

@@ -57,12 +57,12 @@ export function LocationForm({ businessId, location }: { businessId: string; loc
         <label htmlFor={`locAddress-${idSuffix}`}>Address</label>
         <input id={`locAddress-${idSuffix}`} name="address" defaultValue={location?.address} maxLength={300} required />
       </div>
-      <div style={{ display: "flex", gap: "0.5rem" }}>
-        <div className="field" style={{ flex: 1 }}>
+      <div className="fieldRow">
+        <div className="field">
           <label htmlFor={`locLat-${idSuffix}`}>Latitude</label>
           <input id={`locLat-${idSuffix}`} name="latitude" type="number" step="any" defaultValue={location?.latitude ?? undefined} />
         </div>
-        <div className="field" style={{ flex: 1 }}>
+        <div className="field">
           <label htmlFor={`locLng-${idSuffix}`}>Longitude</label>
           <input id={`locLng-${idSuffix}`} name="longitude" type="number" step="any" defaultValue={location?.longitude ?? undefined} />
         </div>

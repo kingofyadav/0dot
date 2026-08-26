@@ -51,7 +51,7 @@ export function OfferingForm({
       <input type="text" name="name" placeholder="Name" defaultValue={offering?.name} maxLength={120} required className="textInput" />
       <textarea name="description" placeholder="Description" defaultValue={offering?.description} maxLength={2000} rows={3} className="textInput" />
 
-      <div style={{ display: "flex", gap: "0.4rem" }}>
+      <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
         <input
           type="text"
           name="price"
@@ -59,13 +59,18 @@ export function OfferingForm({
           defaultValue={offering?.price ?? ""}
           inputMode="decimal"
           className="textInput"
-          style={{ flex: 1 }}
+          style={{ flex: "1 1 140px" }}
         />
         <input
           type="text"
           name="currency"
           placeholder="USD"
-          defaultValue={offering?.currency ?? ""}
+          // Previously defaulted to "" — the "USD" placeholder made the
+          // field look pre-filled, so typing only a price tripped the
+          // server's "Currency is required when a price is set" error
+          // (src/app/actions/offerings.ts) with no visible reason why. A
+          // real default matches what the placeholder already implied.
+          defaultValue={offering?.currency ?? "USD"}
           maxLength={3}
           className="textInput"
           style={{ width: "5rem" }}

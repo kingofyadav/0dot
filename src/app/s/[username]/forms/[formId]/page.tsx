@@ -3,6 +3,7 @@ import { redirect, notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { publishForm, closeForm, type FormFieldDef } from "@/app/actions/forms";
+import { EmptyState } from "@/components/EmptyState";
 
 export default async function FormDetailPage({ params }: { params: Promise<{ username: string; formId: string }> }) {
   const currentUser = await getCurrentUser();
@@ -44,7 +45,7 @@ export default async function FormDetailPage({ params }: { params: Promise<{ use
 
       <div style={{ marginTop: "1.5rem" }}>
         <p className="sectionHeading">Responses ({form.responses.length})</p>
-        {form.responses.length === 0 && <p className="mutedText">No responses yet.</p>}
+        {form.responses.length === 0 && <EmptyState message="No responses yet." />}
         <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
           {form.responses.map((response) => {
             const answers = JSON.parse(response.answersJson) as Record<string, string>;

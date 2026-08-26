@@ -19,14 +19,19 @@ export function NewCommunityForm({ organizations }: { organizations: { id: strin
           id="slug"
           name="slug"
           type="text"
-          placeholder="your-community"
+          placeholder="your_community"
           pattern="[a-zA-Z0-9_]{3,40}"
           minLength={3}
           maxLength={40}
           required
         />
+        {/* Was "your-community" — the pattern above (shared with usernames/
+            articles/projects via validateSlugFormat, src/lib/slug-validation.ts)
+            has never allowed hyphens; the hyphenated example was misleading
+            users into a slug the browser's own pattern-mismatch would then
+            reject with a generic "Please match the format requested." */}
         <span className="mutedText">
-          <span className="brandUrl">0dot.in</span>/c/your-community — this is permanent.
+          <span className="brandUrl">0dot.in</span>/c/your_community — letters, numbers, and underscores only. This is permanent.
         </span>
       </div>
 

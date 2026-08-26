@@ -7,6 +7,7 @@ import { deleteModule, deleteLesson } from "@/app/actions/courses";
 import { CourseForm } from "@/app/s/[username]/CourseForm";
 import { SettingsRow } from "@/components/SettingsRow";
 import { EmptyState } from "@/components/EmptyState";
+import { ConfirmButton } from "@/components/ConfirmButton";
 import { AddModuleForm } from "./AddModuleForm";
 import { AddLessonForm } from "./AddLessonForm";
 import { QuizForm } from "./QuizForm";
@@ -66,7 +67,14 @@ export default async function CourseBuilderPage({
               trailing={
                 <form action={deleteModule}>
                   <input type="hidden" name="moduleId" value={courseModule.id} />
-                  <button type="submit" className="button buttonSecondary buttonSmall">Delete module</button>
+                  <ConfirmButton
+                    className="button buttonSecondary buttonSmall"
+                    title="Delete this module?"
+                    description="This deletes every lesson in it too. This can't be undone."
+                    confirmLabel="Delete"
+                  >
+                    Delete module
+                  </ConfirmButton>
                 </form>
               }
             />
@@ -83,7 +91,15 @@ export default async function CourseBuilderPage({
                 trailing={
                   <form action={deleteLesson}>
                     <input type="hidden" name="lessonId" value={lesson.id} />
-                    <button type="submit" className="button buttonSecondary iconButton" aria-label="Delete lesson"><X size={16} aria-hidden="true" /></button>
+                    <ConfirmButton
+                      className="button buttonSecondary iconButton"
+                      title="Delete this lesson?"
+                      description="This can't be undone."
+                      confirmLabel="Delete"
+                      aria-label="Delete lesson"
+                    >
+                      <X size={16} aria-hidden="true" />
+                    </ConfirmButton>
                   </form>
                 }
               />
