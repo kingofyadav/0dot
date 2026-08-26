@@ -1,6 +1,7 @@
 import "server-only";
 import { randomBytes } from "crypto";
 import { put } from "@vercel/blob";
+import { fileTypeFromBuffer } from "file-type";
 import { createFileAsset, type FileAssetContentType } from "@/lib/ai-accessibility";
 
 const ALLOWED_IMAGE_EXTENSIONS: Record<string, string> = {
@@ -30,7 +31,63 @@ const ALLOWED_DOCUMENT_TYPES: Record<string, string> = {
 
 export type UploadResult = { url: string } | { error: string };
 
-async function writeToUploadsDir(file: File, ext: string): Promise<string> {
+const TYPE_MISMATCH_ERROR = "File content doesn't match its declared type.";
+
+// Markers that would make a browser render (not just display as text) a
+// file it fetches — checked against the first KB of anything declared
+// text/plain, since that's the one allow-listed type file-type can't sniff
+// (plain text has no magic bytes). Case-insensitive, matches with or
+// without a leading "<".
+const MARKUP_SNIFF_PATTERN = /<(!doctype|html|head|body|script|iframe|svg|object|embed|meta)\b/i;
+
+// file.type is whatever the browser/client claims on the multipart part —
+// trivially spoofable by anything that isn't the real web UI. This
+// verifies the bytes actually are what's declared before the file is
+// written to public, directly-linked blob storage. file-type only
+// recognizes binary formats and, for a few of them, reports a mime string
+// that differs from the one this app allow-lists (documented per-case
+// below) — so this is a mapping, not a strict equality check.
+async function bytesMatchDeclaredType(buffer: Buffer, declaredType: string): Promise<boolean> {
+  if (declaredType === "text/plain") {
+    // Any recognized binary signature here means the bytes aren't actually
+    // plain text, whatever Content-Type the client sent.
+    const detected = await fileTypeFromBuffer(buffer);
+    if (detected) return false;
+    return !MARKUP_SNIFF_PATTERN.test(buffer.subarray(0, 1024).toString("utf8"));
+  }
+
+  const detected = await fileTypeFromBuffer(buffer);
+  if (!detected) return false;
+
+  switch (declaredType) {
+    case "image/png":
+    case "image/jpeg":
+    case "image/webp":
+    case "image/gif":
+    case "application/pdf":
+    case "application/epub+zip":
+      return detected.mime === declaredType;
+    case "audio/webm":
+      // MediaRecorder-produced audio-only WebM is an EBML/Matroska
+      // container file-type can't distinguish from video/webm by magic
+      // bytes alone — the container signature itself is the real check.
+      return detected.ext === "webm";
+    case "audio/mp4":
+      // Real .m4a audio is reported as audio/x-m4a (ISO-BMFF brand
+      // sniffing), not audio/mp4 — both are legitimate here.
+      return detected.mime === "audio/mp4" || detected.mime === "audio/x-m4a";
+    case "audio/mpeg":
+      return detected.mime === "audio/mpeg";
+    case "audio/ogg":
+      // Covers plain Ogg/Vorbis ("audio/ogg") and Opus-in-Ogg
+      // ("audio/ogg; codecs=opus") — what browsers actually record.
+      return detected.mime.startsWith("audio/ogg");
+    default:
+      return false;
+  }
+}
+
+async function writeToUploadsDir(buffer: Buffer, ext: string): Promise<string> {
   const filename = `${randomBytes(16).toString("hex")}.${ext}`;
   const path = `uploads/${filename}`;
 
@@ -39,7 +96,7 @@ async function writeToUploadsDir(file: File, ext: string): Promise<string> {
   // get()/token round trip) never actually served anything; public also
   // matches Vercel's own guidance against private access for
   // publicly-displayed content (slower delivery, higher egress cost).
-  const blob = await put(path, file, {
+  const blob = await put(path, buffer, {
     access: "public",
     addRandomSuffix: false,
   });
@@ -59,7 +116,12 @@ export async function saveUploadedImage(
     return { error: `Images must be ${Math.floor(maxBytes / (1024 * 1024))}MB or smaller.` };
   }
 
-  const url = await writeToUploadsDir(file, ext);
+  const buffer = Buffer.from(await file.arrayBuffer());
+  if (!(await bytesMatchDeclaredType(buffer, file.type))) {
+    return { error: TYPE_MISMATCH_ERROR };
+  }
+
+  const url = await writeToUploadsDir(buffer, ext);
   if (uploadedById) await createFileAsset({ url, contentType: "image", uploadedById });
   return { url };
 }
@@ -74,7 +136,12 @@ export async function saveDocumentFile(
     return { error: `Files must be ${Math.floor(maxBytes / (1024 * 1024))}MB or smaller.` };
   }
 
-  const url = await writeToUploadsDir(file, ext);
+  const buffer = Buffer.from(await file.arrayBuffer());
+  if (!(await bytesMatchDeclaredType(buffer, file.type))) {
+    return { error: TYPE_MISMATCH_ERROR };
+  }
+
+  const url = await writeToUploadsDir(buffer, ext);
   if (uploadedById) await createFileAsset({ url, contentType: "document", uploadedById });
   return { url };
 }
@@ -113,7 +180,12 @@ export async function saveMessageAttachment(
     return { error: `${kind === "voice_note" ? "Voice notes" : "Files"} must be ${Math.floor(maxBytes / (1024 * 1024))}MB or smaller.` };
   }
 
-  const url = await writeToUploadsDir(file, ext);
+  const buffer = Buffer.from(await file.arrayBuffer());
+  if (!(await bytesMatchDeclaredType(buffer, file.type))) {
+    return { error: TYPE_MISMATCH_ERROR };
+  }
+
+  const url = await writeToUploadsDir(buffer, ext);
   if (uploadedById) {
     const contentType: FileAssetContentType =
       kind === "voice_note" ? "audio" : file.type.startsWith("image/") ? "image" : "document";

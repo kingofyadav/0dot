@@ -12,6 +12,9 @@ import type { NextConfig } from "next";
 // out of the response header and threads through its own inline scripts
 // automatically (see https://nextjs.org/docs/app/guides/content-security-policy#nonces).
 const nextConfig: NextConfig = {
+  // Drop the `x-powered-by: Next.js` response header — free framework
+  // fingerprinting for anyone matching the stack against known CVEs.
+  poweredByHeader: false,
   // The dev-mode "N" badge Next.js overlays in the bottom-left corner sits
   // directly on top of the left sidebar's bottom edge — disabled so it
   // doesn't obscure sidebar content during development.
