@@ -24,9 +24,18 @@ export function UnreadBadgeProvider({ children }: { children: ReactNode }) {
   const { status } = useAuth();
   const [counts, setCounts] = useState<UnreadCounts>({ messages: 0, notifications: 0 });
   const inFlight = useRef(false);
+  const pending = useRef(false);
 
+  // A refetch that lands while one is already in flight used to be dropped
+  // outright — e.g. a mark-read-triggered refetch racing a stream-triggered
+  // one. Queue it instead: it runs once the in-flight fetch settles, so the
+  // caller never loses a refresh, and concurrent callers still collapse
+  // into a single trailing request rather than piling up.
   const refetch = useCallback(() => {
-    if (inFlight.current) return;
+    if (inFlight.current) {
+      pending.current = true;
+      return;
+    }
     inFlight.current = true;
     getUnreadCounts()
       .then(setCounts)
@@ -36,6 +45,10 @@ export function UnreadBadgeProvider({ children }: { children: ReactNode }) {
       })
       .finally(() => {
         inFlight.current = false;
+        if (pending.current) {
+          pending.current = false;
+          refetch();
+        }
       });
   }, []);
 

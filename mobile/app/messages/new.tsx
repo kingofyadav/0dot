@@ -57,7 +57,12 @@ export default function NewMessageScreen() {
       haptics.light();
       router.replace({
         pathname: "/messages/[id]",
-        params: { id: result.conversationId, title: recipient.displayName, avatarUrl: recipient.avatarUrl ?? "" },
+        params: {
+          id: result.conversationId,
+          title: recipient.displayName,
+          avatarUrl: recipient.avatarUrl ?? "",
+          otherUserId: recipient.userId,
+        },
       });
     } catch (err) {
       haptics.warning();

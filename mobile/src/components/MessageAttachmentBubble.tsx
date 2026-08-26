@@ -78,12 +78,12 @@ function VoiceNoteRow({ url, durationS, tintColor }: { url: string; durationS: n
 
   return (
     <Pressable
-      onPress={() => {
+      onPress={async () => {
         haptics.light();
         if (status.playing) {
           player.pause();
         } else {
-          if (status.currentTime >= status.duration && status.duration > 0) player.seekTo(0);
+          if (status.currentTime >= status.duration && status.duration > 0) await player.seekTo(0);
           player.play();
         }
       }}

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { getFollowers, getFollowing, ApiError } from "../api/client";
@@ -37,9 +37,18 @@ export function FollowListScreen({ username, mode }: { username: string; mode: M
     }
   }, [username, fetchPage]);
 
+  // Unlike the Home feed / Bookmarks (which deliberately reload page 1 on
+  // every focus to surface fresh content), this list rarely changes
+  // moment-to-moment — reloading on every return from a visited profile
+  // was silently discarding deep pagination and resetting scroll position.
+  // Load once on first focus only; later focuses leave it alone.
+  const isFirstLoad = useRef(true);
   useFocusEffect(
     useCallback(() => {
-      load();
+      if (isFirstLoad.current) {
+        isFirstLoad.current = false;
+        load();
+      }
     }, [load])
   );
 

@@ -62,7 +62,13 @@ function appendImage(form: FormData, field: string, image: LocalImage, index: nu
   // straight off the appended value), so wrapping the picked URI in one
   // is the fix, not a new upload mechanism.
   const file = new File(image.uri);
-  form.append(field, file as unknown as Blob, image.fileName ?? `${field}-${index}.jpg`);
+  // File infers .type from the URI's own extension, which can be wrong or
+  // missing (e.g. a cropped/cached image with a generic filename) — when
+  // the picker told us the real mimeType, override the blob's type with it
+  // rather than trust the inferred one, since it's what actually reaches
+  // the server's declared-Content-Type check (commit 642fd17).
+  const blob = image.mimeType ? file.slice(0, undefined, image.mimeType) : (file as unknown as Blob);
+  form.append(field, blob, image.fileName ?? `${field}-${index}.jpg`);
 }
 
 // apiError (api-auth.ts) always responds { error: string } on the server
@@ -319,7 +325,7 @@ export function sendConversationMessage(
   form.append("attachmentKind", attachment.kind);
   if (attachment.durationS != null) form.append("attachmentDurationS", String(attachment.durationS));
   const file = new File(attachment.uri);
-  form.append("attachment", file as unknown as Blob, attachment.name);
+  form.append("attachment", file.slice(0, undefined, attachment.mimeType), attachment.name);
   return authorizedRequest(path, { method: "POST", body: form }, UPLOAD_TIMEOUT_MS);
 }
 
