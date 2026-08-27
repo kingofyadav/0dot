@@ -80,14 +80,23 @@ function isValidProtectedKey(key: string): boolean {
 // so — same "throw rather than silently degrade" posture as
 // message-crypto.ts's MESSAGE_ENCRYPTION_KEY — production refuses to start
 // without a real one instead of quietly falling back to it.
-const TOKEN_SECRET = (() => {
+//
+// Resolved lazily on first sign/verify, never at module load: `next build`
+// collects page data by evaluating every route module (including the two
+// /api routes that import this), and a build must not depend on a
+// production secret being present — same reasoning as stripe.ts's lazy
+// client. The production throw still fires, now on first real use.
+let tokenSecret: string | undefined;
+
+function getTokenSecret(): string {
+  if (tokenSecret !== undefined) return tokenSecret;
   const secret = process.env.DOWNLOAD_TOKEN_SECRET;
-  if (secret) return secret;
+  if (secret) return (tokenSecret = secret);
   if (process.env.NODE_ENV === "production") {
     throw new Error("DOWNLOAD_TOKEN_SECRET is not configured. Refusing to serve gated downloads with no real secret in production.");
   }
-  return "dev-only-insecure-download-secret-DO-NOT-USE-IN-PRODUCTION-set-DOWNLOAD_TOKEN_SECRET";
-})();
+  return (tokenSecret = "dev-only-insecure-download-secret-DO-NOT-USE-IN-PRODUCTION-set-DOWNLOAD_TOKEN_SECRET");
+}
 
 type DownloadTokenPayload = {
   // phase-7 spec §7.2: a fourth resourceType rather than a second gated-
@@ -100,7 +109,7 @@ type DownloadTokenPayload = {
 };
 
 function sign(body: string): string {
-  return createHmac("sha256", TOKEN_SECRET).update(body).digest("base64url");
+  return createHmac("sha256", getTokenSecret()).update(body).digest("base64url");
 }
 
 // spec §5.3/§5.4: short-lived (10 min) and buyer-scoped — the userId is
