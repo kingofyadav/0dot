@@ -1,6 +1,9 @@
 # Addendum — Web Pro-Level Upgrade
 
-Status: M1 in progress. M2–M8 planned. This addendum is the web-side
+Status: M1 built + verified live (2026-08-27 — cron chain proven in
+production: GH Actions → CRON_SECRET → /api/cron/frequent → all 5 jobs
+ok:true against the prod DB; in-process schedulers confirmed suppressed on
+Vercel). M2–M8 planned. This addendum is the web-side
 counterpart to `addendum-mobile-pro-upgrade.md` (which took the native app
 from a narrow foundation to near-web parity across M1–M14). The web app has
 the opposite problem: feature breadth is complete (Phases 1–16 + every
@@ -54,7 +57,7 @@ precondition for everything else.
 
 ## 3. Sub-phases
 
-### M1 — Serverless-fit reliability foundation (in progress)
+### M1 — Serverless-fit reliability foundation (built)
 
 - **Error tracking.** `@sentry/nextjs`, env-gated exactly like mobile M8: a
   `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` indirection in a new
