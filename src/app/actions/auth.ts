@@ -9,7 +9,7 @@ import { db } from "@/lib/db";
 import { createSession, destroySession, getCurrentUser, createTwoFactorChallenge } from "@/lib/session";
 import { revokeAllOtherSessions } from "@/app/actions/session-management";
 import { validateUsernameFormat } from "@/lib/reserved-usernames";
-import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
+import { checkRateLimit, enforceRateLimit, getClientIp } from "@/lib/rate-limit";
 import { toE164 } from "@/lib/country-codes";
 import { getEmailSender, getAppOrigin, renderVerifyEmailHtml, renderPasswordResetEmailHtml } from "@/lib/email";
 import { isInternalSystemAccountEmail } from "@/lib/first-party-apps";
@@ -66,8 +66,10 @@ export async function signup(
   // (e.g. hammering past "email already exists"). Checked before any DB
   // work — see phase-1 spec §7.2.
   const ip = await getClientIp();
-  const ipOk = checkRateLimit(`signup:ip:${ip}`, { max: 5, windowMs: 15 * 60 * 1000 });
-  const emailOk = checkRateLimit(`signup:email:${email}`, { max: 3, windowMs: 15 * 60 * 1000 });
+  const [ipOk, emailOk] = await Promise.all([
+    enforceRateLimit(`signup:ip:${ip}`, { max: 5, windowMs: 15 * 60 * 1000 }),
+    enforceRateLimit(`signup:email:${email}`, { max: 3, windowMs: 15 * 60 * 1000 }),
+  ]);
   if (!ipOk || !emailOk) {
     return { error: RATE_LIMIT_ERROR };
   }
@@ -189,7 +191,7 @@ export async function resendVerificationEmail(
   if (!user) redirect("/login");
   if (user.emailVerifiedAt) redirect("/feed");
 
-  const rateOk = checkRateLimit(`resend-verification:user:${user.id}`, { max: 3, windowMs: 15 * 60 * 1000 });
+  const rateOk = await enforceRateLimit(`resend-verification:user:${user.id}`, { max: 3, windowMs: 15 * 60 * 1000 });
   if (!rateOk) {
     return { error: RATE_LIMIT_ERROR };
   }
@@ -265,8 +267,10 @@ export async function login(
   // brute force targeted at one account from anywhere, whichever of
   // email/username/phone they typed — see phase-1 spec §7.2.
   const ip = await getClientIp();
-  const ipOk = checkRateLimit(`login:ip:${ip}`, { max: 10, windowMs: 5 * 60 * 1000 });
-  const identifierOk = checkRateLimit(`login:identifier:${identifier}`, { max: 5, windowMs: 5 * 60 * 1000 });
+  const [ipOk, identifierOk] = await Promise.all([
+    enforceRateLimit(`login:ip:${ip}`, { max: 10, windowMs: 5 * 60 * 1000 }),
+    enforceRateLimit(`login:identifier:${identifier}`, { max: 5, windowMs: 5 * 60 * 1000 }),
+  ]);
   if (!ipOk || !identifierOk) {
     return { error: RATE_LIMIT_ERROR };
   }
@@ -351,8 +355,10 @@ export async function requestPasswordReset(
   // request pattern is IP-scoped, while a targeted one hammers a single
   // address (e.g. spamming someone's inbox with reset links).
   const ip = await getClientIp();
-  const ipOk = checkRateLimit(`password-reset-request:ip:${ip}`, { max: 5, windowMs: 15 * 60 * 1000 });
-  const emailOk = checkRateLimit(`password-reset-request:email:${email}`, { max: 3, windowMs: 15 * 60 * 1000 });
+  const [ipOk, emailOk] = await Promise.all([
+    enforceRateLimit(`password-reset-request:ip:${ip}`, { max: 5, windowMs: 15 * 60 * 1000 }),
+    enforceRateLimit(`password-reset-request:email:${email}`, { max: 3, windowMs: 15 * 60 * 1000 }),
+  ]);
   if (!ipOk || !emailOk) {
     return { error: RATE_LIMIT_ERROR };
   }
@@ -411,7 +417,7 @@ export async function resetPassword(
   const confirmPassword = String(formData.get("confirmPassword") ?? "");
 
   const ip = await getClientIp();
-  const ipOk = checkRateLimit(`password-reset-confirm:ip:${ip}`, { max: 10, windowMs: 15 * 60 * 1000 });
+  const ipOk = await enforceRateLimit(`password-reset-confirm:ip:${ip}`, { max: 10, windowMs: 15 * 60 * 1000 });
   if (!ipOk) {
     return { error: RATE_LIMIT_ERROR };
   }
@@ -464,7 +470,7 @@ export async function changePassword(
   // Per-user, not per-IP/global — this form is only reachable while
   // authenticated, so the account itself is the meaningful rate-limit key
   // for guarding the current-password check from being brute-forced.
-  const ok = checkRateLimit(`change-password:user:${user.id}`, { max: 5, windowMs: 15 * 60 * 1000 });
+  const ok = await enforceRateLimit(`change-password:user:${user.id}`, { max: 5, windowMs: 15 * 60 * 1000 });
   if (!ok) {
     return { error: RATE_LIMIT_ERROR };
   }

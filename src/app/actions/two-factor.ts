@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireVerifiedUser } from "@/lib/auth-guards";
-import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
+import { enforceRateLimit, getClientIp } from "@/lib/rate-limit";
 import { createSession, getPendingTwoFactorChallenge, clearTwoFactorChallenge } from "@/lib/session";
 import {
   generateSecret,
@@ -40,7 +40,7 @@ export async function startTwoFactorEnrollment(): Promise<{ error: string } | { 
 export async function confirmTwoFactorEnrollment(code: string): Promise<{ error: string } | { recoveryCodes: string[] }> {
   const user = await requireVerifiedUser();
 
-  const ok = checkRateLimit(`2fa-enroll:user:${user.id}`, { max: 10, windowMs: 15 * 60 * 1000 });
+  const ok = await enforceRateLimit(`2fa-enroll:user:${user.id}`, { max: 10, windowMs: 15 * 60 * 1000 });
   if (!ok) return { error: "Too many attempts. Please try again in a few minutes." };
 
   if (!user.twoFactorSecret) {
@@ -71,7 +71,7 @@ export async function disableTwoFactor(_prevState: ActionState, formData: FormDa
   const user = await requireVerifiedUser();
   const currentPassword = String(formData.get("currentPassword") ?? "");
 
-  const ok = checkRateLimit(`2fa-disable:user:${user.id}`, { max: 5, windowMs: 15 * 60 * 1000 });
+  const ok = await enforceRateLimit(`2fa-disable:user:${user.id}`, { max: 5, windowMs: 15 * 60 * 1000 });
   if (!ok) return { error: "Too many attempts. Please try again in a few minutes." };
 
   const valid = await bcrypt.compare(currentPassword, user.passwordHash);
@@ -89,7 +89,7 @@ export async function disableTwoFactor(_prevState: ActionState, formData: FormDa
 export async function regenerateRecoveryCodes(currentPassword: string): Promise<{ error: string } | { recoveryCodes: string[] }> {
   const user = await requireVerifiedUser();
 
-  const ok = checkRateLimit(`2fa-regen:user:${user.id}`, { max: 5, windowMs: 15 * 60 * 1000 });
+  const ok = await enforceRateLimit(`2fa-regen:user:${user.id}`, { max: 5, windowMs: 15 * 60 * 1000 });
   if (!ok) return { error: "Too many attempts. Please try again in a few minutes." };
 
   if (!user.twoFactorEnabledAt) return { error: "Two-factor authentication isn't enabled." };
@@ -113,7 +113,7 @@ export async function verifyLoginTwoFactor(_prevState: ActionState, formData: Fo
 
   const code = String(formData.get("code") ?? "").trim();
 
-  const ok = checkRateLimit(`2fa:user:${challenge.userId}`, { max: 8, windowMs: 15 * 60 * 1000 });
+  const ok = await enforceRateLimit(`2fa:user:${challenge.userId}`, { max: 8, windowMs: 15 * 60 * 1000 });
   if (!ok) return { error: "Too many attempts. Please try again in a few minutes." };
 
   const user = await db.user.findUnique({ where: { id: challenge.userId } });

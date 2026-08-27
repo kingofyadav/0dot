@@ -1,14 +1,17 @@
 import "server-only";
 import { headers } from "next/headers";
+import { db } from "@/lib/db";
 
 type Bucket = { count: number; resetAt: number };
 
 // In-memory, single-process, fixed-window limiter. Resets on restart and
-// doesn't share state across multiple server instances — fine for the
-// current single-process deployment; revisit with a shared store (Redis,
-// etc.) before running more than one instance. Good enough to stop casual
-// brute-force/credential-stuffing and signup spam, which is what phase-1
-// spec §7.2 asks for on login/signup/post/link creation.
+// doesn't share state across instances — on Vercel every cold function
+// instance starts with an empty map. That's acceptable for "stop one user
+// spamming posts / follows / reactions": the ceiling is per-instance and
+// leaky, but the abuse it guards is self-limiting and caught downstream by
+// moderation. It is NOT acceptable for guarding a credential check — a
+// brute force simply spreads across instances. Those callers use
+// enforceRateLimit() below instead.
 const buckets = new Map<string, Bucket>();
 
 // Opportunistic cleanup so `buckets` doesn't grow unbounded over a long
@@ -37,6 +40,60 @@ export function checkRateLimit(
 
   bucket.count += 1;
   return true;
+}
+
+// Durable, cross-instance fixed-window limiter backed by RateLimitCounter.
+// Use this — not checkRateLimit — for anything a determined attacker would
+// pay to bypass: login, 2FA verification, password reset, signup, the
+// OAuth token endpoint, wallet transfers, and account-security changes
+// (password/email/phone/2FA/lifecycle). One row per key; the window is
+// consumed with an atomic conditional increment so N concurrent requests
+// across N instances can't all slip past `max`.
+//
+// Returns true if the request is allowed. On a backing-store failure it
+// falls back to the in-memory limiter (still *a* ceiling) rather than
+// failing open or taking login down with the database.
+export async function enforceRateLimit(
+  key: string,
+  { max, windowMs }: { max: number; windowMs: number }
+): Promise<boolean> {
+  const now = Date.now();
+  const expiresAt = new Date(now + windowMs);
+
+  try {
+    // Roll a stale window over to a fresh one atomically. Matches nothing
+    // when the row is absent or the window is still live — a no-op then.
+    await db.rateLimitCounter.updateMany({
+      where: { key, expiresAt: { lte: new Date(now) } },
+      data: { count: 0, expiresAt },
+    });
+
+    // Make sure a row exists for this key without disturbing a live window.
+    await db.rateLimitCounter.upsert({
+      where: { key },
+      create: { key, count: 0, expiresAt },
+      update: {},
+    });
+
+    // Atomic conditional consume: increments only while under the ceiling.
+    // count 0 back means the row was already at `max`.
+    const consumed = await db.rateLimitCounter.updateMany({
+      where: { key, count: { lt: max } },
+      data: { count: { increment: 1 } },
+    });
+    return consumed.count > 0;
+  } catch (err) {
+    console.error(`enforceRateLimit: backing store unavailable for "${key}" — falling back to in-memory limiter.`, err);
+    return checkRateLimit(key, { max, windowMs });
+  }
+}
+
+// Called from the daily cron (src/app/api/cron/daily) — the rows are
+// self-expiring in effect (an expired window is reset on next use), but
+// keys that go quiet forever would otherwise linger. Cheap: one indexed
+// range delete.
+export async function sweepExpiredRateLimitCounters(): Promise<void> {
+  await db.rateLimitCounter.deleteMany({ where: { expiresAt: { lt: new Date() } } });
 }
 
 // Best-effort client identifier from proxy headers. Falls back to a shared
