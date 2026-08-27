@@ -66,7 +66,8 @@ export default withSentryConfig(nextConfig, {
   authToken: process.env.SENTRY_AUTH_TOKEN,
   silent: !process.env.CI,
   sourcemaps: { disable: !process.env.SENTRY_AUTH_TOKEN },
-  // The RSC flight-data CSP nonce is generated per-request in proxy.ts;
-  // don't add a Sentry tunnel route (it would need its own CSP allowance).
+  // Sentry's own tunnelRoute is injected by its webpack plugin, which this
+  // Turbopack build never runs. The tunnel is hand-written instead at
+  // src/app/api/monitoring/route.ts (client SDK points at it via `tunnel`).
   tunnelRoute: undefined,
 });
