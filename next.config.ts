@@ -13,6 +13,14 @@ import { withSentryConfig } from "@sentry/nextjs";
 // out of the response header and threads through its own inline scripts
 // automatically (see https://nextjs.org/docs/app/guides/content-security-policy#nonces).
 const nextConfig: NextConfig = {
+  // The browser Sentry SDK (src/instrumentation-client.ts) can only read
+  // NEXT_PUBLIC_* vars. A DSN is not a secret, so rather than maintain a
+  // second Vercel env var we inline the server SENTRY_DSN here at build time.
+  // Empty string when unset keeps the client init inert.
+  env: {
+    NEXT_PUBLIC_SENTRY_DSN:
+      process.env.NEXT_PUBLIC_SENTRY_DSN ?? process.env.SENTRY_DSN ?? "",
+  },
   // Drop the `x-powered-by: Next.js` response header — free framework
   // fingerprinting for anyone matching the stack against known CVEs.
   poweredByHeader: false,
@@ -49,8 +57,9 @@ const nextConfig: NextConfig = {
 // meaningful build-time work — source-map upload — when SENTRY_AUTH_TOKEN is
 // present (injected by the Vercel↔Sentry integration on production builds).
 // Locally and in CI it's a near-no-op: no token, no upload, no sentry-cli
-// invocation. Runtime error capture is driven by the sentry.*.config.ts
-// files and instrumentation.ts, not by this wrapper.
+// invocation. Runtime error capture is driven by src/instrumentation.ts and
+// src/instrumentation-client.ts (Sentry.init called directly), not by this
+// wrapper.
 export default withSentryConfig(nextConfig, {
   org: process.env.SENTRY_ORG,
   project: process.env.SENTRY_PROJECT,

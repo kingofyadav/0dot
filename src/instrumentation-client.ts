@@ -1,8 +1,12 @@
 // Browser-side Sentry init. Next.js loads this automatically on the client.
 // web-pro-upgrade addendum M1.
 //
-// Uses NEXT_PUBLIC_SENTRY_DSN only (the server-only SENTRY_DSN isn't exposed
-// to the browser bundle). Inert when unset — see sentry.server.config.ts.
+// MUST live at src/instrumentation-client.ts (this project uses a src/ dir) —
+// a root-level file is ignored, same as instrumentation.ts.
+//
+// Uses NEXT_PUBLIC_SENTRY_DSN. next.config.ts fills that from SENTRY_DSN at
+// build time (the DSN is not a secret), so there's no separate env var to
+// set. Inert when unset.
 import * as Sentry from "@sentry/nextjs";
 
 const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN;

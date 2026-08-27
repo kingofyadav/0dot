@@ -5,9 +5,10 @@ import { runAccessibilityJobsOnce } from "@/lib/ai-accessibility";
 import { runWatermarkJobsOnce } from "@/lib/watermarking";
 import { publishDueCrossPosts } from "@/lib/social-publish";
 
-// Responsiveness-sensitive recurring jobs. Scheduled every 5 min in
-// vercel.json (web-pro-upgrade addendum M1). Formerly setInterval loops of
-// 1–5 min in instrumentation.ts.
+// Responsiveness-sensitive recurring jobs. Triggered every 5 min by
+// .github/workflows/cron.yml (Hobby plan can't do sub-daily Vercel crons —
+// web-pro-upgrade addendum M1). Formerly setInterval loops of 1–5 min in
+// instrumentation.ts.
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 

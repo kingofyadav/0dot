@@ -3,7 +3,19 @@
 Status: M1 built + verified live (2026-08-27 — cron chain proven in
 production: GH Actions → CRON_SECRET → /api/cron/frequent → all 5 jobs
 ok:true against the prod DB; in-process schedulers confirmed suppressed on
-Vercel). M2–M8 planned. This addendum is the web-side
+Vercel). M2–M8 planned.
+
+**M1 follow-up (2026-08-27):** `instrumentation.ts` was at the repo root, but
+this project uses a `src/` directory, so Next resolves the instrumentation
+hook relative to `src/` — the root file was silently ignored in the
+production build. Sentry, the `onRequestError` hook, and every boot task in
+`register()` had never run on Vercel (the schedulers were "suppressed" only
+because nothing ran, not because of the `if (process.env.VERCEL) return`
+guard). Fixed by moving the file to `src/instrumentation.ts` (and
+`src/instrumentation-client.ts`), matching `src/proxy.ts`. Sentry error
+delivery verified end-to-end after the move.
+
+This addendum is the web-side
 counterpart to `addendum-mobile-pro-upgrade.md` (which took the native app
 from a narrow foundation to near-web parity across M1–M14). The web app has
 the opposite problem: feature breadth is complete (Phases 1–16 + every
@@ -59,15 +71,15 @@ precondition for everything else.
 
 ### M1 — Serverless-fit reliability foundation (built)
 
-- **Error tracking.** `@sentry/nextjs`, env-gated exactly like mobile M8: a
-  `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` indirection in a new
-  `src/lib/observability.ts` (or reuse the config pattern), `Sentry.init`
-  only when a DSN is present, the `onRequestError` hook wired in
-  `instrumentation.ts`, `instrumentation-client.ts` for the browser side.
-  No source-map upload until a real Sentry project exists (same "this pass
-  can't create the project" note as mobile M8). Provision via the Vercel
-  Marketplace (`vercel:marketplace` — Sentry is a native integration) rather
-  than hand-rolling.
+- **Error tracking.** `@sentry/nextjs`, env-gated exactly like mobile M8:
+  `Sentry.init` called directly in `src/instrumentation.ts` (server/edge) and
+  `src/instrumentation-client.ts` (browser), only when a DSN is present, plus
+  the `onRequestError` hook. `SENTRY_DSN` comes from the Vercel↔Sentry
+  Marketplace integration; `NEXT_PUBLIC_SENTRY_DSN` is filled from it at build
+  time in `next.config.ts` (the DSN is not a secret). Source-map upload runs
+  only when `SENTRY_AUTH_TOKEN` is present (production builds). Provision via
+  the Vercel Marketplace (`vercel:marketplace` — Sentry is a native
+  integration) rather than hand-rolling.
 - **Structured logger.** `src/lib/logger.ts` — a thin level-tagged wrapper
   (`logger.error/warn/info` with a context object) replacing the ~15 bare
   `console.error` call sites in `src/app`/`src/lib`, so logs are greppable

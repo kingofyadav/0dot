@@ -3,9 +3,10 @@ import "server-only";
 // A thin, level-tagged logging wrapper — NOT a logging framework. It exists
 // so the ~dozen ad hoc `console.error` call sites across src/app and src/lib
 // emit a consistent, greppable shape, and so there's one place to also
-// forward errors/warnings to Sentry once a DSN is configured (see
-// src/lib/observability.ts). Deliberately server-only: browser logging is a
-// different concern handled by instrumentation-client.ts.
+// forward errors/warnings to Sentry once a DSN is configured (the sink is
+// wired in src/instrumentation.ts's register()). Deliberately server-only:
+// browser logging is a different concern handled by
+// src/instrumentation-client.ts.
 //
 // Usage:
 //   logger.error("cron.trending failed", err, { durationMs });
@@ -18,9 +19,10 @@ let sentryCapture:
   | ((level: "error" | "warning", message: string, error: unknown, context?: LogContext) => void)
   | null = null;
 
-// Wired by src/lib/observability.ts at init time (only when a DSN is set) so
-// this module has no hard dependency on @sentry/nextjs — keeps `logger`
-// importable from anywhere, including code paths Sentry doesn't instrument.
+// Wired by src/instrumentation.ts's register() at init time (only when a DSN
+// is set) so this module has no hard dependency on @sentry/nextjs — keeps
+// `logger` importable from anywhere, including code paths Sentry doesn't
+// instrument.
 export function registerLogSink(
   fn: (level: "error" | "warning", message: string, error: unknown, context?: LogContext) => void,
 ): void {

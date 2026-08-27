@@ -1,14 +1,24 @@
 // Runs once when a new Next.js server instance starts, before it serves
 // requests (see node_modules/next/dist/docs/01-app/03-api-reference/
-// 03-file-conventions/instrumentation.md). Used here to start the trending
-// score background scheduler (src/lib/trending.ts) — phase-2 spec §6.2
-// requires recompute to happen periodically, not synchronously inside a
-// request — and, per phase-6 spec §5.2, the daily GitRepository public-
-// metadata sync (src/lib/portfolio-sync.ts), same reasoning. Phase-11 §6.3
-// adds the AI accessibility captioning job (src/lib/ai-accessibility.ts),
-// same "never synchronously during a request" principle applied to alt-text
-// generation. Node-runtime only: the edge runtime has no long-lived process
-// for a setInterval to live in, and this app doesn't deploy there.
+// 03-file-conventions/instrumentation.md).
+//
+// MUST live at src/instrumentation.ts, not the repo root. This project uses a
+// src/ directory, so Next resolves the instrumentation hook relative to
+// src/app/.. (= src/) — a root-level instrumentation.ts is silently ignored
+// in the production build (hasInstrumentationHook === false), which is what
+// left Sentry, onRequestError, and the boot tasks below dead on Vercel until
+// 2026-08-27. Same convention level as src/proxy.ts.
+//
+// register() does two things: (1) initialize Sentry for the node and edge
+// runtimes (web-pro-upgrade addendum M1); (2) on the node runtime only, start
+// the boot tasks — ensureFirstPartyApps() plus, off Vercel, the recurring
+// schedulers. The trending recompute (src/lib/trending.ts, phase-2 §6.2), the
+// daily GitRepository metadata sync (src/lib/portfolio-sync.ts, phase-6
+// §5.2), and the AI accessibility captioning job (src/lib/ai-accessibility.ts,
+// phase-11 §6.3) all follow the same "never synchronously during a request"
+// principle. The schedulers are node-only: the edge runtime has no long-lived
+// process for a setInterval to live in.
+//
 // Each boot-time task below is independent — one throwing must never
 // prevent the rest from starting. Previously this function was one flat
 // `await` chain: an exception from any task aborted every task after it,
@@ -25,10 +35,10 @@ async function runStartupTask(name: string, task: () => void | Promise<void>): P
 
 export async function register() {
   // Sentry (web-pro-upgrade addendum M1). Initialized directly here rather
-  // than via a sentry.*.config.ts import: this project builds with Turbopack
-  // and has a large hand-written instrumentation.ts, and the config-file
-  // indirection was leaving Sentry.getClient() undefined in route handlers.
-  // No-op when no DSN is configured.
+  // than via a sentry.*.config.ts import — one file, and this project builds
+  // with Turbopack, which doesn't run @sentry/nextjs's webpack route-handler
+  // wrapping anyway; register() + the onRequestError hook below carry error
+  // capture. No-op when no DSN is configured.
   const sentryDsn = process.env.SENTRY_DSN ?? process.env.NEXT_PUBLIC_SENTRY_DSN;
   if (sentryDsn && (process.env.NEXT_RUNTIME === "nodejs" || process.env.NEXT_RUNTIME === "edge")) {
     const Sentry = await import("@sentry/nextjs");
@@ -39,7 +49,9 @@ export async function register() {
       sendDefaultPii: false,
       debug: process.env.SENTRY_DEBUG === "1",
     });
-    console.log(`[instrumentation] Sentry initialized (runtime=${process.env.NEXT_RUNTIME}, client=${Boolean(Sentry.getClient())})`);
+    if (process.env.SENTRY_DEBUG === "1") {
+      console.log(`[instrumentation] Sentry initialized (runtime=${process.env.NEXT_RUNTIME}, client=${Boolean(Sentry.getClient())})`);
+    }
 
     if (process.env.NEXT_RUNTIME === "nodejs") {
       const { registerLogSink } = await import("@/lib/logger");
