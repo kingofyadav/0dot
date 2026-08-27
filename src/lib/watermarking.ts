@@ -39,6 +39,11 @@ export function startWatermarkScheduler(): void {
   setInterval(tick, WATERMARK_JOB_INTERVAL_MS);
 }
 
+// Cron entry point (web-pro-upgrade addendum M1) — see runTrendingRecomputeOnce.
+export async function runWatermarkJobsOnce(): Promise<void> {
+  await processPendingWatermarkJobs();
+}
+
 // phase-13 spec §6.1's acceptance criterion: a verified purchaser (or the
 // asset's owner) always gets the clean original; every other viewer gets
 // the watermarked preview when one exists and enabled, falling back to the

@@ -119,45 +119,48 @@ export async function reviewModerationFlag(
   if (ownerId) await notifyModerationAction({ recipientId: ownerId, subjectType: flag.subjectType, subjectId: flag.subjectId });
 }
 
-async function getClassifiedSubjectIds(subjectType: string): Promise<string[]> {
-  const rows = await db.aIGeneration.findMany({
-    where: { feature: "moderation", subjectType },
-    select: { subjectId: true },
-  });
-  return rows.map((r) => r.subjectId).filter((id): id is string => id !== null);
-}
-
 // spec §4.1's "system-initiated generations (e.g. async moderation
 // classification of new content)" — never computed synchronously on the
 // create path, same async-job posture as ai-accessibility.ts. Per-run
 // take:50 cap per subject type, same safety-valve reasoning as
 // trending.ts's CANDIDATE_LIMIT.
+//
+// Uses a NOT EXISTS anti-join instead of Prisma's `notIn: <all classified
+// ids>` — that array grows without bound as moderation history accumulates
+// and eventually exceeds the database's bound-parameter limit (P2029),
+// since Prisma binds one parameter per notIn element. NOT EXISTS keeps the
+// parameter count fixed regardless of history size.
 async function processPendingModerationJobs(): Promise<void> {
-  const [classifiedPostIds, classifiedArticleIds, classifiedCommentIds] = await Promise.all([
-    getClassifiedSubjectIds("post"),
-    getClassifiedSubjectIds("article"),
-    getClassifiedSubjectIds("comment"),
-  ]);
-
   const [posts, articles, comments] = await Promise.all([
-    db.post.findMany({
-      where: { deletedAt: null, id: { notIn: classifiedPostIds } },
-      select: { id: true, body: true },
-      orderBy: { createdAt: "desc" },
-      take: 50,
-    }),
-    db.article.findMany({
-      where: { id: { notIn: classifiedArticleIds } },
-      select: { id: true, title: true, body: true },
-      orderBy: { createdAt: "desc" },
-      take: 50,
-    }),
-    db.comment.findMany({
-      where: { deletedAt: null, id: { notIn: classifiedCommentIds } },
-      select: { id: true, body: true },
-      orderBy: { createdAt: "desc" },
-      take: 50,
-    }),
+    db.$queryRaw<{ id: string; body: string }[]>`
+      SELECT p.id, p.body FROM Post p
+      WHERE p.deletedAt IS NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM AIGeneration g
+          WHERE g.feature = 'moderation' AND g.subjectType = 'post' AND g.subjectId = p.id
+        )
+      ORDER BY p.createdAt DESC
+      LIMIT 50
+    `,
+    db.$queryRaw<{ id: string; title: string; body: string }[]>`
+      SELECT a.id, a.title, a.body FROM Article a
+      WHERE NOT EXISTS (
+        SELECT 1 FROM AIGeneration g
+        WHERE g.feature = 'moderation' AND g.subjectType = 'article' AND g.subjectId = a.id
+      )
+      ORDER BY a.createdAt DESC
+      LIMIT 50
+    `,
+    db.$queryRaw<{ id: string; body: string }[]>`
+      SELECT c.id, c.body FROM Comment c
+      WHERE c.deletedAt IS NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM AIGeneration g
+          WHERE g.feature = 'moderation' AND g.subjectType = 'comment' AND g.subjectId = c.id
+        )
+      ORDER BY c.createdAt DESC
+      LIMIT 50
+    `,
   ]);
 
   for (const post of posts) await classifyAndFlag({ subjectType: "post", subjectId: post.id, text: post.body });
@@ -185,4 +188,9 @@ export function startModerationScheduler(): void {
 
   triggerModerationRun();
   setInterval(triggerModerationRun, MODERATION_JOB_INTERVAL_MS);
+}
+
+// Cron entry point (web-pro-upgrade addendum M1) — see runTrendingRecomputeOnce.
+export async function runModerationJobsOnce(): Promise<void> {
+  await processPendingModerationJobs();
 }

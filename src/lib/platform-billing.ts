@@ -500,11 +500,13 @@ export function startPlatformBillingScheduler(): void {
   if (globalForPlatformBilling.platformBillingSchedulerStarted) return;
   globalForPlatformBilling.platformBillingSchedulerStarted = true;
 
-  const tick = () =>
-    void (async () => {
-      await expireLapsedCoinSubscriptions();
-      await sweepLinkActivation();
-    })();
+  const tick = () => void runPlatformBillingSweepOnce();
   tick();
   setInterval(tick, LAPSE_SWEEP_INTERVAL_MS);
+}
+
+// Cron entry point (web-pro-upgrade addendum M1) — see runTrendingRecomputeOnce.
+export async function runPlatformBillingSweepOnce(): Promise<void> {
+  await expireLapsedCoinSubscriptions();
+  await sweepLinkActivation();
 }

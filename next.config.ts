@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs";
 
 // Content-Security-Policy is intentionally NOT set here. next.config.ts's
 // headers() is evaluated once at build time and applies a fixed string to
@@ -44,4 +45,19 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Sentry (web-pro-upgrade addendum M1). withSentryConfig only does
+// meaningful build-time work — source-map upload — when SENTRY_AUTH_TOKEN is
+// present (injected by the Vercel↔Sentry integration on production builds).
+// Locally and in CI it's a near-no-op: no token, no upload, no sentry-cli
+// invocation. Runtime error capture is driven by the sentry.*.config.ts
+// files and instrumentation.ts, not by this wrapper.
+export default withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  silent: !process.env.CI,
+  sourcemaps: { disable: !process.env.SENTRY_AUTH_TOKEN },
+  // The RSC flight-data CSP nonce is generated per-request in proxy.ts;
+  // don't add a Sentry tunnel route (it would need its own CSP allowance).
+  tunnelRoute: undefined,
+});

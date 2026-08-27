@@ -270,13 +270,15 @@ export function startCustomDomainScheduler(): void {
   if (globalForCustomDomains.customDomainSchedulerStarted) return;
   globalForCustomDomains.customDomainSchedulerStarted = true;
 
-  const tick = () =>
-    void (async () => {
-      await pollUnverifiedRouting();
-      await releaseExpiredClaims();
-      await sweepBillingLapse();
-      await sweepDormancyExpiry();
-    })();
+  const tick = () => void runCustomDomainSweepOnce();
   tick();
   setInterval(tick, SWEEP_INTERVAL_MS);
+}
+
+// Cron entry point (web-pro-upgrade addendum M1) — see runTrendingRecomputeOnce.
+export async function runCustomDomainSweepOnce(): Promise<void> {
+  await pollUnverifiedRouting();
+  await releaseExpiredClaims();
+  await sweepBillingLapse();
+  await sweepDormancyExpiry();
 }

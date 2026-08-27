@@ -288,3 +288,8 @@ export function startApiUsageBillingScheduler(): void {
   tick();
   setInterval(tick, SETTLEMENT_CHECK_INTERVAL_MS);
 }
+
+// Cron entry point (web-pro-upgrade addendum M1) — see runTrendingRecomputeOnce.
+export async function runApiUsageBillingSweepOnce(): Promise<void> {
+  await sweepDueSettlements();
+}

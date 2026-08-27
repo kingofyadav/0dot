@@ -20,6 +20,7 @@
     "@prisma/adapter-better-sqlite3": "^7.9.1",
     "@prisma/adapter-libsql": "^7.9.1",
     "@prisma/client": "^7.9.1",
+    "@sentry/nextjs": "^10.71.0",
     "@vercel/analytics": "^2.0.1",
     "@vercel/blob": "^2.7.0",
     "@vercel/speed-insights": "^2.0.0",
@@ -65,7 +66,8 @@
     "better-sqlite3@12.11.1": true,
     "unrs-resolver@1.12.2": true,
     "@prisma/engines@7.10.0": true,
-    "prisma@7.10.0": true
+    "prisma@7.10.0": true,
+    "@sentry/cli@2.58.6": true
   },
   "overrides": {
     "deepmerge-ts": "^8.0.1"

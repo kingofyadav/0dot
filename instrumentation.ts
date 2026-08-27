@@ -24,6 +24,24 @@ async function runStartupTask(name: string, task: () => void | Promise<void>): P
 }
 
 export async function register() {
+  // Sentry (web-pro-upgrade addendum M1). Each config file is a no-op when
+  // no DSN is set, so this is safe to import unconditionally per runtime.
+  if (process.env.NEXT_RUNTIME === "nodejs") {
+    await import("./sentry.server.config");
+    const { registerLogSink } = await import("@/lib/logger");
+    const Sentry = await import("@sentry/nextjs");
+    registerLogSink((level, message, error, context) => {
+      if (error !== undefined) {
+        Sentry.captureException(error, { level, extra: { message, ...context } });
+      } else {
+        Sentry.captureMessage(message, { level, extra: context });
+      }
+    });
+  }
+  if (process.env.NEXT_RUNTIME === "edge") {
+    await import("./sentry.edge.config");
+  }
+
   if (process.env.NEXT_RUNTIME === "nodejs") {
     // Phase-15 spec §3.1/§9 step 1: the platform-owned account + first-party
     // DeveloperApp registrations must exist before any client can authorize
@@ -36,6 +54,17 @@ export async function register() {
       const { ensureFirstPartyApps } = await import("@/lib/first-party-apps");
       await ensureFirstPartyApps();
     });
+
+    // web-pro-upgrade addendum M1: on Vercel the recurring jobs below run as
+    // platform cron (vercel.json → /api/cron/*), NOT as in-process
+    // setInterval loops — every warm Fluid Compute instance booting all 12
+    // against a single-writer DB was the thundering herd behind the 503
+    // bursts. Locally and on a self-hosted single `next start` process
+    // (no VERCEL env), keep the in-process schedulers: no external cron to
+    // rely on, and one process can carry them fine.
+    if (process.env.VERCEL) {
+      return;
+    }
 
     await runStartupTask("trending", async () => {
       const { startTrendingScheduler } = await import("@/lib/trending");
@@ -106,3 +135,8 @@ export async function register() {
     });
   }
 }
+
+// Next.js calls this for every uncaught error in a Server Component, Route
+// Handler, or Server Action — the capture path the web app never had (the
+// mobile app has had Sentry since its M8). A no-op when Sentry has no DSN.
+export { captureRequestError as onRequestError } from "@sentry/nextjs";

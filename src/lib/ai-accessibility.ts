@@ -108,3 +108,8 @@ export function startAccessibilityScheduler(): void {
   triggerAccessibilityRun();
   setInterval(triggerAccessibilityRun, ACCESSIBILITY_JOB_INTERVAL_MS);
 }
+
+// Cron entry point (web-pro-upgrade addendum M1) — see runTrendingRecomputeOnce.
+export async function runAccessibilityJobsOnce(): Promise<void> {
+  await processPendingAccessibilityJobs();
+}

@@ -48,3 +48,8 @@ export function startAccountDeletionScheduler(): void {
   tick();
   setInterval(tick, SWEEP_INTERVAL_MS);
 }
+
+// Cron entry point (web-pro-upgrade addendum M1) — see runTrendingRecomputeOnce.
+export async function runAccountDeletionSweepOnce(): Promise<void> {
+  await deleteEligibleAccounts();
+}

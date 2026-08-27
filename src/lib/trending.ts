@@ -69,6 +69,15 @@ export function startTrendingScheduler(): void {
   setInterval(tick, RECOMPUTE_INTERVAL_MS);
 }
 
+// Cron entry point (web-pro-upgrade addendum M1): on Vercel the schedulers
+// above don't run — a platform cron hits /api/cron/frequent instead. This
+// bypasses ensureTrendingScoresFresh's in-process staleness throttle
+// deliberately: cron owns the cadence, and module-level `lastRecomputedAt`
+// is meaningless across separate serverless invocations anyway.
+export async function runTrendingRecomputeOnce(): Promise<void> {
+  await recomputeTrendingScores(Date.now());
+}
+
 async function recomputeTrendingScores(now: number): Promise<void> {
   const windowStart = new Date(now - ENGAGEMENT_WINDOW_MS);
 

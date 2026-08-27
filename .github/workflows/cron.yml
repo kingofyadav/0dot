@@ -1,0 +1,59 @@
+name: Scheduled jobs
+
+# web-pro-upgrade addendum M1. This project is on the Vercel Hobby plan,
+# which caps cron jobs at 2 and (historically) daily-only frequency — not
+# enough for the recompute/moderation jobs that need to run every few
+# minutes. So the sub-daily buckets are triggered from here instead; the
+# once-a-day bucket stays a native Vercel cron (vercel.json).
+#
+# GitHub's scheduled workflows are best-effort — they can be delayed or
+# skipped under GitHub load, especially at high frequency. That's an
+# acceptable tradeoff for these jobs (trending is "every few minutes",
+# moderation tolerates a gap). If this project moves to Vercel Pro, delete
+# this file and move both schedules into vercel.json's crons array.
+#
+# Requires a repo secret CRON_SECRET matching the Vercel env var of the
+# same name (Settings → Secrets and variables → Actions).
+
+on:
+  schedule:
+    - cron: "*/5 * * * *" # frequent bucket
+    - cron: "17 * * * *" # hourly bucket
+  workflow_dispatch:
+    inputs:
+      bucket:
+        description: Which bucket to run
+        type: choice
+        options: [frequent, hourly, daily]
+        default: frequent
+
+env:
+  BASE_URL: https://0dot.in
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pick bucket
+        id: pick
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "bucket=${{ inputs.bucket }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.schedule }}" = "17 * * * *" ]; then
+            echo "bucket=hourly" >> "$GITHUB_OUTPUT"
+          else
+            echo "bucket=frequent" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Trigger ${{ steps.pick.outputs.bucket }}
+        run: |
+          code=$(curl -sS -o /tmp/body -w '%{http_code}' \
+            -H "authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "$BASE_URL/api/cron/${{ steps.pick.outputs.bucket }}")
+          echo "HTTP $code"
+          cat /tmp/body
+          echo
+          # runCronBucket returns 500 if any job in the bucket failed —
+          # surface that as a workflow failure so it's visible, but the
+          # other jobs in the bucket still ran (per-job isolation).
+          test "$code" = "200"

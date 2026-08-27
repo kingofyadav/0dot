@@ -229,6 +229,11 @@ export function startDmcaRestorationScheduler(): void {
   setInterval(tick, RESTORATION_CHECK_INTERVAL_MS);
 }
 
+// Cron entry point (web-pro-upgrade addendum M1) — see runTrendingRecomputeOnce.
+export async function runDmcaRestorationOnce(): Promise<void> {
+  await restoreEligibleCounterNotices();
+}
+
 // Called from trust-safety.ts's resolveTrustSafetyCase for the
 // dmca_takedown case type — upheld removes content + issues a strike;
 // dismissed marks the notice invalid with no enforcement.
