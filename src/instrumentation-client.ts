@@ -14,6 +14,11 @@ const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
 if (dsn) {
   Sentry.init({
     dsn,
+    // Route envelopes through our own origin (src/app/api/monitoring/route.ts)
+    // instead of straight to *.ingest.sentry.io: keeps the browser request
+    // on `connect-src 'self'` (proxy.ts never needs a Sentry host) and slips
+    // past ad/tracker blockers that would otherwise drop client-side errors.
+    tunnel: "/api/monitoring",
     environment: process.env.NEXT_PUBLIC_VERCEL_ENV ?? process.env.NODE_ENV,
     // Session Replay and browser tracing are billed and heavier — start with
     // plain error capture; turn these on deliberately if they're wanted.
