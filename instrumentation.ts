@@ -24,22 +24,33 @@ async function runStartupTask(name: string, task: () => void | Promise<void>): P
 }
 
 export async function register() {
-  // Sentry (web-pro-upgrade addendum M1). Each config file is a no-op when
-  // no DSN is set, so this is safe to import unconditionally per runtime.
-  if (process.env.NEXT_RUNTIME === "nodejs") {
-    await import("./sentry.server.config");
-    const { registerLogSink } = await import("@/lib/logger");
+  // Sentry (web-pro-upgrade addendum M1). Initialized directly here rather
+  // than via a sentry.*.config.ts import: this project builds with Turbopack
+  // and has a large hand-written instrumentation.ts, and the config-file
+  // indirection was leaving Sentry.getClient() undefined in route handlers.
+  // No-op when no DSN is configured.
+  const sentryDsn = process.env.SENTRY_DSN ?? process.env.NEXT_PUBLIC_SENTRY_DSN;
+  if (sentryDsn && (process.env.NEXT_RUNTIME === "nodejs" || process.env.NEXT_RUNTIME === "edge")) {
     const Sentry = await import("@sentry/nextjs");
-    registerLogSink((level, message, error, context) => {
-      if (error !== undefined) {
-        Sentry.captureException(error, { level, extra: { message, ...context } });
-      } else {
-        Sentry.captureMessage(message, { level, extra: context });
-      }
+    Sentry.init({
+      dsn: sentryDsn,
+      environment: process.env.VERCEL_ENV ?? process.env.NODE_ENV,
+      tracesSampleRate: process.env.VERCEL_ENV === "production" ? 0.1 : 1.0,
+      sendDefaultPii: false,
+      debug: process.env.SENTRY_DEBUG === "1",
     });
-  }
-  if (process.env.NEXT_RUNTIME === "edge") {
-    await import("./sentry.edge.config");
+    console.log(`[instrumentation] Sentry initialized (runtime=${process.env.NEXT_RUNTIME}, client=${Boolean(Sentry.getClient())})`);
+
+    if (process.env.NEXT_RUNTIME === "nodejs") {
+      const { registerLogSink } = await import("@/lib/logger");
+      registerLogSink((level, message, error, context) => {
+        if (error !== undefined) {
+          Sentry.captureException(error, { level, extra: { message, ...context } });
+        } else {
+          Sentry.captureMessage(message, { level, extra: context });
+        }
+      });
+    }
   }
 
   if (process.env.NEXT_RUNTIME === "nodejs") {
