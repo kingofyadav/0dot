@@ -1,6 +1,6 @@
 # Phase 12 — Trust & Safety Spec
 
-Status: Draft
+Status: Built (partial) — report/appeal/moderation/age-gating shipped; session management, 2FA, and account deletion landed later via `addendum-account-settings-hardening.md` and the mobile pro-upgrade; the privacy model is still binary (`Profile.isPrivate`), no granular per-post visibility. This spec describes target state and is not edited to match the implementation — see `../ROADMAP.md`'s build-status table, `../../README.md`, and `../foundations/TRUST_SAFETY.md`.
 Owner: TBD
 Related: [../ROADMAP.md](../ROADMAP.md), [phase-1-foundation.md](phase-1-foundation.md), [phase-2-social-platform.md](phase-2-social-platform.md), [phase-3-communities.md](phase-3-communities.md), [phase-4-business-platform.md](phase-4-business-platform.md), [phase-5-creator-platform.md](phase-5-creator-platform.md), [phase-8-events.md](phase-8-events.md), [phase-9-marketplace.md](phase-9-marketplace.md), [phase-10-developer-platform.md](phase-10-developer-platform.md), [phase-11-ai-platform.md](phase-11-ai-platform.md)
 

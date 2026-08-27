@@ -23,10 +23,10 @@ Status: Foundational document (Priority 7). Inventory of what exists today plus 
 | Compose box | `src/app/feed/ComposeBox.tsx` | Currently feed-page-specific; will need to become shared once posting is possible from other surfaces (e.g. a community) |
 | Disclosure (expand/collapse) | `.profileEditToggle` (styled `<details>`) | Currently only used for Edit Profile |
 | Modal / dialog | `src/components/Modal.tsx` | Native `<dialog>`, themed via `.modal`/`--shadow-lg`. Free focus trap, Escape-to-close, focus-return via the platform. |
-| Confirm button | `src/components/ConfirmButton.tsx` | Wraps Modal for the destructive-confirmation pattern (`UX_GUIDELINES.md` #9). Wired into the profile Links page's link/social-link delete buttons; other delete flows (see grep for `"Delete"`/`"Block"` across `src/app`) still need this — a Phase-4-style sweep, not yet done everywhere. |
-| Toast | `src/components/Toast.tsx` (`ToastProvider`/`useToast`) | Mounted once at the root (`layout.tsx`), `aria-live="polite"`. Built as ready-to-use infra per this doc's own "write it as if it'll be reused" rule — not yet called from any page; adopt it the next time a lightweight non-navigating confirmation is needed. |
+| Confirm button | `src/components/ConfirmButton.tsx` | Wraps Modal for the destructive-confirmation pattern (`UX_GUIDELINES.md` #9). The "world-class UI/UX pass" swept it across the app — ~40 importers now (delete/block/leave/revoke flows), not just the profile Links page. |
+| Toast | `src/components/Toast.tsx` (`ToastProvider`/`useToast`) | Mounted once at the root (`layout.tsx`), `aria-live="polite"`. Now in real use — `ReportButton.tsx` and `KeyboardShortcutProvider.tsx` both call `useToast()`. No longer unused infra. |
 | Avatar | `src/components/Avatar.tsx` | Extracted from the profile page's avatar-with-fallback branching, also adopted by `UserListItem.tsx`. ~17 other `avatarUrl` call sites (messages, community members, etc.) still have their own inline version — migrate opportunistically, not in one sweep. |
-| Empty state | `src/components/EmptyState.tsx` (`.emptyState`) | Replaces the ad hoc `<p className="mutedText">` pattern on the profile Links page (both the social-links and links empty states); most other empty states across the app haven't been migrated yet. |
+| Empty state | `src/components/EmptyState.tsx` (`.emptyState`) | Now the standard across the app — ~80 importers after the design-system-adoption pass. The ad hoc `<p className="mutedText">` empty state is no longer the common case. |
 
 ## Superseded, left in place
 
@@ -34,19 +34,25 @@ Status: Foundational document (Priority 7). Inventory of what exists today plus 
 
 **Correction:** this section previously also listed `src/components/AuthTabs.tsx` as superseded/unused — that was wrong. `AuthTabs` (the signup/login single-view switcher) is still actively imported and rendered by `src/app/page.tsx` as the homepage's own auth form; it was never replaced. A cleanup pass trusting the old text here would have deleted live homepage auth code.
 
-## Missing (needed before the next few phases)
+## shadcn/ui inventory (`src/components/ui/`)
 
-| Component | Needed for | Priority |
+A second, Radix-primitive-shaped inventory (see `DESIGN_SYSTEM.md`'s Tooling section for the token bridging). Present today: `button`, `dropdown-menu`, `popover`, `select`, `tabs`. Prefer these over adding another one-off `.button`-style class or a hand-rolled disclosure for anything they cover; the two systems coexist rather than one replacing the other.
+
+## Missing / status
+
+| Component | Needed for | Status |
 |---|---|---|
-| **Tabs** | Profile sub-sections once Media/Articles/Projects/Store land (Phases 6/7/9) | Medium — needed once IA's profile sub-navigation grows past Posts+Links |
-| **Menu / dropdown** | Overflow actions once primary-action space runs out (`UX_GUIDELINES.md` #3 — only for genuinely secondary actions) | Low for now — `MobileNavMenu.tsx` already covers the one place a dropdown-like disclosure is needed today; deliberately not generalized into a standalone `Dropdown` component without a second concrete caller (would be unused infra, not "written to be reused"). |
-| **List** (generic, virtualized-ready) | Feed and profile Posts currently render full unpaginated lists (`take: 50`, no cursor) — needs to become a real paginated/virtualized list before performance targets in `PERFORMANCE.md` are at risk | High — tied to infinite scroll |
-| **Rich text editor** | Articles (Phase 7) | Low — not until Phase 7 |
-| **Form field variants** (select, checkbox, radio, toggle switch) | Settings (Phase 1/12), any future preference UI | Medium |
+| **Tabs** | Profile sub-sections, settings groups | **Built** — `src/components/ui/tabs.tsx` (shadcn). Profile page still doesn't use tabs (content types are separate route trees, see `INFORMATION_ARCHITECTURE.md`), but the primitive exists. |
+| **Menu / dropdown** | Overflow actions (`UX_GUIDELINES.md` #3) | **Built** — `src/components/ui/dropdown-menu.tsx` + `popover.tsx`; app-level consumers include `AccountMenu.tsx`, `ConversationRowMenu.tsx`, `MobileNavMenu.tsx`. |
+| **List** (paginated) | Feed / profile Posts | **Built** — cursor pagination via `src/lib/pagination.ts`, "Load more" in `FeedList.tsx`. Not virtualized (plain link, not IntersectionObserver) — fine at current volume. Other lists (search, followers, messages) not yet on the helper. |
+| **Form field variants** (select, checkbox, radio, toggle) | Settings, preference UI | **Partial** — `src/components/ui/select.tsx` built; checkbox/radio/toggle still hand-rolled per form. |
+| **Rich text editor** | Articles (Phase 7) | Article authoring shipped (Phase 7) — check `src/app/s/[username]/content/*` for the editor actually in use before assuming this is still a gap. |
 
 **Comment thread — closed.** Comments are live, implemented as `Post.replyToId` self-relation (not a separate `Comment` model) — a reply is structurally a `Post`, rendered inline under its parent via `PostCard`'s own reply handling. `MiniPostCard` (`PostCard.tsx`) is the flattened one-level-deep rendering for a reply/repost, per phase-1 spec §5.3.
 
-**Media viewer — closed, partially.** Image posts now ship: `Post.media` (up to 4 images, `saveUploadedImage`/`@vercel/blob`), rendered by `PostMediaGrid` inside `PostCard.tsx`. Still a real gap against `PERFORMANCE.md` Rule 2 though — `PostMediaGrid` renders a plain `<img>` with no explicit width/height and no lazy-loading strategy, and `alt=""` (decorative) rather than meaningful alt text. Video posts remain unbuilt.
+**Media viewer — closed, partially.** Image posts ship: `Post.media` (up to 4 images, `saveUploadedImage`/`@vercel/blob`), rendered by `PostMediaGrid` inside `PostCard.tsx`, now with `loading="lazy"`, `decoding="async"`, and meaningful `alt` text (`"Image N posted by <author>"`). Remaining gap against `PERFORMANCE.md` Rule 2: no explicit width/height (blocked on storing dimensions at upload — `MediaItem` is just `{id, url}`). Video posts remain unbuilt.
+
+**Note on scope.** `src/components/` now holds ~80 components — this table only tracks the shared primitives the design system owns, not every feature component. `git grep` the component name before assuming something isn't built.
 
 ## Rule
 

@@ -1,6 +1,6 @@
 # 0dot.in — Information Architecture
 
-Status: Foundational document. Maps every current and planned page/route and how they relate. Status tags: **Live** (built and in the codebase today), **Planned** (has a `docs/specs/phase-*.md` spec, not built), **Future** (named in `docs/ROADMAP.md` but not yet specced). Last synced against the codebase 2026-08-05, after Phases 1–16 (see `README.md`'s "What's built" table for what each phase actually shipped).
+Status: Foundational document. Maps every current and planned page/route and how they relate. Status tags: **Live** (built and in the codebase today), **Planned** (has a `docs/specs/phase-*.md` spec, not built), **Future** (named in `docs/ROADMAP.md` but not yet specced). Last synced against the codebase 2026-08-05, after Phases 1–16 (see `README.md`'s "What's built" table for what each phase actually shipped); partial re-sync 2026-08-27 added the `/s/{username}/security/*` and `/two-factor` routes. Routes added since (e.g. the `/download` APK landing page) may not be reflected — treat `src/app/` as authoritative.
 
 Before adding a new top-level route, check it against `src/lib/reserved-usernames.ts` (`RESERVED_USERNAMES`) — every top-level path segment listed below must be reserved there, or it will collide with a user's `/username` profile route.
 
@@ -56,7 +56,7 @@ Before adding a new top-level route, check it against `src/lib/reserved-username
 ├── /about ......................................... Future
 │
 └── /{username} .................................. Live — public profile (catch-all; only matches handles that pass validateUsernameFormat and aren't reserved)
-    └── /s/{username}/... ......................... Live — the owner-only account/creator dashboard (settings segment `s`): profile editing, links, monetization, content (articles/books/wiki/courses/podcast/newsletter/quizzes/learning paths), portfolio, calendar, digital card, forms, short-links, notifications, developer apps, authorized apps
+    └── /s/{username}/... ......................... Live — the owner-only account/creator dashboard (settings segment `s`): profile editing, links, monetization, content (articles/books/wiki/courses/podcast/newsletter/quizzes/learning paths), portfolio, calendar, digital card, forms, short-links, notifications, developer apps, authorized apps, and security (`/security` password + `/security/sessions` session management + `/security/contact` email/phone change + `/two-factor` TOTP)
 ```
 
 **`/settings` vs. `/s/{username}`:** this doc originally called for a single global `/settings` (see Cross-Cutting Structure below), but the codebase settled on scoping every account/creator-dashboard page under `/s/{username}` instead — one route tree rather than two. Treat `/s/{username}` as the authoritative settings location; `/settings` was never built and isn't planned.

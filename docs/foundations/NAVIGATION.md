@@ -18,6 +18,7 @@ Status: Foundational document (Priority 8). Scope: the signed-in-app nav shell (
 ## Current Implementation Notes (worth keeping as-is)
 
 - **`proxy.ts`'s `x-pathname` header injection** is the mechanism that lets Server Components (like `SiteHeader`) know the current route for active-state/context-aware rendering (e.g. the "Join for free" CTA only appearing on profile pages). Client-side active-link highlighting in the sidebar/bottom-nav uses `isPathActive` (`NavLinks.tsx`, consumed via `usePathname()`) instead — a separate, client-side mechanism, not a second consumer of the `x-pathname` header.
+- **Prefetch is disabled (`prefetch={false}`) on the persistent chrome nav links** (sidebar / bottom-nav / mobile menu). Next.js's default viewport-prefetch was firing a burst of RSC requests for every nav destination on every page load, causing 503s under load — the nav links are always visible, so the default is a poor fit here. Re-enable per-link only if a specific destination measurably benefits.
 - **Reserved-username checking doubles as route-type detection** (`validateUsernameFormat(firstSegment) === null` distinguishes "this is a profile page" from "this is a static route").
 
 ## Rules

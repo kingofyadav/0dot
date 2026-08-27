@@ -9,7 +9,9 @@ Status: Foundational document (Priority 11). The full feature spec is `docs/spec
 - Appeals process — **Live**
 - Privacy controls — **Live** (partial, see below)
 - Account recovery — **Live**
-- Session management — **Still missing**
+- Session management — **Live** (`/s/{username}/security/sessions` — list, revoke one, revoke all others)
+- Two-factor auth — **Live** (TOTP + recovery codes: `/login/2fa`, `/s/{username}/two-factor`)
+- Account deactivation / deletion — **Live** (`account-lifecycle.ts`, `/api/v1/account/lifecycle/delete`)
 - Block / mute controls — **Live** (block; mute is community-scoped only, see below)
 
 ## What's live today
@@ -18,6 +20,10 @@ Status: Foundational document (Priority 11). The full feature spec is `docs/spec
 - **Moderation queue:** `TrustSafetyCase` unifies review across every surface that previously had ad hoc review (community, business, marketplace, OAuth scopes, AI flags), worked via `/admin`.
 - **Appeals:** `Appeal` model + workflow — a case decision can be appealed, not just accepted silently.
 - **Account recovery:** `/forgot-password` → `/forgot-password/sent`, `/reset-password` → `/reset-password/success` (`src/app/actions/auth.ts`). The gap this document used to flag ("there isn't even a forgot-password flow") is closed.
+- **Session management:** `/s/{username}/security/sessions` (`revokeSession` / `revokeAllOtherSessionsAction` in `src/app/actions/session-management.ts`, guarded to the caller's own `userId`; mirrored at `/api/v1/account/sessions` + `/revoke-others` + `/[id]`) — a user can now see and revoke their own active sessions individually or all-but-current. The "no session-management UI" gap earlier revisions flagged is closed.
+- **Two-factor auth:** TOTP enrollment with recovery codes (`src/lib/two-factor.ts`, `/s/{username}/two-factor` — setup / regenerate-recovery-codes / disable), enforced at login via `/login/2fa`, plus `/api/v1/account/two-factor/*` for API clients.
+- **Contact-change security:** email and phone changes go through `src/app/actions/account-contact.ts` / `/s/{username}/security/contact` (verification-gated), not a bare profile edit.
+- **Account deactivation / deletion:** `src/app/actions/account-lifecycle.ts` + `src/lib/account-deletion.ts` (scheduled deactivation, `User.status` transitions `active → deactivated → deleted`), also `DELETE /api/v1/account/lifecycle/delete`. See `USER_JOURNEYS.md`'s "Delete an account" entry — this is no longer unbuilt.
 - **Block:** `blockUser`/`unblockUser` (`src/app/actions/block.ts`), live on `/{username}`. **Mute exists too, but only as a community-moderation action** (`muteMember`, `src/app/actions/communities.ts`) — there is no general profile-level "mute this user everywhere" control distinct from block.
 - **Privacy controls, partial:** `Profile.isPrivate` gates posts/portfolio/links behind follow-approval (name/avatar/bio and the Follow control itself stay visible regardless). Age gating (`src/app/actions/age.ts`, `AgeGatePrompt`) is also live. Narrower controls (who can message/mention you, per-post visibility) are not built.
 - **Spam/bot detection:** `AccountRiskSignal` (`src/lib/account-risk.ts`) exists (e.g. duplicate-post-pattern detection, referenced from `posts.ts`).
@@ -25,9 +31,9 @@ Status: Foundational document (Priority 11). The full feature spec is `docs/spec
 
 ## Current Gap (real, not hypothetical)
 
-- **No session-management UI.** Sessions exist at the infrastructure level (DB-backed, 30-day TTL, `destroySession` on logout) but a user still can't view or revoke their own active sessions — the one item from the original Phase 12 scope that's genuinely still missing. Checked directly: no route or component anywhere under `/s/{username}/security` (or elsewhere) lists or revokes sessions.
-- **No account-deletion flow.** Not originally scoped as part of this document's list, but a closely related gap — see `USER_JOURNEYS.md`'s "Delete an account" entry.
-- **Privacy controls are narrower than "full."** `Profile.isPrivate` is binary (public/follow-gated); there's no granular per-post visibility or messaging/mention permission model yet.
+- **Privacy controls are narrower than "full."** `Profile.isPrivate` is binary (public/follow-gated); there's no granular per-post visibility or messaging/mention permission model yet. This is the main item from the original Phase 12 scope still only partially met.
+- **Mute is community-scoped only.** No general profile-level "mute this user everywhere" distinct from block (`muteMember` exists only as a community-moderation action).
+- **General mute / narrower privacy aside, the Phase 12 account-security scope is now complete** — session management, 2FA, and account deletion (all flagged as missing in earlier revisions of this doc) shipped in the account-settings-hardening and mobile pro-upgrade work.
 
 ## Rule
 

@@ -1,6 +1,6 @@
 # Phase 5 — Creator Platform Spec
 
-Status: Draft
+Status: Built — payments backbone backed by live Stripe Connect (Accounts v2). This spec describes target state and is not edited to match the implementation — see `../ROADMAP.md`'s build-status table and `../../README.md`.
 Owner: TBD
 Related: [../ROADMAP.md](../ROADMAP.md), [phase-1-foundation.md](phase-1-foundation.md), [phase-2-social-platform.md](phase-2-social-platform.md), [phase-3-communities.md](phase-3-communities.md), [phase-4-business-platform.md](phase-4-business-platform.md)
 

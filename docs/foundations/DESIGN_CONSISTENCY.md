@@ -11,13 +11,14 @@ Status: Foundational document (Priority 12). One visual language, enforced. User
 - **Consistent empty states** — see `COMPONENT_LIBRARY.md`'s flagged gap (currently hand-written `<p className="mutedText">` per page); should become one shared component.
 - **Consistent terminology** — "Log out" (not "Sign out"), "displayName" surfaced to users as "Name", username surfaced as "Username" consistently across signup/login/profile. Keep a running eye on this as more forms are added — don't let one form say "Display name" and another say "Name" for the same field.
 
-## Known Inconsistency To Fix (flagged honestly, not yet fixed)
+## Known Inconsistency To Fix (partly addressed)
 
-`SiteHeader.tsx` and `[username]/page.tsx` both use inline `style={{...}}` objects for layout (flex containers, gaps, margins) instead of shared CSS classes, while `globals.css` otherwise maintains a clean class-based system for everything else (`.button`, `.field`, `.profileCard`, etc.). This is the first real crack in "one visual language" in the current codebase:
+The inline-`style={{...}}`-for-layout crack this section flagged is now partly closed:
 
-- It works today only because the app is small enough that inconsistency hasn't caused a visible bug yet.
-- It means the same layout pattern (e.g. `display: flex; alignItems: center; gap: X`) is duplicated as inline objects in multiple places instead of being named once.
-- **Rule going forward:** any layout pattern used more than once becomes a utility class (e.g. `.row`, `.stack`, `.stack-sm`) in `globals.css` rather than a repeated inline style object. Existing inline styles don't need an urgent retrofit, but should be migrated opportunistically whenever a file with them is touched for an unrelated change — not left to accumulate further.
+- **`.stack` / `.stack-sm` / `.stack-lg` / `.row` / `.row-sm` / `.row-lg` utility classes exist in `globals.css`** — the "any layout pattern used more than once becomes a utility class" rule below was implemented.
+- `SiteHeader.tsx` is down to a single inline `style` object.
+- **`src/app/[username]/page.tsx` still has ~46 inline `style` objects** — the profile page is the remaining concentration of this debt. Migrate opportunistically when touching it; don't do a wholesale retrofit as a side effect of an unrelated change.
+- **Rule going forward:** reach for `.stack`/`.row` (or add a new named utility) rather than a repeated inline style object.
 
 ## Rule
 

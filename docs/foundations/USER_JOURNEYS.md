@@ -8,13 +8,17 @@ Legend: **Live** (works today, verified in Chrome), **Planned** (has a phase spe
 
 1. Visitor lands on `/` → a minimal marketing hero (`MarketingNav` + `DigitalHomeVisual`), not an embedded form. `MarketingNav`'s "Create your 0dot" (or clicking any `DigitalHomeVisual` node) is the only path onward — no signup form on this page anymore (see `INFORMATION_ARCHITECTURE.md`'s `"/"` row; `AuthTabs`/`LandingLiveShowcase` are superseded, see `COMPONENT_LIBRARY.md`).
 2. On `/signup`: fills displayName + username + email + password in one step (no separate "claim username" step — collapsed intentionally to reduce friction). While typing the username, `UsernameField` debounces (~400ms) a call to `checkUsernameAvailability` (`auth.ts`) and shows live checking/available/taken/reserved/invalid/network-error states — a preview only, `signup()` re-validates format and availability itself regardless of what the field reported.
-3. Submits → account + username + profile created in one transaction, verification email logged (no email provider wired yet — dev-mode console log), redirected to `/verify/sent?token=...`.
-4. Clicks the (dev-mode) verification link → `/verify` Route Handler validates token, creates session, redirects to the user's own new profile (`/{username}`) — the "here's your new page" moment, deliberately not `/feed`.
-5. Friction points to watch as this becomes real: no actual email delivery yet (blocks real-world testing of this journey end-to-end), no resend-verification-email action yet.
+3. Submits → account + username + profile created in one transaction, verification email sent via **Resend** when `RESEND_API_KEY` is set (falls back to an SMTP relay, then to a console-log stub that also surfaces the link on-screen in dev), redirected to `/verify/sent?token=...`.
+4. Clicks the verification link → `/verify` Route Handler validates token, creates session, redirects to the user's own new profile (`/{username}`) — the "here's your new page" moment, deliberately not `/feed`.
+5. `/verify/sent` has a **resend-verification action** (`resendVerificationEmail`, surfaces send failures) — the "no resend action yet" gap earlier revisions flagged is closed. Real email delivery is live in production; the console-log stub only applies when no provider is configured.
 
 ## Log in — Live
 
-1. `/login` → email + password → `createSession` → if unverified, `/verify/sent`; if verified, `/feed` (not back to own profile — a returning user wants to see what's new, not their own page every time).
+1. `/login` → email + password → if the account has TOTP 2FA enabled, `/login/2fa` (6-digit code or a recovery code) before a session is issued → `createSession` → if unverified, `/verify/sent`; if verified, `/feed` (not back to own profile — a returning user wants to see what's new, not their own page every time).
+
+## Manage account security — Live
+
+`/s/{username}/security` — change password; `/security/sessions` lists active sessions with revoke-one / revoke-all-others; `/security/contact` changes email or phone (verification-gated); `/two-factor` enrolls/disables TOTP and regenerates recovery codes. All mirrored under `/api/v1/account/*` for the mobile app.
 
 ## Log out — Live
 
@@ -64,9 +68,9 @@ Follow button on another user's profile (`followUser`/`unfollowUser`, `src/app/a
 
 `ReportButton` (`src/components/ReportButton.tsx`) → `fileReport` (`src/app/actions/reports.ts`) is wired into `PostCard` (posts, hidden for the post's own author) and `/{username}` profiles (hidden for the profile owner), feeding the shared `TrustSafetyCase`/`Report` queue and the `Appeal` workflow. Block/unblock (`blockUser`/`unblockUser`, `src/app/actions/block.ts`) is likewise live on the profile page. See `docs/foundations/TRUST_SAFETY.md` for the full moderation surface.
 
-## Delete an account — Planned (Phase 12)
+## Delete an account — Live
 
-Target: self-service, no dark patterns, clear explanation of what happens to the username (reclaimed after a grace period, per "long-term stable URLs" in `VISION.md` — the exact grace period is an open question, not decided here). **Still not built** — no account-deletion action exists anywhere in `src/app/actions/`, despite the rest of Phase 12 (report/block/appeal/moderation/age-gating/privacy) having shipped. See `docs/foundations/TRUST_SAFETY.md`.
+`src/app/actions/account-lifecycle.ts` — deactivation and "request deletion" are the **same** state transition (`User.status → deactivated`, `deletionScheduledFor` set to +30 days); a scheduled sweep (`src/lib/account-deletion.ts`) is what actually erases data after the grace period, so there's no separate "delete now" path, only stronger confirmation copy at the deletion call site. Password-confirmed, rate-limited (5 / 15 min). `getCurrentUser()` force-logs-out any non-active user on its next read, so no explicit session kill is needed. `exportAccountData()` (same file) gives a self-service JSON export of the caller's own account/profile/links/posts/articles/projects/bookmarks first. Also exposed as `DELETE /api/v1/account/lifecycle/delete`. The 30-day grace period resolves the "exact grace period is an open question" note from earlier revisions. See `docs/foundations/TRUST_SAFETY.md` and `docs/specs/addendum-account-settings-hardening.md` §7.
 
 ## Recover a forgotten password — Live
 

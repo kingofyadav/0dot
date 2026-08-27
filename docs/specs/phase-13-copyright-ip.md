@@ -1,6 +1,6 @@
 # Phase 13 — Copyright & IP Spec
 
-Status: Draft
+Status: Built. This spec describes target state and is not edited to match the implementation — see `../ROADMAP.md`'s build-status table and `../../README.md`.
 Owner: TBD
 Related: [../ROADMAP.md](../ROADMAP.md), [phase-1-foundation.md](phase-1-foundation.md), [phase-3-communities.md](phase-3-communities.md), [phase-4-business-platform.md](phase-4-business-platform.md), [phase-5-creator-platform.md](phase-5-creator-platform.md), [phase-6-portfolio.md](phase-6-portfolio.md), [phase-7-knowledge.md](phase-7-knowledge.md), [phase-8-events.md](phase-8-events.md), [phase-9-marketplace.md](phase-9-marketplace.md), [phase-11-ai-platform.md](phase-11-ai-platform.md), [phase-12-trust-safety.md](phase-12-trust-safety.md)
 

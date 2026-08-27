@@ -62,7 +62,7 @@ Not yet retrofitted onto every pre-existing hand-written rem value outside these
 
 Font weight: `400` body, `500` labels, `600` interactive/emphasis (buttons, links-as-actions, meta emphasis), `700` headings. Already followed consistently — formalize as the rule, don't add new weights.
 
-A monospace font is not yet chosen. Needed before Phase 10 (developer platform — API keys, code snippets) and any code-display use case.
+Monospace: `var(--font-geist-mono)` (Geist Mono, via `next/font`), registered as `--font-mono` in `globals.css` and wired to Tailwind's `font-mono`. Used for API keys, code snippets, and a deliberate brand-string treatment (`0` vs `O` legibility). The "not yet chosen" gap this line used to flag — called out as needed before Phase 10 — is closed.
 
 ## Spacing
 
@@ -84,9 +84,9 @@ Most of the app is still a single centered column (`max-width: 380px` auth card,
 
 ## Components (current inventory)
 
-See `docs/foundations/COMPONENT_LIBRARY.md` for the full inventory and what's still missing. Summary of what exists today, styled via shared classes in `globals.css`: `.button` / `.buttonSecondary` / `.iconButton`, `.field` / `.textInput`, `.authCard`, `.profileCard` / `.profileHeaderRow` / `.profileAvatar` / `.profileLinkItem` / `.profileEditToggle`, `.siteHeader`, `.errorText` / `.mutedText`, `Modal.tsx` / `ConfirmButton.tsx` (`.modal`), `Toast.tsx` (`.toastStack`/`.toast`), `Avatar.tsx`, `EmptyState.tsx` (`.emptyState`). `src/components/ui/` (shadcn/ui, see Tooling above) is a second, separate inventory going forward for anything Radix-primitive-shaped (dialogs, dropdowns, popovers, form controls) — `Button` is the only one pulled in so far; prefer it over adding another one-off `.button`-style class once it exists, but the two systems coexist rather than one replacing the other yet.
+See `docs/foundations/COMPONENT_LIBRARY.md` for the full inventory and what's still missing. Summary of what exists today, styled via shared classes in `globals.css`: `.button` / `.buttonSecondary` / `.iconButton`, `.field` / `.textInput`, `.authCard`, `.profileCard` / `.profileHeaderRow` / `.profileAvatar` / `.profileLinkItem` / `.profileEditToggle`, `.siteHeader`, `.errorText` / `.mutedText`, `Modal.tsx` / `ConfirmButton.tsx` (`.modal`), `Toast.tsx` (`.toastStack`/`.toast`), `Avatar.tsx`, `EmptyState.tsx` (`.emptyState`). `src/components/ui/` (shadcn/ui, see Tooling above) is a second, separate inventory going forward for anything Radix-primitive-shaped — `button`, `dropdown-menu`, `popover`, `select`, and `tabs` are pulled in so far (app-level consumers: `AccountMenu`, `ConversationRowMenu`, `MobileNavMenu`, …). Prefer these over adding another one-off `.button`-style class or a hand-rolled disclosure; the two systems coexist rather than one replacing the other yet. See `COMPONENT_LIBRARY.md` for the full inventory.
 
-**Known inconsistency to fix, not perpetuate:** several pages (`SiteHeader.tsx`, `[username]/page.tsx`) use inline `style={{...}}` for layout (flex gaps, margins) instead of a class. This works today because the app is small, but it's already the first crack in "one visual language" — new layout patterns used more than once should become a class (e.g. a `.stack` / `.row` utility) rather than a repeated inline object literal. Don't do a wholesale retrofit unprompted; apply the rule going forward and clean up opportunistically when touching a file anyway.
+**Known inconsistency, partly addressed:** `.stack`/`.stack-sm`/`.stack-lg`/`.row`/`.row-sm`/`.row-lg` utility classes now exist in `globals.css` and `SiteHeader.tsx` is down to one inline `style`. `src/app/[username]/page.tsx` still carries ~46 inline `style={{...}}` layout objects — the remaining concentration. Reach for the utility classes for new layout patterns; clean up the profile page opportunistically, not in a wholesale retrofit. See `DESIGN_CONSISTENCY.md`.
 
 ## Motion
 

@@ -1,6 +1,6 @@
 # Phase 4 — Business Platform Spec
 
-Status: Draft
+Status: Built. This spec describes target state and is not edited to match the implementation — see `../ROADMAP.md`'s build-status table and `../../README.md`.
 Owner: TBD
 Related: [../ROADMAP.md](../ROADMAP.md), [phase-1-foundation.md](phase-1-foundation.md), [phase-2-social-platform.md](phase-2-social-platform.md), [phase-3-communities.md](phase-3-communities.md)
 

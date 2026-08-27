@@ -1,6 +1,6 @@
 # Phase 1 — Foundation (MVP) Spec
 
-Status: Draft
+Status: Built (partial) — link ordering shipped as up/down buttons, not drag-and-drop (a Phase 1 follow-up); feed gained cursor pagination after this spec was written. This spec describes target state and is not edited to match the implementation — see `../ROADMAP.md`'s build-status table and `../../README.md`.
 Owner: TBD
 Related: [../ROADMAP.md](../ROADMAP.md)
 

@@ -1,6 +1,6 @@
 # Phase 15 — Mobile Apps Spec
 
-Status: Draft
+Status: Built (partial) — PWA + native Expo iOS/Android app shipped; no dedicated desktop app (the PWA covers that). The native app was then taken to near-web-parity by `addendum-mobile-pro-upgrade.md` (M1–M14). This spec describes target state and is not edited to match the implementation — see `../ROADMAP.md`'s build-status table, `../../README.md`, and `../foundations/MOBILE.md`.
 Owner: TBD
 Related: [../ROADMAP.md](../ROADMAP.md), [phase-1-foundation.md](phase-1-foundation.md), [phase-2-social-platform.md](phase-2-social-platform.md), [phase-5-creator-platform.md](phase-5-creator-platform.md), [phase-8-events.md](phase-8-events.md), [phase-9-marketplace.md](phase-9-marketplace.md), [phase-10-developer-platform.md](phase-10-developer-platform.md), [phase-11-ai-platform.md](phase-11-ai-platform.md)
 

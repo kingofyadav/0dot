@@ -1,6 +1,6 @@
 # Phase 10 — Developer Platform Spec
 
-Status: Draft
+Status: Built (partial) — REST API + scoped OAuth2/PKCE + HMAC webhooks shipped; GraphQL API and published SDKs were not built. App management lives under `/s/{username}/developer`, not a standalone `/developers`. This spec describes target state and is not edited to match the implementation — see `../ROADMAP.md`'s build-status table and `../../README.md`.
 Owner: TBD
 Related: [../ROADMAP.md](../ROADMAP.md), [phase-1-foundation.md](phase-1-foundation.md), [phase-2-social-platform.md](phase-2-social-platform.md), [phase-3-communities.md](phase-3-communities.md), [phase-4-business-platform.md](phase-4-business-platform.md), [phase-5-creator-platform.md](phase-5-creator-platform.md), [phase-6-portfolio.md](phase-6-portfolio.md), [phase-7-knowledge.md](phase-7-knowledge.md), [phase-8-events.md](phase-8-events.md), [phase-9-marketplace.md](phase-9-marketplace.md)
 
