@@ -170,12 +170,6 @@ export default async function NotificationsPage({
   // codebase (every other mutation goes through a form-triggered action)
   // — deliberate, not an oversight. Idempotent on re-render.
   const unreadIds = rawRows.filter((r) => r.readAt === null).map((r) => r.id);
-  if (unreadIds.length > 0) {
-    await db.notification.updateMany({
-      where: { id: { in: unreadIds } },
-      data: { readAt: new Date() },
-    });
-  }
 
   // A follow_request notification row is never deleted once acted on (only
   // the underlying Follow row is), so this page's history can contain a
@@ -183,18 +177,27 @@ export default async function NotificationsPage({
   // rejected — re-check which of this page's follow_request actors still
   // have a genuinely "pending" row before showing Accept/Reject, or a
   // long-stale request would keep re-offering an action that's a no-op.
-  const pendingRequesterIds = new Set(
-    (
-      await db.follow.findMany({
-        where: {
-          followeeId: currentUser.id,
-          status: "pending",
-          followerId: { in: groups.filter((g) => g.type === "follow_request" && g.actorId).map((g) => g.actorId!) },
-        },
-        select: { followerId: true },
-      })
-    ).map((f) => f.followerId)
-  );
+  const followRequestActorIds = groups
+    .filter((g) => g.type === "follow_request" && g.actorId)
+    .map((g) => g.actorId!);
+
+  // The read-on-view write and the pending-request re-check don't depend on
+  // each other — one Promise.all instead of two sequential awaits drops a
+  // libsql round trip from this page's TTFB (and therefore its FCP). The
+  // follow lookup is skipped outright when this page has no follow_request
+  // rows to check, which is the common case.
+  const [, pendingFollows] = await Promise.all([
+    unreadIds.length > 0
+      ? db.notification.updateMany({ where: { id: { in: unreadIds } }, data: { readAt: new Date() } })
+      : undefined,
+    followRequestActorIds.length > 0
+      ? db.follow.findMany({
+          where: { followeeId: currentUser.id, status: "pending", followerId: { in: followRequestActorIds } },
+          select: { followerId: true },
+        })
+      : [],
+  ]);
+  const pendingRequesterIds = new Set(pendingFollows.map((f) => f.followerId));
 
   return (
     <div className="profileCard">
