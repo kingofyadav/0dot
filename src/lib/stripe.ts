@@ -9,9 +9,29 @@ function requireSecretKey(): string {
 }
 
 // platform-billing addendum §2.2's SubscriptionProcessor talks to this —
-// one instance per module load, matching the "instantiate a client and
-// call methods on it" pattern (never the deprecated global-key style).
-export const stripe = new Stripe(requireSecretKey());
+// "instantiate a client and call methods on it" (never the deprecated
+// global-key style).
+//
+// Constructed lazily behind a Proxy: importing this module must never
+// require STRIPE_SECRET_KEY, only actually *calling* Stripe does. `next
+// build` collects page data by evaluating every route module — including
+// ones that transitively import this — and a build must not depend on a
+// production secret being present (it's why preview builds failed). Same
+// lazy posture as getEmailSender / getAIProvider / getLivestreamProvider;
+// requireSecretKey() still throws loudly, now on first real use.
+let stripeClient: Stripe | null = null;
+
+function getStripe(): Stripe {
+  if (!stripeClient) stripeClient = new Stripe(requireSecretKey());
+  return stripeClient;
+}
+
+export const stripe: Stripe = new Proxy({} as Stripe, {
+  get(_target, prop, receiver) {
+    const value = Reflect.get(getStripe(), prop, receiver);
+    return typeof value === "function" ? value.bind(getStripe()) : value;
+  },
+});
 
 // Cached on User.stripeCustomerId so a payer reuses one Stripe Customer
 // across every checkout (premium profile, business subscription) instead
