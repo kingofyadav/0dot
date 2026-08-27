@@ -1,6 +1,6 @@
 "use client";
 
-import { useOptimistic } from "react";
+import { useEffect, useOptimistic, useState } from "react";
 import { Check } from "lucide-react";
 import { castVote } from "@/app/actions/polls";
 
@@ -56,6 +56,18 @@ export function PollBlock({ poll, votedOptionIds }: { poll: Poll; votedOptionIds
 
   const isClosed = isPollClosed(poll.closesAt);
   const totalVotes = optimistic.options.reduce((sum, o) => sum + o._count.votes, 0);
+
+  // poll.closesAt.toLocaleDateString() formats in the runtime's timezone and
+  // locale — UTC / server CLDR during SSR, the viewer's IST / en-IN on the
+  // client — so computing it during render is a guaranteed hydration text
+  // mismatch (React #418), which is exactly what MessageBubble's
+  // MessageTimestamp documents. Render nothing for the date until after
+  // mount, then fill it in with a normal state update.
+  const [closesLabel, setClosesLabel] = useState("");
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setClosesLabel(poll.closesAt.toLocaleDateString());
+  }, [poll.closesAt]);
 
   return (
     <div
@@ -116,7 +128,7 @@ export function PollBlock({ poll, votedOptionIds }: { poll: Poll; votedOptionIds
       })}
       <p className="mutedText" style={{ fontSize: "0.75rem", margin: 0 }}>
         {totalVotes} vote{totalVotes === 1 ? "" : "s"} ·{" "}
-        {isClosed ? "Closed" : `Closes ${poll.closesAt.toLocaleDateString()}`}
+        {isClosed ? "Closed" : closesLabel ? `Closes ${closesLabel}` : "Open"}
       </p>
     </div>
   );
