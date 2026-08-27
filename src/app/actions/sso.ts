@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { createSession } from "@/lib/session";
-import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
+import { enforceRateLimit, getClientIp } from "@/lib/rate-limit";
 import { getIdentityProviderVerifier, provisionOrLinkUserForSso, emailDomain, isStubSsoAllowed } from "@/lib/sso";
 
 export type SsoActionState = { error?: string } | undefined;
@@ -21,7 +21,7 @@ export async function startSsoLogin(_prevState: SsoActionState, formData: FormDa
   }
 
   const ip = await getClientIp();
-  if (!checkRateLimit(`sso:start:ip:${ip}`, { max: 20, windowMs: 15 * 60 * 1000 })) {
+  if (!(await enforceRateLimit(`sso:start:ip:${ip}`, { max: 20, windowMs: 15 * 60 * 1000 }))) {
     return { error: "Too many attempts. Please try again in a few minutes." };
   }
 
@@ -47,7 +47,7 @@ export async function completeSsoLogin(formData: FormData): Promise<void> {
   if (!connectionId || !email) redirect("/login");
 
   const ip = await getClientIp();
-  if (!checkRateLimit(`sso:complete:ip:${ip}`, { max: 20, windowMs: 15 * 60 * 1000 })) {
+  if (!(await enforceRateLimit(`sso:complete:ip:${ip}`, { max: 20, windowMs: 15 * 60 * 1000 }))) {
     redirect("/login");
   }
 

@@ -26,6 +26,75 @@ const ONE_TIME_ACTIVATORS: Record<string, (metadata: Record<string, string>, pro
   marketplace_purchase: activateMarketplacePurchase,
 };
 
+// Subscription-mode Checkout can hand back a session whose subscription
+// isn't actually paying yet — a delayed-notification payment method (ACH,
+// SEPA, Bacs, iDEAL, boleto, Konbini, "Pay by Bank", …, all selectable
+// because the Checkout sessions deliberately don't pin payment_method_types)
+// leaves the subscription "incomplete" at checkout.session.completed time
+// and only advances to "active" once the bank confirms, which arrives as a
+// second checkout.session.async_payment_succeeded event. Only these two
+// statuses mean "grant access now"; anything else waits for that later
+// event (or customer.subscription.updated) to re-drive activation.
+const FULFILLABLE_SUBSCRIPTION_STATUSES = new Set<Stripe.Subscription.Status>(["active", "trialing"]);
+
+// Everything downstream of checkout.session.completed /
+// .async_payment_succeeded — split out because those two events are the
+// same fulfillment path: for an instant payment method the first one
+// already carries payment_status "paid"; for a delayed one the first
+// arrives "unpaid" (nothing is granted) and the second arrives "paid"
+// once the funds clear. Routing both here means a slow bank transfer
+// fulfills exactly once, when it actually settles, with no separate
+// code path.
+async function handleCheckoutSession(session: Stripe.Checkout.Session): Promise<void> {
+  const metadata = session.metadata ?? {};
+  const kind = metadata.kind;
+
+  if (session.mode === "payment" && kind && ONE_TIME_ACTIVATORS[kind]) {
+    // "unpaid" is the only non-fulfillable value here — "paid" and
+    // "no_payment_required" both mean the money is (or never needed to be)
+    // in. Stripe's own fulfillment guidance is this exact check, not
+    // "trust checkout.session.completed."
+    if (session.payment_status === "unpaid") {
+      console.log(`stripe webhook: ${kind} checkout ${session.id} completed but payment_status=unpaid — deferring to async_payment_succeeded.`);
+      return;
+    }
+    await ONE_TIME_ACTIVATORS[kind](metadata, session.id);
+    return;
+  }
+
+  if (session.mode === "subscription" && session.subscription) {
+    const subscription = await stripe.subscriptions.retrieve(session.subscription as string);
+    const currentPeriodEndSeconds = subscription.items.data[0]?.current_period_end;
+    if (!currentPeriodEndSeconds) return;
+    const currentPeriodEnd = new Date(currentPeriodEndSeconds * 1000);
+
+    if (!FULFILLABLE_SUBSCRIPTION_STATUSES.has(subscription.status)) {
+      console.log(`stripe webhook: subscription ${subscription.id} for checkout ${session.id} is "${subscription.status}" — deferring activation until it clears.`);
+      return;
+    }
+
+    if (kind === "platform_subscription") {
+      const { subscriberType, subscriberId, payerUserId, plan, billingInterval } = metadata;
+      if (!subscriberType || !subscriberId || !payerUserId || !plan || !billingInterval) return;
+      await activateSubscriptionFromCheckout({
+        subscriberType: subscriberType as "profile" | "business",
+        subscriberId,
+        payerUserId,
+        plan,
+        billingInterval,
+        processorSubscriptionId: subscription.id,
+        currentPeriodEnd,
+        amount: (session.amount_total ?? 0) / 100,
+        currency: session.currency ?? "usd",
+      });
+    } else if (kind === "membership") {
+      await activateMembershipSubscription({ metadata, processorSubscriptionId: subscription.id, currentPeriodEnd });
+    } else if (kind === "api_usage_plan") {
+      await activateApiPlanSubscription(metadata, subscription.id);
+    }
+  }
+}
+
 // Real counterpart to the SubscriptionProcessor/PaymentProcessor stubs this
 // addendum used to carry — Stripe Checkout confirms payment
 // asynchronously, so this webhook (not the checkout-starting server
@@ -50,42 +119,21 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   switch (event.type) {
-    case "checkout.session.completed": {
+    // Instant payment methods land here already "paid"; delayed ones land
+    // here "unpaid" and come back as async_payment_succeeded once settled.
+    // Both route through the same handler, which gates on payment_status /
+    // subscription status so fulfillment happens exactly once, at
+    // settlement.
+    case "checkout.session.completed":
+    case "checkout.session.async_payment_succeeded": {
+      await handleCheckoutSession(event.data.object as Stripe.Checkout.Session);
+      break;
+    }
+    case "checkout.session.async_payment_failed": {
       const session = event.data.object as Stripe.Checkout.Session;
-      const metadata = session.metadata ?? {};
-      const kind = metadata.kind;
-
-      if (session.mode === "payment" && kind && ONE_TIME_ACTIVATORS[kind]) {
-        await ONE_TIME_ACTIVATORS[kind](metadata, session.id);
-        break;
-      }
-
-      if (session.mode === "subscription" && session.subscription) {
-        const subscription = await stripe.subscriptions.retrieve(session.subscription as string);
-        const currentPeriodEndSeconds = subscription.items.data[0]?.current_period_end;
-        if (!currentPeriodEndSeconds) break;
-        const currentPeriodEnd = new Date(currentPeriodEndSeconds * 1000);
-
-        if (kind === "platform_subscription") {
-          const { subscriberType, subscriberId, payerUserId, plan, billingInterval } = metadata;
-          if (!subscriberType || !subscriberId || !payerUserId || !plan || !billingInterval) break;
-          await activateSubscriptionFromCheckout({
-            subscriberType: subscriberType as "profile" | "business",
-            subscriberId,
-            payerUserId,
-            plan,
-            billingInterval,
-            processorSubscriptionId: subscription.id,
-            currentPeriodEnd,
-            amount: (session.amount_total ?? 0) / 100,
-            currency: session.currency ?? "usd",
-          });
-        } else if (kind === "membership") {
-          await activateMembershipSubscription({ metadata, processorSubscriptionId: subscription.id, currentPeriodEnd });
-        } else if (kind === "api_usage_plan") {
-          await activateApiPlanSubscription(metadata, subscription.id);
-        }
-      }
+      // Nothing was ever granted (the "unpaid" branch above returned early),
+      // so there's nothing to unwind — just leave a trail.
+      console.warn(`stripe webhook: delayed payment failed for checkout ${session.id} (kind=${session.metadata?.kind ?? "?"}) — no fulfillment occurred.`);
       break;
     }
     case "customer.subscription.updated":

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireVerifiedUser, requirePlatformRole, requireOwnProfile } from "@/lib/auth-guards";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { enforceRateLimit } from "@/lib/rate-limit";
 import { purchaseProfilePremiumWithCoins } from "@/lib/platform-billing";
 import type { ActionState } from "@/app/actions/auth";
 
@@ -104,8 +104,8 @@ export async function rejectPayoutRequest(formData: FormData): Promise<void> {
 // dumping its whole balance into another in a single click.
 const MAX_TRANSFER_COINS = 20;
 
-function checkTransferRateLimit(userId: string): boolean {
-  return checkRateLimit(`wallet-transfer:${userId}`, { max: 10, windowMs: 15 * 60 * 1000 });
+function checkTransferRateLimit(userId: string): Promise<boolean> {
+  return enforceRateLimit(`wallet-transfer:${userId}`, { max: 10, windowMs: 15 * 60 * 1000 });
 }
 
 // Moves coins from the caller straight to another platform user's balance,
@@ -124,7 +124,7 @@ export async function transferCoinsAction(_prevState: ActionState, formData: For
     return { error: `Amount must be between 1 and ${MAX_TRANSFER_COINS} coins.` };
   }
 
-  if (!checkTransferRateLimit(user.id)) {
+  if (!(await checkTransferRateLimit(user.id))) {
     return { error: "You're sending coins too fast. Please slow down." };
   }
 
@@ -157,8 +157,8 @@ export async function transferCoinsAction(_prevState: ActionState, formData: For
   return { success: true };
 }
 
-function checkVipPurchaseRateLimit(userId: string): boolean {
-  return checkRateLimit(`wallet-vip:${userId}`, { max: 10, windowMs: 15 * 60 * 1000 });
+function checkVipPurchaseRateLimit(userId: string): Promise<boolean> {
+  return enforceRateLimit(`wallet-vip:${userId}`, { max: 10, windowMs: 15 * 60 * 1000 });
 }
 
 // The first real spend of coinBalance — everything above this line only
@@ -173,7 +173,7 @@ export async function purchaseVipAction(_prevState: ActionState, formData: FormD
   const billingInterval = String(formData.get("billingInterval") ?? "monthly");
   if (!BILLING_INTERVAL_VALUES.has(billingInterval)) return { error: "Choose a billing interval." };
 
-  if (!checkVipPurchaseRateLimit(user.id)) {
+  if (!(await checkVipPurchaseRateLimit(user.id))) {
     return { error: "You're purchasing too fast. Please slow down." };
   }
 

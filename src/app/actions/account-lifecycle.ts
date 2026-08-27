@@ -3,7 +3,7 @@
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 import { requireVerifiedUser } from "@/lib/auth-guards";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { enforceRateLimit } from "@/lib/rate-limit";
 import type { ActionState } from "@/app/actions/auth";
 
 const DEACTIVATION_GRACE_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -20,7 +20,7 @@ async function scheduleDeactivation(_prevState: ActionState, formData: FormData)
   const user = await requireVerifiedUser();
   const currentPassword = String(formData.get("currentPassword") ?? "");
 
-  const ok = checkRateLimit(`account-lifecycle:user:${user.id}`, { max: 5, windowMs: 15 * 60 * 1000 });
+  const ok = await enforceRateLimit(`account-lifecycle:user:${user.id}`, { max: 5, windowMs: 15 * 60 * 1000 });
   if (!ok) return { error: RATE_LIMIT_ERROR };
 
   const valid = await bcrypt.compare(currentPassword, user.passwordHash);

@@ -3188,6 +3188,23 @@ model ApiUsageCounter {
   @@unique([appId, windowStart])
 }
 
+// Durable, cross-instance fixed-window rate-limit counters — the backing
+// store for enforceRateLimit() in src/lib/rate-limit.ts. The in-memory
+// checkRateLimit() in that same file is per-process: on Vercel's many
+// (and cold-starting) function instances it can't see a brute force
+// spread across them, so credential-adjacent gates (login, 2FA, password
+// reset, signup, OAuth token, wallet transfer, account changes) count
+// here instead. One row per limiter key; count is consumed with an
+// atomic conditional increment. Rows self-expire — the daily cron
+// (rate-limit-sweep) deletes dead ones.
+model RateLimitCounter {
+  key       String   @id
+  count     Int      @default(0)
+  expiresAt DateTime
+
+  @@index([expiresAt])
+}
+
 // phase-11 spec §3: shared AI usage audit substrate, deliberately
 // generalized starting with the very first feature rather than waiting for
 // three real instances (§3.1's stated exception to this series' usual

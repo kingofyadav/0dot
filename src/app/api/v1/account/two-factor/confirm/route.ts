@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { resolveApiRequest, requireScope, requireVerifiedApiUser, apiError } from "@/lib/api-auth";
 import { checkApiRateLimit } from "@/lib/api-rate-limit";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { enforceRateLimit } from "@/lib/rate-limit";
 import { verifyTotpCode, generateRecoveryCodes, storeRecoveryCodes } from "@/lib/two-factor";
 
 // Bearer-token counterpart to confirmTwoFactorEnrollment (two-factor.ts) —
@@ -20,7 +20,7 @@ export async function POST(request: Request) {
   const { allowed, limit, remaining } = await checkApiRateLimit(ctx.appId);
   if (!allowed) return apiError("Rate limit exceeded.", 429);
 
-  if (!checkRateLimit(`2fa-enroll:user:${ctx.userId}`, { max: 10, windowMs: 15 * 60 * 1000 })) {
+  if (!(await enforceRateLimit(`2fa-enroll:user:${ctx.userId}`, { max: 10, windowMs: 15 * 60 * 1000 }))) {
     return apiError("Too many attempts. Please try again in a few minutes.", 429);
   }
 

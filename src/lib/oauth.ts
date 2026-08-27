@@ -225,23 +225,39 @@ export async function exchangeAuthorizationCode(args: { code: string; codeVerifi
   const accessToken = generateOpaqueToken();
   const refreshToken = generateOpaqueToken();
 
-  const [, authorization] = await db.$transaction([
-    db.oAuthAuthorizationCode.update({ where: { code: args.code }, data: { usedAt: new Date() } }),
-    db.oAuthAuthorization.upsert({
+  // RFC 6749 §4.1.2: an authorization code is single-use. The checks above
+  // are check-then-act — two concurrent exchanges of the same code would
+  // each see usedAt: null and each mint a token pair. Consume the code with
+  // a conditional updateMany (usedAt: null in the WHERE) *inside* the same
+  // transaction that upserts the authorization and mints the first token,
+  // so exactly one racer wins and the code / authorization / token either
+  // all commit together or not at all (a mid-way failure leaves the code
+  // still redeemable). The claim runs after PKCE/redirect_uri validation so
+  // a wrong-verifier attempt can't burn a code the real client still needs.
+  const authorization = await db.$transaction(async (tx) => {
+    const claimed = await tx.oAuthAuthorizationCode.updateMany({
+      where: { code: args.code, usedAt: null },
+      data: { usedAt: new Date() },
+    });
+    if (claimed.count === 0) return null;
+
+    const auth = await tx.oAuthAuthorization.upsert({
       where: { appId_userId: { appId: row.appId, userId: row.userId } },
       create: { appId: row.appId, userId: row.userId, grantedScopesJson: row.scopesJson, status: "active" },
       update: { grantedScopesJson: row.scopesJson, status: "active", revokedAt: null },
-    }),
-  ]);
-
-  await db.oAuthToken.create({
-    data: {
-      authorizationId: authorization.id,
-      accessTokenHash: hashApiToken(accessToken),
-      refreshTokenHash: hashApiToken(refreshToken),
-      expiresAt: new Date(Date.now() + TOKEN_TTL_MS),
-    },
+    });
+    await tx.oAuthToken.create({
+      data: {
+        authorizationId: auth.id,
+        accessTokenHash: hashApiToken(accessToken),
+        refreshTokenHash: hashApiToken(refreshToken),
+        expiresAt: new Date(Date.now() + TOKEN_TTL_MS),
+      },
+    });
+    return auth;
   });
+
+  if (!authorization) return { error: "Invalid or expired authorization code." };
 
   return { accessToken, refreshToken, expiresIn: TOKEN_TTL_MS / 1000, scope: approvedScopes.join(" ") };
 }
@@ -271,17 +287,25 @@ export async function refreshAccessToken(args: { refreshToken: string; appId: st
   const accessToken = generateOpaqueToken();
   const refreshToken = generateOpaqueToken();
 
-  await db.$transaction([
-    db.oAuthToken.delete({ where: { id: tokenRow.id } }),
-    db.oAuthToken.create({
-      data: {
-        authorizationId: tokenRow.authorizationId,
-        accessTokenHash: hashApiToken(accessToken),
-        refreshTokenHash: hashApiToken(refreshToken),
-        expiresAt: new Date(Date.now() + TOKEN_TTL_MS),
-      },
-    }),
-  ]);
+  // Claim this row before minting its replacement: two concurrent refreshes
+  // with the same token both read tokenRow above, so gate the delete on the
+  // row still existing (deleteMany → count) rather than delete({ id }),
+  // which throws P2025 for the loser and would surface as a 500 instead of
+  // the "Invalid refresh token" this rotation is meant to give the side
+  // that redeems second.
+  const claimed = await db.oAuthToken.deleteMany({ where: { id: tokenRow.id } });
+  if (claimed.count === 0) {
+    return { error: "Invalid refresh token." };
+  }
+
+  await db.oAuthToken.create({
+    data: {
+      authorizationId: tokenRow.authorizationId,
+      accessTokenHash: hashApiToken(accessToken),
+      refreshTokenHash: hashApiToken(refreshToken),
+      expiresAt: new Date(Date.now() + TOKEN_TTL_MS),
+    },
+  });
 
   return {
     accessToken,

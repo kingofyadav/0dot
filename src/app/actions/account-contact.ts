@@ -4,7 +4,7 @@ import { randomBytes, randomInt, createHash } from "crypto";
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 import { requireVerifiedUser } from "@/lib/auth-guards";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { enforceRateLimit } from "@/lib/rate-limit";
 import { getEmailSender, getAppOrigin, renderEmailChangeEmailHtml } from "@/lib/email";
 import { getSmsSender } from "@/lib/sms";
 import { toE164 } from "@/lib/country-codes";
@@ -28,7 +28,7 @@ export async function requestEmailChange(_prevState: ActionState, formData: Form
   const currentPassword = String(formData.get("currentPassword") ?? "");
   const newEmail = String(formData.get("newEmail") ?? "").trim().toLowerCase();
 
-  const ok = checkRateLimit(`email-change:user:${user.id}`, { max: 5, windowMs: 15 * 60 * 1000 });
+  const ok = await enforceRateLimit(`email-change:user:${user.id}`, { max: 5, windowMs: 15 * 60 * 1000 });
   if (!ok) return { error: RATE_LIMIT_ERROR };
 
   const valid = await bcrypt.compare(currentPassword, user.passwordHash);
@@ -73,7 +73,7 @@ export async function requestPhoneChange(
   const phoneDialCode = String(formData.get("phoneDialCode") ?? "");
   const phoneNumber = String(formData.get("phoneNumber") ?? "");
 
-  const ok = checkRateLimit(`phone-change:user:${user.id}`, { max: 5, windowMs: 15 * 60 * 1000 });
+  const ok = await enforceRateLimit(`phone-change:user:${user.id}`, { max: 5, windowMs: 15 * 60 * 1000 });
   if (!ok) return { error: RATE_LIMIT_ERROR };
 
   const valid = await bcrypt.compare(currentPassword, user.passwordHash);
@@ -102,7 +102,7 @@ export async function confirmPhoneChange(_prevState: ActionState, formData: Form
   const user = await requireVerifiedUser();
   const code = String(formData.get("code") ?? "").trim();
 
-  const ok = checkRateLimit(`phone-change-confirm:user:${user.id}`, { max: 8, windowMs: 15 * 60 * 1000 });
+  const ok = await enforceRateLimit(`phone-change-confirm:user:${user.id}`, { max: 8, windowMs: 15 * 60 * 1000 });
   if (!ok) return { error: RATE_LIMIT_ERROR };
 
   const pending = await db.pendingPhoneChange.findFirst({

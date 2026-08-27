@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { exchangeAuthorizationCode, refreshAccessToken } from "@/lib/oauth";
 import { verifyClientSecret } from "@/lib/developer-apps";
-import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
+import { enforceRateLimit, getClientIp } from "@/lib/rate-limit";
 
 function tokenResponse(result: { accessToken: string; refreshToken: string; expiresIn: number; scope: string }) {
   return Response.json({
@@ -37,10 +37,11 @@ export async function POST(request: Request) {
   // distributed brute-force. Shared across both grants since both are
   // bearer-credential-guessing surfaces on the same endpoint.
   const ip = await getClientIp();
-  if (
-    !checkRateLimit(`oauth-token:ip:${ip}`, { max: 30, windowMs: 15 * 60 * 1000 }) ||
-    (clientId && !checkRateLimit(`oauth-token:client:${clientId}`, { max: 15, windowMs: 15 * 60 * 1000 }))
-  ) {
+  const [ipOk, clientOk] = await Promise.all([
+    enforceRateLimit(`oauth-token:ip:${ip}`, { max: 30, windowMs: 15 * 60 * 1000 }),
+    clientId ? enforceRateLimit(`oauth-token:client:${clientId}`, { max: 15, windowMs: 15 * 60 * 1000 }) : Promise.resolve(true),
+  ]);
+  if (!ipOk || !clientOk) {
     return Response.json({ error: "invalid_client" }, { status: 429 });
   }
 

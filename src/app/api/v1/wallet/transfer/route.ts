@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { resolveApiRequest, requireScope, requireVerifiedApiUser, apiError } from "@/lib/api-auth";
 import { checkApiRateLimit } from "@/lib/api-rate-limit";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { enforceRateLimit } from "@/lib/rate-limit";
 import { revalidatePath } from "next/cache";
 
 const MAX_TRANSFER_COINS = 20;
@@ -32,7 +32,7 @@ export async function POST(request: Request) {
   if (!Number.isFinite(coinAmount) || coinAmount < 1 || coinAmount > MAX_TRANSFER_COINS) {
     return apiError(`Amount must be between 1 and ${MAX_TRANSFER_COINS} coins.`, 400);
   }
-  if (!checkRateLimit(`wallet-transfer:${ctx.userId}`, { max: 10, windowMs: 15 * 60 * 1000 })) {
+  if (!(await enforceRateLimit(`wallet-transfer:${ctx.userId}`, { max: 10, windowMs: 15 * 60 * 1000 }))) {
     return apiError("You're sending coins too fast. Please slow down.", 429);
   }
 
