@@ -33,6 +33,9 @@ const CHROMELESS_PATHS = new Set([
   // SiteHeader/Sidebar shell wrapped around a page anonymous visitors land
   // on directly.
   "/download",
+  // Marketing pages (redesign Phase 3) — MarketingNav + MarketingFooter,
+  // same posture as /download.
+  "/about",
 ]);
 
 export function isChromelessPath(pathname: string): boolean {

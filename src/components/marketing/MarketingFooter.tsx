@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
 
-// Redesign Phase 3. Marketing footer for "/" only. Links point exclusively
-// at routes that actually exist (NAVIGATION.md rule 2 — no dead entries):
-// /about, /help, /blog, and a pricing page are still "Future" per
-// docs/ROADMAP.md, so they're deliberately absent.
+// Redesign Phase 3. Marketing footer for the logged-out marketing pages.
+// Links point exclusively at routes that actually exist (NAVIGATION.md rule
+// 2 — no dead entries): /help, /blog, and a pricing page are still "Future"
+// per docs/ROADMAP.md, so they're deliberately absent.
 const GROUPS: { heading: string; links: { label: string; href: string }[] }[] = [
   {
     heading: "Product",
@@ -13,6 +13,10 @@ const GROUPS: { heading: string; links: { label: string; href: string }[] }[] = 
       { label: "Trending", href: "/trending" },
       { label: "Get the app", href: "/download" },
     ],
+  },
+  {
+    heading: "Company",
+    links: [{ label: "About", href: "/about" }],
   },
   {
     heading: "Get started",

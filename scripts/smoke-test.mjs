@@ -46,6 +46,9 @@ const CHECKS = [
   // Baseline: the site itself is up and serving HTML, not e.g. a build
   // failure's error page or a blank response.
   { path: "/", expectStatus: 200, expectContentType: "text/html" },
+  // Marketing pages (redesign Phase 3) — static content, no auth, so a 200
+  // here also catches a broken MarketingNav/MarketingFooter import.
+  { path: "/about", expectStatus: 200, expectContentType: "text/html" },
   ...JSON_API_CHECKS,
 ];
 
