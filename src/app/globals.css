@@ -1673,10 +1673,27 @@ h6 {
   font: inherit;
   color: inherit;
   background: color-mix(in srgb, var(--foreground) 3%, transparent);
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  /* Redesign Phase 1b (D3): a readable edge, like every other bordered
+     surface in the redesigned system. */
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
   padding: 0.65rem 0.85rem;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* Redesign Phase 1b: a consistent custom chevron on every native <select>
+   instead of the OS control, so a select matches the text inputs beside it.
+   The chevron colour is a fixed neutral grey (readable in both themes, same
+   "can't reference a CSS var from a data-URI" documented exception as
+   browser-tab.ts's canvas badges) rather than per-theme SVGs. */
+.field select,
+select.textInput {
+  -webkit-appearance: none;
+  appearance: none;
+  padding-right: 2.4rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%239a9a9a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.85rem center;
 }
 
 /* Bug fix: a <select>'s dropdown *popup* is a separate browser-rendered
