@@ -3506,11 +3506,30 @@ a.profileMetaItem:hover {
   padding: var(--space-3);
 }
 
+/* Redesign Phase 1b (D4): every post row leads with an author avatar column.
+   flex-start so the avatar tops-aligns with the first line of the byline. */
 .postHeaderRow {
   display: flex;
-  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.postHeaderMain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
-  gap: var(--space-2);
+  column-gap: var(--space-1);
+}
+
+.postAvatarLink {
+  display: block;
+  flex-shrink: 0;
+}
+
+.postAvatar {
+  box-shadow: 0 0 0 1px var(--border);
 }
 
 /* Redesign Phase 2 (D4): the trailing action cluster (Report, and the
