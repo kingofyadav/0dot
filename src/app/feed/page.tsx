@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { parseCursor } from "@/lib/pagination";
 import { getFeedPosts, getVotedPollOptionIds } from "@/lib/feed-query";
+import { getFolloweeIds } from "@/lib/follow-graph";
 import { getPostableBusinesses } from "@/lib/businesses";
 import { getMyPayoutAccount } from "@/lib/payments";
 import { DismissibleNotice } from "@/components/DismissibleNotice";
@@ -32,12 +33,9 @@ export default async function FeedPage({
   const { cursor: rawCursor, link } = await searchParams;
   const cursor = parseCursor(rawCursor);
 
-  const followedIds = await db.follow.findMany({
-    where: { followerId: currentUser.id },
-    select: { followeeId: true },
-  });
+  const followedIds = await getFolloweeIds(currentUser.id);
   const authorFilter = {
-    authorId: { in: [currentUser.id, ...followedIds.map((f) => f.followeeId)] },
+    authorId: { in: [currentUser.id, ...followedIds] },
   };
 
   const { items: posts, nextCursor } = await getFeedPosts({ authorFilter, cursor, viewerId: currentUser.id });

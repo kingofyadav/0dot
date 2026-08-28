@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { db } from "@/lib/db";
 import { isBlocked } from "@/lib/blocks";
 import { publishToUsers } from "@/lib/message-events";
@@ -709,22 +710,29 @@ export function notifyEventReminder(args: { recipientId: string; eventSlug: stri
   return createSystemEventNotification({ recipientId: args.recipientId, type: "event_reminder", eventSlug: args.eventSlug });
 }
 
-export function getUnreadNotificationCount(userId: string): Promise<number> {
+// cache()-wrapped: the layout, SiteHeader, MobileBottomNav, and
+// NotificationBell each ask for this count on every page render — without
+// per-request memoization that's 3-4 identical COUNT round trips to the
+// libsql backend per navigation. Same posture as getCurrentUser (session.ts)
+// and getFolloweeIds (follow-graph.ts).
+export const getUnreadNotificationCount = cache((userId: string): Promise<number> => {
   return db.notification.count({ where: { recipientId: userId, readAt: null } });
-}
+});
 
 const previewActorInclude = { username: true, profile: true } as const;
 
 // Unaggregated — fine for a 3-5 item rail preview; the full /notifications
-// list applies read-time aggregation (see that page).
-export function getRecentNotificationsPreview(userId: string, limit: number) {
+// list applies read-time aggregation (see that page). cache()-wrapped: the
+// ContextualRail and NotificationBell both render this same PREVIEW_COUNT
+// list on every page, so memoize the fetch per request.
+export const getRecentNotificationsPreview = cache((userId: string, limit: number) => {
   return db.notification.findMany({
     where: { recipientId: userId },
     orderBy: { createdAt: "desc" },
     take: limit,
     include: { actor: { include: previewActorInclude } },
   });
-}
+});
 
 // Shared by the rail preview and the full /notifications list — a single
 // actor's action reads as "{name} {verb}"; the full list composes the same

@@ -36,6 +36,13 @@ const nextConfig: NextConfig = {
       // src/app/actions/posts.ts), plus multipart overhead.
       bodySizeLimit: "34mb",
     },
+    // `radix-ui` is the unified meta-package (see src/components/ui/*) — it
+    // re-exports every primitive, so a bare `import { X } from "radix-ui"`
+    // can drag unrelated primitives into the bundle. This rewrites each such
+    // import to its direct submodule path. lucide-react (86 import sites) is
+    // already optimized by Next's built-in default list, so it isn't
+    // repeated here (see node_modules/next/dist/docs/.../optimizePackageImports.md).
+    optimizePackageImports: ["radix-ui"],
   },
   async headers() {
     return [

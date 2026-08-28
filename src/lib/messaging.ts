@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { parseCursor, cursorWhere, paginate, POST_PAGE_SIZE, type PostCursor } from "@/lib/pagination";
@@ -351,7 +352,9 @@ export async function getMessagesForConversation(
 // (lastMessageAt, lastMessageSenderId) pair on Conversation plus each
 // participant's lastReadMessage, all fetched in one query (no per-row
 // subquery/join needed beyond the include Prisma already batches).
-export async function getUnreadConversationCount(userId: string): Promise<number> {
+// cache()-wrapped: the layout and MessagesBadge both request this on every
+// page render — one memoized query per request instead of two.
+export const getUnreadConversationCount = cache(async (userId: string): Promise<number> => {
   const participants = await db.conversationParticipant.findMany({
     where: { userId, hiddenAt: null },
     select: {
@@ -365,7 +368,7 @@ export async function getUnreadConversationCount(userId: string): Promise<number
     if (isConversationUnreadFor(userId, p.conversation, p)) unread += 1;
   }
   return unread;
-}
+});
 
 export async function markConversationRead(conversationId: string, userId: string): Promise<void> {
   const latest = await db.message.findFirst({

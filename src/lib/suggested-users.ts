@@ -1,5 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
+import { getFolloweeIds } from "@/lib/follow-graph";
 import { getAIProvider, cosineSimilarity, HASH_EMBEDDING_MODEL_NAME } from "@/lib/ai-provider";
 import { logAIGeneration } from "@/lib/ai-generation";
 
@@ -18,12 +19,11 @@ import { logAIGeneration } from "@/lib/ai-generation";
 const SUGGESTION_POOL_SIZE = 50; // candidates considered before scoring/limiting
 
 export async function getSuggestedUsers(viewerId: string, limit: number) {
-  const [followingRows, blockedRows, blockedByRows] = await Promise.all([
-    db.follow.findMany({ where: { followerId: viewerId }, select: { followeeId: true } }),
+  const [followingIds, blockedRows, blockedByRows] = await Promise.all([
+    getFolloweeIds(viewerId),
     db.block.findMany({ where: { blockerId: viewerId }, select: { blockedId: true } }),
     db.block.findMany({ where: { blockedId: viewerId }, select: { blockerId: true } }),
   ]);
-  const followingIds = followingRows.map((f) => f.followeeId);
   const excludeIds = new Set([
     viewerId,
     ...followingIds,
