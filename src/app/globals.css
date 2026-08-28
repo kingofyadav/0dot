@@ -183,6 +183,67 @@
   --space-5: 1.25rem;
   --space-6: 1.5rem;
   --space-8: 2rem;
+  /* Redesign Phase 0 (docs/specs/phase-0-redesign.md §4.3): larger steps for
+     page-level and marketing-section rhythm — the app's per-instance top
+     margins (2rem, 2.5rem, 3rem, 4rem, 6rem) collapsed onto the scale. Same
+     dimensional-not-themed posture as --space-1..8 above. */
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  --space-20: 5rem;
+  --space-24: 6rem;
+
+  /* --- Redesign Phase 0 tokens (docs/specs/phase-0-redesign.md §4) --------- */
+
+  /* Depth (§4.1 / D3). --border stays the near-invisible hairline for
+     internal dividers; --border-strong is the readable edge for cards and
+     inputs that must visually separate from the page. Themed — see the
+     dark-mode blocks. --surface-2 is a foreground-derived inset step (nested
+     composer, table headers, code) that auto-adapts per theme like --popover,
+     so it needs no dark entry. --overlay-scrim sits over arbitrary user media
+     (profile cover, media posts), not a themed surface, so it is intentionally
+     black in both themes — the same "can't track the palette, documented
+     exception" reasoning as browser-tab.ts's canvas badges. */
+  --border-strong: rgba(23, 23, 23, 0.2);
+  --surface-2: color-mix(in srgb, var(--foreground) 4%, var(--surface));
+  --overlay-scrim: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.72) 0%,
+    rgba(0, 0, 0, 0.36) 32%,
+    transparent 66%
+  );
+
+  /* Type: tracking/leading (§4.2 / D2). The size scale (xs..6xl) is registered
+     as Tailwind utilities in the @theme block below; these tracking/leading
+     values live here as plain custom properties, used via var() in the
+     heading element defaults and marketing rules. */
+  --tracking-tight: -0.02em;
+  --tracking-snug: -0.01em;
+  --tracking-normal: 0em;
+  --tracking-wide: 0.04em;
+  --leading-display: 1.08;
+  --leading-heading: 1.2;
+  --leading-body: 1.55;
+
+  /* Layout measures (§4.3 / D1). Named content-column widths, each centered in
+     the main grid area. Replaces the per-route max-width literals
+     (380/560/640px). */
+  --measure-feed: 600px;
+  --measure-prose: 640px;
+  --measure-wide: 960px;
+
+  /* Motion (§4.4 / D8). Durations + easings as tokens; the existing
+     --transition-fast/base/slow shorthands above are kept and re-expressed
+     against these. The blanket prefers-reduced-motion rule and
+     html[data-reduced-motion="true"] override later in this file already zero
+     every animation/transition built on these — no per-utility guard needed. */
+  --duration-1: 80ms;
+  --duration-2: 150ms;
+  --duration-3: 240ms;
+  --duration-4: 400ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 
   /* Motion scale (DESIGN_SYSTEM.md "Motion" gap) — the existing 0.15s/0.05s
      ad hoc values already in use (inputs/buttons hover, press feedback)
@@ -246,6 +307,8 @@
   --_dark-foreground: #ededed;
   --_dark-surface: #131313;
   --_dark-border: rgba(237, 237, 237, 0.12);
+  /* Redesign Phase 0: readable card/input edge (see --border-strong). */
+  --_dark-border-strong: rgba(237, 237, 237, 0.18);
   /* Google Green 300 — verified ~9.2:1 with near-black text. */
   --_dark-success: #81c995;
   --_dark-success-soft: rgba(129, 201, 149, 0.18);
@@ -306,6 +369,12 @@
      size in the app larger than the curated scale's ceiling, previously a
      bare 2.5rem literal with nothing above --text-3xl to reach for. */
   --text-4xl: 2.5rem;
+  /* Redesign Phase 0 (docs/specs/phase-0-redesign.md §4.2): display tiers for
+     marketing headlines and hero numbers. Registered here (not as plain
+     custom properties in :root) so text-5xl / text-6xl utilities exist for
+     the marketing layer. */
+  --text-5xl: 3rem;
+  --text-6xl: 3.75rem;
 
   /* Radius scale (DESIGN_SYSTEM.md "Radius" gap) — the existing ad hoc
      values (8/10/16px, plus 9999px for avatars) already formed a coherent
@@ -343,6 +412,7 @@
     --foreground: var(--_dark-foreground);
     --surface: var(--_dark-surface);
     --border: var(--_dark-border);
+    --border-strong: var(--_dark-border-strong);
     --success: var(--_dark-success);
     --success-soft: var(--_dark-success-soft);
     --warning-soft: var(--_dark-warning-soft);
@@ -371,6 +441,7 @@
   --foreground: var(--_dark-foreground);
   --surface: var(--_dark-surface);
   --border: var(--_dark-border);
+  --border-strong: var(--_dark-border-strong);
   --success: var(--_dark-success);
   --success-soft: var(--_dark-success-soft);
   --warning-soft: var(--_dark-warning-soft);
@@ -400,6 +471,8 @@
   --color-foreground: var(--foreground);
   --color-surface: var(--surface);
   --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-surface-2: var(--surface-2);
   --color-accent-strong: var(--accent-strong);
   --color-accent-soft: var(--accent-soft);
   --color-success: var(--success);
@@ -666,12 +739,172 @@ html[data-high-contrast="true"] {
   --foreground: #000000;
   --muted-foreground: #1a1a1a;
   --border: #000000;
+  --border-strong: #000000;
 }
 html[data-theme="dark"][data-high-contrast="true"],
 html:not([data-theme="light"])[data-high-contrast="true"] {
   --foreground: #ffffff;
   --muted-foreground: #f0f0f0;
   --border: #ffffff;
+  --border-strong: #ffffff;
+}
+
+/* --- Redesign Phase 0: global typographic + motion baseline --------------- *
+ * docs/specs/phase-0-redesign.md §4.2 / §4.4. Placed here — after the theme
+ * and accessibility blocks, before any component styles — so a bare <h1>..<h4>
+ * is already correct without a class, and the motion utilities are available
+ * everywhere. The blanket prefers-reduced-motion rule and the
+ * html[data-reduced-motion="true"] override above already neutralise every
+ * animation/transition defined below; none needs its own guard.
+ * ----------------------------------------------------------------------- */
+
+/* Heading element defaults (D2). Deliberately conservative for Phase 0: sets
+   only the properties existing per-component heading rules almost never
+   declare (weight, leading, balance) so this tightens consistency without
+   resizing any current heading — every route's own `.someThing h2 {
+   font-size }` rule still wins on size. The full display scale is the
+   .display-* classes below, consumed by the marketing layer and the
+   styleguide, adopted per-surface in later redesign phases rather than forced
+   onto bare elements now. */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-weight: 700;
+  line-height: var(--leading-heading);
+  text-wrap: balance;
+}
+
+/* Display scale (D2 / §4.2). For marketing headlines and hero numbers —
+   tighter tracking and leading than body-adjacent headings. */
+.display-1 {
+  font-size: var(--text-6xl);
+  font-weight: 700;
+  line-height: var(--leading-display);
+  letter-spacing: var(--tracking-tight);
+  text-wrap: balance;
+}
+.display-2 {
+  font-size: var(--text-5xl);
+  font-weight: 700;
+  line-height: var(--leading-display);
+  letter-spacing: var(--tracking-tight);
+  text-wrap: balance;
+}
+.display-3 {
+  font-size: var(--text-4xl);
+  font-weight: 700;
+  line-height: var(--leading-heading);
+  letter-spacing: var(--tracking-snug);
+  text-wrap: balance;
+}
+@media (max-width: 768px) {
+  .display-1 {
+    font-size: var(--text-4xl);
+  }
+  .display-2 {
+    font-size: var(--text-3xl);
+  }
+}
+
+/* Eyebrow / section label (D2). One treatment replaces the scattered tiny
+   all-caps labels (0.06em/uppercase at ~0.7rem) in the sidebar, profile,
+   rail, and settings. Larger, medium weight, restrained tracking, muted. */
+.eyebrow {
+  display: block;
+  font-size: var(--text-2xs);
+  font-weight: 500;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+/* Motion primitives (§4.4). Four named effects, used as classes. JS that
+   needs to (re)trigger a reveal on append toggles .is-revealed (see
+   useReveal). */
+
+/* motion-page-in — main content settles on first paint / route change. Pair
+   with the View Transitions API in the router where supported; this is the
+   no-VT fallback and the initial-load animation. */
+.motion-page-in {
+  animation: motionPageIn var(--duration-3) var(--ease-out) both;
+}
+@keyframes motionPageIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* motion-stagger — a list container; direct children ease in with an
+   incremental delay. Capped at 12 so a long list doesn't animate for a
+   second. Children past the cap simply appear (correct, not broken). */
+.motion-stagger > * {
+  animation: motionStaggerIn var(--duration-3) var(--ease-out) both;
+}
+.motion-stagger > *:nth-child(1) { animation-delay: 20ms; }
+.motion-stagger > *:nth-child(2) { animation-delay: 40ms; }
+.motion-stagger > *:nth-child(3) { animation-delay: 60ms; }
+.motion-stagger > *:nth-child(4) { animation-delay: 80ms; }
+.motion-stagger > *:nth-child(5) { animation-delay: 100ms; }
+.motion-stagger > *:nth-child(6) { animation-delay: 120ms; }
+.motion-stagger > *:nth-child(7) { animation-delay: 140ms; }
+.motion-stagger > *:nth-child(8) { animation-delay: 160ms; }
+.motion-stagger > *:nth-child(9) { animation-delay: 180ms; }
+.motion-stagger > *:nth-child(10) { animation-delay: 200ms; }
+.motion-stagger > *:nth-child(11) { animation-delay: 220ms; }
+.motion-stagger > *:nth-child(n + 12) { animation-delay: 240ms; }
+@keyframes motionStaggerIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* motion-reveal — scroll-triggered; starts hidden, .is-revealed (set by
+   useReveal's IntersectionObserver) plays it in. Under reduced motion the
+   transition is zeroed by the global rule, so the element still ends visible. */
+.motion-reveal {
+  opacity: 0;
+  transform: translateY(16px);
+  transition:
+    opacity var(--duration-4) var(--ease-out),
+    transform var(--duration-4) var(--ease-out);
+}
+.motion-reveal.is-revealed {
+  opacity: 1;
+  transform: none;
+}
+
+/* motion-press — tactile feedback on any pressable element. */
+.motion-press {
+  transition: transform var(--duration-1) var(--ease-out);
+}
+.motion-press:active {
+  transform: scale(0.97);
+}
+
+/* motion-lift — card/row hover elevation. */
+.motion-lift {
+  transition:
+    transform var(--duration-2) var(--ease-out),
+    box-shadow var(--duration-2) var(--ease-out);
+}
+@media (hover: hover) {
+  .motion-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+  }
 }
 
 /* Shared form/auth styling */
@@ -1075,8 +1308,7 @@ html:not([data-theme="light"])[data-high-contrast="true"] {
    ring shadow stay in each individual rule since those genuinely differ per
    component. */
 .landingPreviewAvatar,
-.profileAvatar,
-.railPlanCard {
+.profileAvatar {
   --gradient-ring-fill: linear-gradient(var(--surface), var(--surface));
   --gradient-ring-border: var(--gradient-brand-fill);
   background: var(--gradient-ring-fill) padding-box, var(--gradient-ring-border) border-box;
@@ -2523,13 +2755,44 @@ body.hasBottomNav .iosInstallBanner {
 /* Empty state (EmptyState.tsx) — replaces the ad hoc <p className="mutedText">
    pattern flagged in DESIGN_CONSISTENCY.md/COMPONENT_LIBRARY.md as a known,
    cheap-to-fix inconsistency. */
+/* Redesign Phase 1 (docs/specs/phase-0-redesign.md §5 / D5). One component,
+   ~80 call sites — upgrading it here upgrades every empty list view at once. */
 .emptyState {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-8) var(--space-4);
+  gap: var(--space-2);
+  padding: var(--space-10) var(--space-5);
   text-align: center;
+}
+
+.emptyStateIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3rem;
+  height: 3rem;
+  margin-bottom: var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.emptyStateTitle {
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.emptyStateBody {
+  max-width: 34ch;
+  font-size: var(--text-sm);
+  line-height: var(--leading-body);
+  color: var(--muted-foreground);
+}
+
+.emptyStateAction {
+  margin-top: var(--space-3);
 }
 
 /* Profile page */
@@ -2548,8 +2811,20 @@ body.hasBottomNav .iosInstallBanner {
   position: relative;
   width: 100%;
   height: 200px;
-  border-radius: 20px;
+  border-radius: var(--radius-lg);
   overflow: hidden;
+  border: 1px solid var(--border-strong);
+}
+
+/* Redesign Phase 2: a scrim across the lower cover (--overlay-scrim) so the
+   avatar reads cleanly against it regardless of the uploaded image, and the
+   cover feels deliberate rather than a raw photo. */
+.profileCover::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--overlay-scrim);
+  pointer-events: none;
 }
 
 .profileCoverImg {
@@ -2594,8 +2869,10 @@ body.hasBottomNav .iosInstallBanner {
 }
 
 .profileName {
-  font-size: var(--text-2xl, 1.6rem);
+  font-size: var(--text-3xl);
   font-weight: 700;
+  line-height: var(--leading-heading);
+  letter-spacing: var(--tracking-tight);
 }
 
 .profileActions {
@@ -2843,9 +3120,10 @@ a.verifiedBadge:focus-visible {
 .profileMeta {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-3);
-  margin-top: var(--space-2);
-  font-size: var(--text-sm);
+  align-items: baseline;
+  gap: var(--space-2) var(--space-5);
+  margin-top: var(--space-3);
+  font-size: var(--text-sm-plus);
 }
 
 /* Each stat is number-first, label-second (spec: text before number reads
@@ -2862,14 +3140,13 @@ a.verifiedBadge:focus-visible {
   padding: 0.2rem 0.45rem;
   margin: -0.2rem -0.45rem;
   border-radius: var(--radius-sm);
-  color: var(--foreground);
-  opacity: 0.7;
-  transition: background-color 0.15s ease, opacity 0.15s ease, color 0.15s ease;
+  color: var(--muted-foreground);
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .profileMetaItem strong {
   font-weight: 700;
-  opacity: 1;
+  color: var(--foreground);
 }
 
 a.profileMetaItem:hover {
@@ -2935,6 +3212,54 @@ a.profileMetaItem:hover {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+}
+
+/* Redesign Phase 1 (docs/specs/phase-0-redesign.md §5): the app-wide
+   page-title block (component: PageHeader.tsx). Supersedes .pageHeaderRow /
+   .pageHeading below and the ~64 inline `fontSize: 1.1rem` title styles —
+   adopted per-route in Phase 2. */
+.pageHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+
+.pageHeaderMain {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.pageHeaderTitle {
+  font-size: var(--text-3xl);
+  font-weight: 700;
+  line-height: var(--leading-heading);
+  letter-spacing: var(--tracking-tight);
+}
+
+.pageHeaderDescription {
+  max-width: 52ch;
+  font-size: var(--text-sm-plus);
+  line-height: var(--leading-body);
+  color: var(--muted-foreground);
+}
+
+.pageHeaderActions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+@media (max-width: 640px) {
+  .pageHeaderTitle {
+    font-size: var(--text-2xl);
+  }
 }
 
 /* Index-style page header: title + a single primary action, right-aligned.
@@ -3133,16 +3458,19 @@ a.profileMetaItem:hover {
   flex-direction: column;
   align-items: stretch;
   gap: var(--space-3);
-  border: 1px solid var(--border);
+  /* Redesign Phase 2 (D3): --border-strong + resting --shadow so a post
+     reads as a card on first paint, not a faint outline. */
+  border: 1px solid var(--border-strong);
   background: var(--surface);
   border-radius: var(--radius-lg);
   padding: var(--space-4) var(--space-5);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: var(--shadow);
+  transition: border-color var(--duration-2) var(--ease-out), box-shadow var(--duration-2) var(--ease-out);
 }
 
 .postCard:hover {
-  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
-  box-shadow: var(--shadow);
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border-strong));
+  box-shadow: var(--shadow-md);
 }
 
 /* Applied briefly by ScrollToHashPost.tsx after a notification link
@@ -3178,17 +3506,125 @@ a.profileMetaItem:hover {
   gap: var(--space-2);
 }
 
-/* Like/repost/bookmark/quote/reply row — separated from the post body by a
-   hairline so the action bar reads as its own zone, matching the
-   established professional-feed pattern (Twitter/LinkedIn) rather than the
-   actions floating loose under the text. */
+/* Redesign Phase 2 (D4): the trailing action cluster (Report, and the
+   owner/moderator controls) recedes until the card is hovered or focused —
+   the Twitter/LinkedIn overflow-affordance pattern — so a scannable feed
+   isn't dotted with a "Report" button on every row. Always visible on
+   coarse pointers (no hover) and whenever a menu inside it is open. */
+@media (hover: hover) and (pointer: fine) {
+  .postHeaderActions {
+    opacity: 0;
+    transition: opacity var(--duration-2) var(--ease-out);
+  }
+  .postCard:hover .postHeaderActions,
+  .postCard:focus-within .postHeaderActions,
+  .postHeaderActions:has([data-state="open"]) {
+    opacity: 1;
+  }
+}
+
+/* Like/reply/repost/quote/bookmark row — separated from the post body by a
+   hairline so the action bar reads as its own zone. Redesign Phase 1
+   (docs/specs/phase-0-redesign.md §5 / D4): the controls are borderless
+   icon+count pills (.postAction), not the old heavy bordered buttons with
+   per-instance accent-border inline styles, and Quote/Reply no longer force
+   their own full-width row when closed. */
 .postActionsRow {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-1);
   flex-wrap: wrap;
-  padding-top: var(--space-3);
+  padding-top: var(--space-2);
   border-top: 1px solid var(--border);
+}
+
+.postAction {
+  font: inherit;
+  font-size: var(--text-xs-plus);
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background-color var(--duration-2) var(--ease-out),
+    color var(--duration-2) var(--ease-out);
+}
+
+.postAction:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (hover: hover) {
+  .postAction:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--foreground) 6%, transparent);
+    color: var(--foreground);
+  }
+  .postAction[data-like]:hover:not(:disabled) {
+    background: var(--danger-soft);
+    color: var(--danger);
+  }
+  .postAction[aria-pressed="true"]:not([data-like]):hover:not(:disabled) {
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+}
+
+/* Pressed / toggled — accent for repost + bookmark, red for like. */
+.postAction[aria-pressed="true"] {
+  color: var(--accent);
+}
+.postAction[data-like][aria-pressed="true"] {
+  color: var(--danger);
+}
+
+/* The disclosure wrapper for Quote / Reply: sits inline in the row when
+   closed; once open it claims a full row so its form/reply list has room. */
+.postActionToggle {
+  min-width: 0;
+}
+.postActionToggle > summary {
+  list-style: none;
+}
+.postActionToggle > summary::-webkit-details-marker {
+  display: none;
+}
+.postActionToggle[open] {
+  flex-basis: 100%;
+  order: 1;
+}
+.postActionToggle[open] > summary {
+  color: var(--accent);
+}
+
+/* Bookmark — pushed to the trailing edge of the row. order keeps it last
+   even when an open disclosure above reorders. */
+.postActionEnd {
+  margin-inline-start: auto;
+  order: 2;
+}
+
+/* Coarse-pointer 44px hit area (mirrors the .iconButton/.buttonSmall rule
+   elsewhere in this file — MOBILE / UX_GUIDELINES.md #4). */
+@media (pointer: coarse) {
+  .postAction {
+    min-height: 44px;
+    padding-inline: var(--space-3);
+  }
+}
+
+/* Redesign Phase 1: replaces FeedList's inline flex-column style object. */
+.feedList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
 }
 
 .loadMoreLink {
@@ -3252,6 +3688,34 @@ a.profileMetaItem:hover {
 .row-lg {
   display: flex;
   align-items: center;
+  gap: var(--space-4);
+}
+
+/* Redesign Phase 1 (docs/specs/phase-0-redesign.md §5 / D3). One elevation +
+   radius + padding language for the generic surface panel. `.postCard`,
+   `.profileCard`, `.settingsSection` etc. predate this and aren't retrofitted;
+   new panels use `.card`. `.card--inset` for a nested region (composer,
+   summary block) — no shadow, --surface-2, hairline border. */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  box-shadow: var(--shadow);
+}
+
+.card--inset {
+  background: var(--surface-2);
+  border-color: var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: none;
+}
+
+/* A vertically-rhythmic content block: an optional `.eyebrow` label, a
+   heading, then content. Gap matches the app's section spacing. */
+.section {
+  display: flex;
+  flex-direction: column;
   gap: var(--space-4);
 }
 
@@ -3319,27 +3783,27 @@ a.profileMetaItem:hover {
   background: color-mix(in srgb, var(--foreground) 6%, transparent);
 }
 
-/* Rail's top promo card — reuses the shared .gradientRing pattern above
-   (see that comment for the mechanics), overriding both color layers: a
-   two-tone fill instead of a flat one, and accent->success instead of
-   accent->accent-strong — the one deliberate place that still mixes brand
-   blue with a second hue (green) after the semantic-color rebrand, a
-   "premium" moment gets a little extra visual richness, evoking Google's
-   own multi-color mark, without reaching for red/yellow (which would
-   misread as an actual warning/error on an upgrade card). Not tied to a
-   real PlatformSubscription record (docs/specs/addendum-premium-profiles.md's
-   billing plan hasn't been built yet) — this is the visual placeholder for
-   that upgrade entry point. */
+/* Rail's upgrade card + the anonymous "New here?" card. Redesign Phase 2
+   (D10): deliberately quiet — it was previously the loudest element on every
+   page (gradient-ring border + shadow + gradient badge, evoking Google's
+   multi-color mark). Now a plain --surface card with a single 2px --accent
+   hairline at the top; the CTA button is the only saturated colour. Not tied
+   to a real PlatformSubscription record yet
+   (docs/specs/addendum-premium-profiles.md) — still the visual placeholder
+   for that upgrade entry point. */
 .railPlanCard {
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
-  padding: 1.1rem 1.2rem;
-  border-radius: 14px;
-  border: 1px solid transparent;
-  --gradient-ring-fill: linear-gradient(160deg, color-mix(in srgb, var(--surface) 92%, var(--accent) 8%), var(--surface));
-  --gradient-ring-border: linear-gradient(135deg, var(--accent), var(--success));
-  box-shadow: var(--shadow);
+  gap: 0.6rem;
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  /* Redesign Phase 2 (D10): the upgrade card was the loudest thing on every
+     page — gradient ring border + shadow + gradient badge. Pull it back to a
+     quiet surface card with a hairline top accent; the CTA button carries
+     the only saturated colour. */
+  border: 1px solid var(--border);
+  border-top: 2px solid var(--accent);
+  background: var(--surface);
 }
 
 .railPlanCardHeader {
@@ -3359,13 +3823,13 @@ a.profileMetaItem:hover {
 
 .railPlanCardBadge {
   font-size: var(--text-3xs);
-  font-weight: 700;
-  letter-spacing: 0.06em;
+  font-weight: 600;
+  letter-spacing: var(--tracking-wide);
   text-transform: uppercase;
-  color: var(--on-accent);
-  background: linear-gradient(135deg, var(--accent), var(--success));
+  color: var(--accent);
+  background: var(--accent-soft);
   padding: 0.2rem 0.5rem;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
 }
 
 .railPlanCardPerks {
@@ -3523,29 +3987,48 @@ body.hasBottomNav .appMain {
    flagged inconsistency) with a real class so hover/active/focus states are
    defined once. */
 .navLink {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-2) var(--space-3);
   border-radius: 10px;
   font-weight: 600;
-  opacity: 0.75;
-  color: var(--foreground);
-  transition: background-color 0.15s ease, opacity 0.15s ease, color 0.15s ease, transform 0.15s ease;
+  /* Redesign Phase 2: color, not opacity — opacity was washing out the
+     icons too. Full-strength label on hover/active. */
+  color: var(--muted-foreground);
+  transition:
+    background-color var(--duration-2) var(--ease-out),
+    color var(--duration-2) var(--ease-out),
+    transform var(--duration-2) var(--ease-out);
   min-height: 44px;
 }
 
 .navLink:hover {
-  opacity: 1;
+  color: var(--foreground);
   background: color-mix(in srgb, var(--foreground) 6%, transparent);
   transform: translateX(2px);
 }
 
 .navLinkActive,
 .navLinkActive:hover {
-  opacity: 1;
   color: var(--accent);
   background: var(--accent-soft);
+  transform: none;
+}
+
+/* Left accent bar — ties the active state to the header's brand bar
+   (NAVIGATION.md rule 3). */
+.navLinkActive::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 1.4rem;
+  border-radius: var(--radius-full);
+  background: var(--accent);
 }
 
 .navLinkIcon {
@@ -3553,8 +4036,11 @@ body.hasBottomNav .appMain {
   align-items: center;
   justify-content: center;
   width: 1.25em;
-  font-size: var(--text-base-plus);
   flex-shrink: 0;
+}
+
+.navLinkIcon svg {
+  stroke-width: 1.75;
 }
 
 /* Reddit-style main-nav sections — "You" and "Spaces" (NavSection in
@@ -3571,14 +4057,16 @@ body.hasBottomNav .appMain {
   gap: var(--space-2);
   padding: 0.5rem var(--space-3);
   border-radius: 10px;
+  /* Redesign Phase 2: the `.eyebrow` treatment (D2) — legible at full
+     strength instead of a 0.55-opacity murmur. */
   font-size: var(--text-2xs);
-  font-weight: 700;
-  letter-spacing: 0.05em;
+  font-weight: 500;
+  letter-spacing: var(--tracking-wide);
   text-transform: uppercase;
-  opacity: 0.55;
+  color: var(--muted-foreground);
   cursor: pointer;
   list-style: none;
-  transition: background-color 0.15s ease, opacity 0.15s ease;
+  transition: background-color var(--duration-2) var(--ease-out), color var(--duration-2) var(--ease-out);
 }
 
 .navSectionSummary::-webkit-details-marker {
@@ -3586,7 +4074,7 @@ body.hasBottomNav .appMain {
 }
 
 .navSectionSummary:hover {
-  opacity: 0.9;
+  color: var(--foreground);
   background: color-mix(in srgb, var(--foreground) 6%, transparent);
 }
 

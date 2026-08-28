@@ -1,0 +1,175 @@
+/* Redesign Phase 0 — styleguide route only. Uses design-system tokens
+   throughout so it doubles as a check that the tokens resolve in both themes. */
+
+.page {
+  max-width: var(--measure-wide);
+  margin: 0 auto;
+  padding: var(--space-10) var(--space-5) var(--space-24);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+}
+
+.pageHeader {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.lede,
+.bodyDemo {
+  max-width: var(--measure-prose);
+  color: var(--muted-foreground);
+  line-height: var(--leading-body);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding-top: var(--space-8);
+  border-top: 1px solid var(--border);
+}
+
+.muted {
+  color: var(--muted-foreground);
+  font-size: var(--text-sm);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* Color */
+.swatchGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--space-4);
+}
+
+.swatch {
+  display: grid;
+  grid-template-columns: 2rem 1fr;
+  grid-template-rows: auto auto;
+  column-gap: var(--space-3);
+  align-items: center;
+  font-size: var(--text-xs);
+}
+
+.swatchChip {
+  grid-row: 1 / 3;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+}
+
+.swatch code {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+}
+
+.elevationRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-5);
+}
+
+.elevationCard {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 160px;
+  height: 90px;
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  color: var(--muted-foreground);
+}
+
+/* Type */
+.typeStack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.typeRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border);
+}
+
+.typeRow code {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+}
+
+.demoFrame {
+  padding: var(--space-5);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+/* Inputs */
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--space-4);
+  max-width: var(--measure-prose);
+}
+
+/* Motion */
+.motionGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--space-4);
+}
+
+.motionDemo {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.motionDemoHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border);
+  font-size: var(--text-sm);
+}
+
+.motionDemoStage {
+  padding: var(--space-5);
+  background: var(--surface-2);
+  min-height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.motionBlock {
+  width: 100%;
+  max-width: 220px;
+  height: 72px;
+  margin: 0 auto;
+  border-radius: var(--radius-md);
+  background: var(--gradient-brand-fill);
+}
+
+.motionRow {
+  height: 20px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--foreground) 12%, transparent);
+}

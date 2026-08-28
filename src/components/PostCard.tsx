@@ -6,7 +6,9 @@ import {
   Check,
   CircleHelp,
   Lock,
+  MessageCircle,
   Pin,
+  Quote,
   Repeat2,
   ShieldX,
   X,
@@ -401,7 +403,7 @@ export function PostCard({
                 </span>
               )}
             </span>
-            <span className="row-sm">
+            <span className="row-sm postHeaderActions">
               {canModerate && (
                 <form action={isPinned ? unpinPost : pinPost}>
                   <input type="hidden" name="communityId" value={post.communityId ?? ""} />
@@ -453,49 +455,10 @@ export function PostCard({
         <div className="postActionsRow">
           <LikeButton postId={post.id} liked={isLiked} count={post.likeCount} />
 
-          <form action={toggleRepost}>
-            <input type="hidden" name="postId" value={post.id} />
-            <button
-              type="submit"
-              className="button buttonSecondary iconButton row-sm"
-              style={{ borderColor: "var(--accent)", color: "var(--accent)" }}
-              aria-label="Repost"
-            >
-              <Repeat2 size={16} aria-hidden="true" /> {formatCount(post.repostCount)}
-            </button>
-          </form>
-
-          <form action={toggleBookmark}>
-            <input type="hidden" name="postId" value={post.id} />
-            <button
-              type="submit"
-              className="button buttonSecondary iconButton"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                ...(isBookmarked ? { borderColor: "var(--accent)", color: "var(--accent)" } : undefined),
-              }}
-              aria-pressed={isBookmarked}
-              aria-label="Bookmark"
-            >
-              <Bookmark size={16} aria-hidden="true" fill={isBookmarked ? "currentColor" : "none"} />
-            </button>
-          </form>
-
-          <details className="profileEditToggle" style={{ flex: "1 1 100%", minWidth: 0 }}>
-            <summary className="button buttonSecondary iconButton" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-              Quote
-            </summary>
-            <QuoteRepostForm
-              postId={post.id}
-              authorName={post.author.profile?.displayName ?? "Unknown"}
-              bodyPreview={post.body.slice(0, 80)}
-            />
-          </details>
-
-          <details className="profileEditToggle" style={{ flex: "1 1 100%", minWidth: 0 }}>
-            <summary className="button buttonSecondary iconButton" data-nav-reply style={{ display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-              Reply {post.replyCount > 0 ? `(${formatCount(post.replyCount)})` : ""}
+          <details className="postActionToggle">
+            <summary className="postAction" data-nav-reply>
+              <MessageCircle size={16} aria-hidden="true" />
+              {post.replyCount > 0 ? formatCount(post.replyCount) : "Reply"}
             </summary>
             <ReplyForm replyToId={post.id} />
             {post.replies.length > 0 && (() => {
@@ -550,6 +513,38 @@ export function PostCard({
               );
             })()}
           </details>
+
+          <form action={toggleRepost}>
+            <input type="hidden" name="postId" value={post.id} />
+            <button type="submit" className="postAction" aria-label="Repost">
+              <Repeat2 size={16} aria-hidden="true" />
+              {post.repostCount > 0 ? formatCount(post.repostCount) : "Repost"}
+            </button>
+          </form>
+
+          <details className="postActionToggle">
+            <summary className="postAction">
+              <Quote size={16} aria-hidden="true" />
+              Quote
+            </summary>
+            <QuoteRepostForm
+              postId={post.id}
+              authorName={post.author.profile?.displayName ?? "Unknown"}
+              bodyPreview={post.body.slice(0, 80)}
+            />
+          </details>
+
+          <form action={toggleBookmark} className="postActionEnd">
+            <input type="hidden" name="postId" value={post.id} />
+            <button
+              type="submit"
+              className="postAction"
+              aria-pressed={isBookmarked}
+              aria-label={isBookmarked ? "Remove bookmark" : "Bookmark"}
+            >
+              <Bookmark size={16} aria-hidden="true" fill={isBookmarked ? "currentColor" : "none"} />
+            </button>
+          </form>
         </div>
       )}
     </div>

@@ -26,6 +26,7 @@ export default function robots(): MetadataRoute.Robots {
         "/reset-password",
         "/forgot-password",
         "/claim-username",
+        "/dev",
       ],
     },
     sitemap: "https://0dot.in/sitemap.xml",

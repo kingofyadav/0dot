@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Newspaper, Compass } from "lucide-react";
 import type { getCurrentUser } from "@/lib/session";
 import { EmptyState } from "@/components/EmptyState";
 import { PostCard, type FeedPost } from "@/components/PostCard";
@@ -46,8 +47,21 @@ export function FeedList({
       )}
 
       <ListKeyNav helpTitle="Feed" supportsLike supportsReply>
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-          {posts.length === 0 && <EmptyState message="No posts yet." />}
+        <div className="feedList motion-stagger">
+          {posts.length === 0 &&
+            (showComposer ? (
+              <EmptyState
+                icon={Newspaper}
+                title="Your feed is quiet"
+                description="Follow a few people, or post something above to get it started."
+              />
+            ) : (
+              <EmptyState
+                icon={Compass}
+                title="Nothing to explore yet"
+                description="Posts from across 0dot will show up here as people start sharing."
+              />
+            ))}
           {posts.map((post) => (
             <PostCard
               key={post.id}
