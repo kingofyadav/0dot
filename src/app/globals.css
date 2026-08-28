@@ -4688,24 +4688,30 @@ body.hasBottomNav .mobileNavPanel {
      and pinning the icon cluster's flex-end 320px short of the true right
      edge. Spanning to the last line reclaims that space on every column
      count (a no-op on the 2-column, no-rail case). */
+  /* An inner grid: column 1 (1fr) holds the search box, centered; the icon
+     cluster sits in column 2 at the right edge. Replaces the old
+     flex + margin-right: var(--rail-gap) hack, which centered the search on
+     the midpoint of "everything left of the icon cluster" — the cluster ate
+     into the space the offset assumed was free, so the search landed ~70px
+     left of the content column it's meant to sit over. `auto` icon column
+     here (no rail / the 1024–1280 tier); the 1280+ block below swaps it to
+     a fixed 320px so column 1 matches the now-narrower main column exactly. */
   .desktopTopHeaderSearchWrap {
-    display: flex;
+    display: grid;
+    grid-template-columns: 1fr auto;
     align-items: center;
     gap: 0.75rem;
     grid-column: 2 / -1;
   }
 
-  /* Takes the flexible space between the brand column and the icon
-     cluster, then centers the search box inside it — lines it up over the
-     main content column below (itself centered there via
-     .profileCard/.settingsSection's max-width + margin:auto convention)
-     instead of it hugging the sidebar edge. */
   .desktopTopHeaderSearchCenter {
-    flex: 1 1 auto;
     min-width: 0;
     display: flex;
     justify-content: center;
-    margin-right: var(--rail-gap, 0px);
+  }
+
+  .desktopTopHeaderSearchWrap .siteHeaderActions {
+    justify-content: flex-end;
   }
 
   .desktopTopHeaderSearchCenter .siteHeaderSearch {
@@ -4784,14 +4790,11 @@ body.hasBottomNav .mobileNavPanel {
     grid-template-columns: 240px 1fr 320px;
   }
 
-  /* Consumed by .desktopTopHeaderSearchCenter below: on hasRail routes the
-     header's search wrap spans main+aside (2 / -1, so the icon cluster can
-     still reach the true right edge — see the comment on
-     .desktopTopHeaderSearchWrap), which would otherwise center the search
-     box across main+aside combined instead of over just the main column
-     the page content actually centers in. */
-  body.hasRail {
-    --rail-gap: 320px;
+  /* Now that the body/header have a real 320px aside column, give the search
+     wrap's icon column that same fixed width so its 1fr (the search's cell)
+     lines up 1:1 with the main content column. */
+  body.hasRail .desktopTopHeaderSearchWrap {
+    grid-template-columns: 1fr 320px;
   }
 
   body.hasRail .contextualRail {
