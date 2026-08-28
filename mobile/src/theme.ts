@@ -15,7 +15,14 @@ export type Theme = {
     background: string;
     foreground: string;
     surface: string;
+    // Redesign Phase 5 (docs/specs/phase-0-redesign.md §6): mirrors the web
+    // --surface-2 (a foreground-derived inset step — nested regions) and
+    // --border-strong (the readable card/input edge; --border stays the
+    // near-invisible hairline for dividers). Concrete px/hex here since RN
+    // has no color-mix().
+    surface2: string;
     border: string;
+    borderStrong: string;
     mutedForeground: string;
     accent: string;
     accentStrong: string;
@@ -31,7 +38,7 @@ export type Theme = {
     dangerSoft: string;
     onDanger: string;
   };
-  space: { 1: number; 2: number; 3: number; 4: number; 5: number; 6: number; 8: number };
+  space: { 1: number; 2: number; 3: number; 4: number; 5: number; 6: number; 8: number; 10: number; 12: number; 16: number };
   radius: { sm: number; md: number; lg: number; full: number };
   text: { xs: number; sm: number; base: number; lg: number; xl: number; xxl: number };
   weight: { regular: "400"; label: "500"; emphasis: "600"; heading: "700" };
@@ -55,7 +62,7 @@ type ShadowStyle = {
   elevation: number;
 };
 
-const space = { 1: 4, 2: 8, 3: 12, 4: 16, 5: 20, 6: 24, 8: 32 } as const;
+const space = { 1: 4, 2: 8, 3: 12, 4: 16, 5: 20, 6: 24, 8: 32, 10: 40, 12: 48, 16: 64 } as const;
 const radius = { sm: 8, md: 10, lg: 16, full: 9999 } as const;
 const text = { xs: 12.8, sm: 14.4, base: 16, lg: 17.6, xl: 22.4, xxl: 25.6 } as const;
 const weight = { regular: "400", label: "500", emphasis: "600", heading: "700" } as const;
@@ -97,7 +104,9 @@ const light: Theme = {
     background: "#f5f4f1",
     foreground: "#171717",
     surface: "#fbfaf8",
+    surface2: "#f2f1ef",
     border: "rgba(23, 23, 23, 0.12)",
+    borderStrong: "rgba(23, 23, 23, 0.2)",
     mutedForeground: "#666666",
     accent: "#4285f4",
     accentStrong: "#1a73e8",
@@ -127,7 +136,9 @@ const dark: Theme = {
     background: "#0a0a0a",
     foreground: "#ededed",
     surface: "#131313",
+    surface2: "#1c1c1c",
     border: "rgba(237, 237, 237, 0.12)",
+    borderStrong: "rgba(237, 237, 237, 0.18)",
     mutedForeground: "#a0a0a0",
     accent: "#8ab4f8",
     accentStrong: "#669df6",
@@ -178,8 +189,8 @@ function applyThemePrefs(base: Theme, prefs: ThemePrefs): Theme {
     ? {
         ...base.colors,
         ...(base.scheme === "dark"
-          ? { foreground: "#ffffff", mutedForeground: "#f0f0f0", border: "#ffffff" }
-          : { foreground: "#000000", mutedForeground: "#1a1a1a", border: "#000000" }),
+          ? { foreground: "#ffffff", mutedForeground: "#f0f0f0", border: "#ffffff", borderStrong: "#ffffff" }
+          : { foreground: "#000000", mutedForeground: "#1a1a1a", border: "#000000", borderStrong: "#000000" }),
       }
     : base.colors;
 

@@ -16,7 +16,9 @@ export function Card({ children, elevated, style }: { children: ReactNode; eleva
         styles.card,
         {
           backgroundColor: theme.colors.surface,
-          borderColor: theme.colors.border,
+          // Redesign Phase 5: the readable edge (--border-strong on web), so
+          // a card reads as a raised surface, not a faint outline.
+          borderColor: theme.colors.borderStrong,
           borderRadius: theme.radius.lg,
           padding: theme.space[4],
         },
@@ -30,5 +32,5 @@ export function Card({ children, elevated, style }: { children: ReactNode; eleva
 }
 
 const styles = StyleSheet.create({
-  card: { borderWidth: StyleSheet.hairlineWidth },
+  card: { borderWidth: 1 },
 });

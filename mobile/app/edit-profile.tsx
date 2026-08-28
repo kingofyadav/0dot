@@ -363,8 +363,9 @@ function createStyles(theme: Theme) {
     label: { fontSize: theme.text.sm, fontWeight: theme.weight.label, color: theme.colors.mutedForeground },
     counter: { fontSize: theme.text.xs, color: theme.colors.mutedForeground },
     input: {
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: theme.colors.border,
+      // Redesign Phase 5: readable input edge (--border-strong on web).
+      borderWidth: 1,
+      borderColor: theme.colors.borderStrong,
       borderRadius: theme.radius.md,
       backgroundColor: theme.colors.surface,
       color: theme.colors.foreground,
@@ -380,8 +381,8 @@ function createStyles(theme: Theme) {
       alignItems: "center",
       gap: theme.space[3],
       minHeight: 48,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: theme.colors.border,
+      borderWidth: 1,
+      borderColor: theme.colors.borderStrong,
       borderRadius: theme.radius.md,
       backgroundColor: theme.colors.surface,
       paddingHorizontal: theme.space[3],

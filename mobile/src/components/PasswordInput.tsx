@@ -54,8 +54,9 @@ function createStyles(theme: Theme) {
     wrap: {
       flexDirection: "row",
       alignItems: "center",
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: theme.colors.border,
+      // Redesign Phase 5: readable input edge (--border-strong on web).
+      borderWidth: 1,
+      borderColor: theme.colors.borderStrong,
       borderRadius: theme.radius.md,
       backgroundColor: theme.colors.surface,
     },

@@ -65,8 +65,9 @@ function createStyles(theme: Theme) {
       paddingHorizontal: theme.space[4],
       borderRadius: theme.radius.full,
       backgroundColor: theme.colors.surface,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: theme.colors.border,
+      // Redesign Phase 5: readable input edge (--border-strong on web).
+      borderWidth: 1,
+      borderColor: theme.colors.borderStrong,
     },
     input: { flex: 1, fontSize: theme.text.base, color: theme.colors.foreground, paddingVertical: 0 },
   });

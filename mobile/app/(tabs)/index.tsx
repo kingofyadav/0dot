@@ -213,11 +213,15 @@ export default function HomeScreen() {
           onEndReachedThreshold={0.4}
           ListHeaderComponent={offlineCachedAt ? <OfflineBanner cachedAt={offlineCachedAt} /> : null}
           ListEmptyComponent={
-            <EmptyState
-              icon={error ? "cloud-offline-outline" : "newspaper-outline"}
-              message={error ?? "Nothing in your feed yet. Follow people on 0dot to see their posts here."}
-              onRetry={error ? loadFirstPage : undefined}
-            />
+            error ? (
+              <EmptyState icon="cloud-offline-outline" message={error} onRetry={loadFirstPage} />
+            ) : (
+              <EmptyState
+                icon="newspaper-outline"
+                title="Your feed is quiet"
+                description="Follow a few people on 0dot and their posts will show up here."
+              />
+            )
           }
           ListFooterComponent={loadingMore ? <ActivityIndicator style={styles.footerSpinner} color={theme.colors.accent} /> : null}
           renderItem={({ item }) => (
