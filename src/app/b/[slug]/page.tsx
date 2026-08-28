@@ -9,6 +9,7 @@ import { businessCategoryLabel } from "@/lib/business-categories";
 import { leaveBusinessTeam } from "@/app/actions/businesses";
 import { getPrimaryLiveDomain } from "@/lib/custom-domains";
 import { Logo } from "@/components/Logo";
+import { BusinessViewerCount } from "@/components/BusinessViewerCount";
 import { BusinessContactForm } from "./BusinessContactForm";
 
 const DAY_ORDER = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
@@ -124,6 +125,9 @@ export default async function BusinessPage({ params }: { params: Promise<{ slug:
                 ★ {business.averageRating.toFixed(1)} ({business.reviewCount})
               </Link>
             )}
+            {/* Realtime addendum Phase E — pings for every viewer; shows the
+                live count only to the owner. */}
+            <BusinessViewerCount businessSlug={business.slug} isOwner={isOwner} />
           </div>
         </div>
       </div>

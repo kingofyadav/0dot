@@ -510,6 +510,44 @@ export async function notifyJobAlertMatch(args: { recipientId: string; businessS
   await dispatchPushEvent({ recipientId: args.recipientId, type: "job_alert_match", subjectType: "business", subjectId });
 }
 
+// Realtime addendum Phase E (docs/specs/addendum-realtime-community.md §8):
+// a new inbound ContactMessage notifies the business's admin+ staff. The
+// sender may be a logged-out visitor (the form is public — see
+// sendContactMessage), so there's no actorId — system-generated, bypasses
+// createNotification like notifyJobAlertMatch. Every other business signal
+// (new review, appointment request/confirm, job application) already
+// notifies + pushes; this was the one inbound event that didn't.
+export async function notifyBusinessContactMessage(args: {
+  businessId: string;
+  businessSlug: string;
+}): Promise<void> {
+  const staff = await db.businessMember.findMany({
+    where: { businessId: args.businessId, role: { in: ["owner", "admin"] } },
+    select: { userId: true },
+  });
+  if (staff.length === 0) return;
+
+  const subjectId = `${args.businessSlug}/manage/contact`;
+  await db.notification.createMany({
+    data: staff.map((m) => ({
+      recipientId: m.userId,
+      actorId: null,
+      type: "business_contact",
+      subjectType: "business",
+      subjectId,
+    })),
+  });
+  publishToUsers(
+    staff.map((m) => m.userId),
+    { type: "notification" }
+  );
+
+  const { dispatchPushEvent } = await import("@/lib/push");
+  await Promise.all(
+    staff.map((m) => dispatchPushEvent({ recipientId: m.userId, type: "business_contact", subjectType: "business", subjectId }))
+  );
+}
+
 // spec §9.2: fires to admin+ team members when a new JobApplication is
 // created. subjectId is the path segment after "/b/" needed to reach the
 // applications queue (`{slug}/jobs/{jobId}`) — same "store exactly what the
@@ -784,6 +822,8 @@ export function getNotificationVerb(type: string, subjectType?: string, subjectI
       return "invited you to join a community";
     case "business_review":
       return "left a review on your business";
+    case "business_contact":
+      return "sent your business a message";
     case "job_application":
       return "applied to a job posting";
     case "job_alert_match":
@@ -908,6 +948,9 @@ export function getNotificationHref(
       return `/c/${n.subjectId}`;
     case "business_review":
       return `/b/${n.subjectId}/reviews`;
+    case "business_contact":
+      // subjectId is already `{slug}/manage/contact` (see notifyBusinessContactMessage).
+      return `/b/${n.subjectId}`;
     case "job_application":
       return `/b/${n.subjectId}/applications`;
     case "job_alert_match":

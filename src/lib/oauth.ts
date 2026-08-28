@@ -50,8 +50,13 @@ export const OAUTH_SCOPES = [
   // behalf." Creating a post *inside* a community reuses posts:write
   // (it's the same Post table, same consent-screen meaning), not a third
   // communities scope.
-  { key: "communities:read", description: "Read communities and their posts", sensitivity: "low" },
-  { key: "communities:write", description: "Join and leave communities on your behalf", sensitivity: "low" },
+  //
+  // Realtime addendum Phase C: live chat (CommunityChatMessage — an
+  // ephemeral broadcast stream, *not* the Post table) is a community-scoped
+  // write with no post-timeline meaning, so it stays on communities:write
+  // rather than posts:write. Description widened to cover it.
+  { key: "communities:read", description: "Read communities, their posts, and their chat", sensitivity: "low" },
+  { key: "communities:write", description: "Join and leave communities and send community chat messages on your behalf", sensitivity: "low" },
   { key: "marketplace:read", description: "Read your marketplace purchases and listings", sensitivity: "low" },
   // mobile pro-upgrade addendum M5: marketplace:read already covered
   // browsing; installing/purchasing is a real action (spending or adding

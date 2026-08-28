@@ -14,6 +14,7 @@ import { FeedRowSkeleton } from "../../src/components/Skeleton";
 import { animateNextLayout } from "../../src/utils/animateLayout";
 import { haptics } from "../../src/utils/haptics";
 import { getCached, setCached } from "../../src/utils/offlineCache";
+import { useAppForeground } from "../../src/utils/useAppForeground";
 import { useContentMaxWidth } from "../../src/utils/responsive";
 import { useTheme, type Theme } from "../../src/theme";
 import type { Post } from "../../src/api/types";
@@ -94,6 +95,12 @@ export default function HomeScreen() {
     await loadFirstPage();
     setRefreshing(false);
   }
+
+  // useFocusEffect doesn't fire when the app is backgrounded and
+  // re-opened onto this already-focused tab — so a feed left open
+  // overnight would show yesterday's posts (or the offline-cache
+  // fallback) until a manual pull. Refresh on foreground instead.
+  useAppForeground(loadFirstPage);
 
   // Mobile pro-upgrade addendum, sub-phase M13 — a "new posts" pill
   // instead of silently doing nothing until a manual pull-to-refresh.

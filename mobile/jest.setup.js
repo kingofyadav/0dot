@@ -30,6 +30,12 @@ jest.mock("react-native-reanimated", () => {
   function useReducedMotion() {
     return false;
   }
+  // BottomSheet lifts itself by the live keyboard height; under Jest there
+  // is no keyboard, so a static zero-height shared value is enough — the
+  // sheet tests assert on send/confirm behavior, never on its offset.
+  function useAnimatedKeyboard() {
+    return { height: { value: 0 }, state: { value: 0 } };
+  }
   // react-native-gesture-handler's GestureDetector calls this internally
   // (to wire its native event stream to worklet handlers) regardless of
   // whether a gesture actually needs a Reanimated-driven style — it just
@@ -61,6 +67,7 @@ jest.mock("react-native-reanimated", () => {
     useSharedValue,
     useAnimatedStyle,
     useReducedMotion,
+    useAnimatedKeyboard,
     useEvent,
     useAnimatedScrollHandler,
     withSpring,

@@ -28,6 +28,15 @@ export default defineConfig({
       MESSAGE_ENCRYPTION_KEY: TEST_MESSAGE_ENCRYPTION_KEY,
       STRIPE_SECRET_KEY: TEST_STRIPE_SECRET_KEY,
       NODE_ENV: "test",
+      // Vite loads .env / .env.local into the test process, which carry real
+      // Upstash + LiveKit creds — force them empty so the realtime bus uses
+      // the in-memory driver and the voice-room LiveKit helpers
+      // (src/lib/voice-livekit.ts) no-op instead of hitting the network.
+      KV_REST_API_URL: "",
+      UPSTASH_REDIS_REST_URL: "",
+      LIVEKIT_URL: "",
+      LIVEKIT_API_KEY: "",
+      LIVEKIT_API_SECRET: "",
     },
   },
 });

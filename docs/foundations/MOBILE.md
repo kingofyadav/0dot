@@ -28,11 +28,11 @@ domain doesn't need a manual per-scope provisioning step.
 
 - **Auth:** OAuth2 + PKCE via `expo-auth-session` (`src/auth/pkceAuth.ts`), tokens in **`expo-secure-store`** (not AsyncStorage — they're bearer-equivalent credentials), refresh-token grant with a silent-refresh path (`src/auth/tokenStorage.ts`, `AuthContext.tsx`). Optional biometric app lock (`expo-local-authentication`, `src/auth/biometricLock.ts`, `LockScreen.tsx`).
 - **API client:** `src/api/client.ts` + `http.ts` — typed wrappers over `/api/v1`, cursor pagination (`{ items, nextCursor }`) matching `src/lib/pagination.ts` on the server.
-- **Realtime:** started as REST-polling + push-driven refresh (M3 decision — the web app's SSE is in-memory, cookie-session-only, single-process and not safe to expose under `/api/v1` as-is). M10 added a **bearer-token SSE** path (`src/realtime/`) for messages/presence once that infra was built server-side.
+- **Realtime:** started as REST-polling + push-driven refresh (M3 decision — the web app's SSE was in-memory, cookie-session-only, single-process). M10 added a **bearer-token SSE** path (`src/realtime/`) for messages/presence. **Realtime addendum (2026-08-29, `docs/specs/addendum-realtime-community.md`) — Phase A complete:** a shared cross-instance backplane in `src/lib/realtime/` — `bus.ts` (driver abstraction), in-memory + Upstash-Redis drivers (one `PSUBSCRIBE rt:*` per instance), with the 4 pub/sub modules + presence (`presence-store.ts`, self-healing sorted-set) refactored onto it so a publish on one Vercel instance reaches a subscriber on another. `presence.ts` changed shape (`isUserOnline` async, `getOnlineUserIds` batch, `refreshPresence` on the SSE heartbeat). Upstash provisioned via the Marketplace — env is `KV_REST_API_*` (not `UPSTASH_*`). Load spike (`scripts/realtime-load-spike.mjs`): 20 instances × 1000 msg @ 250/s → 100% delivery. **Phase B complete** — `mobile/src/realtime/messagesStream.ts` is now `createMessagesStream(...)` → `{setActive, close}`: AppState-gated (SSE closed while backgrounded), own exponential backoff, and a synthetic `resync` event on every reconnect that makes consumers refetch. `src/lib/push.ts` suppresses a push when the recipient has an open SSE stream (foreground = SSE, background = push). `mobile/src/utils/useAppForeground.ts` re-fetches the feed + notifications tabs on background→foreground. **Phase C complete** — community live chat on mobile: v1 routes at `communities/[slug]/chat/{route,[messageId],stream,typing}`, `CommunityChatEvent` enriched to carry the message payload + a `seq`, `src/screens/CommunityChatBody.tsx` + `app/community/[slug]/chat.tsx` (Chat button on the community screen), SSE connection logic extracted to the shared `src/realtime/eventStream.ts` (`createMessagesStream` + `createCommunityChatStream` are wrappers), and **`Last-Event-ID` replay** (`src/lib/realtime/replay.ts` — a short Redis ring buffer per channel; the chat stream replays exactly what a reconnecting client missed instead of a full refetch; `eventStream.ts` tracks the id and skips the client `resync` when it can replay). Open in C: the two-device send/receive pass — blocked on deploying the branch (the mobile build targets prod, which lacks these routes). Phases D–E (LiveKit voice, business signals) planned in that spec.
 - **Push:** `expo-notifications` via Expo's relay (`src/push/`) — real delivery, not a stub. Web push is a separate third channel on the web side.
 - **Offline:** `src/utils/offlineCache.ts` (AsyncStorage-backed) caches feed/profile for offline view; onboarding + tablet-responsive layout landed in Phase 15's mobile work.
 - **Shared screen bodies:** `[username].tsx` (deep-linked profile) and `(tabs)/profile.tsx` (own profile tab) share one implementation, `src/screens/ProfileScreenBody.tsx` — the same "one implementation, two entry points" discipline the web app uses for `PostCard` etc.
-- **Design tokens:** `src/theme.ts` mirrors the web token system — `shadow.{sm,md,lg}` approximates the web's dual-layer `--shadow*`, `motion.{fast,base,slow}` mirrors `--transition-*`, `on*` text-on-color tokens match. `src/utils/themePresets.ts` mirrors the web's profile theme presets. Not a second palette — deliberately the same visual language. **Redesign Phase 5** (`docs/specs/phase-0-redesign.md`) added `colors.surface2` / `colors.borderStrong` and the larger `space.{10,12,16}` steps to match the web redesign, adopted them in `Card` and the shared inputs (`SearchBar`, `PasswordInput`, edit-profile fields), and brought `EmptyState` to parity with the web component (icon in a soft accent disc, `title` + `description` + `action` slot; `message` still maps to `title`, `onRetry` stays for the error case).
+- **Design tokens:** `src/theme.ts` mirrors the web token system — `shadow.{sm,md,lg}` approximates the web's dual-layer `--shadow*`, `motion.{fast,base,slow}` mirrors `--transition-*`, `on*` text-on-color tokens match. `src/utils/themePresets.ts` mirrors the web's profile theme presets. Not a second palette — deliberately the same visual language. **Redesign Phase 5** (`docs/specs/phase-0-redesign.md`) added `colors.surface2` / `colors.borderStrong` and the larger `space.{10,12,16}` steps to match the web redesign, adopted them in `Card` and the shared inputs (`SearchBar`, `PasswordInput`, edit-profile fields), and brought `EmptyState` to parity with the web component (icon in a soft accent disc, `title` + `description` + `action` slot; `message` still maps to `title`, `onRetry` stays for the error case). A later pass (2026-08-29) added the profile-header cover scrim (`expo-linear-gradient`, a bottom-weighted overlay mirroring the web `--overlay-scrim` stops) and brought `PostRow` + the post-detail stats row to web `.postActionsRow` parity: liked state is `colors.danger` (red filled heart, matching web's `.postAction[data-like]` — the one place a status hue is used non-decoratively, same as web), a hairline divider above the action zone, zero counts hidden, and a shared `formatCount` util (`999+` cap, mirrors `src/lib/format.ts`).
 
 ## Navigation
 
@@ -54,7 +54,7 @@ status line is authoritative. Summary:
 | Feed, single post, compose, like/repost/bookmark | **Built** |
 | Search / Explore | **Built** — two tabs (People / Posts), not web's eight |
 | Messages / DMs | **Built** — text + (M14) voice notes & file attachments; started REST-polling, now bearer-token SSE (M10) |
-| Communities | **Built** — browse/join/post; community chat & voice rooms deferred |
+| Communities | **Built** — browse/join/post; **live chat** (Phase C); **voice rooms** on LiveKit — web + mobile code complete (Phase D), pending a mobile dev-client rebuild + device audio pass |
 | Businesses, Marketplace | **Built, browse-only** |
 | Events | **Built** |
 | Wallet | **Built (partial)** — balance + P2P coin transfer only; top-up / payout / VIP purchase deferred (don't fully exist on web either) |
@@ -62,10 +62,15 @@ status line is authoritative. Summary:
 | Settings / account parity | **Built (M12)** — edit profile, preferences, privacy, blocked users, notification prefs, change password, **2FA**, **sessions**, **contact change**, account management |
 | Bookmarks | **Built** |
 
-**Deferred / not built on mobile:** community chat & voice rooms (need their
-own realtime design pass), native in-app purchase (M11 — engineering half
-only; the legal-gated purchase flow and finance-ops disbursement are not
-buildable by the addendum alone), wallet top-up/payout.
+**Deferred / not built on mobile:** native in-app purchase (M11 —
+engineering half only; the legal-gated purchase flow and finance-ops
+disbursement are not buildable by the addendum alone), wallet top-up/payout.
+
+**Needs a dev-client rebuild before it runs:** the Phase D voice-room screen
+(`@livekit/react-native` + `@livekit/react-native-webrtc` are native
+modules; `@config-plugins/react-native-webrtc` is in `app.json`). Same
+`eas build --profile development` step as the other native-dep additions
+below.
 
 ## Native-module gotchas (learned the hard way — see also `mobile/AGENTS.md`)
 

@@ -23,7 +23,9 @@
         "applinks:0dot.in"
       ],
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSMicrophoneUsageDescription": "0dot uses your microphone so you can speak in community voice rooms.",
+        "UIBackgroundModes": ["audio"]
       }
     },
     "android": {
@@ -52,7 +54,11 @@
       ],
       "permissions": [
         "android.permission.USE_BIOMETRIC",
-        "android.permission.USE_FINGERPRINT"
+        "android.permission.USE_FINGERPRINT",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MICROPHONE"
       ]
     },
     "web": {
@@ -100,7 +106,13 @@
       ],
       "expo-sharing",
       "@sentry/react-native",
-      "expo-audio"
+      "expo-audio",
+      [
+        "@config-plugins/react-native-webrtc",
+        {
+          "microphonePermission": "0dot uses your microphone so you can speak in community voice rooms."
+        }
+      ]
     ],
     "runtimeVersion": {
       "policy": "appVersion"

@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, RefreshControl, Share, StyleSheet, Text, View } from "react-native";
 import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
 import Animated, {
   Extrapolation,
   interpolate,
@@ -305,6 +306,19 @@ export function ProfileScreenBody({ username, showSettingsShortcut = false }: { 
                   />
                 </Animated.View>
               </Pressable>
+              {/* Redesign Phase 5: a scrim across the cover, mirroring the web
+                  app's --overlay-scrim (globals.css) and .profileCover::after —
+                  same rgba stops (0.72 → 0.36 → transparent, bottom-weighted) so
+                  the header controls and the avatar below read cleanly over an
+                  uploaded photo of any brightness, and the cover feels
+                  deliberate rather than a raw image. pointerEvents none keeps
+                  the tap-to-open-lightbox on the cover itself working. */}
+              <LinearGradient
+                colors={["transparent", "rgba(0, 0, 0, 0.36)", "rgba(0, 0, 0, 0.72)"]}
+                locations={[0.34, 0.68, 1]}
+                pointerEvents="none"
+                style={styles.coverScrim}
+              />
               <View style={styles.headerButtons}>
                 <Pressable onPress={onShare} accessibilityRole="button" accessibilityLabel="Share profile" hitSlop={8} style={styles.headerButton}>
                   <Ionicons name="share-outline" size={20} color="#fff" />
@@ -423,6 +437,7 @@ function createStyles(theme: Theme) {
     // (scale transform) to the cover's own bounds, rather than letting the
     // scaled-up image spill into the avatar/name area below it.
     coverClip: { height: COVER_HEIGHT, overflow: "hidden" },
+    coverScrim: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
     headerButtons: {
       position: "absolute",
       top: theme.space[3],

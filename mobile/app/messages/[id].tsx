@@ -115,7 +115,12 @@ export default function ConversationScreen() {
   useMessagesStreamEvents(
     useCallback(
       (event) => {
-        if ((event.type === "new-message" || event.type === "conversation-updated") && event.conversationId === id) {
+        const forThisConversation =
+          (event.type === "new-message" || event.type === "conversation-updated") && event.conversationId === id;
+        // `resync` (reconnect / app-foreground) has no conversationId — always
+        // refetch the open thread so a message that landed while the socket
+        // was down or the app was backgrounded shows without a manual pull.
+        if (forThisConversation || event.type === "resync") {
           load();
           markConversationRead(id).catch(() => {});
         }

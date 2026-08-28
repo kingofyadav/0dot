@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Room, RoomEvent, Track } from "livekit-client";
 import { Mic } from "lucide-react";
 import {
   joinVoiceRoom,
@@ -11,28 +12,26 @@ import {
   startSpeaking,
   stopSpeaking,
   forceStopSpeaker,
-  sendVoiceSignal,
+  requestVoiceRoomToken,
 } from "@/app/actions/voice-rooms";
 
-// Must match src/lib/voice-rooms.ts's MAX_FLOOR_HOLD_MS — can't import a
-// "server-only" module into client code, so this is a duplicated constant,
-// not a shared one. The client-side timer is the normal release path; the
-// server's copy is only a fallback for a dropped connection.
+// Phase D (docs/specs/addendum-voice-rooms-livekit.md): audio runs on a
+// LiveKit SFU room, not the old WebRTC mesh. This view still owns only the
+// *client* side — the FIFO floor is all server state
+// (src/app/actions/voice-rooms.ts), reflected here via the room-state SSE +
+// a coalesced router.refresh(), same pattern as CommunityChatView.
+//
+// Only the current speaker publishes a mic track; everyone auto-subscribes.
+// The server grants/revokes LiveKit publish permission as the floor moves
+// (setVoicePublish), and the token itself is minted with the right
+// canPublish for the current floor — so this component only has to toggle
+// its own mic to match `currentSpeakerId`.
+
+// Must match src/lib/voice-rooms.ts's MAX_FLOOR_HOLD_MS — a "server-only"
+// module can't be imported into client code. The client timer is the
+// normal auto-release; the server's copy is the dropped-connection fallback.
 const MAX_FLOOR_HOLD_MS = 60_000;
-const REFRESH_COALESCE_MS = 300; // same coalescing posture as MessagingProvider/CommunityChatView
-
-// No TURN server — a known limitation (see the plan/spec comment), not an
-// oversight: participants behind a symmetric NAT or restrictive corporate
-// firewall may fail to connect. STUN-only is enough for typical home/office
-// networks. Overridable via NEXT_PUBLIC_VOICE_STUN_URLS (comma-separated)
-// for deployments that add their own STUN/TURN later.
-const STUN_URLS = (process.env.NEXT_PUBLIC_VOICE_STUN_URLS ?? "stun:stun.l.google.com:19302").split(",");
-const ICE_SERVERS: RTCIceServer[] = [{ urls: STUN_URLS }];
-
-type SignalPayload =
-  | { kind: "offer"; sdp: RTCSessionDescriptionInit }
-  | { kind: "answer"; sdp: RTCSessionDescriptionInit }
-  | { kind: "ice"; candidate: RTCIceCandidateInit };
+const REFRESH_COALESCE_MS = 300;
 
 export type VoiceParticipant = {
   userId: string;
@@ -69,150 +68,72 @@ export function VoiceRoomView({
 }) {
   const router = useRouter();
   const [micError, setMicError] = useState<string | null>(null);
-  const [isBroadcasting, setIsBroadcasting] = useState(false);
-  // Surfaced when a listener's inbound connection to the current speaker
-  // fails (bad NAT, no TURN configured — see ICE_SERVERS's comment above)
-  // — previously this failed silently: the listener just heard nothing
-  // forever with no indication anything was wrong, and no way to recover
-  // short of leaving and rejoining the room by hand.
   const [connectionError, setConnectionError] = useState<string | null>(null);
 
-  const remoteAudioRef = useRef<HTMLAudioElement>(null);
-  const peerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
-  const localStreamRef = useRef<MediaStream | null>(null);
-  const knownParticipantIdsRef = useRef<Set<string>>(new Set());
-  const prevSpeakerIdRef = useRef<string | null>(null);
+  const roomRef = useRef<Room | null>(null);
+  const connectedRef = useRef(false);
   const autoStopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const refreshPendingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  function sendSignalToServer(targetUserId: string, payload: SignalPayload) {
-    const formData = new FormData();
-    formData.set("voiceRoomId", roomId);
-    formData.set("targetUserId", targetUserId);
-    formData.set("payload", JSON.stringify(payload));
-    void sendVoiceSignal(formData);
-  }
+  const iAmSpeaking = currentSpeakerId === currentUserId;
 
-  function closePeer(peerId: string) {
-    peerConnectionsRef.current.get(peerId)?.close();
-    peerConnectionsRef.current.delete(peerId);
-  }
+  // Connect to the LiveKit room once we're a participant; disconnect on
+  // leave / unmount.
+  useEffect(() => {
+    if (!isParticipant) return;
+    let cancelled = false;
+    const room = new Room();
+    roomRef.current = room;
 
-  // A connection reaching "failed" never recovers on its own (unlike
-  // "disconnected", which can self-heal on a brief network blip) — close it
-  // and drop it from the map so it doesn't linger as a dead entry that
-  // knownParticipantIdsRef still thinks is live. `role: "listener"` also
-  // surfaces a visible error, since that side has no other signal that
-  // anything went wrong; the broadcaster side just silently loses that one
-  // listener, same as if they'd left normally.
-  function monitorConnection(pc: RTCPeerConnection, peerId: string, role: "listener" | "broadcaster-leg") {
-    pc.oniceconnectionstatechange = () => {
-      if (pc.iceConnectionState !== "failed") return;
-      closePeer(peerId);
-      if (role === "listener") {
-        setConnectionError("Lost the connection to the speaker. Leave and rejoin to reconnect.");
-        if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
+    room.on(RoomEvent.TrackSubscribed, (track) => {
+      if (track.kind === Track.Kind.Audio) track.attach(); // detached <audio>, autoplay
+    });
+    room.on(RoomEvent.Disconnected, () => {
+      connectedRef.current = false;
+    });
+
+    (async () => {
+      const result = await requestVoiceRoomToken(roomId);
+      if (cancelled) return;
+      if ("error" in result) {
+        setConnectionError(result.error);
+        return;
       }
+      try {
+        await room.connect(result.url, result.token);
+        if (cancelled) {
+          void room.disconnect();
+          return;
+        }
+        connectedRef.current = true;
+        setConnectionError(null);
+        // If we reconnected mid-turn, our token already carries publish —
+        // turn the mic on to match the floor.
+        if (currentSpeakerId === currentUserId) await enableMic(room);
+      } catch {
+        if (!cancelled) setConnectionError("Couldn't connect to the room's audio. Try refreshing the page.");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      connectedRef.current = false;
+      if (autoStopTimerRef.current) clearTimeout(autoStopTimerRef.current);
+      void room.disconnect();
+      roomRef.current = null;
     };
-  }
+    // Keyed only on isParticipant/roomId — currentSpeakerId is handled by
+    // the mic-toggle effect below, re-connecting on every floor change
+    // would drop everyone's audio.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isParticipant, roomId]);
 
-  function closeAllPeers() {
-    for (const pc of peerConnectionsRef.current.values()) pc.close();
-    peerConnectionsRef.current.clear();
-  }
-
-  async function connectToPeer(peerId: string, stream: MediaStream) {
-    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
-    stream.getTracks().forEach((track) => pc.addTrack(track, stream));
-    pc.onicecandidate = (e) => {
-      if (e.candidate) sendSignalToServer(peerId, { kind: "ice", candidate: e.candidate.toJSON() });
-    };
-    monitorConnection(pc, peerId, "broadcaster-leg");
-    peerConnectionsRef.current.set(peerId, pc);
-
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-    sendSignalToServer(peerId, { kind: "offer", sdp: offer });
-  }
-
-  async function startBroadcasting() {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      localStreamRef.current = stream;
-      setIsBroadcasting(true);
-      setMicError(null);
-
-      const others = participants.filter((p) => p.userId !== currentUserId);
-      knownParticipantIdsRef.current = new Set(others.map((p) => p.userId));
-      await Promise.all(others.map((p) => connectToPeer(p.userId, stream)));
-
-      autoStopTimerRef.current = setTimeout(() => {
-        const formData = new FormData();
-        formData.set("voiceRoomId", roomId);
-        void stopSpeaking(formData);
-      }, MAX_FLOOR_HOLD_MS);
-    } catch {
-      setMicError("Couldn't access your microphone.");
-      const formData = new FormData();
-      formData.set("voiceRoomId", roomId);
-      void stopSpeaking(formData);
-    }
-  }
-
-  function stopBroadcasting() {
-    closeAllPeers();
-    localStreamRef.current?.getTracks().forEach((t) => t.stop());
-    localStreamRef.current = null;
-    setIsBroadcasting(false);
-    if (autoStopTimerRef.current) {
-      clearTimeout(autoStopTimerRef.current);
-      autoStopTimerRef.current = null;
-    }
-  }
-
-  function cleanupListening() {
-    closeAllPeers();
-    if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
-    setConnectionError(null);
-  }
-
-  async function handleSignal(from: string, payload: SignalPayload) {
-    if (payload.kind === "offer") {
-      setConnectionError(null);
-      const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
-      pc.ontrack = (e) => {
-        if (remoteAudioRef.current) remoteAudioRef.current.srcObject = e.streams[0];
-      };
-      pc.onicecandidate = (e) => {
-        if (e.candidate) sendSignalToServer(from, { kind: "ice", candidate: e.candidate.toJSON() });
-      };
-      monitorConnection(pc, from, "listener");
-      peerConnectionsRef.current.set(from, pc);
-      await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-      sendSignalToServer(from, { kind: "answer", sdp: answer });
-    } else if (payload.kind === "answer") {
-      await peerConnectionsRef.current.get(from)?.setRemoteDescription(new RTCSessionDescription(payload.sdp));
-    } else if (payload.kind === "ice") {
-      await peerConnectionsRef.current.get(from)?.addIceCandidate(new RTCIceCandidate(payload.candidate));
-    }
-  }
-
-  // SSE subscription — only once we're a participant (the stream route is
-  // participant-gated, see its comment). Signaling is handled directly
-  // here; room-state changes (participants/queue/speaker) trigger a
-  // coalesced router.refresh() so the server-rendered props below stay
-  // current, same pattern as CommunityChatView.
+  // Room-state SSE — a coalesced router.refresh() on any `room-updated` so
+  // the server-rendered props (participants / queue / speaker) stay current.
   useEffect(() => {
     if (!isParticipant) return;
     const source = new EventSource(`/api/c/${communitySlug}/voice/${roomId}/stream`);
-    source.onmessage = (e) => {
-      const event = JSON.parse(e.data) as { type: "room-updated" } | { type: "signal"; from: string; payload: SignalPayload };
-      if (event.type === "signal") {
-        void handleSignal(event.from, event.payload);
-        return;
-      }
+    source.onmessage = () => {
       if (refreshPendingRef.current) return;
       refreshPendingRef.current = setTimeout(() => {
         refreshPendingRef.current = null;
@@ -223,86 +144,43 @@ export function VoiceRoomView({
       source.close();
       if (refreshPendingRef.current) clearTimeout(refreshPendingRef.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- handleSignal closes over refs, not state; re-subscribing on every participant-list change would thrash the connection
   }, [isParticipant, communitySlug, roomId, router]);
 
-  // Reacts to the floor changing (a fresh currentSpeakerId prop after a
-  // router.refresh()) — this is where actual WebRTC connections get
-  // opened/closed, independent of the SSE effect above so a room-state
-  // refresh never tears down an in-progress audio connection by accident.
-  useEffect(() => {
-    const prevSpeaker = prevSpeakerIdRef.current;
-
-    if (currentSpeakerId === prevSpeaker) {
-      // No speaker transition — but if I'm currently broadcasting, the
-      // participant list may have changed: a new listener joined mid-turn
-      // (needs a fresh connection) or one left (their now-dangling
-      // connection needs closing).
-      if (isBroadcasting && localStreamRef.current) {
-        const currentIds = new Set(participants.filter((p) => p.userId !== currentUserId).map((p) => p.userId));
-        for (const id of currentIds) {
-          if (!knownParticipantIdsRef.current.has(id)) void connectToPeer(id, localStreamRef.current);
-        }
-        for (const id of knownParticipantIdsRef.current) {
-          if (!currentIds.has(id)) closePeer(id);
-        }
-        knownParticipantIdsRef.current = currentIds;
-      }
-      return;
-    }
-    prevSpeakerIdRef.current = currentSpeakerId;
-
-    if (prevSpeaker === currentUserId) stopBroadcasting();
-    else cleanupListening();
-
-    // Deliberate: this effect exists specifically to synchronize with an
-    // external system (mic capture + WebRTC) when the server tells us the
-    // floor changed hands — there's no pure-render alternative, same class
-    // of unavoidable case MessageBubble.tsx's clock-format effect already
-    // has a precedent for in this codebase.
-    if (currentSpeakerId === currentUserId) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- startBroadcasting's setState calls happen after an await (mic permission), not synchronously; the lint rule can't see through that
-      void startBroadcasting();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- deliberately keyed only on currentSpeakerId; participants/isBroadcasting are read fresh via refs/closures, re-running on every prop change would restart connections
-  }, [currentSpeakerId]);
-
-  // Leaving the room (the button below, or getting removed) doesn't unmount
-  // this component — it just flips isParticipant and re-renders the "Join
-  // room" branch below, which renders no <audio> element at all. Without
-  // this, the RTCPeerConnection(s) in peerConnectionsRef keep running
-  // regardless: a listener who left keeps *receiving* the current speaker's
-  // audio (just with nowhere visible to play it) until they navigate away
-  // entirely, and a speaker who left without stopping first keeps
-  // broadcasting their mic. The speaker-transition effect below only reacts
-  // to currentSpeakerId changing, which "I left" alone doesn't necessarily
-  // trigger, so this needs its own effect keyed on isParticipant.
-  useEffect(() => {
-    if (isParticipant) return;
-    closeAllPeers();
-    if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
-    localStreamRef.current?.getTracks().forEach((t) => t.stop());
-    localStreamRef.current = null;
-    // Same justified case as startBroadcasting's disable below: this effect
-    // exists specifically to synchronize React state with the external
-    // WebRTC/mic system when the server tells us we've left, not to derive
-    // state from props/state React already has.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setIsBroadcasting(false);
-    if (autoStopTimerRef.current) {
-      clearTimeout(autoStopTimerRef.current);
-      autoStopTimerRef.current = null;
-    }
-  }, [isParticipant]);
-
-  // Full teardown on unmount (navigating away, closing the tab).
-  useEffect(() => {
-    return () => {
-      closeAllPeers();
-      localStreamRef.current?.getTracks().forEach((t) => t.stop());
+  async function enableMic(room: Room) {
+    try {
+      await room.localParticipant.setMicrophoneEnabled(true);
+      setMicError(null);
       if (autoStopTimerRef.current) clearTimeout(autoStopTimerRef.current);
-    };
-  }, []);
+      autoStopTimerRef.current = setTimeout(() => {
+        const fd = new FormData();
+        fd.set("voiceRoomId", roomId);
+        void stopSpeaking(fd);
+      }, MAX_FLOOR_HOLD_MS);
+    } catch {
+      setMicError("Couldn't access your microphone. Check your browser's site permissions.");
+      const fd = new FormData();
+      fd.set("voiceRoomId", roomId);
+      void stopSpeaking(fd);
+    }
+  }
+
+  // Toggle the local mic to follow the floor. The server has already
+  // granted/revoked the LiveKit publish permission; this is the local
+  // capture side.
+  useEffect(() => {
+    const room = roomRef.current;
+    if (!room || !connectedRef.current) return;
+    if (iAmSpeaking) {
+      void enableMic(room);
+    } else {
+      void room.localParticipant.setMicrophoneEnabled(false);
+      if (autoStopTimerRef.current) {
+        clearTimeout(autoStopTimerRef.current);
+        autoStopTimerRef.current = null;
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [iAmSpeaking]);
 
   function actionForm(action: (formData: FormData) => Promise<void>) {
     return async () => {
@@ -314,13 +192,7 @@ export function VoiceRoomView({
 
   if (!isParticipant) {
     return (
-      <button
-        type="button"
-        className="button"
-        onClick={() => {
-          void actionForm(joinVoiceRoom)();
-        }}
-      >
+      <button type="button" className="button" onClick={() => void actionForm(joinVoiceRoom)()}>
         Join room
       </button>
     );
@@ -328,12 +200,11 @@ export function VoiceRoomView({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-      <audio ref={remoteAudioRef} autoPlay />
-
       <div className="profileLinkItem" style={{ flexDirection: "column", alignItems: "flex-start", gap: "0.3rem" }}>
         {currentSpeakerId ? (
           <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}>
-            <Mic size={14} aria-hidden="true" /> <strong>{currentSpeakerId === currentUserId ? "You" : currentSpeakerName}</strong> {currentSpeakerId === currentUserId ? "are" : "is"} speaking
+            <Mic size={14} aria-hidden="true" /> <strong>{iAmSpeaking ? "You" : currentSpeakerName}</strong> {iAmSpeaking ? "are" : "is"}{" "}
+            speaking
           </span>
         ) : (
           <span className="mutedText">The floor is free.</span>
@@ -364,12 +235,12 @@ export function VoiceRoomView({
             </button>
           </>
         )}
-        {currentSpeakerId === currentUserId && (
+        {iAmSpeaking && (
           <button type="button" className="button buttonDanger" onClick={() => void actionForm(stopSpeaking)()}>
             Stop speaking
           </button>
         )}
-        {isStaff && currentSpeakerId && currentSpeakerId !== currentUserId && (
+        {isStaff && currentSpeakerId && !iAmSpeaking && (
           <button type="button" className="button buttonDanger" onClick={() => void actionForm(forceStopSpeaker)()}>
             Force stop speaker
           </button>
@@ -380,9 +251,7 @@ export function VoiceRoomView({
       </div>
 
       <div>
-        <p className="sectionHeading">
-          In this room ({participants.length})
-        </p>
+        <p className="sectionHeading">In this room ({participants.length})</p>
         <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
           {participants.map((p) => (
             <div key={p.userId} style={{ display: "flex", gap: "0.5rem", alignItems: "center", fontSize: "0.85rem" }}>

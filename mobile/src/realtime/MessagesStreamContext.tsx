@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, type ReactNode } from "react";
+import { AppState } from "react-native";
 import { useAuth } from "../auth/AuthContext";
-import { connectMessagesStream, type MessageStreamEvent } from "./messagesStream";
+import { createMessagesStream, type MessageStreamEvent } from "./messagesStream";
 
 type Listener = (event: MessageStreamEvent) => void;
 
@@ -22,9 +23,27 @@ export function MessagesStreamProvider({ children }: { children: ReactNode }) {
     // flow) — EventSource has no way to swap its own Authorization header
     // mid-connection, so a stale token would otherwise keep being used
     // until the connection happened to drop on its own.
-    return connectMessagesStream(tokens.accessToken, (event) => {
-      for (const listener of listeners.current) listener(event);
+    const stream = createMessagesStream({
+      accessToken: tokens.accessToken,
+      onEvent: (event) => {
+        for (const listener of listeners.current) listener(event);
+      },
     });
+
+    // Phase B (spec addendum-realtime-community.md): hold the SSE
+    // connection open only while the app is foregrounded. Backgrounded, the
+    // radio work isn't worth it (Vercel kills the connection at 5 min
+    // anyway) — push is the background channel, and on the way back to
+    // foreground the stream emits `resync` so consumers close the gap.
+    stream.setActive(AppState.currentState === "active");
+    const appStateSub = AppState.addEventListener("change", (next) => {
+      stream.setActive(next === "active");
+    });
+
+    return () => {
+      appStateSub.remove();
+      stream.close();
+    };
   }, [status, tokens?.accessToken]);
 
   const subscribe = useCallback((listener: Listener) => {

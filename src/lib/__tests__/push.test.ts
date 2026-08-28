@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/lib/db";
 import { getPushProvider, dispatchPushEvent } from "@/lib/push";
+import { markUserOnline, markUserOffline } from "@/lib/presence";
 import { createUser } from "@/test/factories";
 
 async function createDeviceToken(userId: string, overrides: Partial<{ token: string; platform: string }> = {}) {
@@ -106,5 +107,22 @@ describe("push delivery", () => {
     await dispatchPushEvent({ recipientId: user.id, type: "like", subjectType: "post", subjectId: "some-post-id" });
 
     expect(await db.deviceToken.findUnique({ where: { id: deviceToken.id } })).not.toBeNull();
+  });
+
+  // Realtime addendum Phase B: an open SSE stream delivers the notification
+  // in-app, so a push on top is suppressed — foreground = SSE, background = push.
+  it("does not send a push while the recipient has an open SSE stream, and resumes once it closes", async () => {
+    const user = await createUser();
+    await createDeviceToken(user.id);
+    const fetchSpy = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ data: [{ status: "ok", id: "x" }] }) } as Response);
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const conn = markUserOnline(user.id);
+    await dispatchPushEvent({ recipientId: user.id, type: "message", subjectType: "message", subjectId: "conv-1" });
+    expect(fetchSpy).not.toHaveBeenCalled();
+
+    markUserOffline(user.id, conn);
+    await dispatchPushEvent({ recipientId: user.id, type: "message", subjectType: "message", subjectId: "conv-1" });
+    expect(fetchSpy).toHaveBeenCalled();
   });
 });

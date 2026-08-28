@@ -3,6 +3,7 @@ import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Tex
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { getNotifications, markNotificationsRead, ApiError } from "../../src/api/client";
 import { useUnreadBadges } from "../../src/realtime/UnreadBadgeContext";
+import { useMessagesStreamEvents } from "../../src/realtime/MessagesStreamContext";
 import { resolvePath } from "../../src/links/resolvePath";
 import { Avatar } from "../../src/components/Avatar";
 import { EmptyState } from "../../src/components/EmptyState";
@@ -15,6 +16,7 @@ import { getNotificationIcon } from "../../src/utils/notificationIcon";
 import { animateNextLayout } from "../../src/utils/animateLayout";
 import { haptics } from "../../src/utils/haptics";
 import { getCached, setCached } from "../../src/utils/offlineCache";
+import { useAppForeground } from "../../src/utils/useAppForeground";
 import { useContentMaxWidth } from "../../src/utils/responsive";
 import { useTheme, type Theme } from "../../src/theme";
 import type { NotificationItem } from "../../src/api/types";
@@ -63,6 +65,20 @@ export default function NotificationsScreen() {
       setLoading(false);
     })();
   }, [loadFirstPage]);
+
+  // This screen only loads once on mount — keep the list fresh when a
+  // notification lands live (`notification`), when the socket reconnects
+  // after a drop, and when the app returns from the background (`resync` /
+  // useAppForeground), instead of showing a stale list until pull-to-refresh.
+  useMessagesStreamEvents(
+    useCallback(
+      (event) => {
+        if (event.type === "notification" || event.type === "resync") loadFirstPage();
+      },
+      [loadFirstPage]
+    )
+  );
+  useAppForeground(loadFirstPage);
 
   async function onRefresh() {
     setRefreshing(true);

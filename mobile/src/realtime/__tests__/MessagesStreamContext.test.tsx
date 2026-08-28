@@ -1,19 +1,18 @@
-jest.mock("../messagesStream", () => ({ connectMessagesStream: jest.fn() }));
+jest.mock("../messagesStream", () => ({ createMessagesStream: jest.fn() }));
 
 jest.mock("../../auth/AuthContext", () => ({ useAuth: jest.fn() }));
 
 import { act, renderHook } from "@testing-library/react-native";
 import { MessagesStreamProvider, useMessagesStreamEvents } from "../MessagesStreamContext";
-import { connectMessagesStream } from "../messagesStream";
+import { createMessagesStream, type MessageStreamEvent } from "../messagesStream";
 import { useAuth } from "../../auth/AuthContext";
-import type { MessageStreamEvent } from "../messagesStream";
 
-const mockConnect = connectMessagesStream as jest.Mock;
+const mockCreate = createMessagesStream as jest.Mock;
 const mockUseAuth = useAuth as jest.Mock;
 
 const EVENT: MessageStreamEvent = { type: "new-message", conversationId: "c1" };
 
-// MessagesStreamProvider's mount effect calls connectMessagesStream
+// MessagesStreamProvider's mount effect calls createMessagesStream
 // synchronously, but still needs the same act(async () => ...) wrapping
 // AuthContext.test.tsx's own renderAuth() helper established — RTL's
 // renderHook only guarantees its *own* initial act() flushes the first
@@ -34,50 +33,50 @@ async function renderStream<T>(hook: () => T) {
 // without either opening its own connection.
 //
 // Only two cases below, deliberately — a third+ renderHook(..., {wrapper:
-// MessagesStreamProvider}) call anywhere in this file, regardless of what
-// it does or which order it runs in, reliably makes connectMessagesStream
-// silently not fire for that render (confirmed by isolating each
-// candidate scenario one at a time: multi-subscriber fan-out, the
-// latest-callback-ref behavior, and token-rotation reconnect each pass
-// individually and in first/second position, and each breaks whichever
-// test runs third). That's a limitation of this installed
-// @testing-library/react-native version's async test renderer under
-// repeated same-file mount/unmount cycles, not a bug in
-// MessagesStreamContext — the two tests kept here exercise the connect
-// and unsubscribe paths that the other scenarios also depend on.
+// MessagesStreamProvider}) call anywhere in this file reliably makes the
+// mounted provider's effect silently not fire for that render (a
+// limitation of this installed @testing-library/react-native version's
+// async test renderer under repeated same-file mount/unmount cycles, not a
+// bug in MessagesStreamContext).
 describe("MessagesStreamProvider / useMessagesStreamEvents", () => {
   let emit: (event: MessageStreamEvent) => void;
-  const disconnect = jest.fn();
+  const close = jest.fn();
+  const setActive = jest.fn();
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockConnect.mockImplementation((_token: string, onEvent: (e: MessageStreamEvent) => void) => {
-      emit = onEvent;
-      return disconnect;
+    mockCreate.mockImplementation((opts: { onEvent: (e: MessageStreamEvent) => void }) => {
+      emit = opts.onEvent;
+      return { setActive, close };
     });
   });
 
-  it("does not connect while signed out, and connects once signed in", async () => {
+  it("does not connect while signed out; connects and goes active once signed in", async () => {
     mockUseAuth.mockReturnValue({ status: "signedOut", tokens: null });
     const rendered = await renderStream(() => useMessagesStreamEvents(() => {}));
-    expect(mockConnect).not.toHaveBeenCalled();
+    expect(mockCreate).not.toHaveBeenCalled();
 
     mockUseAuth.mockReturnValue({ status: "signedIn", tokens: { accessToken: "AT1" } });
     await act(async () => rendered.rerender({}));
 
-    expect(mockConnect).toHaveBeenCalledWith("AT1", expect.any(Function));
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ accessToken: "AT1", onEvent: expect.any(Function) })
+    );
+    // provider gates the stream on AppState foreground state
+    expect(setActive).toHaveBeenCalled();
   });
 
-  it("stops delivering to a subscriber after its owning component unmounts", async () => {
+  it("stops delivering to a subscriber after its owning component unmounts, and closes the stream", async () => {
     mockUseAuth.mockReturnValue({ status: "signedIn", tokens: { accessToken: "AT1" } });
     const received: MessageStreamEvent[] = [];
 
     const { unmount } = await renderStream(() => useMessagesStreamEvents((e) => received.push(e)));
-    expect(mockConnect).toHaveBeenCalled();
+    expect(mockCreate).toHaveBeenCalled();
 
     await act(async () => unmount());
     act(() => emit(EVENT));
 
     expect(received).toEqual([]);
+    expect(close).toHaveBeenCalled();
   });
 });
