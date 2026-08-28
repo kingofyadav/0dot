@@ -25,7 +25,9 @@
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSMicrophoneUsageDescription": "0dot uses your microphone so you can speak in community voice rooms.",
-        "UIBackgroundModes": ["audio"]
+        "UIBackgroundModes": [
+          "audio"
+        ]
       }
     },
     "android": {
@@ -112,7 +114,8 @@
         {
           "microphonePermission": "0dot uses your microphone so you can speak in community voice rooms."
         }
-      ]
+      ],
+      "expo-asset"
     ],
     "runtimeVersion": {
       "policy": "appVersion"
