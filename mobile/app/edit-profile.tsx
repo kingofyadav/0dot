@@ -6,7 +6,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
 import { getMe, updateProfile, ApiError, type LocalImage } from "../src/api/client";
 import { Avatar } from "../src/components/Avatar";
-import { DEFAULT_COVER_SOURCE } from "../src/components/defaultCover";
+import { defaultCoverSource } from "../src/components/defaultCover";
 import { BottomSheet } from "../src/components/BottomSheet";
 import { THEME_PRESET_OPTIONS } from "../src/utils/themePresets";
 import { pickImage } from "../src/utils/pickImage";
@@ -169,7 +169,7 @@ export default function EditProfileScreen() {
           <ScrollView contentContainerStyle={styles.scrollContent}>
             <Pressable onPress={onPickCover} accessibilityRole="button" accessibilityLabel="Change cover photo">
               <Image
-                source={displayedCoverUri ? { uri: displayedCoverUri } : DEFAULT_COVER_SOURCE}
+                source={displayedCoverUri ? { uri: displayedCoverUri } : defaultCoverSource(theme.scheme)}
                 style={styles.cover}
                 contentFit="cover"
                 accessible

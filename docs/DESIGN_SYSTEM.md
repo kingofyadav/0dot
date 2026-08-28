@@ -133,6 +133,8 @@ Three-layer system, already implemented and working: OS preference (`@media (pre
 
 **Logo/theme pairing is intentional and non-standard:** dark theme shows the dark-fill mark (`0dot.png`), light theme shows the light-fill mark (`1dot.png`) — confirmed twice by explicit user direction, the reverse of the conventional higher-contrast pairing. Do not "fix" this back to the conventional pairing without being told to.
 
+**The default profile cover is theme-aware too** (Redesign, 2026-08): `/defaults/profile-cover-{light,dark}.jpg`, rendered by the profile page when a profile has no cover of its own, swapped by the same `.themeCover{Light,Dark}` CSS cascade as `.themeLogo*` (OS preference, then an explicit `data-theme` override). Unlike the logo, the cover uses the **natural** pairing — the dark cover in dark mode. Mobile picks the source at runtime from `theme.scheme` (`mobile/src/components/defaultCover.ts`) since RN has no CSS `display` toggle.
+
 ## Accessibility
 
 Color contrast, focus indicators, and reduced motion are design-system concerns as much as engineering ones — see `docs/foundations/ACCESSIBILITY.md` for the full standard. Minimum bar for any new component added to this system: visible focus state, 44×44px minimum touch target for anything tappable, and contrast checked against both light and dark token values before shipping.

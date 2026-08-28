@@ -4851,6 +4851,47 @@ body.hasBottomNav .mobileNavPanel {
   display: inline-block;
 }
 
+/* Default profile cover theme swap — same cascade as .themeLogo* above
+   (OS preference, then an explicit data-theme override), applied to the two
+   /defaults/profile-cover-{light,dark}.jpg images the profile page renders
+   when a profile has no cover of its own. Natural pairing (dark cover in
+   dark mode), not the logo's deliberately-reversed one. `display` toggle so
+   only one is ever in flow — .profileCoverImg's own width/height/object-fit
+   sizes whichever is shown. */
+.themeCoverLight {
+  display: block;
+}
+
+.themeCoverDark {
+  display: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  .themeCoverLight {
+    display: none;
+  }
+
+  .themeCoverDark {
+    display: block;
+  }
+}
+
+:root[data-theme="light"] .themeCoverLight {
+  display: block;
+}
+
+:root[data-theme="light"] .themeCoverDark {
+  display: none;
+}
+
+:root[data-theme="dark"] .themeCoverLight {
+  display: none;
+}
+
+:root[data-theme="dark"] .themeCoverDark {
+  display: block;
+}
+
 /* Visually hidden but still announced by screen readers — standard
    clip-based pattern (not display:none, which would remove it from the
    accessibility tree too). Used for form labels that are redundant for

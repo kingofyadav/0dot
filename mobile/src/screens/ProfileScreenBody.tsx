@@ -13,7 +13,7 @@ import { router, useFocusEffect } from "expo-router";
 import { useAuth } from "../auth/AuthContext";
 import { getProfile, getUserPosts, followUser, unfollowUser, likePost, repostPost, toggleBookmark, blockUser, ApiError } from "../api/client";
 import { Avatar } from "../components/Avatar";
-import { DEFAULT_COVER_SOURCE } from "../components/defaultCover";
+import { defaultCoverSource } from "../components/defaultCover";
 import { Button } from "../components/Button";
 import { VerifiedBadge } from "../components/VerifiedBadge";
 import { PremiumBadge } from "../components/PremiumBadge";
@@ -298,7 +298,7 @@ export function ProfileScreenBody({ username, showSettingsShortcut = false }: { 
               >
                 <Animated.View style={coverAnimatedStyle}>
                   <Image
-                    source={profile.coverUrl ? { uri: profile.coverUrl } : DEFAULT_COVER_SOURCE}
+                    source={profile.coverUrl ? { uri: profile.coverUrl } : defaultCoverSource(theme.scheme)}
                     style={styles.cover}
                     contentFit="cover"
                     alt="Cover photo"
