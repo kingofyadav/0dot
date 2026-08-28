@@ -205,7 +205,7 @@ Docs updated in the same PR.
 | **1. Components** | `redesign/phase-1-components` | §5. **Landed:** EmptyState (icon/title/description — ~80 call sites upgraded), PageHeader, `Icon`, `.card`/`.section`, PostCard action row (`.postAction`), post-byline avatars (`postAvatarProps`), Report/owner controls recede-until-hover (in lieu of an overflow menu), form-input `--border-strong` edges + a consistent custom `<select>` chevron. **Still open:** Switch/Checkbox/Radio components (still hand-rolled per form), a drag/drop file-upload (the styled `::file-selector-button` is acceptable for now), `.button` ↔ `ui/button.tsx` reconciliation, shape-matched skeletons. |
 | **2. App surfaces** | `redesign/phase-2-surfaces` | Feed, Profile, Explore, Settings, rail, nav (§6). **Landed:** nav (colour not opacity, active accent bar, 1.75 icon stroke, `.eyebrow` labels); contextual rail (quiet hairline upgrade card — D10; `UserListItem` `compact` mode fixing 320px truncation); PostCard card treatment (`--border-strong` + resting shadow — D3); profile header (`--overlay-scrim` cover, `--text-3xl` name, metadata spacing, **and the structural fix** — only the avatar overlaps now via its own `--profile-avatar-lift`, off the fragile 96px-assumption math) + designed empty states; explore now has a real discovery header (`ExploreDiscovery` — people / communities / businesses, streamed) above a labelled post list; auth pages (`--border-strong` + `--shadow-md` card, display headline). **Still open:** feed composer expand-on-focus, settings form-density pass, `--measure-*` container adoption, "new posts" append affordance. |
 | **3. Storytelling** | `redesign/phase-3-story` | Landing rebuild, auth, marketing layer (§6). **In progress:** the `/` landing gained a below-the-fold story — `MarketingStory` (5 scroll-revealed sections: links / feed / communities & business / developers / closing CTA, each with a small CSS-built visual, `motion-reveal` via `useReveal`) + `MarketingFooter` (real routes only, per NAVIGATION.md rule 2). Hero headline moved to the `--text-4xl`→`--text-5xl` display treatment; `MarketingNav` got a translucent ground. The DigitalHomeVisual identity node stays the one bold element (§4.6). `/login` + `/signup` got the shared-CSS polish (bigger `.authCard` headline, `--border-strong` + `--shadow-md` card, `--muted-foreground` divider) and inherit the new hero display type. `/about` shipped as the first real marketing page — content sourced verbatim from `VISION.md` (mission, principles, "what we won't build"), `MarketingNav` + `MarketingFooter`, linked from the footer, smoke-tested. **Deferred, and correctly so:** `/pricing` is blocked on a finance decision — `PLAN_PRICES` in `platform-billing.ts` are explicitly flagged as placeholders, not real prices, so a public pricing page would publish numbers that aren't real; `/help` needs a content system (help articles), not a design pass; `/changelog` needs a source of truth. These three are product/content work, not redesign work — track them outside this spec. |
-| **4. Cross-cutting** | `redesign/phase-4-sweep` | View Transitions, responsive audit at all five breakpoints, empty/loading/error sweep, dark/light parity pass, a11y re-audit, perf guardrails. |
+| **4. Cross-cutting** | `redesign/phase-4-sweep` | View Transitions, responsive audit at all five breakpoints, empty/loading/error sweep, dark/light parity pass, a11y re-audit, perf guardrails. **In progress — see §9.** |
 | **5. Mobile** | `redesign/phase-5-mobile` | Expo app parity (§6). |
 
 ### Verification per phase
@@ -227,3 +227,46 @@ Docs updated in the same PR.
 - Don't regress the Aug 2026 perf pass: Suspense streaming boundaries, deferred
   Sentry, `cache()` dedupe, 44px coarse-pointer targets all stay.
 - Keep `instrumentation.ts` in `src/` (settled — see memory).
+
+## 9. Phase 4 — cross-cutting sweep findings
+
+**View Transitions — not viable in this stack, deferred.** React's `<ViewTransition>`
+needs a canary React build; this project pins `react@19.2.8` (stable), which
+exports no `ViewTransition` / `unstable_ViewTransition`. Next 16.3.2 has no
+`experimental.viewTransition` flag and no auto-`startViewTransition` integration
+in its client router. Enabling it means a React-canary bump — a dependency
+decision outside a polish pass. The `.motion-page-in` CSS utility (Phase 0) is
+the lightweight stand-in where a container is keyed per route; revisit if React
+is upgraded.
+
+**Dark / light parity — PASS.** Audited `/about`, `/dev/styleguide`, `/explore`
+in both themes. Every redesign token (`--border-strong`, `--surface-2`,
+`--overlay-scrim`, the `--tracking-*` / `--leading-*` / `--duration-*` sets) has
+correct values in both; `.display-*`, `.eyebrow`, the `.motion-*` primitives, the
+`.card` / `.postAction` / `EmptyState` / `PageHeader` / `ExploreDiscovery`
+components all render cleanly in light mode — no invisible borders, no
+contrast failures, no dark-on-dark. The design-first-in-dark build held up.
+
+**Loading states.** `ExploreDiscovery` gained a shape-matched `<Suspense>`
+skeleton (`ExploreDiscoverySkeleton`) — it was `fallback={null}`.
+
+**a11y — new components.** `.postAction` carries `aria-label` + `aria-pressed`;
+`Icon` is `aria-hidden` by default; the recede-until-hover action cluster stays
+keyboard-reachable via `.postCard:focus-within`; every `.motion-*` is covered by
+the existing `prefers-reduced-motion` / `data-reduced-motion` guards; the custom
+`<select>` chevron is decorative CSS over a still-native, still-accessible
+control. Heading order is clean on the pages that gained a `PageHeader` `<h1>`
+(`/explore`) and on the marketing pages (`<h1>` → `.display-3` `<h2>`).
+
+**Responsive.** New components are mobile-first by construction — `auto-fit` /
+`auto-fill` grids (`.aboutGrid`, `.explorePeople`, `.exploreSpaceGrid`,
+`.marketingFooterNav`) and a `768px` flip on `.marketingSection`. A full
+device-matrix audit at 480 / 768 / 1024 / 1280 / 1536 is still open.
+
+**Perf.** No new heavy client bundles: `MarketingStory` + `useReveal` are
+small client code, `ExploreDiscovery` is a Server Component, all motion is CSS.
+The Aug 2026 streaming / Sentry-defer / `cache()` work is untouched.
+
+**Still open in Phase 4:** the full responsive device audit, an
+empty/loading/error sweep beyond the hero routes, and View Transitions (pending a
+React decision).

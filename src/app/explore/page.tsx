@@ -6,7 +6,7 @@ import { getFeedPosts, getVotedPollOptionIds } from "@/lib/feed-query";
 import { getPostableBusinesses } from "@/lib/businesses";
 import { FeedList } from "@/app/feed/FeedList";
 import { PageHeader } from "@/components/PageHeader";
-import { ExploreDiscovery } from "@/components/ExploreDiscovery";
+import { ExploreDiscovery, ExploreDiscoverySkeleton } from "@/components/ExploreDiscovery";
 
 // Explore: the Phase 1 global-chronological feed, kept as a distinct
 // surface (not removed) once /feed becomes follow-filtered — phase-2 spec
@@ -69,7 +69,7 @@ export default async function ExplorePage({
           />
           {/* Streams on its own boundary — its 4 discovery queries shouldn't
               hold back the post list the page already fetched. */}
-          <Suspense fallback={null}>
+          <Suspense fallback={<ExploreDiscoverySkeleton />}>
             <ExploreDiscovery viewerId={currentUser?.id ?? null} />
           </Suspense>
         </>

@@ -6,6 +6,7 @@ import { getFolloweeIds } from "@/lib/follow-graph";
 import { Avatar } from "@/components/Avatar";
 import { UserListItem } from "@/components/UserListItem";
 import { Icon } from "@/components/Icon";
+import { Skeleton } from "@/components/Skeleton";
 
 // Redesign Phase 2b (docs/specs/phase-0-redesign.md §6). Gives /explore an
 // identity beyond a raw chronological post list — people to follow, plus a
@@ -14,6 +15,23 @@ import { Icon } from "@/components/Icon";
 // touching ExplorePage's existing batched query.
 const PEOPLE_COUNT = 6;
 const SPACE_COUNT = 4;
+
+// Shape-matched fallback for the <Suspense> boundary on /explore — one
+// section header + a people grid, the section that's always present.
+export function ExploreDiscoverySkeleton() {
+  return (
+    <div className="exploreDiscovery" aria-busy="true">
+      <section className="section">
+        <Skeleton height="0.75rem" width="30%" style={{ display: "block", marginBottom: "var(--space-2)" }} />
+        <div className="explorePeople">
+          {Array.from({ length: PEOPLE_COUNT }).map((_, i) => (
+            <Skeleton key={i} height="3.25rem" style={{ display: "block" }} />
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
 
 export async function ExploreDiscovery({ viewerId }: { viewerId: string | null }) {
   const [people, followingIds, communities, businesses] = await Promise.all([
