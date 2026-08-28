@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { Newspaper, Compass } from "lucide-react";
 import type { getCurrentUser } from "@/lib/session";
@@ -20,6 +21,7 @@ export function FeedList({
   postableBusinesses,
   ownTiers,
   showComposer = true,
+  header,
 }: {
   posts: FeedPost[];
   currentUser: Awaited<ReturnType<typeof getCurrentUser>>;
@@ -39,12 +41,20 @@ export function FeedList({
   // composing belongs on Home (/feed) only. Defaults true so /feed's
   // existing call (which never passes this) keeps showing it unchanged.
   showComposer?: boolean;
+  // Redesign Phase 2b: content rendered above the post list inside the same
+  // column container — /explore's discovery header (page title + people /
+  // communities / businesses). The post list then gets its own `.eyebrow`
+  // label so it reads as one section of the page, not the whole page.
+  header?: ReactNode;
 }) {
   return (
     <div className="profileCard">
       {showComposer && currentUser?.profile && (
         <PostComposer postableBusinesses={postableBusinesses} ownTiers={ownTiers} />
       )}
+
+      {header}
+      {header && <span className="eyebrow feedListLabel">Latest posts</span>}
 
       <ListKeyNav helpTitle="Feed" supportsLike supportsReply>
         <div className="feedList motion-stagger">
