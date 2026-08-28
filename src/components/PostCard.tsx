@@ -483,7 +483,7 @@ export function PostCard({
           </form>
 
           <details className="profileEditToggle" style={{ flex: "1 1 100%", minWidth: 0 }}>
-            <summary className="button buttonSecondary iconButton" style={{ display: "inline-block" }}>
+            <summary className="button buttonSecondary iconButton" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
               Quote
             </summary>
             <QuoteRepostForm
@@ -494,7 +494,7 @@ export function PostCard({
           </details>
 
           <details className="profileEditToggle" style={{ flex: "1 1 100%", minWidth: 0 }}>
-            <summary className="button buttonSecondary iconButton" data-nav-reply style={{ display: "inline-block" }}>
+            <summary className="button buttonSecondary iconButton" data-nav-reply style={{ display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
               Reply {post.replyCount > 0 ? `(${formatCount(post.replyCount)})` : ""}
             </summary>
             <ReplyForm replyToId={post.id} />

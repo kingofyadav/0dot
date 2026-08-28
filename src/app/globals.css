@@ -1829,6 +1829,24 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
   font-size: var(--text-xs-plus);
 }
 
+/* Touch targets. .iconButton / .buttonSmall are visually compact (~24-28px
+   tall) — fine for a mouse, below the 44px this codebase already uses for
+   every other touch control (MobileBottomNav items, nav links, settings
+   rows). A live mobile pass found 26 such controls under 32px on the feed
+   (like / repost / bookmark, Quote, Reply). Scoped to (pointer: coarse) so
+   a desktop mouse sees exactly the current design — only touch devices get
+   the enlarged hit area. */
+@media (pointer: coarse) {
+  .button.iconButton,
+  .button.buttonSmall,
+  .button.iconButton.row-sm {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
 .errorText {
   color: var(--danger);
   font-size: var(--text-sm);
