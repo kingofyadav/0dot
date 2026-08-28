@@ -6,7 +6,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
 import { getMe, updateProfile, ApiError, type LocalImage } from "../src/api/client";
 import { Avatar } from "../src/components/Avatar";
-import { DEFAULT_COVER_SOURCE } from "../src/components/defaultCover";
+import { defaultCoverSource } from "../src/components/defaultCover";
 import { BottomSheet } from "../src/components/BottomSheet";
 import { THEME_PRESET_OPTIONS } from "../src/utils/themePresets";
 import { pickImage } from "../src/utils/pickImage";
@@ -169,7 +169,7 @@ export default function EditProfileScreen() {
           <ScrollView contentContainerStyle={styles.scrollContent}>
             <Pressable onPress={onPickCover} accessibilityRole="button" accessibilityLabel="Change cover photo">
               <Image
-                source={displayedCoverUri ? { uri: displayedCoverUri } : DEFAULT_COVER_SOURCE}
+                source={displayedCoverUri ? { uri: displayedCoverUri } : defaultCoverSource(theme.scheme)}
                 style={styles.cover}
                 contentFit="cover"
                 accessible
@@ -363,8 +363,9 @@ function createStyles(theme: Theme) {
     label: { fontSize: theme.text.sm, fontWeight: theme.weight.label, color: theme.colors.mutedForeground },
     counter: { fontSize: theme.text.xs, color: theme.colors.mutedForeground },
     input: {
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: theme.colors.border,
+      // Redesign Phase 5: readable input edge (--border-strong on web).
+      borderWidth: 1,
+      borderColor: theme.colors.borderStrong,
       borderRadius: theme.radius.md,
       backgroundColor: theme.colors.surface,
       color: theme.colors.foreground,
@@ -380,8 +381,8 @@ function createStyles(theme: Theme) {
       alignItems: "center",
       gap: theme.space[3],
       minHeight: 48,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: theme.colors.border,
+      borderWidth: 1,
+      borderColor: theme.colors.borderStrong,
       borderRadius: theme.radius.md,
       backgroundColor: theme.colors.surface,
       paddingHorizontal: theme.space[3],

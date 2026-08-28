@@ -37,18 +37,14 @@ export function LikeButton({
       <input type="hidden" name="postId" value={postId} />
       <button
         type="submit"
-        className="button buttonSecondary iconButton"
+        className="postAction"
         data-nav-like
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: "0.3rem",
-          transition: "color var(--transition-base), border-color var(--transition-base)",
-          ...(optimistic.liked ? { borderColor: "var(--accent)", color: "var(--accent)" } : undefined),
-        }}
+        data-like
         aria-pressed={optimistic.liked}
+        aria-label={optimistic.liked ? "Unlike" : "Like"}
       >
-        <Heart size={16} aria-hidden="true" fill={optimistic.liked ? "currentColor" : "none"} /> {formatCount(optimistic.count)}
+        <Heart size={16} aria-hidden="true" fill={optimistic.liked ? "currentColor" : "none"} />
+        {optimistic.count > 0 ? formatCount(optimistic.count) : "Like"}
       </button>
     </form>
   );

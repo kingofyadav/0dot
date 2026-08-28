@@ -1,9 +1,12 @@
+import { Suspense } from "react";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { parseCursor } from "@/lib/pagination";
 import { getFeedPosts, getVotedPollOptionIds } from "@/lib/feed-query";
 import { getPostableBusinesses } from "@/lib/businesses";
 import { FeedList } from "@/app/feed/FeedList";
+import { PageHeader } from "@/components/PageHeader";
+import { ExploreDiscovery, ExploreDiscoverySkeleton } from "@/components/ExploreDiscovery";
 
 // Explore: the Phase 1 global-chronological feed, kept as a distinct
 // surface (not removed) once /feed becomes follow-filtered — phase-2 spec
@@ -57,6 +60,20 @@ export default async function ExplorePage({
       postableBusinesses={postableBusinesses}
       ownTiers={ownTiers}
       showComposer={false}
+      header={
+        <>
+          <PageHeader
+            eyebrow="Explore"
+            title="See what's happening across 0dot"
+            description="People worth following, spaces to join, and the latest posts from everyone."
+          />
+          {/* Streams on its own boundary — its 4 discovery queries shouldn't
+              hold back the post list the page already fetched. */}
+          <Suspense fallback={<ExploreDiscoverySkeleton />}>
+            <ExploreDiscovery viewerId={currentUser?.id ?? null} />
+          </Suspense>
+        </>
+      }
     />
   );
 }

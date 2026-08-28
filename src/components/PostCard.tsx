@@ -6,7 +6,9 @@ import {
   Check,
   CircleHelp,
   Lock,
+  MessageCircle,
   Pin,
+  Quote,
   Repeat2,
   ShieldX,
   X,
@@ -24,6 +26,34 @@ import { PostOwnerMenu } from "@/app/feed/PostOwnerMenu";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { LikeButton } from "@/components/LikeButton";
 import { PollBlock } from "@/components/PollBlock";
+import { Avatar } from "@/components/Avatar";
+
+// Redesign Phase 1b: the avatar column for a post row. Resolves to the
+// business logo + business route when the post is attributed to a business
+// (phase-4 §5), otherwise the human author's avatar + profile route.
+function postAvatarProps(post: BasicPost): { src: string | null; alt: string; href: string | null } {
+  if (post.businessAuthor) {
+    return { src: post.businessAuthor.logoUrl, alt: post.businessAuthor.name, href: `/b/${post.businessAuthor.slug}` };
+  }
+  const handle = post.author.username?.handle ?? null;
+  return {
+    src: post.author.profile?.avatarUrl ?? null,
+    alt: post.author.profile?.displayName ?? "Unknown",
+    href: handle ? `/${handle}` : null,
+  };
+}
+
+function PostAvatar({ post, size }: { post: BasicPost; size: number }) {
+  const { src, alt, href } = postAvatarProps(post);
+  const img = <Avatar src={src} alt={alt} size={size} className="postAvatar" />;
+  return href ? (
+    <Link href={href} className="postAvatarLink" aria-label={alt} tabIndex={-1}>
+      {img}
+    </Link>
+  ) : (
+    img
+  );
+}
 
 // Replies stay flat/inline (phase-1 spec §5.3) but a busy thread shouldn't
 // dump every reply into view the moment "Reply (N)" is opened — the first
@@ -138,11 +168,11 @@ function AuthorLine({
   if (businessAuthor) {
     return (
       <div>
-        <Link href={`/b/${businessAuthor.slug}`} style={{ fontWeight: 700, display: "inline-flex", alignItems: "center", gap: "0.3rem" }}>
-          {businessAuthor.logoUrl && (
-            // eslint-disable-next-line @next/next/no-img-element -- user-supplied URL, not a local/optimizable asset
-            <img src={businessAuthor.logoUrl} alt="" width={20} height={20} style={{ borderRadius: "50%", objectFit: "cover" }} />
-          )}
+        {/* Redesign Phase 1b: the logo moved out to the byline avatar
+            (postAvatarProps below) so every post row leads with a consistent
+            avatar column instead of a small inline mark on business posts
+            only. */}
+        <Link href={`/b/${businessAuthor.slug}`} style={{ fontWeight: 700 }}>
           {businessAuthor.name}
         </Link>
         {/* Blue tick button, shown for every business post — single click
@@ -277,7 +307,8 @@ function MiniPostCard({
       }}
     >
       <div className="postHeaderRow">
-        <span style={{ display: "flex", alignItems: "baseline" }}>
+        <PostAvatar post={post} size={28} />
+        <div className="postHeaderMain">
           <AuthorLine author={post.author} createdAt={post.createdAt} community={post.community} businessAuthor={post.businessAuthor} />
           {isAcceptedAnswer && (
             <span
@@ -287,7 +318,7 @@ function MiniPostCard({
               <Check size={14} aria-hidden="true" /> Accepted answer
             </span>
           )}
-        </span>
+        </div>
         <span className="row-sm">
           {canAcceptAnswer && questionId && (
             <form action={isAcceptedAnswer ? unacceptAnswer : acceptAnswer}>
@@ -381,7 +412,8 @@ export function PostCard({
       {!isPureRepost && (
         <>
           <div className="postHeaderRow">
-            <span style={{ display: "flex", alignItems: "baseline" }}>
+            <PostAvatar post={post} size={40} />
+            <div className="postHeaderMain">
               <AuthorLine author={post.author} createdAt={post.createdAt} community={post.community} businessAuthor={post.businessAuthor} />
               {post.flair && <FlairPill flair={post.flair} />}
               {post.postType === "question" && (
@@ -400,8 +432,8 @@ export function PostCard({
                   <Lock size={14} aria-hidden="true" /> {post.requiredTier.name} subscribers
                 </span>
               )}
-            </span>
-            <span className="row-sm">
+            </div>
+            <span className="row-sm postHeaderActions">
               {canModerate && (
                 <form action={isPinned ? unpinPost : pinPost}>
                   <input type="hidden" name="communityId" value={post.communityId ?? ""} />
@@ -453,49 +485,10 @@ export function PostCard({
         <div className="postActionsRow">
           <LikeButton postId={post.id} liked={isLiked} count={post.likeCount} />
 
-          <form action={toggleRepost}>
-            <input type="hidden" name="postId" value={post.id} />
-            <button
-              type="submit"
-              className="button buttonSecondary iconButton row-sm"
-              style={{ borderColor: "var(--accent)", color: "var(--accent)" }}
-              aria-label="Repost"
-            >
-              <Repeat2 size={16} aria-hidden="true" /> {formatCount(post.repostCount)}
-            </button>
-          </form>
-
-          <form action={toggleBookmark}>
-            <input type="hidden" name="postId" value={post.id} />
-            <button
-              type="submit"
-              className="button buttonSecondary iconButton"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                ...(isBookmarked ? { borderColor: "var(--accent)", color: "var(--accent)" } : undefined),
-              }}
-              aria-pressed={isBookmarked}
-              aria-label="Bookmark"
-            >
-              <Bookmark size={16} aria-hidden="true" fill={isBookmarked ? "currentColor" : "none"} />
-            </button>
-          </form>
-
-          <details className="profileEditToggle" style={{ flex: "1 1 100%", minWidth: 0 }}>
-            <summary className="button buttonSecondary iconButton" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-              Quote
-            </summary>
-            <QuoteRepostForm
-              postId={post.id}
-              authorName={post.author.profile?.displayName ?? "Unknown"}
-              bodyPreview={post.body.slice(0, 80)}
-            />
-          </details>
-
-          <details className="profileEditToggle" style={{ flex: "1 1 100%", minWidth: 0 }}>
-            <summary className="button buttonSecondary iconButton" data-nav-reply style={{ display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-              Reply {post.replyCount > 0 ? `(${formatCount(post.replyCount)})` : ""}
+          <details className="postActionToggle">
+            <summary className="postAction" data-nav-reply>
+              <MessageCircle size={16} aria-hidden="true" />
+              {post.replyCount > 0 ? formatCount(post.replyCount) : "Reply"}
             </summary>
             <ReplyForm replyToId={post.id} />
             {post.replies.length > 0 && (() => {
@@ -550,6 +543,38 @@ export function PostCard({
               );
             })()}
           </details>
+
+          <form action={toggleRepost}>
+            <input type="hidden" name="postId" value={post.id} />
+            <button type="submit" className="postAction" aria-label="Repost">
+              <Repeat2 size={16} aria-hidden="true" />
+              {post.repostCount > 0 ? formatCount(post.repostCount) : "Repost"}
+            </button>
+          </form>
+
+          <details className="postActionToggle">
+            <summary className="postAction">
+              <Quote size={16} aria-hidden="true" />
+              Quote
+            </summary>
+            <QuoteRepostForm
+              postId={post.id}
+              authorName={post.author.profile?.displayName ?? "Unknown"}
+              bodyPreview={post.body.slice(0, 80)}
+            />
+          </details>
+
+          <form action={toggleBookmark} className="postActionEnd">
+            <input type="hidden" name="postId" value={post.id} />
+            <button
+              type="submit"
+              className="postAction"
+              aria-pressed={isBookmarked}
+              aria-label={isBookmarked ? "Remove bookmark" : "Bookmark"}
+            >
+              <Bookmark size={16} aria-hidden="true" fill={isBookmarked ? "currentColor" : "none"} />
+            </button>
+          </form>
         </div>
       )}
     </div>

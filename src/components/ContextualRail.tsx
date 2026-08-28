@@ -144,6 +144,7 @@ async function SuggestedForYouSection({ userId }: { userId: string }) {
             isSelf={false}
             showFollowButton
             showHandle={false}
+            compact
           />
         ))}
       </div>
@@ -211,6 +212,7 @@ async function AnonymousContextualRail() {
                 isSelf={false}
                 showFollowButton
                 showHandle={false}
+                compact
               />
             ))}
           </div>

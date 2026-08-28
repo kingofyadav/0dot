@@ -25,7 +25,7 @@ import { render, fireEvent } from "@testing-library/react-native";
 import { router } from "expo-router";
 import EditProfileScreen from "../edit-profile";
 import { getMe } from "../../src/api/client";
-import { DEFAULT_COVER_SOURCE } from "../../src/components/defaultCover";
+import { defaultCoverSource } from "../../src/components/defaultCover";
 import type { Me } from "../../src/api/types";
 
 const mockGetMe = getMe as jest.Mock;
@@ -76,7 +76,8 @@ describe("EditProfileScreen avatar/cover fallbacks", () => {
 
     // expo-image's host component normalizes a single source into a
     // one-element array internally.
-    expect(getByLabelText("Cover photo").props.source).toEqual([DEFAULT_COVER_SOURCE]);
+    // useColorScheme defaults to light in jest-expo, so the light-theme cover.
+    expect(getByLabelText("Cover photo").props.source).toEqual([defaultCoverSource("light")]);
   });
 });
 

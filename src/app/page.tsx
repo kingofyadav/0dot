@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
 import { DigitalHomeVisual } from "@/components/DigitalHomeVisual";
 import { MarketingNav } from "@/components/marketing/MarketingNav";
+import { MarketingStory } from "@/components/marketing/MarketingStory";
+import { MarketingFooter } from "@/components/marketing/MarketingFooter";
 import { AuthTabs } from "@/components/AuthTabs";
 import { ExploreLiveLink } from "@/components/ExploreLiveLink";
 import { DismissibleNotice } from "@/components/DismissibleNotice";
@@ -39,6 +41,9 @@ export default async function Home({
 
         <AuthTabs />
       </div>
+
+      <MarketingStory />
+      <MarketingFooter />
     </>
   );
 }

@@ -2,6 +2,8 @@
 
 Status: Foundational document. `src/app/globals.css` is the source of truth for tokens already implemented — this document explains, formalizes, and extends it. When they conflict, fix `globals.css` to match this document (or update this document if the CSS was the more deliberate recent decision) rather than leaving them silently inconsistent.
 
+**Redesign in progress (2026-08).** `docs/specs/phase-0-redesign.md` is a cross-cutting craft pass raising every surface to the Apple/Stripe/Linear bar. It is *evolutionary* — no new hues, no rebrand, the Google 4-color system and restrained tone stay. Phase 0 (branch `redesign/phase-0-foundation`) added the tokens marked "Redesign Phase 0" below, the four `.motion-*` primitives, the `.display-*` / `.eyebrow` type classes, `useReveal`, `Icon.tsx`, and a dev-only living reference at **`/dev/styleguide`** (every primitive, both themes; hidden on the production domain). Check new component work against that route.
+
 ## Tooling — Tailwind CSS v4 + shadcn/ui
 
 Added 2026-08, additive: Tailwind utility classes and shadcn/ui components are available for new work; no existing page or component was migrated to them. Setup is `postcss.config.mjs` + `@import "tailwindcss"` at the top of `globals.css` — Tailwind v4 is CSS-first, there is no `tailwind.config.js`.
@@ -14,14 +16,17 @@ Tailwind is wired directly onto the tokens above, not a second palette. In `glob
 
 ## Color
 
-**Rebranded 2026-08.** Google's 4-color palette (Blue `#4285F4`, Red `#EA4335`, Yellow `#FBBC04`, Green `#34A853`), used as a **semantic system**, not four decorative brand hues: Blue is the one primary interactive color (buttons, focus rings, links-as-actions, active nav state); Red/Yellow/Green are reserved for status (danger/warning/success) and are deliberately *not* used decoratively elsewhere — a yellow badge should always mean "warning," never just "brand accent." This replaces the previous Indian-tricolor-inspired scheme (saffron/green/navy, sourced from the `0dot`/`1dot` logo marks) per explicit product direction. The one deliberate exception to "no decorative status-color use": `.railPlanCard` (the premium/upgrade promo card) keeps a two-hue blue→green gradient for a bit of extra richness on that one moment, evoking Google's own multi-color mark — red/yellow are excluded from it since they'd misread as an actual warning/error on an upgrade card.
+**Rebranded 2026-08.** Google's 4-color palette (Blue `#4285F4`, Red `#EA4335`, Yellow `#FBBC04`, Green `#34A853`), used as a **semantic system**, not four decorative brand hues: Blue is the one primary interactive color (buttons, focus rings, links-as-actions, active nav state); Red/Yellow/Green are reserved for status (danger/warning/success) and are deliberately *not* used decoratively elsewhere — a yellow badge should always mean "warning," never just "brand accent." This replaces the previous Indian-tricolor-inspired scheme (saffron/green/navy, sourced from the `0dot`/`1dot` logo marks) per explicit product direction. (Redesign Phase 2 removed the last decorative status-color use — `.railPlanCard`'s blue→green gradient — as part of pulling that upgrade card back from being the loudest element on every page (D10); it's now a quiet surface card with a single `--accent` hairline.)
 
 | Token | Light | Dark | Use |
 |---|---|---|---|
 | `--background` | `#f5f4f1` | `#0a0a0a` | Page background |
 | `--foreground` | `#171717` | `#ededed` | Primary text |
 | `--surface` | `#fbfaf8` | `#131313` | Cards, header, raised elements |
-| `--border` | `rgba(23,23,23,.12)` | `rgba(237,237,237,.12)` | Hairlines, card/input borders |
+| `--border` | `rgba(23,23,23,.12)` | `rgba(237,237,237,.12)` | Hairlines, internal dividers |
+| `--border-strong` *(Redesign Phase 0)* | `rgba(23,23,23,.20)` | `rgba(237,237,237,.18)` | Readable card / input edges that must separate from the page (D3 — `--border` alone was near-invisible) |
+| `--surface-2` *(Redesign Phase 0)* | `color-mix(--foreground 4%, --surface)` | *(same formula, auto-adapts)* | Nested / inset regions — composer inside feed, table headers, code. Foreground-derived so it needs no dark-mode value |
+| `--overlay-scrim` *(Redesign Phase 0)* | `linear-gradient` of `rgba(0,0,0,.72→0)` | *(same — intentionally black in both themes)* | Text-on-media gradient (profile cover, media posts). Sits over arbitrary user media, not a themed surface — same "documented hex exception" as `browser-tab.ts` |
 | `--accent` | `#4285f4` (Blue 500) | `#8ab4f8` (Blue 300) | Primary interactive color (buttons, focus rings, links-as-actions, verified badge) |
 | `--accent-strong` | `#1a73e8` (Blue 600) | `#669df6` (Blue 400) | Hover/active state of `--accent`; also used for decorative two-tone-blue treatments (header gradient bar, hamburger icon, bottom-nav FAB, sidebar/rail borders) that previously mixed in orange/navy |
 | `--accent-soft` | `rgba(66,133,244,.14)` | `rgba(138,180,248,.18)` | Focus rings, subtle backgrounds |
@@ -56,9 +61,19 @@ Tailwind is wired directly onto the tokens above, not a second palette. In `glob
 | `--text-lg` | 1.1rem | Section headings (e.g. "Posts") |
 | `--text-xl` | 1.4rem | Card/page headings (e.g. auth heading) |
 | `--text-2xl` | 1.6rem | Profile display name |
-| `--text-3xl` | 2.25rem | Marketing/landing headlines (`"/"`'s hero `h1`) — the first consumer of the token this doc originally reserved it for |
+| `--text-3xl` | 2.25rem | Marketing/landing headlines (`"/"`'s hero `h1`) |
+| `--text-4xl` | 2.5rem | Hero numbers (`.walletHeroBalance`), `.display-3` |
+| `--text-5xl` *(Redesign Phase 0)* | 3rem | `.display-2` — marketing headlines |
+| `--text-6xl` *(Redesign Phase 0)* | 3.75rem | `.display-1` — marketing hero (drops to `--text-4xl` ≤768px) |
 
 Not yet retrofitted onto every pre-existing hand-written rem value outside these — this was the formalization pass the earlier version of this section called for, not a full sweep; new sizes should reach for a token, existing ones migrate opportunistically.
+
+**Tracking / leading tokens (Redesign Phase 0).** `--tracking-tight: -0.02em` · `--tracking-snug: -0.01em` · `--tracking-normal: 0` · `--tracking-wide: 0.04em`; `--leading-display: 1.08` · `--leading-heading: 1.2` · `--leading-body: 1.55`. Display type is tight on both axes; body-adjacent headings are not.
+
+**Type classes (Redesign Phase 0).**
+- `.display-1` / `.display-2` / `.display-3` — the display scale with tight tracking + leading and `text-wrap: balance`, for the marketing layer and hero numbers. Adopted per-surface in later redesign phases, not forced onto bare elements.
+- `.eyebrow` — one treatment for section labels (`--text-2xs`, weight 500, `--tracking-wide`, uppercase, `--muted-foreground`). Replaces the scattered tiny all-caps labels in sidebar / profile / rail / settings (D2).
+- Bare `<h1>`–`<h6>` now default to weight 700, `--leading-heading`, `text-wrap: balance` — deliberately *not* a font-size (every route's own `.x h2 { font-size }` still wins), so this tightened consistency without resizing any current heading.
 
 Font weight: `400` body, `500` labels, `600` interactive/emphasis (buttons, links-as-actions, meta emphasis), `700` headings. Already followed consistently — formalize as the rule, don't add new weights.
 
@@ -68,7 +83,11 @@ Monospace: `var(--font-geist-mono)` (Geist Mono, via `next/font`), registered as
 
 No formal scale exists yet — current CSS uses direct rem values (`0.35rem`, `0.5rem`, `0.75rem`, `0.85rem`, `1.1rem`, `1.25rem`, `1.5rem`, `1.75rem`, `2rem`) chosen per-instance. Formalize as an 4px-based scale before the component library expands:
 
-`--space-1: 0.25rem` (4px) · `--space-2: 0.5rem` (8px) · `--space-3: 0.75rem` (12px) · `--space-4: 1rem` (16px) · `--space-5: 1.25rem` (20px) · `--space-6: 1.5rem` (24px) · `--space-8: 2rem` (32px) · `--space-10: 2.5rem` (40px)
+`--space-1: 0.25rem` (4px) · `--space-2: 0.5rem` (8px) · `--space-3: 0.75rem` (12px) · `--space-4: 1rem` (16px) · `--space-5: 1.25rem` (20px) · `--space-6: 1.5rem` (24px) · `--space-8: 2rem` (32px)
+
+Implemented `--space-1` through `--space-8`. **Redesign Phase 0** added the larger steps for page-level and marketing-section rhythm: `--space-10: 2.5rem` (40px) · `--space-12: 3rem` (48px) · `--space-16: 4rem` (64px) · `--space-20: 5rem` (80px) · `--space-24: 6rem` (96px).
+
+**Layout measures (Redesign Phase 0).** Named content-column widths, each centered in the main grid area, replacing the per-route `max-width` literals: `--measure-feed: 600px` · `--measure-prose: 640px` · `--measure-wide: 960px`.
 
 ## Radius
 
@@ -76,7 +95,9 @@ Implemented: `--radius-sm: 8px`, `--radius-md: 10px`, `--radius-lg: 16px`, `--ra
 
 ## Shadow / Elevation
 
-Three tiers, implemented: `--shadow` (cards — the original single token, kept as-is rather than renamed to `--shadow-sm` to avoid a blanket rename across every existing card), `--shadow-md` (dropdowns, popovers — not yet consumed by anything, reserved for when a dropdown/popover component is built), `--shadow-lg` (modals — `Modal.tsx`).
+Three tiers, implemented: `--shadow` (cards — the original single token, kept as-is rather than renamed to `--shadow-sm` to avoid a blanket rename across every existing card), `--shadow-md` (dropdowns, popovers, and — since Redesign Phase 1 — the `.motion-lift` hover state), `--shadow-lg` (modals — `Modal.tsx`).
+
+**Redesign Phase 1 primitives** (`globals.css`): `.card` (surface + `--border-strong` + `--radius-lg` + `--shadow`) / `.card--inset` (nested region — `--surface-2`, hairline border, no shadow); `.section` (vertically-rhythmic `.eyebrow` → heading → content block). `.postCard` / `.profileCard` / `.settingsSection` predate these and are not retrofitted; new panels use `.card`.
 
 ## Grid / Breakpoints
 
@@ -92,11 +113,27 @@ See `docs/foundations/COMPONENT_LIBRARY.md` for the full inventory and what's st
 
 Implemented as real CSS variables in the `@theme` block in `globals.css`: `--transition-fast: 0.05s ease` (press feedback), `--transition-base: 0.15s ease` (hover/focus states — inputs, buttons, link items, `DigitalHomeVisual`'s node hover/tooltip), `--transition-slow: 0.25s ease` (panel/modal enter-exit, reserved for the marketing sections' panel-level transitions). Not yet retrofitted onto every pre-existing hand-written `0.15s ease`/`0.05s ease` value outside the new marketing/`DigitalHomeVisual` CSS — same opportunistic-migration posture as Typography above. A blanket `prefers-reduced-motion: reduce` override (zeroes animation/transition duration) is implemented globally; see `docs/foundations/ACCESSIBILITY.md`.
 
+**Motion tokens + primitives (Redesign Phase 0).** Durations `--duration-1: 80ms` · `--duration-2: 150ms` · `--duration-3: 240ms` · `--duration-4: 400ms`; easings `--ease-out` (settle) · `--ease-in-out` · `--ease-spring`. Four utility classes, each covered by both the `prefers-reduced-motion` media query and the `html[data-reduced-motion="true"]` account override (no per-utility guard needed):
+
+| Class | Effect | Use |
+|---|---|---|
+| `.motion-page-in` | fade + 8px rise on mount | main content on route change (pair with View Transitions in Phase 4) |
+| `.motion-stagger` | direct children ease in, incremental delay, capped at 12 | feed / list first paint + append |
+| `.motion-reveal` (+ `.is-armed` / `.is-revealed`) | 16px rise on scroll-into-view | marketing scroll sections. `useReveal()` (`src/components/useReveal.ts`) adds `.is-armed` on mount (so the content stays visible for no-JS visitors and crawlers — the CSS only hides `.motion-reveal.is-armed`), then `.is-revealed` when its `IntersectionObserver` fires; short-circuits to revealed under reduced motion |
+| `.motion-press` | scale 0.97 active | any pressable element |
+| `.motion-lift` | −2px + `--shadow-md` on hover (`@media (hover: hover)`) | cards, list rows |
+
+Per `DESIGN_CONSISTENCY.md`: no per-component motion tuning — reach for these four or add a named token, don't hand-roll a fifth `@keyframes`.
+
+**Iconography (Redesign Phase 0).** `src/components/Icon.tsx` is the one place the size/stroke convention lives: `<Icon as={Bell} size="sm|md|lg" />` → 16 / 20 / 24px, `strokeWidth` 1.75 (lucide's default 2 reads heavy on this app's neutral surfaces). Decorative by default; pass `label` for a standalone meaningful icon. `lucide-react` v1 also exports `useLucideContext` for app-wide defaults — a possible future move if per-call-site `<Icon>` adoption proves noisy.
+
 ## Dark Mode
 
 Three-layer system, already implemented and working: OS preference (`@media (prefers-color-scheme: dark)`) as the default, overridable in either direction by an explicit `data-theme="light"|"dark"` attribute on `<html>` set via the header logo toggle + `localStorage`, with `suppressHydrationWarning` handling the pre-hydration script's unavoidable SSR/client mismatch. New CSS variables must always be defined in all three places (`:root`, the dark media query, and both `data-theme` overrides) — a token defined in only one will silently break theme switching.
 
 **Logo/theme pairing is intentional and non-standard:** dark theme shows the dark-fill mark (`0dot.png`), light theme shows the light-fill mark (`1dot.png`) — confirmed twice by explicit user direction, the reverse of the conventional higher-contrast pairing. Do not "fix" this back to the conventional pairing without being told to.
+
+**The default profile cover is theme-aware too** (Redesign, 2026-08): `/defaults/profile-cover-{light,dark}.jpg`, rendered by the profile page when a profile has no cover of its own, swapped by the same `.themeCover{Light,Dark}` CSS cascade as `.themeLogo*` (OS preference, then an explicit `data-theme` override). Unlike the logo, the cover uses the **natural** pairing — the dark cover in dark mode. Mobile picks the source at runtime from `theme.scheme` (`mobile/src/components/defaultCover.ts`) since RN has no CSS `display` toggle.
 
 ## Accessibility
 

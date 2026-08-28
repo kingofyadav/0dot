@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useTheme, type Theme } from "../theme";
@@ -6,22 +6,36 @@ import { haptics } from "../utils/haptics";
 
 type Props = {
   icon: keyof typeof Ionicons.glyphMap;
-  message: string;
+  /** @deprecated use `title` — kept so existing call sites keep working. */
+  message?: string;
+  title?: string;
+  description?: string;
+  /** A primary action (e.g. a <Button>) for a designed — not error — empty state. */
+  action?: ReactNode;
+  /** Error-recovery affordance: renders a "Try again" button. */
   onRetry?: () => void;
 };
 
-// Shared by every screen's empty/error list state. Previously each screen
-// just rendered static muted text with no way to recover from a real error
-// (a dropped connection, a 5xx) short of a manual pull-to-refresh the user
-// had no prompt to discover — onRetry surfaces that same recovery action
-// as a visible button instead.
-export function EmptyState({ icon, message, onRetry }: Props) {
+// Shared by every screen's empty/error list state. Redesign Phase 5
+// (docs/specs/phase-0-redesign.md §5) brought it to parity with the web
+// EmptyState: the icon sits in a soft accent disc, `message` became the
+// foreground title with an optional muted `description` line, and an
+// `action` slot for a designed empty state. `onRetry` stays for the real
+// error case (a dropped connection, a 5xx) the user otherwise had no
+// prompt to recover from.
+export function EmptyState({ icon, message, title, description, action, onRetry }: Props) {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const heading = title ?? message;
+
   return (
     <View style={styles.container}>
-      <Ionicons name={icon} size={32} color={theme.colors.mutedForeground} />
-      <Text style={styles.message}>{message}</Text>
+      <View style={styles.iconDisc}>
+        <Ionicons name={icon} size={24} color={theme.colors.accent} />
+      </View>
+      {heading ? <Text style={styles.title}>{heading}</Text> : null}
+      {description ? <Text style={styles.description}>{description}</Text> : null}
+      {action ? <View style={styles.action}>{action}</View> : null}
       {onRetry ? (
         <Pressable
           onPress={() => {
@@ -41,11 +55,29 @@ export function EmptyState({ icon, message, onRetry }: Props) {
 
 function createStyles(theme: Theme) {
   return StyleSheet.create({
-    container: { flex: 1, alignItems: "center", justifyContent: "center", padding: theme.space[8], gap: theme.space[3] },
-    message: { fontSize: theme.text.sm, textAlign: "center", color: theme.colors.mutedForeground },
+    container: { flex: 1, alignItems: "center", justifyContent: "center", padding: theme.space[8], gap: theme.space[2] },
+    iconDisc: {
+      width: 48,
+      height: 48,
+      borderRadius: theme.radius.full,
+      backgroundColor: theme.colors.accentSoft,
+      alignItems: "center",
+      justifyContent: "center",
+      marginBottom: theme.space[2],
+    },
+    title: { fontSize: theme.text.base, fontWeight: theme.weight.emphasis, textAlign: "center", color: theme.colors.foreground },
+    description: {
+      fontSize: theme.text.sm,
+      lineHeight: theme.text.sm * 1.55,
+      textAlign: "center",
+      color: theme.colors.mutedForeground,
+      maxWidth: 320,
+    },
+    action: { marginTop: theme.space[3] },
     retryButton: {
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: theme.colors.border,
+      marginTop: theme.space[3],
+      borderWidth: 1,
+      borderColor: theme.colors.borderStrong,
       borderRadius: theme.radius.full,
       paddingVertical: theme.space[3],
       paddingHorizontal: theme.space[5],

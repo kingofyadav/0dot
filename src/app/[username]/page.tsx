@@ -2,7 +2,7 @@ import { Fragment, Suspense } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { BadgeCheck, Check, Sparkle } from "lucide-react";
+import { BadgeCheck, Check, Sparkle, Link2 as LinkIcon, Newspaper } from "lucide-react";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
@@ -36,7 +36,13 @@ import { parsePortfolioLayout } from "@/lib/portfolio-layout";
 // not /uploads — the /uploads/[...path] route 307-redirects everything to
 // Vercel Blob storage, and this asset was never actually written there, so
 // it 404'd ("Blob not found") for every new signup.
-const DEFAULT_COVER_URL = "/defaults/profile-cover.jpg";
+//
+// Theme-aware, the same way the logo is (Logo.tsx / .themeLogo* in
+// globals.css): both variants render, CSS shows the one matching the active
+// prefers-color-scheme / data-theme. Unlike the logo's deliberately-reversed
+// pairing, the cover uses the natural one — the dark cover in dark mode.
+const DEFAULT_COVER_LIGHT = "/defaults/profile-cover-light.jpg";
+const DEFAULT_COVER_DARK = "/defaults/profile-cover-dark.jpg";
 
 // Single source of truth for both the query itself and (via ReturnType
 // below) the types every section of this page needs — including the two
@@ -235,8 +241,17 @@ export default async function ProfilePage({
       }
     >
       <div className="profileCover">
-        {/* eslint-disable-next-line @next/next/no-img-element -- user-supplied URL, not a local/optimizable asset */}
-        <img src={profile.coverUrl ?? DEFAULT_COVER_URL} alt="" className="profileCoverImg" />
+        {profile.coverUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element -- user-supplied URL, not a local/optimizable asset
+          <img src={profile.coverUrl} alt="" className="profileCoverImg" />
+        ) : (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element -- theme-swapped local asset, sized by CSS */}
+            <img src={DEFAULT_COVER_LIGHT} alt="" className="profileCoverImg themeCoverLight" />
+            {/* eslint-disable-next-line @next/next/no-img-element -- theme-swapped local asset, sized by CSS */}
+            <img src={DEFAULT_COVER_DARK} alt="" className="profileCoverImg themeCoverDark" />
+          </>
+        )}
       </div>
       <div className="profileHeaderRow">
         <Avatar src={profile.avatarUrl} alt={profile.displayName} size={96} className="profileAvatar" />
@@ -460,7 +475,20 @@ export default async function ProfilePage({
           <div className="linksSection">
             {visibleLinks.length > 0 && <p className="sectionHeading">Links</p>}
             {visibleLinks.length === 0 && (
-              <p className="mutedText">No links yet.</p>
+              <EmptyState
+                icon={LinkIcon}
+                title={isOwner ? "No links yet" : "No links to show"}
+                description={
+                  isOwner ? "Add the links you want people to find — your site, socials, anything." : undefined
+                }
+                action={
+                  isOwner ? (
+                    <Link href={`/s/${username.handle}/links`} className="button buttonSecondary buttonSmall">
+                      Add a link
+                    </Link>
+                  ) : undefined
+                }
+              />
             )}
             {visibleLinks.map((link) => (
               <div
@@ -1029,7 +1057,17 @@ async function ProfilePosts({
     <div className="postsSection">
       <ScrollToHashPost />
       <p className="sectionHeading">Posts</p>
-      {posts.length === 0 && <EmptyState message="No posts yet." />}
+      {posts.length === 0 && (
+        <EmptyState
+          icon={Newspaper}
+          title="No posts yet"
+          description={
+            currentUser?.id === username.userId
+              ? "Share an update from your feed and it'll show up here."
+              : undefined
+          }
+        />
+      )}
       <div className="itemStack">
         {posts.map((post) => (
           <PostCard
