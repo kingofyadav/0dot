@@ -34,4 +34,9 @@ jobs:
         run: npx tsc --noEmit
 
       - name: Publish OTA update
-        run: eas update --branch production --channel production --auto --non-interactive
+        # The current EAS CLI rejects --branch + --channel together, and --auto
+        # conflicts with an explicit --branch. This workflow only ever runs on
+        # push to main and always targets production, so name the branch
+        # directly (the `production` channel maps to it, set at build time in
+        # eas.json) and carry the commit subject as the update message.
+        run: eas update --branch production --message "${{ github.event.head_commit.message }}" --non-interactive
