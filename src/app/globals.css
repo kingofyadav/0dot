@@ -2849,16 +2849,15 @@ body.hasBottomNav .iosInstallBanner {
 
 /* The row itself is pulled up 48px (half the avatar's height) so the
    avatar — flex-start aligned, so its box starts exactly at the row's top —
-   visually straddles the cover boundary: top half over the cover, bottom
-   half over the page background. .profileHeaderInfo (the name/buttons/meta
-   column) compensates with matching padding-top, so its box also starts in
-   the overlap zone but its actual content never renders inside it —
-   previously this used align-items: flex-end, which coupled the info
-   column's position to the row's height (driven by whichever sibling was
-   taller); once the info column got tall enough (Edit/Follow/Message
-   buttons + the block toggle), its *top* — not just the avatar's — ended
-   up overlapping the cover image. flex-start + explicit padding-top fixes
-   this independent of either sibling's height. */
+   visually straddles the cover boundary.
+
+   Redesign Phase 2b: only the *avatar* overlaps now — it carries the
+   negative margin itself (--profile-avatar-lift), and the row sits below the
+   cover with normal flow. The name/meta/actions column needs no
+   compensating padding and can be any height without its top creeping onto
+   the cover — the failure mode every prior revision of this block was
+   fighting (flex-end coupling, then a hardcoded 48px that assumed a
+   96px avatar and broke when the headline grew). */
 .profileHeaderRow {
   position: relative;
   z-index: 1;
@@ -2866,13 +2865,16 @@ body.hasBottomNav .iosInstallBanner {
   align-items: flex-start;
   gap: 1.1rem;
   padding: 0 0.25rem;
-  margin-top: -48px;
+  margin-top: var(--space-3);
+}
+
+.profileHeaderRow .profileAvatar {
+  margin-top: calc(-1 * var(--profile-avatar-lift, 3.25rem));
 }
 
 .profileHeaderInfo {
   flex: 1;
   min-width: 0;
-  padding-top: 48px;
 }
 
 .profileName {

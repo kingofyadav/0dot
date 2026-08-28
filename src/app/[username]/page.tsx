@@ -2,7 +2,7 @@ import { Fragment, Suspense } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { BadgeCheck, Check, Sparkle } from "lucide-react";
+import { BadgeCheck, Check, Sparkle, Link2 as LinkIcon, Newspaper } from "lucide-react";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
@@ -460,7 +460,20 @@ export default async function ProfilePage({
           <div className="linksSection">
             {visibleLinks.length > 0 && <p className="sectionHeading">Links</p>}
             {visibleLinks.length === 0 && (
-              <p className="mutedText">No links yet.</p>
+              <EmptyState
+                icon={LinkIcon}
+                title={isOwner ? "No links yet" : "No links to show"}
+                description={
+                  isOwner ? "Add the links you want people to find — your site, socials, anything." : undefined
+                }
+                action={
+                  isOwner ? (
+                    <Link href={`/s/${username.handle}/links`} className="button buttonSecondary buttonSmall">
+                      Add a link
+                    </Link>
+                  ) : undefined
+                }
+              />
             )}
             {visibleLinks.map((link) => (
               <div
@@ -1029,7 +1042,17 @@ async function ProfilePosts({
     <div className="postsSection">
       <ScrollToHashPost />
       <p className="sectionHeading">Posts</p>
-      {posts.length === 0 && <EmptyState message="No posts yet." />}
+      {posts.length === 0 && (
+        <EmptyState
+          icon={Newspaper}
+          title="No posts yet"
+          description={
+            currentUser?.id === username.userId
+              ? "Share an update from your feed and it'll show up here."
+              : undefined
+          }
+        />
+      )}
       <div className="itemStack">
         {posts.map((post) => (
           <PostCard
