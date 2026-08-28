@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { headers } from "next/headers";
 import { getCurrentUser } from "@/lib/session";
 import { isProfilePagePath } from "@/lib/route-context";
@@ -12,6 +13,7 @@ import { NotificationBell } from "./NotificationBell";
 import { MessagesBadge } from "./MessagesBadge";
 import { AccountMenu } from "./AccountMenu";
 import { SearchForm } from "./SearchForm";
+import { HeaderIconsSkeleton } from "./Skeleton";
 
 export async function SiteHeader() {
   const user = await getCurrentUser();
@@ -47,10 +49,16 @@ export async function SiteHeader() {
       <AccountMenu displayName={user.profile.displayName} avatarUrl={user.profile.avatarUrl} profileHandle={profileHandle} />
     ) : null;
   const greeting = <span style={{ fontWeight: 600 }}>{user?.profile?.displayName ?? "Welcome"}</span>;
+  // MessagesBadge and NotificationBell each fetch (NotificationBell also
+  // pulls a 5-item preview) — behind <Suspense> so the header paints
+  // immediately and the badges fill in, rather than the whole shell waiting
+  // on them. accountMenu is already resolved (no fetch of its own).
   const iconCluster = (
     <>
-      <MessagesBadge />
-      <NotificationBell />
+      <Suspense fallback={<HeaderIconsSkeleton />}>
+        <MessagesBadge />
+        <NotificationBell />
+      </Suspense>
       {accountMenu}
     </>
   );

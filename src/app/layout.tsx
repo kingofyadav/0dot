@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Suspense } from "react";
 import { headers } from "next/headers";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
@@ -12,6 +13,7 @@ import { AgeGatePrompt } from "@/components/AgeGatePrompt";
 import { PwaServiceWorker } from "@/components/PwaServiceWorker";
 import { SafariInstallPrompt } from "@/components/SafariInstallPrompt";
 import { ThemeInitScript } from "@/components/ThemeInitScript";
+import { ContextualRailSkeleton } from "@/components/Skeleton";
 import { getCurrentUser } from "@/lib/session";
 import { getUnreadConversationCount } from "@/lib/messaging";
 import { getUnreadNotificationCount } from "@/lib/notifications";
@@ -181,8 +183,17 @@ export default async function RootLayout({
                   {children}
                 </main>
                 {/* Sibling of .appMain, not nested inside it — grid-area only
-                    applies to direct children of the body grid container. */}
-                {showRail && <ContextualRail />}
+                    applies to direct children of the body grid container.
+                    Behind <Suspense> so the rail's ~6 reads plus a
+                    logAIGeneration write (getSuggestedUsers) stream in
+                    separately instead of holding back the page shell's
+                    first byte — the skeleton keeps the grid column from
+                    reflowing when it arrives. */}
+                {showRail && (
+                  <Suspense fallback={<ContextualRailSkeleton />}>
+                    <ContextualRail />
+                  </Suspense>
+                )}
               </ToastProvider>
             </MessagingProvider>
           </KeyboardShortcutProvider>

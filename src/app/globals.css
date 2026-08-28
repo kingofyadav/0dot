@@ -623,6 +623,32 @@ html[data-reduced-motion="true"] *::after {
   scroll-behavior: auto !important;
 }
 
+/* Streaming placeholders. Server Components that hit the network (the
+   contextual rail's suggestions/notifications, the header's unread badges)
+   now sit behind <Suspense> so the page shell flushes without waiting on
+   them — these fill the gap until they stream in. The pulse is covered by
+   the blanket prefers-reduced-motion rule above, so it stops for users who
+   ask it to. */
+.skeletonBlock {
+  display: block;
+  border-radius: var(--radius-sm, 6px);
+  background: color-mix(in srgb, var(--foreground) 9%, transparent);
+  animation: skeletonPulse 1.4s ease-in-out infinite;
+}
+.skeletonBlock--text {
+  height: 0.75rem;
+  margin: 0.35rem 0;
+}
+@keyframes skeletonPulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
 /* addendum §11: rem-relative text throughout this stylesheet scales with
    this, same "curated subset, not a full range" posture as the account
    preference's own dropdown (PreferencesForm.tsx). */
