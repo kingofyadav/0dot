@@ -2,7 +2,7 @@ import { getCurrentUser } from "@/lib/session";
 import { db } from "@/lib/db";
 import { subscribeToUser, publishToUsers, type MessageEvent } from "@/lib/message-events";
 import { getConversationPartnerIds } from "@/lib/messaging";
-import { markUserOnline, markUserOffline } from "@/lib/presence";
+import { markUserOnline, markUserOffline, refreshPresence } from "@/lib/presence";
 
 export const dynamic = "force-dynamic";
 // Matches the platform's default function timeout, made explicit rather
@@ -42,6 +42,7 @@ export async function GET() {
 
   let unsubscribe: (() => void) | undefined;
   let heartbeat: ReturnType<typeof setInterval> | undefined;
+  let connectionId: string | undefined;
 
   const stream = new ReadableStream({
     start(controller) {
@@ -56,11 +57,14 @@ export async function GET() {
       };
 
       unsubscribe = subscribeToUser(user.id, send);
+      connectionId = markUserOnline(user.id);
       heartbeat = setInterval(() => {
         controller.enqueue(encoder.encode(`: heartbeat\n\n`));
+        // Push this connection's presence expiry forward (Redis store) so a
+        // long-lived stream doesn't age out as offline.
+        if (connectionId) refreshPresence(user.id, connectionId);
       }, HEARTBEAT_MS);
 
-      markUserOnline(user.id);
       db.user.update({ where: { id: user.id }, data: { lastActiveAt: new Date() } }).catch(() => {});
       broadcastPresence(user.id, true);
     },
@@ -69,7 +73,7 @@ export async function GET() {
       if (heartbeat) clearInterval(heartbeat);
 
       db.user.update({ where: { id: user.id }, data: { lastActiveAt: new Date() } }).catch(() => {});
-      markUserOffline(user.id, () => broadcastPresence(user.id, false));
+      if (connectionId) markUserOffline(user.id, connectionId, () => broadcastPresence(user.id, false));
     },
   });
 

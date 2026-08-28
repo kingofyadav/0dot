@@ -7,7 +7,7 @@ import {
   isConversationUnreadFor,
   parseConversationCursor,
 } from "@/lib/messaging";
-import { isUserOnline } from "@/lib/presence";
+import { getOnlineUserIds } from "@/lib/presence";
 import { ConversationListItem } from "@/components/ConversationListItem";
 import { ListKeyNav } from "@/components/ListKeyNav";
 import { EmptyState } from "@/components/EmptyState";
@@ -29,6 +29,11 @@ export default async function MessagesPage({
 
   const { items: conversations, nextCursor } = await listInboxConversations(currentUser.id, cursor);
 
+  const displays = conversations.map((c) => getConversationDisplayInfo(c, currentUser.id));
+  const onlineIds = await getOnlineUserIds(
+    displays.map((d) => d.otherUserId).filter((id): id is string => id != null)
+  );
+
   return (
     <div className="profileCard">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
@@ -46,8 +51,8 @@ export default async function MessagesPage({
       <ListKeyNav helpTitle="Messages">
         <div className="conversationList">
           {conversations.length === 0 && <EmptyState message="No conversations yet." />}
-          {conversations.map((conversation) => {
-            const display = getConversationDisplayInfo(conversation, currentUser.id);
+          {conversations.map((conversation, i) => {
+            const display = displays[i];
             const myParticipant = conversation.participants.find((p) => p.userId === currentUser.id);
             const pendingMine = conversation.requestState?.status === "pending";
             return (
@@ -60,7 +65,7 @@ export default async function MessagesPage({
                 preview={pendingMine ? "Request sent — waiting for a reply" : conversation.lastMessagePreview ?? ""}
                 timestamp={conversation.lastMessageAt}
                 isUnread={isConversationUnreadFor(currentUser.id, conversation, myParticipant)}
-                isOnline={display.otherUserId ? isUserOnline(display.otherUserId) : false}
+                isOnline={display.otherUserId ? onlineIds.has(display.otherUserId) : false}
                 showMenu
               />
             );

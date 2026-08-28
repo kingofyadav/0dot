@@ -7,7 +7,7 @@ import {
   getConversationDisplayInfo,
   parseConversationCursor,
 } from "@/lib/messaging";
-import { isUserOnline } from "@/lib/presence";
+import { getOnlineUserIds } from "@/lib/presence";
 import { acceptMessageRequest, declineMessageRequest } from "@/app/actions/messages";
 import { Logo } from "@/components/Logo";
 import { PresenceDot } from "@/components/PresenceDot";
@@ -32,6 +32,11 @@ export default async function MessageRequestsPage({
 
   const { items: requests, nextCursor } = await listMessageRequests(currentUser.id, cursor);
 
+  const displays = requests.map((c) => getConversationDisplayInfo(c, currentUser.id));
+  const onlineIds = await getOnlineUserIds(
+    displays.map((d) => d.otherUserId).filter((id): id is string => id != null)
+  );
+
   return (
     <div className="profileCard">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
@@ -43,8 +48,8 @@ export default async function MessageRequestsPage({
 
       <div className="conversationList">
         {requests.length === 0 && <EmptyState message="No pending requests." />}
-        {requests.map((conversation) => {
-          const display = getConversationDisplayInfo(conversation, currentUser.id);
+        {requests.map((conversation, i) => {
+          const display = displays[i];
           return (
             <div
               key={conversation.id}
@@ -70,7 +75,7 @@ export default async function MessageRequestsPage({
                       <Logo size={40} />
                     </span>
                   )}
-                  <PresenceDot online={display.otherUserId ? isUserOnline(display.otherUserId) : false} />
+                  <PresenceDot online={display.otherUserId ? onlineIds.has(display.otherUserId) : false} />
                 </span>
                 <span style={{ minWidth: 0 }}>
                   <span style={{ fontWeight: 600, display: "block" }}>

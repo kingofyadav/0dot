@@ -7,6 +7,7 @@ import { VerifiedBadge } from "./VerifiedBadge";
 import { ListRow } from "./ListRow";
 import { PostMediaGrid } from "./PostMediaGrid";
 import { relativeTime } from "../utils/relativeTime";
+import { formatCount } from "../utils/formatCount";
 import { haptics } from "../utils/haptics";
 import { usePressScale } from "../utils/usePressScale";
 import { useTheme, type Theme } from "../theme";
@@ -128,14 +129,16 @@ export function PostRow({ post, onPress, onToggleLike, onToggleRepost, onToggleB
               <Ionicons
                 name={post.isLiked ? "heart" : "heart-outline"}
                 size={15}
-                color={post.isLiked ? theme.colors.accent : theme.colors.mutedForeground}
+                color={post.isLiked ? theme.colors.danger : theme.colors.mutedForeground}
               />
             </Animated.View>
-            <Text style={[styles.statText, post.isLiked && { color: theme.colors.accent }]}>{post.likeCount}</Text>
+            {post.likeCount > 0 ? (
+              <Text style={[styles.statText, post.isLiked && { color: theme.colors.danger }]}>{formatCount(post.likeCount)}</Text>
+            ) : null}
           </StatButton>
           <StatButton accessibilityLabel="Reply" onPress={onReply}>
             <Ionicons name="chatbubble-outline" size={14} color={theme.colors.mutedForeground} />
-            <Text style={styles.statText}>{post.replyCount}</Text>
+            {post.replyCount > 0 ? <Text style={styles.statText}>{formatCount(post.replyCount)}</Text> : null}
           </StatButton>
           <StatButton accessibilityLabel="Repost" onPress={handleToggleRepost}>
             {repostPending ? (
@@ -143,7 +146,7 @@ export function PostRow({ post, onPress, onToggleLike, onToggleRepost, onToggleB
             ) : (
               <Ionicons name="repeat-outline" size={16} color={theme.colors.mutedForeground} />
             )}
-            <Text style={styles.statText}>{post.repostCount}</Text>
+            {post.repostCount > 0 ? <Text style={styles.statText}>{formatCount(post.repostCount)}</Text> : null}
           </StatButton>
           <StatButton
             accessibilityLabel={post.isBookmarked ? "Remove bookmark" : "Bookmark"}
@@ -171,7 +174,18 @@ function createStyles(theme: Theme) {
     dot: { color: theme.colors.mutedForeground },
     time: { color: theme.colors.mutedForeground, fontSize: theme.text.xs },
     postText: { color: theme.colors.foreground, fontSize: theme.text.base, lineHeight: theme.text.base * 1.3 },
-    statsRow: { flexDirection: "row", alignItems: "center", gap: theme.space[5], marginTop: theme.space[1] },
+    // Mirrors the web app's .postActionsRow (globals.css) — a hairline
+    // divider above the action row so it reads as its own zone, not text
+    // that runs into the post body.
+    statsRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.space[5],
+      marginTop: theme.space[2],
+      paddingTop: theme.space[2],
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: theme.colors.border,
+    },
     statText: { color: theme.colors.mutedForeground, fontSize: theme.text.xs },
   });
 }

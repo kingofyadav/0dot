@@ -6,6 +6,7 @@ import { getCurrentUser } from "@/lib/session";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { isBusinessStaff } from "@/lib/businesses";
 import { recordCrmActivity } from "@/lib/crm";
+import { notifyBusinessContactMessage } from "@/lib/notifications";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -70,6 +71,10 @@ export async function sendContactMessage(
     sourceId: contactMessage.id,
     identity: { userId: currentUser?.id, externalName: senderName, externalEmail: senderEmail },
   });
+
+  // Realtime addendum Phase E — notify + push the admin+ staff. Every other
+  // inbound business signal already did; this one didn't.
+  await notifyBusinessContactMessage({ businessId: business.id, businessSlug: business.slug });
 
   revalidatePath(`/b/${business.slug}/manage/contact`);
   return { success: true };

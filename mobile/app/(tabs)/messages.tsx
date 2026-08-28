@@ -65,7 +65,7 @@ export default function MessagesScreen() {
   useMessagesStreamEvents(
     useCallback(
       (event) => {
-        if (event.type === "new-message" || event.type === "conversation-updated") load(true);
+        if (event.type === "new-message" || event.type === "conversation-updated" || event.type === "resync") load(true);
       },
       [load]
     )

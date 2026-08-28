@@ -13,10 +13,17 @@ import { db } from "@/lib/db";
 // (e.g. their tab crashed).
 export const MAX_FLOOR_HOLD_MS = 60_000;
 
-// Real ceiling of the WebRTC mesh approach (see schema comment on
-// VoiceRoom): the current speaker's browser opens one outbound connection
-// per listener, so their upload bandwidth scales with room size.
-export const MAX_VOICE_ROOM_PARTICIPANTS = 30;
+// Phase D (docs/specs/addendum-voice-rooms-livekit.md): the audio moved to
+// a LiveKit SFU, so the mesh bandwidth ceiling (was 30 — one outbound
+// connection per listener from the speaker's browser) no longer applies.
+// This is now just a product cap, matched by the LiveKit room's own
+// maxParticipants.
+export const MAX_VOICE_ROOM_PARTICIPANTS = 100;
+
+// Cost guard — a community can't stand up an unbounded number of concurrent
+// LiveKit rooms (each is real SFU capacity). Checked in createVoiceRoom /
+// startVoiceRoom against the count of status:"live" rooms.
+export const MAX_CONCURRENT_VOICE_ROOMS_PER_COMMUNITY = 3;
 
 const participantUserInclude = { username: true, profile: true } as const;
 
@@ -42,6 +49,17 @@ export function isFloorFree(room: { currentSpeakerId: string | null; currentSpea
   if (!room.currentSpeakerId) return true;
   if (!room.currentSpeakerSince) return true; // defensive — shouldn't happen if currentSpeakerId is set
   return Date.now() - room.currentSpeakerSince.getTime() > MAX_FLOOR_HOLD_MS;
+}
+
+// "This user holds the floor right now, and it hasn't gone stale" — the
+// LiveKit token's canPublish value (Phase D). A stale floor
+// (isFloorFree true despite currentSpeakerId set) grants nothing; the next
+// speaker's startSpeaking will take it.
+export function holdsFreshFloor(
+  room: { currentSpeakerId: string | null; currentSpeakerSince: Date | null },
+  userId: string
+): boolean {
+  return room.currentSpeakerId === userId && !isFloorFree(room);
 }
 
 export type VoiceRoomParticipantRow = {

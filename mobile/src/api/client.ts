@@ -24,6 +24,12 @@ import type {
   MessageableCandidate,
   CommunitiesResponse,
   CommunityDetail,
+  CommunityChatMessage,
+  CommunityChatResponse,
+  VoiceRoomSummary,
+  VoiceRoomDetail,
+  VoiceRoomAction,
+  LiveKitToken,
   BusinessesResponse,
   BusinessDetail,
   MarketplaceResponse,
@@ -357,6 +363,61 @@ export function getCommunityPosts(slug: string, cursor?: string | null): Promise
 
 export function createCommunityPost(slug: string, body: string): Promise<Post> {
   return authorizedRequest(`/api/v1/communities/${encodeURIComponent(slug)}/posts`, { method: "POST", body: JSON.stringify({ body }) });
+}
+
+// Realtime addendum Phase C — community live chat.
+export function getCommunityChat(slug: string, cursor?: string | null): Promise<CommunityChatResponse> {
+  const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
+  return authorizedRequest<CommunityChatResponse>(`/api/v1/communities/${encodeURIComponent(slug)}/chat${query}`);
+}
+
+export function sendCommunityChatMessage(slug: string, body: string): Promise<CommunityChatMessage> {
+  return authorizedRequest(`/api/v1/communities/${encodeURIComponent(slug)}/chat`, {
+    method: "POST",
+    body: JSON.stringify({ body }),
+  });
+}
+
+export function deleteCommunityChatMessage(slug: string, messageId: string): Promise<{ ok: true }> {
+  return authorizedRequest(
+    `/api/v1/communities/${encodeURIComponent(slug)}/chat/${encodeURIComponent(messageId)}`,
+    { method: "DELETE" }
+  );
+}
+
+// Fire-and-forget "someone is typing" ping — the caller debounces.
+export function sendCommunityChatTyping(slug: string): Promise<{ ok: true }> {
+  return authorizedRequest(`/api/v1/communities/${encodeURIComponent(slug)}/chat/typing`, { method: "POST" });
+}
+
+// Realtime addendum Phase D — community voice rooms (LiveKit).
+export function getCommunityVoiceRooms(slug: string): Promise<{ items: VoiceRoomSummary[] }> {
+  return authorizedRequest(`/api/v1/communities/${encodeURIComponent(slug)}/voice`);
+}
+
+export function getVoiceRoom(slug: string, roomId: string): Promise<VoiceRoomDetail> {
+  return authorizedRequest(`/api/v1/communities/${encodeURIComponent(slug)}/voice/${encodeURIComponent(roomId)}`);
+}
+
+export function voiceRoomAction(slug: string, roomId: string, action: VoiceRoomAction): Promise<{ ok: true }> {
+  return authorizedRequest(
+    `/api/v1/communities/${encodeURIComponent(slug)}/voice/${encodeURIComponent(roomId)}/action`,
+    { method: "POST", body: JSON.stringify({ action }) }
+  );
+}
+
+export function getVoiceRoomToken(slug: string, roomId: string): Promise<LiveKitToken> {
+  return authorizedRequest(
+    `/api/v1/communities/${encodeURIComponent(slug)}/voice/${encodeURIComponent(roomId)}/token`,
+    { method: "POST" }
+  );
+}
+
+export function createVoiceRoom(slug: string, title: string): Promise<{ id: string }> {
+  return authorizedRequest(`/api/v1/communities/${encodeURIComponent(slug)}/voice`, {
+    method: "POST",
+    body: JSON.stringify({ title }),
+  });
 }
 
 // Sub-phase M5 (Businesses + Marketplace) — both browse-only, purchase/

@@ -6,6 +6,7 @@ import { requireVerifiedUser } from "@/lib/auth-guards";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getCommunityMember, isCommunityStaff, logModAction } from "@/lib/communities";
 import { publishToCommunityChat } from "@/lib/community-chat-events";
+import { serializeChatMessage } from "@/lib/community-chat";
 import type { ActionState } from "@/app/actions/auth";
 
 // Flood guard, same shape as messages.ts's checkSendMessageRateLimit —
@@ -37,8 +38,11 @@ export async function sendChatMessage(formData: FormData): Promise<ActionState> 
     return { error: "You don't have permission to send messages here." };
   }
 
-  await db.communityChatMessage.create({ data: { communityId, senderId: user.id, body } });
-  publishToCommunityChat(communityId, { type: "new-chat-message" });
+  const created = await db.communityChatMessage.create({
+    data: { communityId, senderId: user.id, body },
+    include: { sender: { include: { username: true, profile: true } } },
+  });
+  await publishToCommunityChat(communityId, { type: "new-chat-message", message: serializeChatMessage(created) });
 
   const community = await db.community.findUnique({ where: { id: communityId }, select: { slug: true } });
   if (community) revalidatePath(`/c/${community.slug}/chat`);
@@ -54,22 +58,29 @@ export async function deleteChatMessage(formData: FormData): Promise<void> {
   const communityId = String(formData.get("communityId") ?? "");
   const messageId = String(formData.get("messageId") ?? "");
   if (!communityId || !messageId) return;
-  if (!(await isCommunityStaff(communityId, user.id))) return;
 
   const message = await db.communityChatMessage.findFirst({
     where: { id: messageId, communityId, deletedAt: null },
   });
   if (!message) return;
 
+  // Realtime addendum Phase C: an author can delete their own line
+  // (not moderation — not logged); staff can delete anyone's (logged).
+  const isAuthor = message.senderId === user.id;
+  const isStaff = isAuthor ? false : await isCommunityStaff(communityId, user.id);
+  if (!isAuthor && !isStaff) return;
+
   await db.communityChatMessage.update({ where: { id: messageId }, data: { deletedAt: new Date() } });
-  await logModAction({
-    communityId,
-    moderatorId: user.id,
-    action: "remove_chat_message",
-    targetType: "chat_message",
-    targetId: messageId,
-  });
-  publishToCommunityChat(communityId, { type: "chat-message-deleted" });
+  if (isStaff) {
+    await logModAction({
+      communityId,
+      moderatorId: user.id,
+      action: "remove_chat_message",
+      targetType: "chat_message",
+      targetId: messageId,
+    });
+  }
+  await publishToCommunityChat(communityId, { type: "chat-message-deleted", messageId });
 
   const community = await db.community.findUnique({ where: { id: communityId }, select: { slug: true } });
   if (community) revalidatePath(`/c/${community.slug}/chat`);

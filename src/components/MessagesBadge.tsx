@@ -6,7 +6,7 @@ import {
   getConversationDisplayInfo,
   isConversationUnreadFor,
 } from "@/lib/messaging";
-import { isUserOnline } from "@/lib/presence";
+import { getOnlineUserIds } from "@/lib/presence";
 import { ConversationListItem } from "./ConversationListItem";
 import { PreviewPopover } from "./PreviewPopover";
 
@@ -26,6 +26,10 @@ export async function MessagesBadge() {
   ]);
   const label = count > 0 ? `Messages, ${count} unread` : "Messages";
   const preview = conversations.slice(0, PREVIEW_COUNT);
+  const previewDisplays = preview.map((c) => getConversationDisplayInfo(c, user.id));
+  const onlineIds = await getOnlineUserIds(
+    previewDisplays.map((d) => d.otherUserId).filter((id): id is string => id != null)
+  );
 
   return (
     <PreviewPopover
@@ -44,8 +48,8 @@ export async function MessagesBadge() {
       isEmpty={preview.length === 0}
       emptyLabel="No conversations yet."
     >
-      {preview.map((conversation) => {
-        const display = getConversationDisplayInfo(conversation, user.id);
+      {preview.map((conversation, i) => {
+        const display = previewDisplays[i];
         const myParticipant = conversation.participants.find((p) => p.userId === user.id);
         const pendingMine = conversation.requestState?.status === "pending";
         return (
@@ -58,7 +62,7 @@ export async function MessagesBadge() {
             preview={pendingMine ? "Request sent — waiting for a reply" : conversation.lastMessagePreview ?? ""}
             timestamp={conversation.lastMessageAt}
             isUnread={isConversationUnreadFor(user.id, conversation, myParticipant)}
-            isOnline={display.otherUserId ? isUserOnline(display.otherUserId) : false}
+            isOnline={display.otherUserId ? onlineIds.has(display.otherUserId) : false}
           />
         );
       })}

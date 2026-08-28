@@ -172,6 +172,70 @@ export type CommunityDetail = {
   membership: CommunityMembership;
 };
 
+// Realtime addendum Phase C — community live chat.
+export type CommunityChatMessage = {
+  id: string;
+  body: string;
+  createdAt: string;
+  senderId: string;
+  senderHandle: string | null;
+  senderName: string | null;
+  senderAvatarUrl: string | null;
+};
+
+export type CommunityChatResponse = {
+  items: CommunityChatMessage[];
+  nextCursor: string | null;
+  canSend: boolean;
+};
+
+// Realtime addendum Phase D — community voice rooms (LiveKit).
+export type VoiceRoomSummary = {
+  id: string;
+  title: string;
+  status: string;
+  startsAt: string;
+  createdBy: string;
+  creatorName: string | null;
+  floorFree: boolean;
+};
+
+export type VoiceRoomParticipant = {
+  userId: string;
+  role: string;
+  displayName: string;
+  avatarUrl: string | null;
+};
+
+export type VoiceRoomDetail = {
+  id: string;
+  title: string;
+  status: string;
+  isCreator: boolean;
+  isStaff: boolean;
+  canSpeak: boolean;
+  myRole: string | null;
+  isParticipant: boolean;
+  currentSpeakerId: string | null;
+  currentSpeakerName: string | null;
+  floorFree: boolean;
+  queuePosition: number | null;
+  isMyTurnNext: boolean;
+  participants: VoiceRoomParticipant[];
+};
+
+export type VoiceRoomAction =
+  | "join"
+  | "leave"
+  | "request-speak"
+  | "cancel-request"
+  | "start-speaking"
+  | "stop-speaking"
+  | "force-stop"
+  | "end-room";
+
+export type LiveKitToken = { token: string; url: string };
+
 export type BusinessSummary = {
   slug: string;
   name: string;

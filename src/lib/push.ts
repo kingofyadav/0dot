@@ -1,5 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
+import { isUserOnline } from "@/lib/presence";
 
 export type PushPlatform = "ios" | "android" | "web_push";
 export const PUSH_PLATFORMS: PushPlatform[] = ["ios", "android", "web_push"];
@@ -133,6 +134,17 @@ async function isChannelEnabled(userId: string, notificationType: string, channe
 export async function dispatchPushEvent(args: { recipientId: string; actorId?: string | null; type: string; subjectType: string; subjectId: string }): Promise<void> {
   try {
     if (!(await isChannelEnabled(args.recipientId, args.type, "push"))) return;
+
+    // Realtime addendum (docs/specs/addendum-realtime-community.md) Phase B:
+    // foreground = SSE, background = push, never both for the same event. An
+    // open SSE stream (mobile foregrounds it, web keeps it while the tab is
+    // open) already delivers this notification live in-app via the message
+    // bus — a push on top is redundant buzz. The presence store answers
+    // "has an open stream" cross-instance; its 45s self-healing window
+    // keeps a stale-positive from silently swallowing pushes for long.
+    // Deliberately every type, not a subset: if you're looking at the app,
+    // you see the in-app update regardless of what kind it is.
+    if (await isUserOnline(args.recipientId)) return;
 
     const tokens = await db.deviceToken.findMany({ where: { userId: args.recipientId } });
     if (tokens.length === 0) return;

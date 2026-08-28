@@ -3,7 +3,7 @@ import { resolveApiRequest, requireScope, requireVerifiedApiUser, apiError } fro
 import { checkApiRateLimit } from "@/lib/api-rate-limit";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { isBlockedEitherWay } from "@/lib/blocks";
-import { isUserOnline } from "@/lib/presence";
+import { getOnlineUserIds } from "@/lib/presence";
 import {
   listInboxConversations,
   parseConversationCursor,
@@ -39,11 +39,16 @@ export async function GET(request: Request) {
     getUnreadConversationCount(ctx.userId),
   ]);
 
+  const displays = items.map((conversation) => getConversationDisplayInfo(conversation, ctx.userId));
+  const onlineIds = await getOnlineUserIds(
+    displays.map((d) => d.otherUserId).filter((id): id is string => id != null)
+  );
+
   return Response.json(
     {
       unreadCount,
-      items: items.map((conversation) => {
-        const display = getConversationDisplayInfo(conversation, ctx.userId);
+      items: items.map((conversation, i) => {
+        const display = displays[i];
         const myParticipant = conversation.participants.find((p) => p.userId === ctx.userId);
         return {
           id: conversation.id,
@@ -54,11 +59,11 @@ export async function GET(request: Request) {
           otherUserId: display.otherUserId,
           // Same two raw ingredients the web inbox/conversation header
           // combine for the green dot / "Active Xm ago" line
-          // (getConversationDisplayInfo's own comment) — isUserOnline is
-          // the in-memory SSE-connection tracker (presence.ts), read
-          // synchronously per row here the same way the web page reads it
-          // per conversation.
-          isOnline: display.otherUserId ? isUserOnline(display.otherUserId) : false,
+          // (getConversationDisplayInfo's own comment). Presence is the
+          // cross-instance SSE-connection store (presence.ts →
+          // realtime/presence-store.ts), resolved once per page as a
+          // batched lookup above rather than per row.
+          isOnline: display.otherUserId ? onlineIds.has(display.otherUserId) : false,
           otherLastActiveAt: display.otherLastActiveAt,
           lastMessageAt: conversation.lastMessageAt,
           lastMessagePreview: conversation.lastMessagePreview,

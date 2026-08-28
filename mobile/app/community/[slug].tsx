@@ -197,14 +197,38 @@ export default function CommunityScreen() {
                     {community.memberCount} {community.memberCount === 1 ? "member" : "members"} · {community.visibility}
                   </Text>
                   {community.description ? <Text style={styles.description}>{community.description}</Text> : null}
-                  <Button
-                    label={isActiveMember ? "Leave" : isPending ? "Requested" : "Join"}
-                    variant={isActiveMember ? "secondary" : "primary"}
-                    onPress={onToggleJoin}
-                    loading={joinBusy}
-                    disabled={isPending}
-                    style={styles.joinButton}
-                  />
+                  <View style={styles.headerActions}>
+                    <Button
+                      label={isActiveMember ? "Leave" : isPending ? "Requested" : "Join"}
+                      variant={isActiveMember ? "secondary" : "primary"}
+                      onPress={onToggleJoin}
+                      loading={joinBusy}
+                      disabled={isPending}
+                      style={styles.headerActionButton}
+                    />
+                    {community.canViewContent ? (
+                      <>
+                        <Button
+                          label="Chat"
+                          variant="secondary"
+                          onPress={() =>
+                            router.push({ pathname: "/community/[slug]/chat", params: { slug, name: community.name } })
+                          }
+                          accessibilityLabel={`Open ${community.name} chat`}
+                          style={styles.headerActionButton}
+                        />
+                        <Button
+                          label="Voice"
+                          variant="secondary"
+                          onPress={() =>
+                            router.push({ pathname: "/community/[slug]/voice", params: { slug, name: community.name } })
+                          }
+                          accessibilityLabel={`Open ${community.name} voice rooms`}
+                          style={styles.headerActionButton}
+                        />
+                      </>
+                    ) : null}
+                  </View>
                 </View>
                 {!community.canViewContent ? (
                   <EmptyState icon="lock-closed-outline" message="Join this community to see its posts." />
@@ -272,7 +296,8 @@ function createStyles(theme: Theme) {
     name: { fontSize: theme.text.xl, fontWeight: theme.weight.heading, color: theme.colors.foreground },
     meta: { color: theme.colors.mutedForeground, fontSize: theme.text.sm },
     description: { color: theme.colors.foreground, fontSize: theme.text.base, textAlign: "center" },
-    joinButton: { marginTop: theme.space[2], minWidth: 140 },
+    headerActions: { flexDirection: "row", gap: theme.space[2], marginTop: theme.space[2] },
+    headerActionButton: { flex: 1, minWidth: 120 },
     composer: {
       flexDirection: "row",
       alignItems: "flex-end",

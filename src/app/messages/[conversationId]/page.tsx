@@ -40,7 +40,7 @@ export default async function ConversationPage({
   if (!conversation) notFound();
 
   const display = getConversationDisplayInfo(conversation, currentUser.id);
-  const isOtherOnline = display.otherUserId ? isUserOnline(display.otherUserId) : false;
+  const isOtherOnline = display.otherUserId ? await isUserOnline(display.otherUserId) : false;
   const { items: recentMessages, nextCursor } = await getMessagesForConversation(conversationId, currentUser.id, null);
   const messages = [...recentMessages].reverse(); // oldest-first for chat display
 

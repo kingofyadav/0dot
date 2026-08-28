@@ -15,6 +15,7 @@ import { PostMediaGrid } from "../../src/components/PostMediaGrid";
 import { SkeletonBlock } from "../../src/components/Skeleton";
 import { StatButton, statButtonStyles } from "../../src/components/PostRow";
 import { SendButton } from "../../src/components/SendButton";
+import { formatCount } from "../../src/utils/formatCount";
 import { animateNextLayout } from "../../src/utils/animateLayout";
 import { haptics } from "../../src/utils/haptics";
 import { useContentMaxWidth } from "../../src/utils/responsive";
@@ -216,14 +217,16 @@ export default function PostScreen() {
               <Ionicons
                 name={post.isLiked ? "heart" : "heart-outline"}
                 size={17}
-                color={post.isLiked ? theme.colors.accent : theme.colors.mutedForeground}
+                color={post.isLiked ? theme.colors.danger : theme.colors.mutedForeground}
               />
             </Animated.View>
-            <Text style={[styles.statText, post.isLiked && { color: theme.colors.accent }]}>{post.likeCount}</Text>
+            {post.likeCount > 0 ? (
+              <Text style={[styles.statText, post.isLiked && { color: theme.colors.danger }]}>{formatCount(post.likeCount)}</Text>
+            ) : null}
           </StatButton>
           <StatButton accessibilityLabel="Reply" onPress={() => replyInputRef.current?.focus()}>
             <Ionicons name="chatbubble-outline" size={16} color={theme.colors.mutedForeground} />
-            <Text style={styles.statText}>{post.replyCount}</Text>
+            {post.replyCount > 0 ? <Text style={styles.statText}>{formatCount(post.replyCount)}</Text> : null}
           </StatButton>
           <StatButton accessibilityLabel="Repost" onPress={handleToggleRepost}>
             {repostPending ? (
@@ -231,7 +234,7 @@ export default function PostScreen() {
             ) : (
               <Ionicons name="repeat-outline" size={18} color={theme.colors.mutedForeground} />
             )}
-            <Text style={styles.statText}>{post.repostCount}</Text>
+            {post.repostCount > 0 ? <Text style={styles.statText}>{formatCount(post.repostCount)}</Text> : null}
           </StatButton>
           <StatButton
             accessibilityLabel={post.isBookmarked ? "Remove bookmark" : "Bookmark"}

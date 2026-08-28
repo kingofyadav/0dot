@@ -3,6 +3,7 @@ import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   runOnJS,
+  useAnimatedKeyboard,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
@@ -46,13 +47,23 @@ export function BottomSheet({ visible, onClose, title, children }: Props) {
   const styles = createStyles(theme);
   const reduceMotion = useReducedMotion();
   const translateY = useSharedValue(OFFSCREEN);
+  // The sheet is pinned to the bottom of a full-screen Modal, and RN's
+  // Modal window does not resize for the soft keyboard on Android — so a
+  // sheet with a TextInput in it (ReplySheet, the wallet transfer sheet,
+  // the contact-change sheet) was left sitting *under* the keyboard, input
+  // and buttons hidden. This lifts the whole sheet by the live keyboard
+  // height. useAnimatedKeyboard (not KeyboardAvoidingView) because it's
+  // the one keyboard API that reports correctly from inside a Modal on
+  // both platforms, and it composes straight into the translateY the
+  // drag-gesture and open/close animation already drive.
+  const keyboard = useAnimatedKeyboard();
 
   useEffect(() => {
     const target = visible ? 0 : OFFSCREEN;
     translateY.value = reduceMotion ? target : withTiming(target, { duration: theme.motion.slow });
   }, [visible, reduceMotion, theme.motion.slow, translateY]);
 
-  const sheetStyle = useAnimatedStyle(() => ({ transform: [{ translateY: translateY.value }] }));
+  const sheetStyle = useAnimatedStyle(() => ({ transform: [{ translateY: translateY.value - keyboard.height.value }] }));
   const backdropStyle = useAnimatedStyle(() => ({
     opacity: OFFSCREEN > 0 ? 1 - Math.min(Math.max(translateY.value, 0), OFFSCREEN) / OFFSCREEN : 1,
   }));
@@ -74,7 +85,14 @@ export function BottomSheet({ visible, onClose, title, children }: Props) {
     });
 
   return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="none"
+      onRequestClose={onClose}
+      statusBarTranslucent
+      navigationBarTranslucent
+    >
       <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Dismiss" accessibilityRole="button">
         <Animated.View style={[StyleSheet.absoluteFill, styles.backdrop, backdropStyle]} />
       </Pressable>

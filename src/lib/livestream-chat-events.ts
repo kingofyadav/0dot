@@ -1,41 +1,23 @@
 import "server-only";
+import { createChannel } from "@/lib/realtime/bus";
 
-// In-memory, single-process pub/sub for livestream chat SSE, same
-// room-keyed (by livestreamId) shape as community-chat-events.ts — see
-// that file's comment for why this is a separate module from
-// message-events.ts's user-keyed bus and why it resets on restart.
+// Room-keyed (by livestreamId) event fan-out for livestream chat SSE, same
+// broadcast shape as community-chat-events.ts. Storage moved to the shared
+// realtime bus (src/lib/realtime/bus.ts) so it works across Vercel
+// instances — see docs/specs/addendum-realtime-community.md. Public API
+// unchanged.
 
 export type LivestreamChatEvent = { type: "new-chat-message" } | { type: "chat-message-deleted" };
 
-type Subscriber = (event: LivestreamChatEvent) => void;
+const channel = createChannel<LivestreamChatEvent>("lchat");
 
-const globalForLivestreamChatEvents = globalThis as unknown as {
-  livestreamChatSubscribers: Map<string, Set<Subscriber>> | undefined;
-};
-
-const subscribers =
-  globalForLivestreamChatEvents.livestreamChatSubscribers ?? new Map<string, Set<Subscriber>>();
-
-if (process.env.NODE_ENV !== "production") {
-  globalForLivestreamChatEvents.livestreamChatSubscribers = subscribers;
-}
-
-export function subscribeToLivestreamChat(livestreamId: string, callback: Subscriber): () => void {
-  let set = subscribers.get(livestreamId);
-  if (!set) {
-    set = new Set();
-    subscribers.set(livestreamId, set);
-  }
-  set.add(callback);
-
-  return () => {
-    set!.delete(callback);
-    if (set!.size === 0) subscribers.delete(livestreamId);
-  };
+export function subscribeToLivestreamChat(
+  livestreamId: string,
+  callback: (event: LivestreamChatEvent) => void
+): () => void {
+  return channel.subscribe(livestreamId, callback);
 }
 
 export function publishToLivestreamChat(livestreamId: string, event: LivestreamChatEvent): void {
-  const set = subscribers.get(livestreamId);
-  if (!set) return;
-  for (const callback of set) callback(event);
+  channel.publish(livestreamId, event);
 }

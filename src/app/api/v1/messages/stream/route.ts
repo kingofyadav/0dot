@@ -3,7 +3,7 @@ import { resolveApiRequest, requireScope, apiError } from "@/lib/api-auth";
 import { checkApiRateLimit } from "@/lib/api-rate-limit";
 import { subscribeToUser, publishToUsers, type MessageEvent } from "@/lib/message-events";
 import { getConversationPartnerIds } from "@/lib/messaging";
-import { markUserOnline, markUserOffline } from "@/lib/presence";
+import { markUserOnline, markUserOffline, refreshPresence } from "@/lib/presence";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300; // same as api/messages/stream/route.ts — see its comment
@@ -41,6 +41,7 @@ export async function GET(request: Request) {
   const userId = ctx.userId;
   let unsubscribe: (() => void) | undefined;
   let heartbeat: ReturnType<typeof setInterval> | undefined;
+  let connectionId: string | undefined;
 
   const stream = new ReadableStream({
     start(controller) {
@@ -51,11 +52,12 @@ export async function GET(request: Request) {
       };
 
       unsubscribe = subscribeToUser(userId, send);
+      connectionId = markUserOnline(userId);
       heartbeat = setInterval(() => {
         controller.enqueue(encoder.encode(`: heartbeat\n\n`));
+        if (connectionId) refreshPresence(userId, connectionId);
       }, HEARTBEAT_MS);
 
-      markUserOnline(userId);
       db.user.update({ where: { id: userId }, data: { lastActiveAt: new Date() } }).catch(() => {});
       broadcastPresence(userId, true);
     },
@@ -64,7 +66,7 @@ export async function GET(request: Request) {
       if (heartbeat) clearInterval(heartbeat);
 
       db.user.update({ where: { id: userId }, data: { lastActiveAt: new Date() } }).catch(() => {});
-      markUserOffline(userId, () => broadcastPresence(userId, false));
+      if (connectionId) markUserOffline(userId, connectionId, () => broadcastPresence(userId, false));
     },
   });
 

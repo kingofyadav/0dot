@@ -72,7 +72,14 @@ export function UnreadBadgeProvider({ children }: { children: ReactNode }) {
   }, [status, refetch]);
 
   useMessagesStreamEvents((event) => {
-    if (event.type === "new-message" || event.type === "conversation-updated" || event.type === "notification") refetch();
+    if (
+      event.type === "new-message" ||
+      event.type === "conversation-updated" ||
+      event.type === "notification" ||
+      event.type === "resync"
+    ) {
+      refetch();
+    }
   });
 
   return <UnreadBadgeContext.Provider value={{ ...counts, refetch }}>{children}</UnreadBadgeContext.Provider>;
