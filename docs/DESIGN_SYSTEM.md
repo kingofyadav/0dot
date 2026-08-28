@@ -119,7 +119,7 @@ Implemented as real CSS variables in the `@theme` block in `globals.css`: `--tra
 |---|---|---|
 | `.motion-page-in` | fade + 8px rise on mount | main content on route change (pair with View Transitions in Phase 4) |
 | `.motion-stagger` | direct children ease in, incremental delay, capped at 12 | feed / list first paint + append |
-| `.motion-reveal` + `.is-revealed` | 16px rise on scroll-into-view | marketing scroll sections. Toggle `.is-revealed` via `useReveal()` (`src/components/useReveal.ts`) — an `IntersectionObserver` hook that short-circuits to immediately-revealed under reduced motion |
+| `.motion-reveal` (+ `.is-armed` / `.is-revealed`) | 16px rise on scroll-into-view | marketing scroll sections. `useReveal()` (`src/components/useReveal.ts`) adds `.is-armed` on mount (so the content stays visible for no-JS visitors and crawlers — the CSS only hides `.motion-reveal.is-armed`), then `.is-revealed` when its `IntersectionObserver` fires; short-circuits to revealed under reduced motion |
 | `.motion-press` | scale 0.97 active | any pressable element |
 | `.motion-lift` | −2px + `--shadow-md` on hover (`@media (hover: hover)`) | cards, list rows |
 

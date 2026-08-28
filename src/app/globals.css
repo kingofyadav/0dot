@@ -871,19 +871,18 @@ h6 {
   }
 }
 
-/* motion-reveal — scroll-triggered; starts hidden, .is-revealed (set by
-   useReveal's IntersectionObserver) plays it in. Under reduced motion the
-   transition is zeroed by the global rule, so the element still ends visible. */
+/* motion-reveal — scroll-triggered. Visible by default (no-JS / crawler
+   safety); useReveal adds `.is-armed` on mount to hide it, then `.is-revealed`
+   when it scrolls into view. Under reduced motion the transition is zeroed by
+   the global rule, so it still ends visible. */
 .motion-reveal {
-  opacity: 0;
-  transform: translateY(16px);
   transition:
     opacity var(--duration-4) var(--ease-out),
     transform var(--duration-4) var(--ease-out);
 }
-.motion-reveal.is-revealed {
-  opacity: 1;
-  transform: none;
+.motion-reveal.is-armed:not(.is-revealed) {
+  opacity: 0;
+  transform: translateY(16px);
 }
 
 /* motion-press — tactile feedback on any pressable element. */
@@ -1161,14 +1160,17 @@ h6 {
 }
 
 .landingHero h1 {
-  font-size: var(--text-3xl);
+  /* Redesign Phase 3: the display treatment (D2) — this is the marketing
+     headline the --text-5xl tier and tight tracking were added for. */
+  font-size: var(--text-4xl);
   font-weight: 700;
-  line-height: 1.15;
+  line-height: var(--leading-display);
+  letter-spacing: var(--tracking-tight);
 }
 
 .landingHero p {
   font-size: var(--text-lg);
-  opacity: 0.75;
+  color: var(--muted-foreground);
   max-width: 48ch;
 }
 
@@ -1202,6 +1204,10 @@ h6 {
 
   .landingHero p {
     max-width: none;
+  }
+
+  .landingHero h1 {
+    font-size: var(--text-5xl);
   }
 }
 
@@ -5271,6 +5277,10 @@ details:not([open]) > .settingsAddTrigger {
   position: sticky;
   top: 0;
   z-index: 30;
+  /* Redesign Phase 3: a translucent ground so the nav stays legible over
+     the scrolling story below it — same treatment as the app's
+     .desktopTopHeader. */
+  background: color-mix(in srgb, var(--background) 82%, transparent);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 }
@@ -5380,6 +5390,310 @@ details:not([open]) > .settingsAddTrigger {
   .authTopBarBack:hover {
     opacity: 1;
   }
+}
+
+/* ===================================================================== *
+ * Redesign Phase 3 — marketing story + footer (docs/specs/phase-0-       *
+ * redesign.md §6). "/" only, below the hero + AuthTabs card. Mobile-     *
+ * first; the breakpoint scale from RESPONSIVE_LAYOUT.md (768 / 1024).    *
+ * The one bold element stays the hero's DigitalHomeVisual — everything   *
+ * here is quiet: type, generous rhythm, one small CSS visual per        *
+ * section.                                                              *
+ * ===================================================================== */
+.marketingStory {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-20);
+  max-width: var(--measure-wide);
+  margin: 0 auto;
+  padding: var(--space-20) clamp(1.5rem, 5vw, 3rem) var(--space-16);
+}
+
+.marketingSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.marketingSectionText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.marketingSectionText p {
+  max-width: 46ch;
+  font-size: var(--text-lg);
+  line-height: var(--leading-body);
+  color: var(--muted-foreground);
+}
+
+.marketingSectionVisual {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 240px;
+  padding: var(--space-8);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(120% 120% at 50% 0%, var(--accent-soft), transparent 70%),
+    var(--surface);
+  box-shadow: var(--shadow);
+}
+
+@media (min-width: 768px) {
+  .marketingSection {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-12);
+  }
+  .marketingSectionText,
+  .marketingSectionVisual {
+    flex: 1 1 0;
+  }
+  .marketingSection--flip {
+    flex-direction: row-reverse;
+  }
+}
+
+/* --- section visuals ------------------------------------------------- */
+.msLinkStack,
+.msPostStack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: 100%;
+  max-width: 320px;
+}
+
+.msLinkRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  font-weight: 600;
+  color: var(--foreground);
+  transform: translateX(calc(var(--i) * 8px));
+}
+
+.msPost {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  font-size: var(--text-sm);
+  color: var(--muted-foreground);
+}
+
+.msPostHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.msPostAvatar {
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: var(--radius-full);
+  background: var(--gradient-brand-fill);
+}
+
+.msPostName {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-weight: 700;
+  color: var(--foreground);
+}
+
+.msPostName svg {
+  color: var(--accent);
+}
+
+/* Communities/business — a small orbital echo of the hero's identity node. */
+.msOrbit {
+  position: relative;
+  width: 220px;
+  height: 220px;
+}
+
+.msOrbitCenter {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  transform: translate(-50%, -50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: var(--radius-full);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  color: var(--accent);
+  box-shadow: var(--shadow);
+  z-index: 1;
+}
+
+.msOrbitNode {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: var(--radius-full);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--muted-foreground);
+  transform: translate(-50%, -50%) rotate(var(--a)) translateY(-96px) rotate(calc(-1 * var(--a)));
+}
+
+/* Developer — an OAuth-consent-style mini card. */
+.msConsent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: 100%;
+  max-width: 300px;
+  padding: var(--space-5);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+}
+
+.msConsentHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 700;
+  color: var(--foreground);
+}
+
+.msConsentRow {
+  font-size: var(--text-sm);
+  color: var(--muted-foreground);
+  padding-left: var(--space-2);
+  border-left: 2px solid var(--border-strong);
+}
+
+.msConsentBtn {
+  margin-top: var(--space-1);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+  text-align: center;
+}
+
+/* --- closing CTA band --------------------------------------------------- */
+.marketingCta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  text-align: center;
+  padding: var(--space-16) var(--space-6);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(120% 140% at 50% 0%, var(--accent-soft), transparent 65%),
+    var(--surface);
+}
+
+.marketingCta p {
+  color: var(--muted-foreground);
+}
+
+.marketingCta .button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.marketingCtaNote {
+  font-size: var(--text-xs);
+  color: var(--muted-foreground);
+}
+
+/* --- footer ----------------------------------------------------------- */
+.marketingFooter {
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.marketingFooterInner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+  max-width: var(--measure-wide);
+  margin: 0 auto;
+  padding: var(--space-16) clamp(1.5rem, 5vw, 3rem) var(--space-10);
+}
+
+.marketingFooterBrand p {
+  margin-top: var(--space-3);
+  font-size: var(--text-sm);
+  line-height: var(--leading-body);
+  color: var(--muted-foreground);
+}
+
+.marketingFooterNav {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-8);
+}
+
+.marketingFooterGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.marketingFooterGroup a {
+  font-size: var(--text-sm);
+  color: var(--muted-foreground);
+  transition: color var(--duration-2) var(--ease-out);
+}
+
+.marketingFooterGroup a:hover {
+  color: var(--foreground);
+}
+
+@media (min-width: 768px) {
+  .marketingFooterInner {
+    flex-direction: row;
+    justify-content: space-between;
+  }
+  .marketingFooterBrand {
+    flex: 0 0 260px;
+  }
+  .marketingFooterNav {
+    flex: 1 1 auto;
+    max-width: 560px;
+  }
+}
+
+.marketingFooterBase {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: var(--measure-wide);
+  margin: 0 auto;
+  padding: var(--space-5) clamp(1.5rem, 5vw, 3rem);
+  border-top: 1px solid var(--border);
+  font-size: var(--text-xs);
+  color: var(--muted-foreground);
 }
 
 /* Wallet (/wallet) — coinBalance's own hero card, deliberately not just

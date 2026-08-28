@@ -35,6 +35,10 @@ export function useReveal<T extends HTMLElement = HTMLElement>({
     const attrReduced =
       document.documentElement.getAttribute("data-reduced-motion") === "true";
 
+    // Armed only once JS is running — the element stays visible for no-JS
+    // visitors and crawlers (the CSS only hides `.motion-reveal.is-armed`).
+    el.classList.add("is-armed");
+
     if (reduced || attrReduced || typeof IntersectionObserver === "undefined") {
       el.classList.add("is-revealed");
       return;
