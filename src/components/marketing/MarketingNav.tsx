@@ -19,7 +19,7 @@ export function MarketingNav() {
     <header className="marketingNav">
       <div className="marketingNavInner">
         <Link href="/" className="marketingNavBrand" aria-label="0dot home">
-          <ThemeToggleLogo size={32} />
+          <ThemeToggleLogo size={32} interactive={false} />
         </Link>
 
         <div className="marketingNavActions">
