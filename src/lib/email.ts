@@ -129,7 +129,7 @@ function renderActionEmail(params: { heading: string; bodyHtml: string; ctaLabel
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;margin:0 auto;background-color:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e0e0e0;">
       <tr>
         <td style="padding:28px 32px 0 32px;text-align:center;">
-          <img src="${origin}/icon-192.png" width="40" height="40" alt="0dot" style="border-radius:9px;display:inline-block;" />
+          <img src="${origin}/1dot.png" width="40" height="40" alt="0dot" style="border-radius:9px;display:inline-block;" />
         </td>
       </tr>
       <tr>
@@ -202,16 +202,15 @@ export function renderEmailChangeEmailHtml(confirmUrl: string): string {
 // defaulted off. Canonical source for both dispatchEmailEvent's allowlist
 // check below and the settings page's toggle list
 // (notifications/page.tsx), so the two can't drift apart.
-export const EMAIL_NOTIFICATION_TYPES = [
-  "message",
-  "new_follower",
-  "community_update",
-  "tip_received",
-  "new_subscriber",
-  "event_cancelled",
-  "ticket_purchased",
-  "appointment_request",
-] as const;
+//
+// Deliberately empty: email is reserved for account-critical mail only
+// (signup verification, password reset, email-change confirmation —
+// signup(), resendVerificationEmail(), requestPasswordReset() below).
+// Every in-app notification type (message, new_follower, tip_received,
+// etc.) still gets push/in-app delivery via notifications.ts; it never
+// bought a Resend send. Re-enable a type here only for something that
+// genuinely needs to reach an inbox someone isn't actively watching.
+export const EMAIL_NOTIFICATION_TYPES: readonly string[] = [];
 
 const EMAIL_ELIGIBLE_TYPES = new Set<string>(EMAIL_NOTIFICATION_TYPES);
 

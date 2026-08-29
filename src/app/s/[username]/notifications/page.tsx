@@ -97,19 +97,23 @@ export default async function NotificationSettingsPage({ params }: { params: Pro
         ))}
       </div>
 
-      <p className="settingsGroupLabel" style={{ marginTop: "1.5rem" }}>
-        Email notifications
-      </p>
-      <div className="settingsGroup">
-        {EMAIL_NOTIFICATION_TYPES.map((type) => (
-          <SettingsRow
-            key={type}
-            icon={NOTIFICATION_ICONS[type]}
-            label={getNotificationVerb(type) || type}
-            trailing={<DeliveryToggle notificationType={type} channel="email" enabled={emailPrefByType.get(type) ?? true} />}
-          />
-        ))}
-      </div>
+      {EMAIL_NOTIFICATION_TYPES.length > 0 && (
+        <>
+          <p className="settingsGroupLabel" style={{ marginTop: "1.5rem" }}>
+            Email notifications
+          </p>
+          <div className="settingsGroup">
+            {EMAIL_NOTIFICATION_TYPES.map((type) => (
+              <SettingsRow
+                key={type}
+                icon={NOTIFICATION_ICONS[type as (typeof PUSH_NOTIFICATION_TYPES)[number]]}
+                label={getNotificationVerb(type) || type}
+                trailing={<DeliveryToggle notificationType={type} channel="email" enabled={emailPrefByType.get(type) ?? true} />}
+              />
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }
