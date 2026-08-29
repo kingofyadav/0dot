@@ -11,7 +11,7 @@ import { NavLinks } from "./NavLinks";
 import { NavAction } from "./NavAction";
 import { NotificationBell } from "./NotificationBell";
 import { MessagesBadge } from "./MessagesBadge";
-import { AccountMenu } from "./AccountMenu";
+import { AccountMenu } from "./AccountMenuLazy";
 import { SearchForm } from "./SearchForm";
 import { HeaderIconsSkeleton } from "./Skeleton";
 

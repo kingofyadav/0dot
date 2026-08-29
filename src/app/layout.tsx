@@ -27,9 +27,14 @@ const geistSans = Geist({
   subsets: ["latin"],
 });
 
+// preload:false — its only real consumer is .kbd styling inside
+// CommandPalette/ShortcutsHelp (see KeyboardShortcutProvider.tsx), both
+// lazy-loaded and closed by default, so there's no reason to fetch this
+// font on every route's first load.
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+  preload: false,
 });
 
 // viewport-fit=cover so env(safe-area-inset-bottom) resolves to the actual

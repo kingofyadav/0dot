@@ -5,7 +5,19 @@ import Image from "next/image";
 // contrast-matched pairing, chosen deliberately. CSS (see globals.css)
 // swaps between them on the same prefers-color-scheme/data-theme signal
 // the rest of the site already follows.
-export function Logo({ size = 32, className }: { size?: number; className?: string }) {
+export function Logo({
+  size = 32,
+  className,
+  priority = true,
+}: {
+  size?: number;
+  className?: string;
+  // Every above-the-fold call site wants this default. DigitalHomeVisual's
+  // copy is a second, purely decorative render of the same mark mid-page —
+  // it opts out so the landing page isn't preloading two logo images for
+  // one visible mark.
+  priority?: boolean;
+}) {
   return (
     <span style={{ display: "inline-flex", alignItems: "center" }}>
       <Image
@@ -14,7 +26,7 @@ export function Logo({ size = 32, className }: { size?: number; className?: stri
         width={size}
         height={size}
         className={className ? `themeLogoLight ${className}` : "themeLogoLight"}
-        priority
+        priority={priority}
       />
       <Image
         src="/0dot.png"
@@ -22,7 +34,7 @@ export function Logo({ size = 32, className }: { size?: number; className?: stri
         width={size}
         height={size}
         className={className ? `themeLogoDark ${className}` : "themeLogoDark"}
-        priority
+        priority={priority}
       />
     </span>
   );

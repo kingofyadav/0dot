@@ -8,7 +8,7 @@ import {
 } from "@/lib/messaging";
 import { getOnlineUserIds } from "@/lib/presence";
 import { ConversationListItem } from "./ConversationListItem";
-import { PreviewPopover } from "./PreviewPopover";
+import { PreviewPopover } from "./PreviewPopoverLazy";
 
 const PREVIEW_COUNT = 5;
 

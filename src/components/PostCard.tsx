@@ -22,7 +22,7 @@ import { formatCount } from "@/lib/format";
 import { ReplyForm } from "@/app/feed/ReplyForm";
 import { QuoteRepostForm } from "@/app/feed/QuoteRepostForm";
 import { ReportButton } from "@/components/ReportButton";
-import { PostOwnerMenu } from "@/app/feed/PostOwnerMenu";
+import { PostOwnerMenu } from "@/app/feed/PostOwnerMenuLazy";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { LikeButton } from "@/components/LikeButton";
 import { PollBlock } from "@/components/PollBlock";

@@ -16,7 +16,7 @@ import { GroupParticipantsPanel } from "@/components/GroupParticipantsPanel";
 import { Logo } from "@/components/Logo";
 import { PresenceDot } from "@/components/PresenceDot";
 import { PresenceStatus } from "@/components/PresenceStatus";
-import { ConversationRowMenu } from "@/components/ConversationRowMenu";
+import { ConversationRowMenu } from "@/components/ConversationRowMenuLazy";
 import { ConversationView } from "./ConversationView";
 
 export default async function ConversationPage({

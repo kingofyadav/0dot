@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Bell, BadgeCheck } from "lucide-react";
 import { getCurrentUser } from "@/lib/session";
 import { getUnreadNotificationCount, getRecentNotificationsPreview, getNotificationVerb, getNotificationHref } from "@/lib/notifications";
-import { PreviewPopover } from "./PreviewPopover";
+import { PreviewPopover } from "./PreviewPopoverLazy";
 
 const PREVIEW_COUNT = 5;
 

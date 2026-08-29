@@ -95,7 +95,7 @@ export function DigitalHomeVisual({ variant = "hero", onProfileActivate }: Digit
       <span className="dhGlow" aria-hidden="true" />
 
       <div className="dhCenter" aria-hidden="true">
-        <Logo size={32} />
+        <Logo size={32} priority={false} />
       </div>
 
       {NODES.map((node) => {

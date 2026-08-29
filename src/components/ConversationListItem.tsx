@@ -2,7 +2,7 @@ import Link from "next/link";
 import { BadgeCheck } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { PresenceDot } from "@/components/PresenceDot";
-import { ConversationRowMenu } from "@/components/ConversationRowMenu";
+import { ConversationRowMenu } from "@/components/ConversationRowMenuLazy";
 
 type ConversationListItemProps = {
   conversationId: string;

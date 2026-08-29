@@ -2,9 +2,16 @@
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { CommandPalette } from "@/components/CommandPalette";
-import { ShortcutsHelp } from "@/components/ShortcutsHelp";
+import dynamic from "next/dynamic";
 import { NAV_SHORTCUTS, isTypingTarget, type ListNavGroup } from "@/lib/keyboard-shortcuts";
+
+// Both overlays start closed on every mount and are only ever needed once
+// the user actually triggers Cmd+K or "?" — ssr:false defers their code
+// (plus the 13 lucide icons and settings-nav data CommandPalette pulls in)
+// off every route's initial bundle entirely, since there's no closed-state
+// content worth server-rendering.
+const CommandPalette = dynamic(() => import("@/components/CommandPalette").then((m) => m.CommandPalette), { ssr: false });
+const ShortcutsHelp = dynamic(() => import("@/components/ShortcutsHelp").then((m) => m.ShortcutsHelp), { ssr: false });
 
 interface KeyboardShortcutContextValue {
   openPalette: () => void;
