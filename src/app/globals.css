@@ -3339,6 +3339,110 @@ a.profileMetaItem:hover {
   font-weight: 700;
 }
 
+/* Business manage — shared header + section nav across /b/[slug]/manage and
+   its /contact, /crm, /billing subpages (component: BusinessManageNav.tsx).
+   Replaces the ad hoc `<h1 1.1rem> + <span.row>` of five buttonSmall links
+   that overflowed a phone viewport (no wrap, uneven multi-line buttons).
+   The nav is a horizontal scroll strip on a phone and a plain left-aligned
+   tab row once it fits — same "a layout pattern used more than once becomes
+   a class" rule as .pageHeader / .buttonSmall above. */
+.manageHeader {
+  margin-bottom: var(--space-6);
+}
+
+.manageHeaderTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.manageHeaderTitle {
+  font-size: var(--text-xl);
+  font-weight: 700;
+  line-height: var(--leading-heading);
+  letter-spacing: var(--tracking-tight);
+  min-width: 0;
+}
+
+.manageHeaderView {
+  flex-shrink: 0;
+  font-size: var(--text-sm);
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+
+.manageHeaderView:hover {
+  color: var(--foreground);
+}
+
+/* Bleeds to the .profileCard's 1rem padding edge (negative margin + matching
+   padding) so a mid-scroll strip looks anchored to the card edge on a phone
+   rather than clipped mid-gutter. */
+.manageTabs {
+  display: flex;
+  gap: var(--space-1);
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x proximity;
+  margin: 0 -1rem;
+  padding: 0 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.manageTabs::-webkit-scrollbar {
+  display: none;
+}
+
+.manageTab {
+  flex-shrink: 0;
+  scroll-snap-align: start;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0.6rem 0.4rem;
+  margin-bottom: -1px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--muted-foreground);
+  border-bottom: 2px solid transparent;
+  transition: color var(--transition-base), border-color var(--transition-base);
+}
+
+.manageTab:hover {
+  color: var(--foreground);
+}
+
+.manageTab[aria-current="page"] {
+  color: var(--foreground);
+  border-bottom-color: var(--accent);
+}
+
+.manageTabBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  line-height: 1;
+}
+
+@media (pointer: coarse) {
+  .manageTab {
+    min-height: 44px;
+  }
+}
+
 /* A .profileLinkItem specialized for a two-column row (leading media +
    title/subtitle on the left, a fixed-width meta value on the right) —
    events index/detail attendee-style rows. Keeps the same hover affordance
