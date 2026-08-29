@@ -1,5 +1,4 @@
 import { headers } from "next/headers";
-import Image from "next/image";
 import Link from "next/link";
 import {
   Apple as AppleIcon,
@@ -14,6 +13,7 @@ import {
   Zap,
   type LucideIcon,
 } from "lucide-react";
+import { Logo } from "@/components/Logo";
 import { MarketingNav } from "@/components/marketing/MarketingNav";
 
 // Distribution reality (phase-15 build plan §5.1/§6, and the "download
@@ -32,11 +32,15 @@ import { MarketingNav } from "@/components/marketing/MarketingNav";
 // artifacts URL EAS prints: that link is signed and expires a couple of
 // weeks after the build finishes, which is fine for internal QA but not for
 // a link this page keeps serving indefinitely. Re-run the same upload step
-// and bump the three constants below whenever a new build replaces this one.
+// and bump the constants below whenever a new build replaces this one.
+// (The `preview` EAS profile doesn't auto-increment versionCode, so the
+// build number can repeat across rebuilds — ANDROID_APK_UPDATED is what
+// actually tells a returning visitor the download is fresher.)
 const ANDROID_APK_URL = process.env.ANDROID_APK_DOWNLOAD_URL;
 const ANDROID_APK_VERSION = "1.0.0";
 const ANDROID_APK_BUILD = "6";
-const ANDROID_APK_SIZE_MB = 113;
+const ANDROID_APK_SIZE_MB = 161;
+const ANDROID_APK_UPDATED = "Aug 28, 2026";
 const IOS_TESTFLIGHT_URL = process.env.IOS_TESTFLIGHT_URL;
 
 type DetectedPlatform = "android" | "ios" | "other";
@@ -67,14 +71,11 @@ export default async function DownloadPage() {
         />
 
         <section className="mx-auto flex max-w-[1100px] flex-col items-center gap-10 px-4 pt-8 pb-20 text-center lg:pt-16">
-          <Image
-            src="/icon-512.png"
-            alt="0dot app icon"
-            width={88}
-            height={88}
-            className="rounded-[22px] shadow-lg"
-            priority
-          />
+          {/* Theme-aware mark (same 1dot/0dot swap as the rest of the site,
+              via .themeLogo* in globals.css) — the flat /icon-512.png that
+              used to sit here is the light-fill version and read as a white
+              block in dark mode. */}
+          <Logo size={88} className="rounded-[22px] shadow-lg" />
 
           <div className="flex flex-col items-center gap-3">
             <h1 className="text-3xl font-bold lg:text-4xl">Get 0dot on your phone</h1>
@@ -98,7 +99,11 @@ export default async function DownloadPage() {
                   <p className="mutedText text-sm">Build coming soon.</p>
                 )
               }
-              meta={ANDROID_APK_URL ? `v${ANDROID_APK_VERSION} (build ${ANDROID_APK_BUILD}) · ${ANDROID_APK_SIZE_MB} MB` : undefined}
+              meta={
+                ANDROID_APK_URL
+                  ? `v${ANDROID_APK_VERSION} (build ${ANDROID_APK_BUILD}) · ${ANDROID_APK_SIZE_MB} MB · updated ${ANDROID_APK_UPDATED}`
+                  : undefined
+              }
             />
 
             <PlatformCard

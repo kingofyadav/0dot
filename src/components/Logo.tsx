@@ -5,7 +5,7 @@ import Image from "next/image";
 // contrast-matched pairing, chosen deliberately. CSS (see globals.css)
 // swaps between them on the same prefers-color-scheme/data-theme signal
 // the rest of the site already follows.
-export function Logo({ size = 32 }: { size?: number }) {
+export function Logo({ size = 32, className }: { size?: number; className?: string }) {
   return (
     <span style={{ display: "inline-flex", alignItems: "center" }}>
       <Image
@@ -13,7 +13,7 @@ export function Logo({ size = 32 }: { size?: number }) {
         alt="0dot"
         width={size}
         height={size}
-        className="themeLogoLight"
+        className={className ? `themeLogoLight ${className}` : "themeLogoLight"}
         priority
       />
       <Image
@@ -21,7 +21,7 @@ export function Logo({ size = 32 }: { size?: number }) {
         alt="0dot"
         width={size}
         height={size}
-        className="themeLogoDark"
+        className={className ? `themeLogoDark ${className}` : "themeLogoDark"}
         priority
       />
     </span>
