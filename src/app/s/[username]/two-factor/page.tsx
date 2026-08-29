@@ -1,8 +1,11 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
 import { TwoFactorSetupForm } from "./TwoFactorSetupForm";
 import { DisableTwoFactorForm } from "./DisableTwoFactorForm";
 import { RegenerateRecoveryCodesForm } from "./RegenerateRecoveryCodesForm";
+
+export const metadata: Metadata = { title: "Two-factor authentication" };
 
 export default async function TwoFactorSettingsPage() {
   const currentUser = await getCurrentUser();

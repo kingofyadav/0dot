@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import {
   AtSign,
@@ -20,6 +21,8 @@ import { getNotificationVerb } from "@/lib/notifications";
 import { EMAIL_NOTIFICATION_TYPES } from "@/lib/email";
 import { DeliveryToggle } from "@/components/DeliveryToggle";
 import { SettingsRow } from "@/components/SettingsRow";
+
+export const metadata: Metadata = { title: "Notifications" };
 
 // phase-15 spec §4.1: NotificationDeliveryPreference is per (user, type,
 // channel) — in_app has no opt-out in this codebase's Phase 2 design.

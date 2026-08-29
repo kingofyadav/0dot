@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { X } from "lucide-react";
 import { db } from "@/lib/db";
@@ -11,6 +12,8 @@ import { SettingsRow } from "@/components/SettingsRow";
 import { ConnectExternalAccountForm } from "../ConnectExternalAccountForm";
 import { ComposeCrossPostForm } from "../ComposeCrossPostForm";
 import type { CrossPostPlatform } from "@/lib/cross-post-platforms";
+
+export const metadata: Metadata = { title: "Auto-post" };
 
 const TARGET_STATUS_LABEL: Record<string, string> = {
   pending: "Pending",

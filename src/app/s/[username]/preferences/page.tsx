@@ -1,6 +1,9 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
 import { PreferencesForm } from "./PreferencesForm";
+
+export const metadata: Metadata = { title: "Language & accessibility" };
 
 const DEFAULT_ACCESSIBILITY_PREFS = { reducedMotion: false, fontScale: "default", highContrast: false };
 

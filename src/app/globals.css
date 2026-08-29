@@ -99,6 +99,13 @@
   --accent: #4285f4;
   --accent-strong: #1a73e8;
   --accent-soft: rgba(66, 133, 244, 0.14);
+  /* Derived from --accent-strong, not a new brand hex. --accent-strong
+     (#1a73e8) alone measures ~4.10:1 against this light --background, just
+     under WCAG AA's 4.5:1 for normal-size text; darkening 10% toward black
+     clears it (~4.85:1) without a visible shift. For small link/button text
+     only (e.g. .authFooter) — everything else keeps --accent/--accent-strong
+     as-is. */
+  --link: color-mix(in srgb, var(--accent-strong) 90%, black);
   /* Google Green 500 (the exact brand hex) — success/positive status. */
   --success: #34a853;
   --success-soft: rgba(52, 168, 83, 0.14);
@@ -329,6 +336,9 @@
   --_dark-secondary-foreground: oklch(0.985 0 0);
   --_dark-muted: oklch(0.269 0 0);
   --_dark-muted-foreground: oklch(0.708 0 0);
+  /* Same --accent-strong derivation as the light-mode --link above, mixed
+     toward white instead of black (~4.83:1 against --_dark-surface). */
+  --_dark-link: color-mix(in srgb, var(--accent-strong) 90%, white);
 }
 
 /* Dimensional tokens that Tailwind also needs to know about to generate
@@ -427,6 +437,7 @@
     --secondary-foreground: var(--_dark-secondary-foreground);
     --muted: var(--_dark-muted);
     --muted-foreground: var(--_dark-muted-foreground);
+    --link: var(--_dark-link);
   }
 }
 
@@ -456,6 +467,7 @@
   --secondary-foreground: var(--_dark-secondary-foreground);
   --muted: var(--_dark-muted);
   --muted-foreground: var(--_dark-muted-foreground);
+  --link: var(--_dark-link);
 }
 
 /* Aliases the themed tokens above into Tailwind's utility namespaces.
@@ -2166,13 +2178,19 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
 
 .authFooter {
   font-size: var(--text-sm);
-  opacity: 0.75;
+  /* color-mix, not opacity: CSS opacity creates a compositing layer that
+     the whole subtree renders into, so a descendant's own `opacity: 1`
+     can't undo a dimmed ancestor — the link below stayed at ~0.75 effective
+     opacity regardless, failing WCAG AA. Mixing transparent into `color`
+     dims only inherited text; the link's explicit `color: var(--link)`
+     fully replaces it, same as any other color inheritance. */
+  color: color-mix(in srgb, var(--foreground) 75%, transparent);
   text-align: center;
 }
 
 .authFooter a,
 .authFooter button {
-  color: var(--accent);
+  color: var(--link);
   font-weight: 600;
   text-decoration: underline;
 }
@@ -5467,6 +5485,14 @@ details:not([open]) > .settingsAddTrigger {
   max-width: 1440px;
   margin: 0 auto;
   padding: 1rem clamp(1rem, 4vw, 3rem);
+}
+
+/* inline-flex so the anchor's box hugs the 32px logo instead of inheriting
+   default inline line-height (previously left a sliver of unclickable
+   height around the touch target). */
+.marketingNavBrand {
+  display: inline-flex;
+  align-items: center;
 }
 
 /* Same breathing room as .authTopBar's `top: 2rem` / `left/right: clamp(2rem,

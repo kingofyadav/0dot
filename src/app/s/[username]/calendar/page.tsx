@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { CalendarClock, CalendarDays, User } from "lucide-react";
 import { db } from "@/lib/db";
@@ -8,6 +9,8 @@ import { ConfirmButton } from "@/components/ConfirmButton";
 import { EmptyState } from "@/components/EmptyState";
 import { SettingsRow } from "@/components/SettingsRow";
 import { CalendarEntryForm } from "./CalendarEntryForm";
+
+export const metadata: Metadata = { title: "Calendar" };
 
 const KIND_LABEL: Record<string, string> = { appointment: "Appointment", event: "Event", personal: "Personal" };
 const KIND_ICON: Record<string, typeof CalendarClock> = { appointment: CalendarClock, event: CalendarDays, personal: User };

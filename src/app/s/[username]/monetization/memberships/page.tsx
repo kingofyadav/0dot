@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Layers, Pencil, Plus } from "lucide-react";
@@ -7,6 +8,8 @@ import { archiveTier, cancelSubscription } from "@/app/actions/memberships";
 import { SettingsRow } from "@/components/SettingsRow";
 import { EmptyState } from "@/components/EmptyState";
 import { TierForm } from "../../TierForm";
+
+export const metadata: Metadata = { title: "Memberships" };
 
 export default async function MembershipsSettingsPage() {
   const currentUser = await getCurrentUser();

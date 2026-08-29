@@ -1,7 +1,10 @@
+import type { Metadata } from "next";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { ensureTrendingScoresFresh, getTrendingPosts, parseTrendingCursor } from "@/lib/trending";
 import { FeedList } from "@/app/feed/FeedList";
+
+export const metadata: Metadata = { title: "Trending" };
 
 // Trending: velocity-ranked third feed, distinct from both Home (/feed,
 // follow-filtered) and Explore (/explore, global chronological) — phase-2

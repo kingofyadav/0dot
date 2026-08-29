@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Link2 } from "lucide-react";
 import { db } from "@/lib/db";
@@ -7,6 +8,8 @@ import { ConfirmButton } from "@/components/ConfirmButton";
 import { EmptyState } from "@/components/EmptyState";
 import { SettingsRow } from "@/components/SettingsRow";
 import { ShortLinkForm } from "./ShortLinkForm";
+
+export const metadata: Metadata = { title: "Short links" };
 
 export default async function ShortLinksSettingsPage() {
   const currentUser = await getCurrentUser();

@@ -1,7 +1,10 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
 import { ChangeEmailForm } from "./ChangeEmailForm";
 import { ChangePhoneForm } from "./ChangePhoneForm";
+
+export const metadata: Metadata = { title: "Email & phone" };
 
 export default async function ContactSettingsPage() {
   const currentUser = await getCurrentUser();

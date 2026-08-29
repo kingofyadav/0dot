@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { AppWindow, Plus } from "lucide-react";
 import { db } from "@/lib/db";
@@ -5,6 +6,8 @@ import { getCurrentUser } from "@/lib/session";
 import { CreateDeveloperAppForm } from "@/components/CreateDeveloperAppForm";
 import { SettingsRow } from "@/components/SettingsRow";
 import { EmptyState } from "@/components/EmptyState";
+
+export const metadata: Metadata = { title: "Developer apps" };
 
 // phase-10 spec §9: primarily a rendering surface over DeveloperApp/
 // OAuthAuthorization/WebhookSubscription, same "view over existing data,

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect, notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
@@ -10,6 +11,21 @@ import { WebhookSubscriptionForm } from "@/components/WebhookSubscriptionForm";
 import { BillingPlanForm } from "./BillingPlanForm";
 import { EmptyState } from "@/components/EmptyState";
 import { ConfirmButton } from "@/components/ConfirmButton";
+
+// Best-effort only, same posture as the courses/[courseId] page's own
+// generateMetadata — real access control stays in the page component below
+// (requireOwnedDeveloperApp), this just falls back to a generic title on
+// any lookup/ownership miss instead of duplicating that check.
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ appId: string }>;
+}): Promise<Metadata> {
+  const { appId } = await params;
+  const currentUser = await getCurrentUser();
+  const app = currentUser ? await requireOwnedDeveloperApp(appId, currentUser.id) : null;
+  return { title: app?.name ?? "App" };
+}
 
 const SCOPE_STATUS_LABEL: Record<string, string> = { pending: "Pending review", approved: "Approved", rejected: "Rejected" };
 

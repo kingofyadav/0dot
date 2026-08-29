@@ -1,8 +1,11 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { CardForm } from "../CardForm";
+
+export const metadata: Metadata = { title: "Digital business card" };
 
 export default async function CardSettingsPage() {
   const currentUser = await getCurrentUser();

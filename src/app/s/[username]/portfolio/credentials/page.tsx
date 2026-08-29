@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Award as AwardIcon, FileText, Plus, ShieldCheck, X } from "lucide-react";
 import { db } from "@/lib/db";
@@ -7,6 +8,8 @@ import { SettingsRow } from "@/components/SettingsRow";
 import { EmptyState } from "@/components/EmptyState";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { ResearchPaperForm, CertificateForm, AwardForm } from "../../CredentialForms";
+
+export const metadata: Metadata = { title: "Credentials" };
 
 // spec §7.4/§7.5: three independent, structurally-identical self-attested
 // entities — combined on one settings page the same way their action file

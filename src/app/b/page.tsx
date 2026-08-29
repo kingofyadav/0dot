@@ -1,9 +1,12 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { businessCategoryLabel } from "@/lib/business-categories";
 import { Logo } from "@/components/Logo";
 import { EmptyState } from "@/components/EmptyState";
+
+export const metadata: Metadata = { title: "Businesses" };
 
 // Lightweight index, same shape as /c's community index — "your
 // businesses" (including your own pending ones under review) + a small

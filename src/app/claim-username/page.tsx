@@ -1,6 +1,9 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
 import { ClaimUsernameForm } from "./ClaimUsernameForm";
+
+export const metadata: Metadata = { title: "Claim your username" };
 
 // A thin server wrapper around the client form — mirrors exactly the
 // guard already inside claimUsername (app/actions/profile.ts) itself, so a

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
@@ -11,6 +12,8 @@ import { getOnlineUserIds } from "@/lib/presence";
 import { ConversationListItem } from "@/components/ConversationListItem";
 import { ListKeyNav } from "@/components/ListKeyNav";
 import { EmptyState } from "@/components/EmptyState";
+
+export const metadata: Metadata = { title: "Messages" };
 
 // Primary inbox (phase-2 spec §5.5: "list conversations, cursor-paginated,
 // most recent activity first"). Unsolicited requests live at

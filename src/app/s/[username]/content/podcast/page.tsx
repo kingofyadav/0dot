@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Mic, Pencil, Plus } from "lucide-react";
 import { db } from "@/lib/db";
@@ -8,6 +9,8 @@ import { EmptyState } from "@/components/EmptyState";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { PodcastForm } from "../../PodcastForm";
 import { EpisodeForm } from "../../EpisodeForm";
+
+export const metadata: Metadata = { title: "Podcast" };
 
 export default async function PodcastSettingsPage() {
   const currentUser = await getCurrentUser();

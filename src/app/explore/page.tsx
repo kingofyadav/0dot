@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
@@ -7,6 +8,8 @@ import { getPostableBusinesses } from "@/lib/businesses";
 import { FeedList } from "@/app/feed/FeedList";
 import { PageHeader } from "@/components/PageHeader";
 import { ExploreDiscovery, ExploreDiscoverySkeleton } from "@/components/ExploreDiscovery";
+
+export const metadata: Metadata = { title: "Explore" };
 
 // Explore: the Phase 1 global-chronological feed, kept as a distinct
 // surface (not removed) once /feed becomes follow-filtered — phase-2 spec

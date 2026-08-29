@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { ClipboardList, Plus } from "lucide-react";
 import { db } from "@/lib/db";
@@ -5,6 +6,8 @@ import { getCurrentUser } from "@/lib/session";
 import { EmptyState } from "@/components/EmptyState";
 import { SettingsRow } from "@/components/SettingsRow";
 import { FormBuilder } from "./FormBuilder";
+
+export const metadata: Metadata = { title: "Forms & surveys" };
 
 const STATUS_LABEL: Record<string, string> = { draft: "Draft", published: "Published", closed: "Closed" };
 

@@ -89,6 +89,7 @@ export function SignupForm() {
               name="phoneDialCode"
               autoComplete="tel-country-code"
               defaultValue="91"
+              aria-label="Country dial code"
               style={{ flex: "0 0 auto" }}
               required
             >

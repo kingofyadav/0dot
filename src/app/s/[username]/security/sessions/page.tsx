@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Monitor } from "lucide-react";
 import { db } from "@/lib/db";
@@ -5,6 +6,8 @@ import { getCurrentUser, getCurrentSessionToken, hashToken } from "@/lib/session
 import { revokeSession, revokeAllOtherSessionsAction } from "@/app/actions/session-management";
 import { SettingsRow } from "@/components/SettingsRow";
 import { EmptyState } from "@/components/EmptyState";
+
+export const metadata: Metadata = { title: "Active sessions" };
 
 // addendum §4/§10: lists every active Session row for the caller, newest
 // activity first, plus the last ~20 LoginEvent rows (§10) below it — kept on

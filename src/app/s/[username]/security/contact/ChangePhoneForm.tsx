@@ -40,7 +40,13 @@ export function ChangePhoneForm({ currentPhone }: { currentPhone: string | null 
       <div className="field">
         <label htmlFor="phoneNumber">New mobile number</label>
         <div style={{ display: "flex", gap: "0.5rem" }}>
-          <select id="phoneDialCode" name="phoneDialCode" defaultValue="91" style={{ flexShrink: 0 }}>
+          <select
+            id="phoneDialCode"
+            name="phoneDialCode"
+            defaultValue="91"
+            aria-label="Country dial code"
+            style={{ flexShrink: 0 }}
+          >
             {COUNTRY_CODES.map((c) => (
               <option key={c.iso} value={c.dialCode}>
                 {c.name} (+{c.dialCode})

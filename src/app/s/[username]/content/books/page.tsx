@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Book as BookIcon, FileText, Pencil, Plus, X } from "lucide-react";
@@ -11,6 +12,8 @@ import { EmptyState } from "@/components/EmptyState";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { BookForm } from "../../BookForm";
 import { BookChapterForm } from "../../BookChapterForm";
+
+export const metadata: Metadata = { title: "Books" };
 
 export default async function BooksSettingsPage() {
   const currentUser = await getCurrentUser();

@@ -1,8 +1,11 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
 import { getCurrentUser } from "@/lib/session";
 import { SettingsRow } from "@/components/SettingsRow";
 import { DeactivateAccountAction, RequestAccountDeletionAction } from "./AccountLifecycleActions";
+
+export const metadata: Metadata = { title: "Account management" };
 
 export default async function AccountManagementPage() {
   const currentUser = await getCurrentUser();

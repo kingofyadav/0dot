@@ -1,5 +1,8 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { requirePlatformRole } from "@/lib/auth-guards";
+
+export const metadata: Metadata = { title: "Admin" };
 
 const SECTIONS = [
   { href: "/admin/trust-safety", label: "Trust & Safety", description: "Content/account reports, business claims, appeals, transparency report." },

@@ -1,6 +1,9 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { EmptyState } from "@/components/EmptyState";
+
+export const metadata: Metadata = { title: "Map" };
 
 type Pin = {
   id: string;
