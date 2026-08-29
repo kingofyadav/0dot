@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import { ChevronUp, ChevronDown, X } from "lucide-react";
 import { db } from "@/lib/db";
@@ -21,6 +20,7 @@ import { BusinessLinksForm } from "./BusinessLinksForm";
 import { LocationForm } from "./LocationForm";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { EmptyState } from "@/components/EmptyState";
+import { BusinessManageNav } from "./BusinessManageNav";
 
 const ROLE_LABEL: Record<string, string> = {
   owner: "Owner",
@@ -64,26 +64,12 @@ export default async function ManageBusinessPage({ params }: { params: Promise<{
 
   return (
     <div className="profileCard">
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-        <h1 style={{ fontSize: "1.1rem", fontWeight: 700 }}>Manage {business.name}</h1>
-        <span className="row">
-          <Link href={`/b/${business.slug}/catalog`} className="button buttonSecondary" style={{ fontSize: "0.85rem", padding: "0.4rem 0.7rem" }}>
-            Catalog
-          </Link>
-          <Link href={`/b/${business.slug}/manage/contact`} className="button buttonSecondary" style={{ fontSize: "0.85rem", padding: "0.4rem 0.7rem" }}>
-            Contact messages{newContactMessageCount > 0 ? ` (${newContactMessageCount})` : ""}
-          </Link>
-          <Link href={`/b/${business.slug}/manage/crm`} className="button buttonSecondary" style={{ fontSize: "0.85rem", padding: "0.4rem 0.7rem" }}>
-            CRM
-          </Link>
-          <Link href={`/b/${business.slug}/manage/billing`} className="button buttonSecondary" style={{ fontSize: "0.85rem", padding: "0.4rem 0.7rem" }}>
-            Billing
-          </Link>
-          <Link href={`/b/${business.slug}`} className="button buttonSecondary" style={{ fontSize: "0.85rem", padding: "0.4rem 0.7rem" }}>
-            View business page
-          </Link>
-        </span>
-      </div>
+      <BusinessManageNav
+        slug={business.slug}
+        businessName={business.name}
+        current="overview"
+        contactCount={newContactMessageCount}
+      />
 
       {business.status === "pending" && (
         <p className="mutedText" style={{ marginBottom: "1.25rem", padding: "0.5rem 0.75rem", border: "1px solid var(--border)", borderRadius: "8px" }}>

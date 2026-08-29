@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
@@ -12,6 +11,7 @@ import {
   BusinessRemoveDomainButton,
   RetryDomainVerificationButton,
 } from "./BusinessBillingForms";
+import { BusinessManageNav } from "../BusinessManageNav";
 
 const ROUTING_LABEL: Record<string, string> = {
   pending_dns: "Waiting for DNS",
@@ -42,24 +42,28 @@ export default async function BusinessBillingPage({
   if (!business) notFound();
   if (!(await isBusinessStaff(business.id, currentUser.id))) redirect(`/b/${business.slug}`);
 
-  const subscription = await getActiveBusinessSubscription(business.id);
   const { checkout } = await searchParams;
-  const domains = await db.customDomain.findMany({
-    where: { ownerBusinessId: business.id, status: { not: "removed" } },
-    orderBy: { createdAt: "desc" },
-  });
+  const [subscription, domains, newContactMessageCount] = await Promise.all([
+    getActiveBusinessSubscription(business.id),
+    db.customDomain.findMany({
+      where: { ownerBusinessId: business.id, status: { not: "removed" } },
+      orderBy: { createdAt: "desc" },
+    }),
+    db.contactMessage.count({ where: { businessId: business.id, status: "new" } }),
+  ]);
   // See the profile domains page's identical comment: a `dormant` row is a
   // 90-day string reservation, not an occupied slot.
   const occupiesSlot = domains.some((d) => d.status === "active" || d.status === "suspended_nonpayment");
 
   return (
     <div className="profileCard">
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-        <h1 style={{ fontSize: "1.1rem", fontWeight: 700 }}>Billing — {business.name}</h1>
-        <Link href={`/b/${business.slug}/manage`} className="button buttonSecondary" style={{ fontSize: "0.85rem", padding: "0.4rem 0.7rem" }}>
-          Back to manage
-        </Link>
-      </div>
+      <BusinessManageNav
+        slug={business.slug}
+        businessName={business.name}
+        title={`Billing — ${business.name}`}
+        current="billing"
+        contactCount={newContactMessageCount}
+      />
 
       <p className="sectionHeading">Subscription</p>
       {subscription ? (

@@ -6,6 +6,7 @@ import { isBusinessStaff } from "@/lib/businesses";
 import { ContactStageSelect } from "./ContactStageSelect";
 import { NewContactForm } from "./NewContactForm";
 import { EmptyState } from "@/components/EmptyState";
+import { BusinessManageNav } from "../BusinessManageNav";
 
 const ACTIVITY_LABEL: Record<string, string> = {
   contact_message: "Sent a message",
@@ -29,23 +30,27 @@ export default async function CrmPage({ params }: { params: Promise<{ slug: stri
   if (!business) notFound();
   if (!(await isBusinessStaff(business.id, currentUser.id))) redirect(`/b/${business.slug}`);
 
-  const contacts = await db.contact.findMany({
-    where: { businessId: business.id },
-    include: {
-      user: { select: { profile: true, username: true } },
-      activities: { orderBy: { occurredAt: "desc" }, take: 5 },
-    },
-    orderBy: { createdAt: "desc" },
-  });
+  const [contacts, newContactMessageCount] = await Promise.all([
+    db.contact.findMany({
+      where: { businessId: business.id },
+      include: {
+        user: { select: { profile: true, username: true } },
+        activities: { orderBy: { occurredAt: "desc" }, take: 5 },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+    db.contactMessage.count({ where: { businessId: business.id, status: "new" } }),
+  ]);
 
   return (
     <div className="profileCard">
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-        <h1 style={{ fontSize: "1.1rem", fontWeight: 700 }}>{business.name} — CRM</h1>
-        <Link href={`/b/${business.slug}/manage`} className="button buttonSecondary" style={{ fontSize: "0.85rem", padding: "0.4rem 0.7rem" }}>
-          Back to manage
-        </Link>
-      </div>
+      <BusinessManageNav
+        slug={business.slug}
+        businessName={business.name}
+        title={`${business.name} — CRM`}
+        current="crm"
+        contactCount={newContactMessageCount}
+      />
 
       <div style={{ marginBottom: "1.5rem" }}>
         <NewContactForm businessId={business.id} />

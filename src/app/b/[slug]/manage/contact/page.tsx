@@ -1,10 +1,10 @@
-import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { isBusinessStaff } from "@/lib/businesses";
 import { markContactMessageRead, archiveContactMessage } from "@/app/actions/business-contact";
 import { EmptyState } from "@/components/EmptyState";
+import { BusinessManageNav } from "../BusinessManageNav";
 
 function relativeTime(date: Date): string {
   const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
@@ -89,12 +89,13 @@ export default async function BusinessContactInboxPage({
 
   return (
     <div className="profileCard">
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-        <h1 style={{ fontSize: "1.1rem", fontWeight: 700 }}>Contact messages — {business.name}</h1>
-        <Link href={`/b/${business.slug}/manage`} className="button buttonSecondary" style={{ fontSize: "0.85rem", padding: "0.4rem 0.7rem" }}>
-          Back to manage
-        </Link>
-      </div>
+      <BusinessManageNav
+        slug={business.slug}
+        businessName={business.name}
+        title={`Contact messages — ${business.name}`}
+        current="messages"
+        contactCount={newMessages.length}
+      />
 
       {messages.length === 0 && <EmptyState message="No messages yet." />}
 
