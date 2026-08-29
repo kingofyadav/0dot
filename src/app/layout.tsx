@@ -12,6 +12,7 @@ import { ToastProvider } from "@/components/Toast";
 import { AgeGatePrompt } from "@/components/AgeGatePrompt";
 import { PwaServiceWorker } from "@/components/PwaServiceWorker";
 import { SafariInstallPrompt } from "@/components/SafariInstallPrompt";
+import { ConsoleSelfXssWarning } from "@/components/ConsoleSelfXssWarning";
 import { ThemeInitScript } from "@/components/ThemeInitScript";
 import { ContextualRailSkeleton } from "@/components/Skeleton";
 import { getCurrentUser } from "@/lib/session";
@@ -163,6 +164,7 @@ export default async function RootLayout({
         </a>
         <PwaServiceWorker />
         <SafariInstallPrompt />
+        <ConsoleSelfXssWarning />
         <BrowserTabProvider initialUnreadCount={initialUnreadCount}>
           {/* Inside BrowserTabProvider (not outside) so CommandPalette's
               theme-toggle command hits the real useBrowserTab() context
