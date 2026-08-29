@@ -7,7 +7,7 @@ export function LivestreamForm({ ownTiers }: { ownTiers: { id: string; name: str
   const [state, formAction, pending] = useActionState(createLivestream, undefined);
 
   return (
-    <form action={formAction} style={{ display: "flex", flexDirection: "column", gap: "0.5rem", maxWidth: "32ch" }}>
+    <form action={formAction} className="settingsForm">
       <div className="field">
         <label htmlFor="liveTitle">Title</label>
         <input id="liveTitle" name="title" maxLength={120} required />

@@ -18,7 +18,7 @@ export function CourseForm({
   const idSuffix = course?.id ?? "new";
 
   return (
-    <form action={formAction} style={{ display: "flex", flexDirection: "column", gap: "0.5rem", maxWidth: "32ch" }}>
+    <form action={formAction} className="settingsForm">
       {course && <input type="hidden" name="courseId" value={course.id} />}
       <div className="field">
         <label htmlFor={`courseTitle-${idSuffix}`}>Title</label>

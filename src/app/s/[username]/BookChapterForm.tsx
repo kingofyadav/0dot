@@ -31,7 +31,7 @@ export function BookChapterForm({
   const idSuffix = chapter?.id ?? "new";
 
   return (
-    <form action={formAction} style={{ display: "flex", flexDirection: "column", gap: "0.5rem", maxWidth: "50ch" }}>
+    <form action={formAction} className="settingsForm">
       <input type="hidden" name="bookId" value={bookId} />
       {chapter && <input type="hidden" name="pageId" value={chapter.id} />}
       {!chapter && (

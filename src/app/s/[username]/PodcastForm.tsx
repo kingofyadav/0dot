@@ -9,7 +9,7 @@ export function PodcastForm({ podcast }: { podcast?: { id: string; title: string
   const idSuffix = podcast?.id ?? "new";
 
   return (
-    <form action={formAction} style={{ display: "flex", flexDirection: "column", gap: "0.5rem", maxWidth: "32ch" }}>
+    <form action={formAction} className="settingsForm">
       {podcast && <input type="hidden" name="podcastId" value={podcast.id} />}
       <div className="field">
         <label htmlFor={`podcastTitle-${idSuffix}`}>Title</label>

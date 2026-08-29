@@ -15,7 +15,7 @@ export function SocialLinksForm() {
         await formAction(formData);
         formRef.current?.reset();
       }}
-      style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}
+      className="settingsForm"
     >
       <h2 style={{ fontSize: "1.05rem", fontWeight: 700 }}>Add a social link</h2>
       <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>

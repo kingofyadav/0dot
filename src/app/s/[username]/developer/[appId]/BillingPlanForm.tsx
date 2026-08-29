@@ -13,7 +13,7 @@ export function BillingPlanForm({ appId, billingPlan }: { appId: string; billing
   const [state, formAction, pending] = useActionState(updateBillingPlan, undefined);
 
   return (
-    <form action={formAction} style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+    <form action={formAction} className="settingsForm">
       <input type="hidden" name="appId" value={appId} />
       <select name="billingPlan" defaultValue={billingPlan} className="textInput" style={{ maxWidth: "28rem" }}>
         {Object.entries(PLAN_LABEL).map(([value, label]) => (

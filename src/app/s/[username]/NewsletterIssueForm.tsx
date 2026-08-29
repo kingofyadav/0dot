@@ -15,7 +15,7 @@ export function NewsletterIssueForm({
   const idSuffix = issue?.id ?? "new";
 
   return (
-    <form action={formAction} style={{ display: "flex", flexDirection: "column", gap: "0.5rem", maxWidth: "36ch" }}>
+    <form action={formAction} className="settingsForm">
       {issue && <input type="hidden" name="issueId" value={issue.id} />}
       <div className="field">
         <label htmlFor={`issueSubject-${idSuffix}`}>Subject</label>

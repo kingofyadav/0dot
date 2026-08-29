@@ -49,7 +49,7 @@ export function ProjectForm({ project, ownSkills = [] }: { project?: ProjectForm
   }
 
   return (
-    <form action={formAction} style={{ display: "flex", flexDirection: "column", gap: "0.5rem", maxWidth: "36ch" }}>
+    <form action={formAction} className="settingsForm">
       {project && <input type="hidden" name="projectId" value={project.id} />}
       {!project && (
         <div className="field">

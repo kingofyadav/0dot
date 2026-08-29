@@ -7,7 +7,7 @@ export function LearningPathForm({ courses }: { courses: { id: string; title: st
   const [state, formAction, pending] = useActionState(createLearningPath, undefined);
 
   return (
-    <form action={formAction} style={{ display: "flex", flexDirection: "column", gap: "0.5rem", maxWidth: "360px" }}>
+    <form action={formAction} className="settingsForm">
       <input name="title" placeholder="Learning path title" required maxLength={160} className="textInput" />
       <p className="mutedText" style={{ fontSize: "0.85rem", margin: 0 }}>Select courses, in order:</p>
       <select name="courseIds" multiple size={Math.min(6, Math.max(3, courses.length))} className="textInput">

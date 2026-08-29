@@ -11,7 +11,7 @@ export function BookForm({ book }: { book?: BookFormBook }) {
   const idSuffix = book?.id ?? "new";
 
   return (
-    <form action={formAction} style={{ display: "flex", flexDirection: "column", gap: "0.5rem", maxWidth: "50ch" }}>
+    <form action={formAction} className="settingsForm">
       {book && <input type="hidden" name="bookId" value={book.id} />}
       {!book && (
         <div className="field">

@@ -11,7 +11,7 @@ export function PublishedFileForm({ file }: { file?: PublishedFileFormFile }) {
   const idSuffix = file?.id ?? "new";
 
   return (
-    <form action={formAction} style={{ display: "flex", flexDirection: "column", gap: "0.5rem", maxWidth: "50ch" }}>
+    <form action={formAction} className="settingsForm">
       {file && <input type="hidden" name="fileId" value={file.id} />}
       {!file && (
         <div className="field">

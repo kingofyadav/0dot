@@ -8,7 +8,7 @@ export function AddLessonForm({ moduleId }: { moduleId: string }) {
   const [contentType, setContentType] = useState("text");
 
   return (
-    <form action={formAction} style={{ display: "flex", flexDirection: "column", gap: "0.4rem", maxWidth: "32ch" }}>
+    <form action={formAction} className="settingsForm">
       <input type="hidden" name="moduleId" value={moduleId} />
       <div className="field">
         <label htmlFor={`newLessonTitle-${moduleId}`}>New lesson title</label>

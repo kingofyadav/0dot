@@ -51,7 +51,7 @@ export function ComposeCrossPostForm({
         formRef.current?.reset();
         setFiles([]);
       }}
-      style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}
+      className="settingsForm"
     >
       <textarea name="content" placeholder="What's happening?" maxLength={500} rows={3} className="textInput" />
 

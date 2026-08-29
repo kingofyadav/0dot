@@ -24,7 +24,7 @@ export function WikiPageForm({ page, otherPages }: { page?: WikiPageFormPage; ot
   const idSuffix = page?.id ?? "new";
 
   return (
-    <form action={formAction} style={{ display: "flex", flexDirection: "column", gap: "0.5rem", maxWidth: "50ch" }}>
+    <form action={formAction} className="settingsForm">
       {page && <input type="hidden" name="pageId" value={page.id} />}
       {!page && (
         <div className="field">

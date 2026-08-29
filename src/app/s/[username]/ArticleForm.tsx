@@ -26,7 +26,7 @@ export function ArticleForm({ article }: { article?: ArticleFormArticle }) {
   const [bodyValue, setBodyValue] = useState(article?.body ?? "");
 
   return (
-    <form action={formAction} style={{ display: "flex", flexDirection: "column", gap: "0.5rem", maxWidth: "50ch" }}>
+    <form action={formAction} className="settingsForm">
       {article && <input type="hidden" name="articleId" value={article.id} />}
       {!article && (
         <div className="field">

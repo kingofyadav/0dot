@@ -22,7 +22,7 @@ export function EpisodeForm({ podcastId, ownTiers }: { podcastId: string; ownTie
   }
 
   return (
-    <form ref={formRef} action={formAction} style={{ display: "flex", flexDirection: "column", gap: "0.5rem", maxWidth: "32ch" }}>
+    <form ref={formRef} action={formAction} className="settingsForm">
       <input type="hidden" name="podcastId" value={podcastId} />
       <input type="hidden" name="durationS" value={durationS ?? 0} />
       <div className="field">

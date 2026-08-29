@@ -27,7 +27,7 @@ export function FormBuilder() {
   );
 
   return (
-    <form action={formAction} style={{ display: "flex", flexDirection: "column", gap: "0.75rem", maxWidth: "520px" }}>
+    <form action={formAction} className="settingsForm">
       <div>
         <label htmlFor="title">Title</label>
         <input id="title" name="title" required maxLength={160} className="textInput" />

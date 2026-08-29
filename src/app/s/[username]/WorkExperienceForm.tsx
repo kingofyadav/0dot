@@ -23,7 +23,7 @@ export function WorkExperienceForm({ item }: { item?: WorkExperienceFormItem }) 
   const idSuffix = item?.id ?? "new";
 
   return (
-    <form action={formAction} style={{ display: "flex", flexDirection: "column", gap: "0.5rem", maxWidth: "32ch" }}>
+    <form action={formAction} className="settingsForm">
       {item && <input type="hidden" name="workExperienceId" value={item.id} />}
       <div className="field">
         <label htmlFor={`weCompany-${idSuffix}`}>Company</label>

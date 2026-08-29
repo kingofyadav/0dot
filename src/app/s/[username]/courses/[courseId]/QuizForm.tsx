@@ -24,7 +24,7 @@ export function QuizForm({ lessonId }: { lessonId: string }) {
   );
 
   return (
-    <form action={formAction} style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+    <form action={formAction} className="settingsForm">
       <input type="hidden" name="lessonId" value={lessonId} />
       {questions.map((q, index) => (
         <div key={index} style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>

@@ -23,7 +23,7 @@ export function AffiliateProgramForm({
   const options = offeringType === "membership_tier" ? ownTiers : offeringType === "digital_product" ? ownProducts : ownCourses;
 
   return (
-    <form action={formAction} style={{ display: "flex", flexDirection: "column", gap: "0.5rem", maxWidth: "32ch" }}>
+    <form action={formAction} className="settingsForm">
       <div className="field">
         <label htmlFor="affOfferingType">Offering type</label>
         <select

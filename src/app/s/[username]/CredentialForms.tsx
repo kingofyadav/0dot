@@ -14,7 +14,7 @@ export function ResearchPaperForm({ ownProjects }: { ownProjects: { id: string; 
         await formAction(formData);
         formRef.current?.reset();
       }}
-      style={{ display: "flex", flexDirection: "column", gap: "0.5rem", maxWidth: "32ch" }}
+      className="settingsForm"
     >
       <div className="field">
         <label htmlFor="paperTitle">Title</label>
@@ -74,7 +74,7 @@ export function CertificateForm() {
         await formAction(formData);
         formRef.current?.reset();
       }}
-      style={{ display: "flex", flexDirection: "column", gap: "0.5rem", maxWidth: "32ch" }}
+      className="settingsForm"
     >
       <div className="field">
         <label htmlFor="certTitle">Title</label>
@@ -121,7 +121,7 @@ export function AwardForm() {
         await formAction(formData);
         formRef.current?.reset();
       }}
-      style={{ display: "flex", flexDirection: "column", gap: "0.5rem", maxWidth: "32ch" }}
+      className="settingsForm"
     >
       <div className="field">
         <label htmlFor="awardTitle">Title</label>

@@ -25,7 +25,7 @@ export function TierForm({
   const [state, formAction, pending] = useActionState(action, undefined);
 
   return (
-    <form action={formAction} style={{ display: "flex", flexDirection: "column", gap: "0.5rem", maxWidth: "32ch" }}>
+    <form action={formAction} className="settingsForm">
       {tier && <input type="hidden" name="tierId" value={tier.id} />}
       <div className="field">
         <label htmlFor={`tierName-${tier?.id ?? "new"}`}>Name</label>

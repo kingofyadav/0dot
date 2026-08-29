@@ -21,7 +21,7 @@ export function ConnectExternalAccountForm() {
         await formAction(formData);
         formRef.current?.reset();
       }}
-      style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}
+      className="settingsForm"
     >
       <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
         <select name="platform" className="textInput" defaultValue={CROSS_POST_PLATFORMS[0]} style={{ flex: "1 1 100px" }}>

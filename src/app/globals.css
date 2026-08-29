@@ -5424,6 +5424,21 @@ details:not([open]) > .settingsAddTrigger {
   padding: var(--space-4);
 }
 
+/* Shared container for the create/edit forms rendered inside settings
+   groups and .settingsAddPanelBody panels. Replaces the
+   `style={{ display:"flex", flexDirection:"column", gap:"0.5rem",
+   maxWidth:"<NN>ch" }}` object literal that had been hand-copied onto
+   ~30 form components with drifting gap (0.4rem–0.75rem) and max-width
+   (32ch–520px) values — one column rhythm, one width, both tokenized.
+   The gap is --space-3 so fields breathe a little more than the old
+   0.5rem majority; .field keeps its own tighter label/input gap. */
+.settingsForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-width: 32rem;
+}
+
 /* Card container for settings content that isn't a list of .settingsRow
    items — a multi-field form (ChangePasswordForm) or free-form status text
    (PremiumBillingForm) — but should still read as the same family of

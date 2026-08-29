@@ -7,7 +7,7 @@ export function ClaimDomainForm() {
   const [state, formAction, pending] = useActionState(claimProfileCustomDomainAction, undefined);
 
   return (
-    <form action={formAction} style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+    <form action={formAction} className="settingsForm">
       <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
         <input
           name="domain"

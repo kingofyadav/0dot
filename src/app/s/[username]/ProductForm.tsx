@@ -13,7 +13,7 @@ export function ProductForm({
   const [state, formAction, pending] = useActionState(action, undefined);
 
   return (
-    <form action={formAction} style={{ display: "flex", flexDirection: "column", gap: "0.5rem", maxWidth: "32ch" }}>
+    <form action={formAction} className="settingsForm">
       {product && <input type="hidden" name="productId" value={product.id} />}
       <div className="field">
         <label htmlFor={`productTitle-${product?.id ?? "new"}`}>Title</label>
