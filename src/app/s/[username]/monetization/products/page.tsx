@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Package, Pencil, Plus } from "lucide-react";
 import { db } from "@/lib/db";
@@ -6,6 +7,8 @@ import { archiveProduct } from "@/app/actions/digital-products";
 import { SettingsRow } from "@/components/SettingsRow";
 import { EmptyState } from "@/components/EmptyState";
 import { ProductForm } from "../../ProductForm";
+
+export const metadata: Metadata = { title: "Digital products" };
 
 export default async function DigitalProductsSettingsPage() {
   const currentUser = await getCurrentUser();

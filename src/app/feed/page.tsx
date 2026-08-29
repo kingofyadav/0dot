@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -10,6 +11,8 @@ import { getPostableBusinesses } from "@/lib/businesses";
 import { getMyPayoutAccount } from "@/lib/payments";
 import { DismissibleNotice } from "@/components/DismissibleNotice";
 import { FeedList } from "./FeedList";
+
+export const metadata: Metadata = { title: "Feed" };
 
 const PAYOUT_STATUS_LABEL: Record<string, string> = {
   onboarding: "Onboarding",

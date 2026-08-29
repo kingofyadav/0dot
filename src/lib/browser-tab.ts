@@ -102,7 +102,15 @@ export function persistTheme(theme: Theme): void {
 
 export function setFaviconHref(href: string): void {
   document.querySelectorAll<HTMLLinkElement>('link[rel="icon"]').forEach((link) => {
-    link.href = href;
+    // Recreate the node rather than mutate .href in place: some WebKit/
+    // Safari versions don't repaint the tab favicon on a plain attribute
+    // mutation of an already-attached <link>, only on a genuinely new node.
+    // Cloning first preserves the tag's other attributes (media, sizes,
+    // type) — only href changes. No downside on browsers where mutating
+    // in place already worked.
+    const fresh = link.cloneNode(false) as HTMLLinkElement;
+    fresh.href = href;
+    link.replaceWith(fresh);
   });
 }
 

@@ -1,5 +1,8 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { ResendVerificationButton } from "./ResendVerificationButton";
+
+export const metadata: Metadata = { title: "Verify your email" };
 
 export default async function VerifySentPage({
   searchParams,

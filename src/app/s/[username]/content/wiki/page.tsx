@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { BookOpen, Pencil, Plus } from "lucide-react";
@@ -9,6 +10,8 @@ import { SettingsRow } from "@/components/SettingsRow";
 import { EmptyState } from "@/components/EmptyState";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { WikiPageForm } from "../../WikiPageForm";
+
+export const metadata: Metadata = { title: "Wiki & Documentation" };
 
 const KIND_LABEL: Record<string, string> = { wiki: "Wiki page", documentation: "Documentation" };
 

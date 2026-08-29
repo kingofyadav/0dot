@@ -1,8 +1,11 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { Logo } from "@/components/Logo";
 import { EmptyState } from "@/components/EmptyState";
+
+export const metadata: Metadata = { title: "Communities" };
 
 // Lightweight index — just enough to make step 1 usable without a direct
 // /c/{slug} link in hand. Full search integration (phase-3 spec §16) is a

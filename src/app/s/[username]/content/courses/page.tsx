@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { GraduationCap, Pencil, Plus } from "lucide-react";
@@ -7,6 +8,8 @@ import { archiveCourse } from "@/app/actions/courses";
 import { SettingsRow } from "@/components/SettingsRow";
 import { EmptyState } from "@/components/EmptyState";
 import { CourseForm } from "../../CourseForm";
+
+export const metadata: Metadata = { title: "Courses" };
 
 export default async function CoursesSettingsPage() {
   const currentUser = await getCurrentUser();

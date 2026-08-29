@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { GitBranch, X } from "lucide-react";
 import { db } from "@/lib/db";
@@ -7,6 +8,8 @@ import { SettingsRow } from "@/components/SettingsRow";
 import { EmptyState } from "@/components/EmptyState";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { GitRepositoryForm } from "../../GitRepositoryForm";
+
+export const metadata: Metadata = { title: "Git repositories" };
 
 export default async function RepositoriesSettingsPage() {
   const currentUser = await getCurrentUser();

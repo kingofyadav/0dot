@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Route } from "lucide-react";
 import { db } from "@/lib/db";
@@ -7,6 +8,8 @@ import { ConfirmButton } from "@/components/ConfirmButton";
 import { EmptyState } from "@/components/EmptyState";
 import { SettingsRow } from "@/components/SettingsRow";
 import { LearningPathForm } from "./LearningPathForm";
+
+export const metadata: Metadata = { title: "Learning paths" };
 
 export default async function LearningPathsSettingsPage() {
   const currentUser = await getCurrentUser();

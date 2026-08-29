@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Mail, Pencil, Plus } from "lucide-react";
 import { db } from "@/lib/db";
@@ -7,6 +8,8 @@ import { SettingsRow } from "@/components/SettingsRow";
 import { EmptyState } from "@/components/EmptyState";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { NewsletterIssueForm } from "../../NewsletterIssueForm";
+
+export const metadata: Metadata = { title: "Newsletter" };
 
 export default async function NewsletterSettingsPage() {
   const currentUser = await getCurrentUser();

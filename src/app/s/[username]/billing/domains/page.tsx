@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
 import { db } from "@/lib/db";
@@ -7,6 +8,8 @@ import { removeProfileCustomDomainAction, retryProfileDomainVerificationAction }
 import { EmptyState } from "@/components/EmptyState";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { ClaimDomainForm } from "./ClaimDomainForm";
+
+export const metadata: Metadata = { title: "Custom domain" };
 
 const ROUTING_LABEL: Record<string, string> = {
   pending_dns: "Waiting for DNS",

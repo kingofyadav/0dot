@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { File as FileIcon, Pencil, Plus } from "lucide-react";
@@ -8,6 +9,8 @@ import { SettingsRow } from "@/components/SettingsRow";
 import { EmptyState } from "@/components/EmptyState";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { PublishedFileForm } from "../../PublishedFileForm";
+
+export const metadata: Metadata = { title: "Files" };
 
 export default async function FilesSettingsPage() {
   const currentUser = await getCurrentUser();

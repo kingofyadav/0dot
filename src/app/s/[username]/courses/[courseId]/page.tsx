@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import { Layers, Pencil, PlayCircle, Plus, X } from "lucide-react";
@@ -11,6 +12,23 @@ import { ConfirmButton } from "@/components/ConfirmButton";
 import { AddModuleForm } from "./AddModuleForm";
 import { AddLessonForm } from "./AddLessonForm";
 import { QuizForm } from "./QuizForm";
+
+// Best-effort only — access control stays solely the page component's job
+// (below), which already does the real ownership check against the fully
+// loaded course. A lookup miss here just falls back to a generic title
+// instead of duplicating notFound()/redirect() logic in a second place.
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ courseId: string }>;
+}): Promise<Metadata> {
+  const { courseId } = await params;
+  const currentUser = await getCurrentUser();
+  const course = currentUser
+    ? await db.course.findUnique({ where: { id: courseId }, select: { title: true, creatorId: true } })
+    : null;
+  return { title: course && course.creatorId === currentUser?.id ? course.title : "Course" };
+}
 
 // spec §11: owner-only course builder, same "/s/ prefix = control panel"
 // split as the rest of settings — modules/lessons are managed here, never

@@ -1,6 +1,9 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
 import { PrivacySettingsForm } from "./PrivacySettingsForm";
+
+export const metadata: Metadata = { title: "Privacy" };
 
 export default async function PrivacySettingsPage() {
   const currentUser = await getCurrentUser();

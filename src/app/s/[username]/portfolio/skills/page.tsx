@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { ChevronUp, ChevronDown, Sparkles, X } from "lucide-react";
 import { db } from "@/lib/db";
@@ -7,6 +8,8 @@ import { SettingsRow } from "@/components/SettingsRow";
 import { EmptyState } from "@/components/EmptyState";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { AddSkillForm } from "../../AddSkillForm";
+
+export const metadata: Metadata = { title: "Skills" };
 
 export default async function SkillsSettingsPage() {
   const currentUser = await getCurrentUser();

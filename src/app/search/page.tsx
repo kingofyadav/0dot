@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { BadgeCheck } from "lucide-react";
 import { EmptyState } from "@/components/EmptyState";
@@ -9,6 +10,8 @@ import { businessCategoryLabel } from "@/lib/business-categories";
 import { fetchAllMarketplaceCategories } from "@/lib/marketplace-browse";
 import { semanticRerank } from "@/lib/ai-search";
 import { searchCommunities, searchBusinesses, searchEvents } from "@/lib/search";
+
+export const metadata: Metadata = { title: "Search" };
 
 type SearchTab = "users" | "posts" | "communities" | "businesses" | "projects" | "knowledge" | "events" | "marketplace";
 const TABS: { key: SearchTab; label: string }[] = [

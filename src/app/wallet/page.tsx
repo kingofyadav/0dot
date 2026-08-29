@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Coins } from "lucide-react";
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { db } from "@/lib/db";
@@ -5,6 +6,8 @@ import { getActiveProfileSubscription, COIN_FUNDED_MARKER, TEST_MODE_VIP_COIN_CO
 import { PurchaseVipForm } from "@/components/PurchaseVipForm";
 import { TransferCoinsForm } from "@/components/TransferCoinsForm";
 import { EmptyState } from "@/components/EmptyState";
+
+export const metadata: Metadata = { title: "Wallet" };
 
 export default async function WalletPage() {
   const user = await requireVerifiedUser();

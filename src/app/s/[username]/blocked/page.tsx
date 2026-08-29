@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { db } from "@/lib/db";
@@ -5,6 +6,8 @@ import { getCurrentUser } from "@/lib/session";
 import { parseCursor, paginate, POST_PAGE_SIZE } from "@/lib/pagination";
 import { unblockUser } from "@/app/actions/block";
 import { UserListItem } from "@/components/UserListItem";
+
+export const metadata: Metadata = { title: "Blocked users" };
 
 const listedUserInclude = { username: true, profile: true } as const;
 

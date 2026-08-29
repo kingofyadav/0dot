@@ -51,7 +51,13 @@ export async function generateMetadata(): Promise<Metadata> {
   const title = user?.profile ? user.profile.displayName : "Welcome";
 
   return {
-    title,
+    // `default` is what renders as-is on routes with no title of their own
+    // (marketing pages, the account name itself) — unchanged from before.
+    // `template` only kicks in for routes that set their own `title`
+    // (settings pages, /feed, etc — see their own metadata/generateMetadata
+    // exports), composing "0dot · <page>" so open tabs are distinguishable
+    // instead of every one just repeating your own name.
+    title: { default: title, template: "0dot · %s" },
     description:
       "Claim your permanent home on the internet — a profile, a link hub, and a feed, all under one identity.",
     icons: {

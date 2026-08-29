@@ -1,8 +1,11 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { isProfilePremium } from "@/lib/platform-billing";
 import { EditProfileForm } from "./EditProfileForm";
+
+export const metadata: Metadata = { title: "Edit profile" };
 
 // Settings index — Edit profile. Auth/own-handle checks live in
 // layout.tsx now (shared by every /s/[username]/* route); this page only

@@ -1,9 +1,12 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Wallet } from "lucide-react";
 import { getCurrentUser } from "@/lib/session";
 import { getMyPayoutAccount } from "@/lib/payments";
 import { SettingsRow } from "@/components/SettingsRow";
 import { PayoutOnboardingForm } from "../../PayoutOnboardingForm";
+
+export const metadata: Metadata = { title: "Payouts" };
 
 export default async function PayoutsSettingsPage() {
   const currentUser = await getCurrentUser();

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { ChevronDown, ChevronUp, Link2, Star, X } from "lucide-react";
 import { db } from "@/lib/db";
@@ -12,6 +13,8 @@ import { EmptyState } from "@/components/EmptyState";
 import { SettingsRow } from "@/components/SettingsRow";
 import { AddLinkForm } from "../AddLinkForm";
 import { SocialLinksForm } from "../SocialLinksForm";
+
+export const metadata: Metadata = { title: "Links" };
 
 export default async function LinksSettingsPage() {
   const currentUser = await getCurrentUser();

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Link2, Percent, Plus } from "lucide-react";
 import { db } from "@/lib/db";
@@ -6,6 +7,8 @@ import { toggleProgramStatus } from "@/app/actions/affiliates";
 import { SettingsRow } from "@/components/SettingsRow";
 import { EmptyState } from "@/components/EmptyState";
 import { AffiliateProgramForm } from "../../AffiliateProgramForm";
+
+export const metadata: Metadata = { title: "Affiliate programs" };
 
 export default async function AffiliateSettingsPage() {
   const currentUser = await getCurrentUser();

@@ -1,6 +1,9 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { DmcaNoticeForm } from "./DmcaNoticeForm";
+
+export const metadata: Metadata = { title: "DMCA notice" };
 
 // phase-13 spec §4.4: the heavier, statute-shaped formal notice, distinct
 // from the lightweight Report(category=ip_infringement) flag every

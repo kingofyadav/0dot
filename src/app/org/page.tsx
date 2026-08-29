@@ -1,6 +1,9 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { db } from "@/lib/db";
+
+export const metadata: Metadata = { title: "Organizations" };
 
 // phase-14 spec §2: entry point independent of Phase 4's Business flow —
 // just this user's own OrganizationMember rows, active or deactivated (a

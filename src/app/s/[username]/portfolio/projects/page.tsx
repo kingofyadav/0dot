@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { FolderGit2, Pencil, Plus, UserPlus, X } from "lucide-react";
@@ -9,6 +10,8 @@ import { EmptyState } from "@/components/EmptyState";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { ProjectForm } from "../../ProjectForm";
 import { AddCollaboratorForm } from "../../AddCollaboratorForm";
+
+export const metadata: Metadata = { title: "Projects" };
 
 export default async function ProjectsSettingsPage() {
   const currentUser = await getCurrentUser();

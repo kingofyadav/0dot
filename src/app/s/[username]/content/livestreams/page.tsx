@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Radio, Plus } from "lucide-react";
@@ -8,6 +9,8 @@ import { ConfirmButton } from "@/components/ConfirmButton";
 import { SettingsRow } from "@/components/SettingsRow";
 import { EmptyState } from "@/components/EmptyState";
 import { LivestreamForm } from "../../LivestreamForm";
+
+export const metadata: Metadata = { title: "Livestreams" };
 
 export default async function LivestreamsSettingsPage() {
   const currentUser = await getCurrentUser();

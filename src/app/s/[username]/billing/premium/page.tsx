@@ -1,9 +1,12 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
 import { db } from "@/lib/db";
 import { getActiveProfileSubscription, FREE_LINK_CAP, PREMIUM_LINK_CAP, FREE_ANALYTICS_WINDOW_DAYS } from "@/lib/platform-billing";
 import { THEME_PRESETS } from "@/lib/theme-presets";
 import { PremiumBillingForm } from "./PremiumBillingForm";
+
+export const metadata: Metadata = { title: "Premium" };
 
 export default async function PremiumBillingPage() {
   const currentUser = await getCurrentUser();

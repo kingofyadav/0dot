@@ -1,8 +1,17 @@
 import type { ReactNode } from "react";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
 import { SettingsSearchTrigger } from "./SettingsSearchTrigger";
+
+// Closest-parent template wins over the root layout's "0dot · %s" (Next.js
+// only composes one level), so every settings page's own `title` — see
+// each page.tsx — resolves to "0dot · Settings · <page>" instead of just
+// "0dot · <page>", matching the "Settings" heading rendered below.
+export const metadata: Metadata = {
+  title: { template: "0dot · Settings · %s", default: "0dot · Settings" },
+};
 
 // Owner-only settings shell, shared by every /s/[username]/* route. Owns
 // the auth/own-handle checks and the persistent header that used to be

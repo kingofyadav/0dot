@@ -1,7 +1,10 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { listUpcomingEvents } from "@/lib/events";
 import { Logo } from "@/components/Logo";
 import { EmptyState } from "@/components/EmptyState";
+
+export const metadata: Metadata = { title: "Events" };
 
 function hostLabel(event: Awaited<ReturnType<typeof listUpcomingEvents>>[number]): string {
   if (event.hostedByBusiness) return event.hostedByBusiness.name;

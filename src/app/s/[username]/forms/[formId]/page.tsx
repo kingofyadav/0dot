@@ -1,9 +1,26 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { publishForm, closeForm, type FormFieldDef } from "@/app/actions/forms";
 import { EmptyState } from "@/components/EmptyState";
+
+// Best-effort only, same posture as the courses/developer generateMetadata
+// siblings — real access control stays in the page component below, this
+// just falls back to a generic title on any lookup/ownership miss.
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ formId: string }>;
+}): Promise<Metadata> {
+  const { formId } = await params;
+  const currentUser = await getCurrentUser();
+  const form = currentUser
+    ? await db.form.findUnique({ where: { id: formId }, select: { title: true, ownerProfileId: true } })
+    : null;
+  return { title: form && form.ownerProfileId === currentUser?.profile?.id ? form.title : "Form" };
+}
 
 export default async function FormDetailPage({ params }: { params: Promise<{ username: string; formId: string }> }) {
   const currentUser = await getCurrentUser();

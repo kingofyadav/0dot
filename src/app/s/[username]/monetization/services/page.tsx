@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Briefcase, CalendarClock, Clock, Pencil, Plus } from "lucide-react";
@@ -9,6 +10,8 @@ import { createAvailabilityRule, deleteAvailabilityRule, confirmAppointment, can
 import { SettingsRow } from "@/components/SettingsRow";
 import { EmptyState } from "@/components/EmptyState";
 import { ConfirmButton } from "@/components/ConfirmButton";
+
+export const metadata: Metadata = { title: "Freelance services" };
 
 const DAY_LABEL = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const STATUS_LABEL: Record<string, string> = { draft: "Draft", active: "Active", archived: "Archived" };

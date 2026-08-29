@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
@@ -6,6 +7,8 @@ import { parseCursor, paginate, POST_PAGE_SIZE } from "@/lib/pagination";
 import { getTierGatingCondition } from "@/lib/post-visibility";
 import { PostCard } from "@/components/PostCard";
 import { EmptyState } from "@/components/EmptyState";
+
+export const metadata: Metadata = { title: "Bookmarks" };
 
 const authorInclude = { profile: true, username: true } as const;
 const mediaInclude = { orderBy: { position: "asc" as const } };

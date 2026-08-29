@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Briefcase, ChevronUp, ChevronDown, GraduationCap, Pencil, Plus, X } from "lucide-react";
@@ -9,6 +10,8 @@ import { ConfirmButton } from "@/components/ConfirmButton";
 import { WorkExperienceForm } from "../../WorkExperienceForm";
 import { EducationForm } from "../../EducationForm";
 import { ResumePdfForm } from "../../ResumePdfForm";
+
+export const metadata: Metadata = { title: "Resume" };
 
 export default async function ResumeSettingsPage() {
   const currentUser = await getCurrentUser();

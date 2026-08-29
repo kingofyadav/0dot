@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { ChevronUp, ChevronDown, LayoutList } from "lucide-react";
 import { db } from "@/lib/db";
@@ -6,6 +7,8 @@ import { movePortfolioSection } from "@/app/actions/portfolio-layout";
 import { parsePortfolioLayout, PORTFOLIO_SECTION_LABELS } from "@/lib/portfolio-layout";
 import { SettingsRow } from "@/components/SettingsRow";
 import { PortfolioSectionVisibilityToggle } from "../PortfolioSectionVisibilityToggle";
+
+export const metadata: Metadata = { title: "Portfolio layout" };
 
 export default async function PortfolioLayoutSettingsPage() {
   const currentUser = await getCurrentUser();

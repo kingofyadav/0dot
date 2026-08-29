@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { EmptyState } from "@/components/EmptyState";
 import {
@@ -6,6 +7,8 @@ import {
   fetchMarketplaceCategory,
   type MarketplaceBrowseCategory,
 } from "@/lib/marketplace-browse";
+
+export const metadata: Metadata = { title: "Marketplace" };
 
 type TabKey = "all" | MarketplaceBrowseCategory;
 const TABS: { key: TabKey; label: string }[] = [

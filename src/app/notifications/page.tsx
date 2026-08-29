@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { BadgeCheck } from "lucide-react";
@@ -11,6 +12,8 @@ import { ConfirmButton } from "@/components/ConfirmButton";
 import { ListKeyNav } from "@/components/ListKeyNav";
 import { RefreshOnMount } from "@/components/RefreshOnMount";
 import { EmptyState } from "@/components/EmptyState";
+
+export const metadata: Metadata = { title: "Notifications" };
 
 const actorInclude = { username: true, profile: true } as const;
 

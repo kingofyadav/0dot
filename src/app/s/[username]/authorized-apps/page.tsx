@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { KeyRound } from "lucide-react";
 import { db } from "@/lib/db";
@@ -5,6 +6,8 @@ import { getCurrentUser } from "@/lib/session";
 import { revokeOwnAuthorization } from "@/app/actions/developer-apps";
 import { SettingsRow } from "@/components/SettingsRow";
 import { EmptyState } from "@/components/EmptyState";
+
+export const metadata: Metadata = { title: "Authorized apps" };
 
 // spec §4.4's literal acceptance criterion: every user gets an
 // account-settings view listing active OAuthAuthorizations with their

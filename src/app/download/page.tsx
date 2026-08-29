@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Image from "next/image";
 import Link from "next/link";
@@ -15,6 +16,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { MarketingNav } from "@/components/marketing/MarketingNav";
+
+export const metadata: Metadata = { title: "Download" };
 
 // Distribution reality (phase-15 build plan §5.1/§6, and the "download
 // direct from the web, not a store" ask that motivated this page):
