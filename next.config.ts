@@ -24,6 +24,14 @@ const nextConfig: NextConfig = {
   // Drop the `x-powered-by: Next.js` response header — free framework
   // fingerprinting for anyone matching the stack against known CVEs.
   poweredByHeader: false,
+  // Sentry's Turbopack integration stamps every client chunk with a
+  // `//# debugId=` comment (see withSentryConfig below) whether or not this
+  // is on, but its upload step ("Could not auto-detect referenced
+  // sourcemap for ~/X.js") needs a real .js.map file to associate that
+  // debug ID with — which Next.js/Turbopack only emits at all when this is
+  // true. `deleteSourcemapsAfterUpload` below (not this flag) is what keeps
+  // the maps from actually shipping to visitors.
+  productionBrowserSourceMaps: true,
   // The dev-mode "N" badge Next.js overlays in the bottom-left corner sits
   // directly on top of the left sidebar's bottom edge — disabled so it
   // doesn't obscure sidebar content during development.
@@ -72,7 +80,18 @@ export default withSentryConfig(nextConfig, {
   project: process.env.SENTRY_PROJECT,
   authToken: process.env.SENTRY_AUTH_TOKEN,
   silent: !process.env.CI,
-  sourcemaps: { disable: !process.env.SENTRY_AUTH_TOKEN },
+  sourcemaps: {
+    disable: !process.env.SENTRY_AUTH_TOKEN,
+    // productionBrowserSourceMaps above means Next now actually emits
+    // .js.map files (needed for Sentry's Turbopack upload step to find
+    // them at all — see that flag's comment). Without this, those maps
+    // would ship to every visitor, publicly exposing full source. Sentry's
+    // own runAfterProductionCompile hook uploads them first, then strips
+    // the maps and their `sourceMappingURL` comments from the shipped
+    // output — so production stays clean while Sentry still gets full
+    // stack-trace symbolication.
+    deleteSourcemapsAfterUpload: true,
+  },
   // Sentry's own tunnelRoute is injected by its webpack plugin, which this
   // Turbopack build never runs. The tunnel is hand-written instead at
   // src/app/api/monitoring/route.ts (client SDK points at it via `tunnel`).
