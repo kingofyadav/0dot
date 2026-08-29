@@ -1104,15 +1104,16 @@ h6 {
 .landingWrap {
   position: relative;
   flex: 1;
-  /* Same reasoning as .authWrap's min-height: 0 + overflow-y: auto above —
-     on /login and /signup this is the actual scroll fallback under
-     body.fixedViewport's fixed 100dvh, if content ever doesn't fit. On "/"
-     there's no fixedViewport ancestor anymore (see body.fixedViewport
-     above), so this rule is simply inert there — the hero section takes its
-     natural height and the page scrolls normally through the marketing
-     sections below it. */
-  min-height: 0;
-  overflow-y: auto;
+  /* On "/" specifically (no fixedViewport ancestor, see body.fixedViewport
+     .landingWrap below, which overrides this back to 0 there), flex:1 alone
+     has nothing to grow into — .appMain's height is content-driven, and
+     MarketingStory/MarketingFooter below already push it well past one
+     viewport regardless of which auth tab is active, so there's never any
+     leftover space for flex-grow to hand this element. Fixing the height
+     directly is what keeps the hero+card block a consistent one-screen size
+     — login's much shorter form no longer leaves MarketingStory peeking up
+     into the first screen the way it did before this was added. */
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1120,6 +1121,20 @@ h6 {
   gap: clamp(1rem, 3vh, 2rem);
   padding: clamp(0.5rem, 2.5vh, 2rem) 1rem;
   isolation: isolate;
+}
+
+/* Same reasoning as .authWrap's min-height: 0 + overflow-y: auto — the
+   actual scroll fallback under body.fixedViewport's fixed 100dvh on /login
+   and /signup, if content ever doesn't fit. Scoped to that ancestor (unlike
+   the unconditional rule this replaced) because "/" has no fixedViewport
+   parent: applying overflow-y: auto there unconditionally let a few px of
+   ordinary flex/subpixel rounding turn .landingWrap into its own scroll
+   region — a second scrollbar flush against the page's real one — even
+   though the hero was always meant to just take its natural height and let
+   the page scroll normally through the marketing sections below it. */
+body.fixedViewport .landingWrap {
+  min-height: 0;
+  overflow-y: auto;
 }
 
 /* Full viewport width on desktop, not a centered max-width column — the
