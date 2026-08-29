@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import Link from "next/link";
 import { requestPasswordReset } from "@/app/actions/auth";
-import { Logo } from "@/components/Logo";
+import { ThemeToggleLogo } from "@/components/ThemeToggleLogo";
 
 export default function ForgotPasswordPage() {
   const [state, formAction, pending] = useActionState(requestPasswordReset, undefined);
@@ -12,17 +12,17 @@ export default function ForgotPasswordPage() {
     <div className="authWrap">
       <form action={formAction} className="authCard">
         <div className="authHeader">
-          <Logo size={48} />
+          <ThemeToggleLogo size={48} />
           <p>Account recovery</p>
         </div>
         <h1>Forgot password</h1>
         <p className="mutedText">
-          Enter the email on your account and we&apos;ll send you a link to reset your password.
+          Enter the email or mobile number on your account and we&apos;ll send a reset link to your registered email.
         </p>
 
         <div className="field">
-          <label htmlFor="email">Email</label>
-          <input id="email" name="email" type="email" autoComplete="email" required />
+          <label htmlFor="identifier">Email or mobile number</label>
+          <input id="identifier" name="identifier" type="text" autoComplete="username" required />
         </div>
 
         {state?.error && <p className="errorText">{state.error}</p>}

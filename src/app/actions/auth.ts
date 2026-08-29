@@ -39,6 +39,16 @@ function hashResetToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
+// Shared by login() and requestPasswordReset() below — both let someone
+// name their account with a freeform identifier that might be a phone
+// number, and both need to turn it into the exact E.164 form stored on
+// User.phone: strip everything but digits, then require enough of them
+// left (7) to plausibly be a real number before treating it as one at all.
+function phoneDigitsFromIdentifier(raw: string): string | null {
+  const digits = raw.replace(/[^0-9]/g, "");
+  return digits.length >= 7 ? `+${digits}` : null;
+}
+
 export async function signup(
   _prevState: ActionState,
   formData: FormData
@@ -280,11 +290,11 @@ export async function login(
   // form), or otherwise a username. Not merged into one OR'd query — each
   // shape has its own normalization, so keeping them as separate branches
   // keeps every comparison exact instead of guessing across all three.
-  const phoneDigits = identifierRaw.replace(/[^0-9]/g, "");
+  const phoneIdentifier = phoneDigitsFromIdentifier(identifierRaw);
   const user = identifier.includes("@")
     ? await db.user.findUnique({ where: { email: identifier }, include: { username: true } })
-    : phoneDigits.length >= 7
-      ? await db.user.findUnique({ where: { phone: `+${phoneDigits}` }, include: { username: true } })
+    : phoneIdentifier
+      ? await db.user.findUnique({ where: { phone: phoneIdentifier }, include: { username: true } })
       : await db.username.findUnique({ where: { handle: identifier } }).then((u) =>
           u ? db.user.findUnique({ where: { id: u.userId }, include: { username: true } }) : null
         );
@@ -349,25 +359,35 @@ export async function requestPasswordReset(
   _prevState: ActionState,
   formData: FormData
 ): Promise<ActionState> {
-  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const identifierRaw = String(formData.get("identifier") ?? "").trim();
+  const identifier = identifierRaw.toLowerCase();
 
   // Same pair-of-buckets shape as signup's ip/email limit above — a mass
   // request pattern is IP-scoped, while a targeted one hammers a single
-  // address (e.g. spamming someone's inbox with reset links).
+  // identifier (e.g. spamming someone's inbox with reset links).
   const ip = await getClientIp();
-  const [ipOk, emailOk] = await Promise.all([
+  const [ipOk, identifierOk] = await Promise.all([
     enforceRateLimit(`password-reset-request:ip:${ip}`, { max: 5, windowMs: 15 * 60 * 1000 }),
-    enforceRateLimit(`password-reset-request:email:${email}`, { max: 3, windowMs: 15 * 60 * 1000 }),
+    enforceRateLimit(`password-reset-request:identifier:${identifier}`, { max: 3, windowMs: 15 * 60 * 1000 }),
   ]);
-  if (!ipOk || !emailOk) {
+  if (!ipOk || !identifierOk) {
     return { error: RATE_LIMIT_ERROR };
   }
 
-  if (!EMAIL_PATTERN.test(email)) {
-    return { error: "Enter a valid email address." };
+  // Two ways to name the account, same split as login() above — email or
+  // mobile number, not username (this form was never asked to carry that
+  // third case). Whichever one matches, the reset link still only ever
+  // goes out over email below: it's the one delivery channel actually
+  // wired up, and every account has one on file.
+  const isEmail = identifier.includes("@");
+  const phoneIdentifier = isEmail ? null : phoneDigitsFromIdentifier(identifierRaw);
+  if (isEmail ? !EMAIL_PATTERN.test(identifier) : !phoneIdentifier) {
+    return { error: "Enter a valid email or mobile number." };
   }
 
-  const user = await db.user.findUnique({ where: { email } });
+  const user = isEmail
+    ? await db.user.findUnique({ where: { email: identifier } })
+    : await db.user.findUnique({ where: { phone: phoneIdentifier! } });
 
   // Same enumeration posture as /verify/sent: no error branch for "no such
   // account" — the confirmation page's copy stays generic either way, and a
@@ -398,7 +418,7 @@ export async function requestPasswordReset(
   const sender = getEmailSender();
   const resetUrl = `${getAppOrigin()}/reset-password?token=${token}`;
   await sender.send({
-    to: email,
+    to: user.email,
     subject: "Reset your 0dot.in password",
     html: renderPasswordResetEmailHtml(resetUrl),
   });

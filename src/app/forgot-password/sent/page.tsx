@@ -12,7 +12,7 @@ export default async function ForgotPasswordSentPage({
       <div className="authCard">
         <h1>Check your email</h1>
         <p className="mutedText">
-          If an account exists for that email, we&apos;ve sent a link to reset your password.
+          If an account matches, we&apos;ve sent a link to the email on file to reset your password.
           It expires in 1 hour.
         </p>
 
