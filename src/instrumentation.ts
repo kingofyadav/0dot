@@ -78,6 +78,26 @@ export async function register() {
       await ensureFirstPartyApps();
     });
 
+    // Config guard, not a scheduler — runs on Vercel too (before the early
+    // return below). /api/stripe/webhook-v2 consumes Stripe's v2 "thin"
+    // events (Accounts v2 capability-status changes) and refuses every
+    // request unless STRIPE_THIN_WEBHOOK_SECRET is set. If Stripe is wired
+    // up (STRIPE_SECRET_KEY present) but that secret isn't, the v2
+    // destination was never created — and CreatorPayoutAccount rows stay
+    // stuck at "onboarding" forever even after a creator finishes Stripe
+    // onboarding, so no tip/membership/course payout ever unlocks. That's
+    // the exact bug webhook-v2 exists to fix, so make its absence loud
+    // (logger.warn → Sentry when a DSN is configured) instead of leaving it
+    // to a code comment.
+    await runStartupTask("stripe-webhook-config-check", async () => {
+      if (process.env.STRIPE_SECRET_KEY && !process.env.STRIPE_THIN_WEBHOOK_SECRET) {
+        const { logger } = await import("@/lib/logger");
+        logger.warn(
+          "STRIPE_THIN_WEBHOOK_SECRET is not set — /api/stripe/webhook-v2 rejects all events, so Stripe Connect capability-status changes (creator payout onboarding → active) are never recorded. Create a v2 thin-event Event Destination and set the secret. See src/app/api/stripe/webhook-v2/route.ts.",
+        );
+      }
+    });
+
     // web-pro-upgrade addendum M1: on Vercel the recurring jobs below run as
     // platform cron (vercel.json → /api/cron/*), NOT as in-process
     // setInterval loops — every warm Fluid Compute instance booting all 12

@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { saveUploadedImage } from "@/lib/uploads";
+import { isOwnBlobUploadUrl, verifyRemoteImageBytes } from "@/lib/uploads";
+import { createFileAsset } from "@/lib/ai-accessibility";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { notifyLike, notifyReply, notifyMentionsInBody } from "@/lib/notifications";
@@ -15,8 +16,23 @@ import { revalidatePostSurfaces } from "@/lib/post-revalidation";
 import type { ActionState } from "@/app/actions/auth";
 
 const MAX_MEDIA_PER_POST = 4;
-const MAX_MEDIA_BYTES = 8 * 1024 * 1024;
 const RATE_LIMIT_ERROR = "You're posting too fast. Please slow down.";
+const MEDIA_VERIFY_ERROR = "One of the attached images couldn't be verified. Please remove it and try again.";
+
+// Post images are uploaded client-side straight to Vercel Blob
+// (/api/upload/post-media) — ComposeBox submits the resulting URLs in a
+// `mediaUrls` JSON field, not file bytes. Parse defensively: anything that
+// isn't an array of our-own-Blob-store URLs is dropped.
+function parseMediaUrls(raw: FormDataEntryValue | null): string[] {
+  if (typeof raw !== "string" || raw.length === 0) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((u): u is string => typeof u === "string" && isOwnBlobUploadUrl(u));
+  } catch {
+    return [];
+  }
+}
 
 // Shared by createPost, createQuoteRepost, and polls.ts's createPollPost —
 // all three create a Post row, and a per-action limit alone would let
@@ -43,15 +59,13 @@ export async function createPost(
 
   const body = String(formData.get("body") ?? "").trim();
   const replyToId = String(formData.get("replyToId") ?? "").trim() || null;
-  const mediaFiles = formData
-    .getAll("media")
-    .filter((entry): entry is File => entry instanceof File && entry.size > 0);
+  const mediaUrls = parseMediaUrls(formData.get("mediaUrls"));
 
-  if (mediaFiles.length > MAX_MEDIA_PER_POST) {
+  if (mediaUrls.length > MAX_MEDIA_PER_POST) {
     return { error: `You can attach up to ${MAX_MEDIA_PER_POST} images.` };
   }
   // 0-length body is only allowed when media makes up for it (spec §5.2).
-  if (body.length < 1 && mediaFiles.length === 0) {
+  if (body.length < 1 && mediaUrls.length === 0) {
     return { error: "Post can't be empty." };
   }
   if (body.length > 500) {
@@ -121,11 +135,17 @@ export async function createPost(
   const postTypeRaw = String(formData.get("postType") ?? "standard");
   const postType = !replyToId && postTypeRaw === "question" ? "question" : "standard";
 
+  // The bytes are already in Blob (client-direct upload). Re-verify each
+  // URL's first 4KB really is an allowed image — the upload token only
+  // checked the declared Content-Type — then create the FileAsset row
+  // saveUploadedImage used to create inline (drives phase-11 accessibility
+  // captioning).
   const mediaCreates: { url: string; position: number }[] = [];
-  for (const [index, file] of mediaFiles.entries()) {
-    const result = await saveUploadedImage(file, { maxBytes: MAX_MEDIA_BYTES, uploadedById: user.id });
-    if ("error" in result) return { error: result.error };
-    mediaCreates.push({ url: result.url, position: index });
+  for (const [index, url] of mediaUrls.entries()) {
+    const ext = await verifyRemoteImageBytes(url);
+    if (!ext) return { error: MEDIA_VERIFY_ERROR };
+    await createFileAsset({ url, contentType: "image", uploadedById: user.id });
+    mediaCreates.push({ url, position: index });
   }
 
   let newPostId: string;

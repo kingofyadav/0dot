@@ -1,6 +1,12 @@
 import "server-only";
 import { headers } from "next/headers";
 import { db } from "@/lib/db";
+import { logger } from "@/lib/logger";
+// Pure env check — no @upstash/redis import, safe to pull into this
+// widely-imported module. The client itself is lazily `import()`ed inside
+// enforceRateLimit only when this returns true (redis-client.ts's own
+// header rule: never import it from an eagerly-loaded module).
+import { realtimeRedisConfigured } from "@/lib/realtime/redis-config";
 
 type Bucket = { count: number; resetAt: number };
 
@@ -42,18 +48,53 @@ export function checkRateLimit(
   return true;
 }
 
-// Durable, cross-instance fixed-window limiter backed by RateLimitCounter.
-// Use this — not checkRateLimit — for anything a determined attacker would
-// pay to bypass: login, 2FA verification, password reset, signup, the
-// OAuth token endpoint, wallet transfers, and account-security changes
-// (password/email/phone/2FA/lifecycle). One row per key; the window is
-// consumed with an atomic conditional increment so N concurrent requests
-// across N instances can't all slip past `max`.
+// Durable, cross-instance fixed-window limiter. Use this — not
+// checkRateLimit — for anything a determined attacker would pay to bypass:
+// login, 2FA verification, password reset, signup, the OAuth token
+// endpoint, wallet transfers, and account-security changes
+// (password/email/phone/2FA/lifecycle). Returns true if the request is
+// allowed.
 //
-// Returns true if the request is allowed. On a backing-store failure it
-// falls back to the in-memory limiter (still *a* ceiling) rather than
-// failing open or taking login down with the database.
+// Three tiers, each a strict fallback for the one before:
+//   1. Upstash Redis (when KV_REST_API_* is set) — INCR + PEXPIRE, 1–2
+//      round trips. This is the same Upstash DB the realtime layer uses.
+//   2. RateLimitCounter in Turso — the historical implementation, 3
+//      sequential writes to a single-writer DB. Still correct, just the
+//      slowest option on the hottest security paths, so it's now the
+//      fallback rather than the default.
+//   3. In-memory (checkRateLimit) — per-instance and leaky, but still *a*
+//      ceiling, and never takes login down with the datastore.
+let warnedRedisRateLimitDown = false;
+
 export async function enforceRateLimit(
+  key: string,
+  opts: { max: number; windowMs: number }
+): Promise<boolean> {
+  if (realtimeRedisConfigured()) {
+    try {
+      const { getRealtimeRedis } = await import("@/lib/realtime/redis-client");
+      const redis = getRealtimeRedis();
+      const redisKey = `rl:${key}`;
+      // Fixed window: the first request of a window creates the key and
+      // sets its TTL; every request increments. `count` is the running
+      // total for the window, so `count <= max` is the ceiling check. N
+      // concurrent INCRs across N instances each get a distinct return
+      // value, so they can't all read "under the limit" at once.
+      const count = await redis.incr(redisKey);
+      if (count === 1) await redis.pexpire(redisKey, opts.windowMs);
+      return count <= opts.max;
+    } catch (err) {
+      if (!warnedRedisRateLimitDown) {
+        warnedRedisRateLimitDown = true;
+        logger.warn("enforceRateLimit: Redis tier unavailable — falling back to the RateLimitCounter (Turso) tier.", err);
+      }
+      // fall through to the DB tier
+    }
+  }
+  return enforceRateLimitViaDb(key, opts);
+}
+
+async function enforceRateLimitViaDb(
   key: string,
   { max, windowMs }: { max: number; windowMs: number }
 ): Promise<boolean> {
@@ -110,9 +151,27 @@ export async function sweepExpiredRateLimitCounters(): Promise<void> {
 // itself appended and is the only hop this app can trust. If self-hosting
 // behind a different proxy topology (multiple hops, a CDN that doesn't
 // strip client-supplied values), this assumption must be re-verified.
+//
+// If BOTH headers are missing on a deployed (Vercel) request, every caller
+// collapses into one shared "unknown" bucket — a global lockout or an
+// effectively-disabled per-IP limiter, with no other signal. Warn once per
+// instance so a proxy misconfiguration surfaces before it becomes an
+// incident. (Local dev with no reverse proxy is expected and stays quiet.)
+let warnedMissingClientIp = false;
+
 export async function getClientIp(): Promise<string> {
   const headersList = await headers();
   const forwarded = headersList.get("x-forwarded-for");
   if (forwarded) return forwarded.split(",").pop()!.trim();
-  return headersList.get("x-real-ip") ?? "unknown";
+
+  const realIp = headersList.get("x-real-ip");
+  if (realIp) return realIp;
+
+  if (process.env.VERCEL && !warnedMissingClientIp) {
+    warnedMissingClientIp = true;
+    logger.warn(
+      "getClientIp: no x-forwarded-for or x-real-ip on a Vercel request — every client is now sharing one rate-limit bucket. Check the reverse-proxy configuration."
+    );
+  }
+  return "unknown";
 }

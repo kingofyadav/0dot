@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { buildCsp, isOwnHost, customDomainRewritePath } from "@/lib/proxy-routing";
 
 // custom-domains addendum §6.1: yourname.com/* mirrors 0dot.in/@handle/*
 // (or acme.com/* mirrors 0dot.in/b/business/*) in full — every public path
@@ -25,86 +26,11 @@ import type { NextRequest } from "next/server";
 // undefined. Route Handlers in this same app have no such issue, so the
 // lookup is delegated there and fetched — see that route's own comment.
 //
-// isOwnHost below skips the lookup (and its network round-trip) entirely
-// for the overwhelming majority of requests — anything hitting this app's
-// own domain rather than a third-party custom domain — so normal traffic
-// pays no extra cost.
-// LiveKit's connect host is only known at runtime (LIVEKIT_URL, self-hosted
-// or LiveKit Cloud) — read per-request here (Proxy runs on every request,
-// unlike next.config.ts's headers() which only runs once at build time) so
-// a deployment's own env is reflected live rather than baked into the build.
-function livekitConnectSrc(): string[] {
-  const url = process.env.LIVEKIT_URL;
-  if (!url) return [];
-  try {
-    const host = new URL(url).host;
-    return [`wss://${host}`, `https://${host}`];
-  } catch {
-    return [];
-  }
-}
-
-// Nonce-based CSP, not a static hash: Next.js injects a fresh, per-request
-// inline <script> on every page to carry RSC flight data for hydration
-// (self.__next_f.push), whose content (and hash) differs on every request —
-// a fixed script-src can never allowlist those. Next.js reads the nonce back
-// out of this response's Content-Security-Policy header and threads it
-// through its own inline scripts automatically (framework runtime, flight
-// data, page bundles); 'strict-dynamic' lets those framework scripts load
-// further scripts they trust without needing their own explicit allowlist
-// entries. See https://nextjs.org/docs/app/guides/content-security-policy.
-// The one inline script this app authors itself (ThemeInitScript) is NOT
-// covered by Next's auto-injection — layout.tsx reads x-nonce below and
-// applies it to that script's `nonce` attribute manually.
-function buildCsp(nonce: string): string {
-  // 'unsafe-eval' only outside production: React dev mode and Turbopack HMR
-  // use eval() for debugging features (e.g. reconstructing component stacks)
-  // that don't exist in a production build, which never needs or gets this.
-  const scriptSrc = ["'self'", `'nonce-${nonce}'`, "'strict-dynamic'"];
-  if (process.env.NODE_ENV !== "production") scriptSrc.push("'unsafe-eval'");
-
-  // VERCEL_ENV (not NODE_ENV, which is "production" for preview builds too)
-  // is how Vercel's own build distinguishes a real production deploy from a
-  // preview one. Preview deploys auto-inject the Vercel Toolbar, which
-  // embeds https://vercel.live in an <iframe> and talks to it over
-  // fetch/WebSocket — with no frame-src/connect-src/script-src entry for
-  // it, default-src 'self' silently blocked the iframe (a CSP violation
-  // logged to the console on every preview page load). Real production
-  // traffic never gets the toolbar, so it gets none of this allowance.
-  const isPreview = process.env.VERCEL_ENV && process.env.VERCEL_ENV !== "production";
-  if (isPreview) scriptSrc.push("https://vercel.live");
-
-  const connectSrc = ["'self'", "https://*.public.blob.vercel-storage.com", "https://vitals.vercel-insights.com", ...livekitConnectSrc()];
-  const frameSrc = ["'self'"];
-  if (isPreview) {
-    connectSrc.push("https://vercel.live", "wss://*.pusher.com");
-    frameSrc.push("https://vercel.live");
-  }
-
-  return [
-    "default-src 'self'",
-    `script-src ${scriptSrc.join(" ")}`,
-    "style-src 'self' 'unsafe-inline'", // Tailwind's runtime + component-library inline styles have no static hash/nonce to pin
-    "img-src 'self' data: https://*.public.blob.vercel-storage.com",
-    "media-src 'self' https://*.public.blob.vercel-storage.com",
-    `connect-src ${connectSrc.join(" ")}`,
-    `frame-src ${frameSrc.join(" ")}`,
-    "frame-ancestors 'none'",
-    "base-uri 'self'",
-    "form-action 'self'",
-  ].join("; ");
-}
-
-function isOwnHost(host: string): boolean {
-  if (host === "localhost" || host === "127.0.0.1") return true;
-  if (host.endsWith(".vercel.app")) return true;
-  try {
-    if (process.env.APP_ORIGIN && host === new URL(process.env.APP_ORIGIN).hostname) return true;
-  } catch {
-    // malformed APP_ORIGIN — fall through to the custom-domain lookup rather than crash Proxy
-  }
-  return false;
-}
+// isOwnHost (src/lib/proxy-routing.ts, unit-tested there alongside buildCsp
+// and customDomainRewritePath) skips the lookup (and its network round-trip)
+// entirely for the overwhelming majority of requests — anything hitting
+// this app's own domain rather than a third-party custom domain — so normal
+// traffic pays no extra cost.
 
 // §6.2's read-only boundary is deliberately *not* enforced here with extra
 // code: a rewrite keeps the browser on yourname.com throughout, so the
@@ -163,7 +89,7 @@ export default async function proxy(request: NextRequest): Promise<Response | un
   if (!prefix) return withCsp(NextResponse.next({ request: { headers: requestHeaders } }));
 
   const url = request.nextUrl.clone();
-  url.pathname = url.pathname === "/" ? prefix : `${prefix}${url.pathname}`;
+  url.pathname = customDomainRewritePath(url.pathname, prefix);
   requestHeaders.set("x-pathname", url.pathname);
   return withCsp(NextResponse.rewrite(url, { request: { headers: requestHeaders } }));
 }

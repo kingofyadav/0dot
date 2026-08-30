@@ -199,3 +199,51 @@ export async function saveMessageAttachment(
   const fileName = kind === "file" && file.name ? file.name : null;
   return { url, mimeType: file.type, sizeBytes: file.size, fileName };
 }
+
+// ── Post media: client-direct Blob upload ────────────────────────────────
+// ComposeBox uploads post images straight to Vercel Blob via
+// /api/upload/post-media, so createPost (src/app/actions/posts.ts) only
+// ever receives URLs — no 30MB+ multipart body buffered in a Function. The
+// client-upload token only enforces the *declared* Content-Type, so these
+// helpers re-add server-side the magic-byte check that saveUploadedImage
+// does inline — but reading ~4KB of the finished object rather than the
+// whole file.
+
+const BLOB_PUBLIC_HOST_SUFFIX = ".public.blob.vercel-storage.com";
+
+export const POST_MEDIA_IMAGE_TYPES = Object.keys(ALLOWED_IMAGE_EXTENSIONS);
+export const POST_MEDIA_MAX_BYTES = 8 * 1024 * 1024;
+
+// A mediaUrls entry is acceptable only if it points at this app's own Blob
+// store under the uploads/ prefix — never an arbitrary attacker-chosen URL
+// smuggled into the field.
+export function isOwnBlobUploadUrl(rawUrl: string): boolean {
+  try {
+    const u = new URL(rawUrl);
+    return (
+      u.protocol === "https:" &&
+      u.hostname.endsWith(BLOB_PUBLIC_HOST_SUFFIX) &&
+      u.pathname.startsWith("/uploads/")
+    );
+  } catch {
+    return false;
+  }
+}
+
+// Fetches the first 4KB of a freshly client-uploaded blob and confirms the
+// bytes really are one of the allowed image formats (defeats a spoofed
+// Content-Type on the client-upload token). Returns the canonical
+// extension, or null if the URL isn't ours or the bytes don't match.
+export async function verifyRemoteImageBytes(rawUrl: string): Promise<string | null> {
+  if (!isOwnBlobUploadUrl(rawUrl)) return null;
+  try {
+    const res = await fetch(rawUrl, { headers: { Range: "bytes=0-4095" } });
+    if (!res.ok && res.status !== 206) return null;
+    const buffer = Buffer.from(await res.arrayBuffer());
+    const detected = await fileTypeFromBuffer(buffer);
+    if (!detected) return null;
+    return ALLOWED_IMAGE_EXTENSIONS[detected.mime] ?? null;
+  } catch {
+    return null;
+  }
+}

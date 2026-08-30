@@ -2,9 +2,22 @@
 
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { BarChart3, Camera, CircleHelp, X } from "lucide-react";
+import { upload } from "@vercel/blob/client";
 import { createPost } from "@/app/actions/posts";
 
 const MAX_MEDIA = 4;
+
+// Post images upload straight to Vercel Blob from the browser (token issued
+// by /api/upload/post-media) so their bytes never pass through the
+// createPost Server Action — createPost receives only the resulting URLs in
+// `mediaUrls` and re-verifies them server-side. Client sends a UUID
+// filename; the token route rejects any other pathname shape.
+const EXT_BY_TYPE: Record<string, string> = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/webp": "webp",
+  "image/gif": "gif",
+};
 
 export function ComposeBox({
   communityId,
@@ -41,6 +54,8 @@ export function ComposeBox({
   const formRef = useRef<HTMLFormElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [files, setFiles] = useState<File[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   // Derived during render, not via setState-in-effect (react-hooks/set-state-in-effect)
   // — the effect below only handles revoking the previous URLs, not computing state.
   const previews = useMemo(() => files.map((file) => URL.createObjectURL(file)), [files]);
@@ -81,7 +96,27 @@ export function ComposeBox({
       ref={formRef}
       id="compose-box"
       action={async (formData: FormData) => {
-        files.forEach((file) => formData.append("media", file));
+        setUploadError(null);
+        if (files.length > 0) {
+          setUploading(true);
+          try {
+            const results = await Promise.all(
+              files.map((file) =>
+                upload(`uploads/${crypto.randomUUID()}.${EXT_BY_TYPE[file.type] ?? "bin"}`, file, {
+                  access: "public",
+                  contentType: file.type,
+                  handleUploadUrl: "/api/upload/post-media",
+                }),
+              ),
+            );
+            formData.set("mediaUrls", JSON.stringify(results.map((r) => r.url)));
+          } catch (err) {
+            setUploading(false);
+            setUploadError(err instanceof Error ? err.message : "Couldn't upload images. Please try again.");
+            return;
+          }
+          setUploading(false);
+        }
         await formAction(formData);
         formRef.current?.reset();
         setFiles([]);
@@ -160,7 +195,7 @@ export function ComposeBox({
         </div>
       )}
 
-      {state?.error && <p className="errorText">{state.error}</p>}
+      {(uploadError || state?.error) && <p className="errorText">{uploadError ?? state?.error}</p>}
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <span style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
@@ -217,8 +252,8 @@ export function ComposeBox({
             </button>
           )}
         </span>
-        <button type="submit" className="button" disabled={pending}>
-          {pending ? "Posting…" : "Post"}
+        <button type="submit" className="button" disabled={pending || uploading}>
+          {uploading ? "Uploading…" : pending ? "Posting…" : "Post"}
         </button>
       </div>
     </form>
