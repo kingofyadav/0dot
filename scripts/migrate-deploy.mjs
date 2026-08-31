@@ -91,11 +91,27 @@ async function main() {
     const statements = splitStatements(sql);
 
     console.log(`Applying ${name} (${statements.length} statement(s))...`);
-    // client.batch runs all statements in one transaction — a mid-migration
-    // failure (e.g. the payment-idempotency migration's unique index
-    // rejecting pre-existing duplicate rows) leaves nothing partially
-    // applied.
-    await client.batch(statements, "write");
+
+    if (/PRAGMA\s+(defer_)?foreign_keys/i.test(sql)) {
+      // A table-rebuild migration (Prisma's "RedefineTables"): it drops and
+      // recreates a table, guarding the drop with `PRAGMA foreign_keys=OFF`
+      // so the implicit row-delete inside DROP TABLE doesn't cascade to
+      // child tables. That PRAGMA is a silent NO-OP inside a transaction —
+      // so client.batch (which wraps everything in one) leaves foreign keys
+      // ON and `DROP TABLE "User"` cascade-deletes every Session/Username/
+      // Profile/LedgerAccount row (production incident 2026-08-31).
+      // executeMultiple runs the script with NO implicit transaction — the
+      // way `prisma migrate deploy` applies it — so the PRAGMA takes effect.
+      // Trade-off: no atomicity, a mid-migration failure leaves it partly
+      // applied (fix-forward), same as native prisma migrate deploy.
+      await client.executeMultiple(sql);
+    } else {
+      // client.batch runs all statements in one transaction — a mid-migration
+      // failure (e.g. the payment-idempotency migration's unique index
+      // rejecting pre-existing duplicate rows) leaves nothing partially
+      // applied.
+      await client.batch(statements, "write");
+    }
 
     await client.execute({
       sql: `INSERT INTO _prisma_migrations (id, checksum, finished_at, migration_name, started_at, applied_steps_count)
