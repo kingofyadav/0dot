@@ -39,6 +39,9 @@ export const metadata: Metadata = { title: "Download" };
 // (The `preview` EAS profile doesn't auto-increment versionCode, so the
 // build number can repeat across rebuilds — ANDROID_APK_UPDATED is what
 // actually tells a returning visitor the download is fresher.)
+//
+// Current source build (EAS, account 0dot / project zerodot, commit bd7fb2b):
+// https://expo.dev/accounts/0dot/projects/zerodot/builds/7c628817-6c39-4225-970c-5d37220fdaf7
 const ANDROID_APK_URL = process.env.ANDROID_APK_DOWNLOAD_URL;
 const ANDROID_APK_VERSION = "1.0.0";
 const ANDROID_APK_BUILD = "6";
@@ -141,6 +144,7 @@ export default async function DownloadPage() {
           <div className="flex w-full max-w-3xl flex-col items-center gap-4 rounded-lg border border-border bg-surface p-6 shadow-md sm:flex-row sm:text-left">
             {/* Server-rendered SVG (src/app/download/qr/route.ts), same
                 pattern as profile QR codes — no client JS needed to draw it. */}
+            {/* eslint-disable-next-line @next/next/no-img-element -- dynamic SVG route, not a static asset next/image's loader pipeline is for (same as TwoFactorSetupForm's QR). */}
             <img
               src="/download/qr"
               alt="QR code that opens this page"

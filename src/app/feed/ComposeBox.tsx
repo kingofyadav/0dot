@@ -197,8 +197,16 @@ export function ComposeBox({
 
       {(uploadError || state?.error) && <p className="errorText">{uploadError ?? state?.error}</p>}
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: "0.5rem",
+        }}
+      >
+        <span style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "0.6rem" }}>
           <label
             className="button buttonSecondary iconButton"
             style={{

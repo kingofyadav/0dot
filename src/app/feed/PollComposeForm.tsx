@@ -113,7 +113,7 @@ export function PollComposeForm({
       {state?.error && <p className="errorText">{state.error}</p>}
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "0.6rem", flexWrap: "wrap", gap: "0.5rem" }}>
-        <span style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+        <span style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "0.6rem" }}>
           <select name="durationMinutes" defaultValue="1440" className="textInput" style={{ width: "auto" }}>
             {DURATIONS.map((d) => (
               <option key={d.value} value={d.value}>

@@ -39,21 +39,34 @@ export function ChangePhoneForm({ currentPhone }: { currentPhone: string | null 
 
       <div className="field">
         <label htmlFor="phoneNumber">New mobile number</label>
+        {/* Same dial-code + number split as SignupForm / AuthTabs — short
+            "ISO +code" option labels keep the <select> narrow enough that the
+            number input still has room on a phone. */}
         <div style={{ display: "flex", gap: "0.5rem" }}>
           <select
             id="phoneDialCode"
             name="phoneDialCode"
+            autoComplete="tel-country-code"
             defaultValue="91"
             aria-label="Country dial code"
-            style={{ flexShrink: 0 }}
+            style={{ flex: "0 0 auto" }}
           >
             {COUNTRY_CODES.map((c) => (
               <option key={c.iso} value={c.dialCode}>
-                {c.name} (+{c.dialCode})
+                {c.iso} +{c.dialCode}
               </option>
             ))}
           </select>
-          <input id="phoneNumber" name="phoneNumber" type="tel" autoComplete="tel-national" required />
+          <input
+            id="phoneNumber"
+            name="phoneNumber"
+            type="tel"
+            inputMode="numeric"
+            autoComplete="tel-national"
+            placeholder="9876543210"
+            style={{ flex: "1 1 0%", minWidth: 0 }}
+            required
+          />
         </div>
       </div>
 
