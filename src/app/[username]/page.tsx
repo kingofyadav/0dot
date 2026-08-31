@@ -13,6 +13,7 @@ import { ReportButton } from "@/components/ReportButton";
 import { isBlocked } from "@/lib/blocks";
 import { getThemePreset, getSocialPlatformLabel, type SocialPlatform } from "@/lib/theme-presets";
 import { isProfilePremium } from "@/lib/platform-billing";
+import { getWalletBalance } from "@/lib/wallet/ledger";
 import { getPrimaryLiveDomain } from "@/lib/custom-domains";
 import { getFeedPosts, getVotedPollOptionIds } from "@/lib/feed-query";
 import { parseCursor } from "@/lib/pagination";
@@ -144,7 +145,7 @@ export default async function ProfilePage({
   // Everything in this batch only depends on username/currentUser/isOwner
   // (already resolved above), not on each other — previously these ran as
   // five-plus sequential awaits, each paying its own round trip.
-  const [followRow, blockedByViewer, viewerBlockedByOwner, payoutAccount, recentTips, isPremium] = await Promise.all([
+  const [followRow, blockedByViewer, viewerBlockedByOwner, payoutAccount, recentTips, isPremium, viewerWallet] = await Promise.all([
     currentUser && !isOwner
       ? db.follow.findUnique({
           where: { followerId_followeeId: { followerId: currentUser.id, followeeId: username.userId } },
@@ -167,6 +168,10 @@ export default async function ProfilePage({
       include: { fromUser: { include: { username: true, profile: true } } },
     }),
     isProfilePremium(profile.id),
+    // Viewer's coin balance — the coin rail works even when the creator has
+    // no Stripe payout account (addendum-coin-wallet-v2.md §6.4), so the
+    // payment forms render regardless and disable/hint on an empty wallet.
+    currentUser && !isOwner ? getWalletBalance(currentUser.id) : Promise.resolve(null),
   ]);
 
   // Only an "accepted" row counts as isFollowing (see followUser/
@@ -186,9 +191,14 @@ export default async function ProfilePage({
   // surface below (posts, links, portfolio, monetization) stays gated
   // behind this, same posture as Instagram/Twitter private accounts.
   const canViewFullProfile = isOwner || !profile.isPrivate || isFollowing;
-  const canTip = showViewerControls && canViewFullProfile && payoutAccount?.status === "active";
-  const canSubscribe = showViewerControls && canViewFullProfile && payoutAccount?.status === "active";
-  const canBuy = showViewerControls && canViewFullProfile && payoutAccount?.status === "active";
+  // The payment forms render whenever a signed-in non-owner can see the
+  // profile — the coin rail needs no payout account. `cardAvailable` just
+  // controls whether the card button also shows.
+  const cardAvailable = payoutAccount?.status === "active";
+  const canTip = showViewerControls && canViewFullProfile;
+  const canSubscribe = showViewerControls && canViewFullProfile;
+  const canBuy = showViewerControls && canViewFullProfile;
+  const viewerCoins = viewerWallet?.total ?? 0;
 
   // spec §8.1: a section toggled hidden doesn't render even if the
   // underlying rows still exist — purely derived from data already fetched
@@ -365,7 +375,7 @@ export default async function ProfilePage({
               Send a tip
             </summary>
             <div style={{ marginTop: "0.6rem" }}>
-              <TipForm creatorHandle={username.handle} />
+              <TipForm creatorHandle={username.handle} cardAvailable={cardAvailable} viewerCoins={viewerCoins} />
             </div>
           </details>
         )}
@@ -385,6 +395,8 @@ export default async function ProfilePage({
             canViewFullProfile={canViewFullProfile}
             canSubscribe={canSubscribe}
             canBuy={canBuy}
+            cardAvailable={cardAvailable}
+            viewerCoins={viewerCoins}
           />
         </Suspense>
 
@@ -546,6 +558,8 @@ async function ProfileMonetizationAndPortfolio({
   canViewFullProfile,
   canSubscribe,
   canBuy,
+  cardAvailable,
+  viewerCoins,
 }: {
   profile: ProfileRecord;
   username: { handle: string; userId: string };
@@ -555,6 +569,8 @@ async function ProfileMonetizationAndPortfolio({
   canViewFullProfile: boolean;
   canSubscribe: boolean;
   canBuy: boolean;
+  cardAvailable: boolean;
+  viewerCoins: number;
 }) {
   const [
     activeTiers,
@@ -891,7 +907,7 @@ async function ProfileMonetizationAndPortfolio({
                 <div key={tier.id}>
                   <p style={{ fontWeight: 600, fontSize: "0.9rem", margin: 0 }}>{tier.name}</p>
                   {tier.description && <p className="mutedText" style={{ fontSize: "0.8rem", margin: "0.15rem 0" }}>{tier.description}</p>}
-                  <SubscribeForm tier={tier} />
+                  <SubscribeForm tier={tier} cardAvailable={cardAvailable} viewerCoins={viewerCoins} />
                 </div>
               )
             )}
@@ -906,7 +922,7 @@ async function ProfileMonetizationAndPortfolio({
           </summary>
           <div className="disclosureBody">
             {activeProducts.map((product) => (
-              <DigitalProductCard key={product.id} product={product} owned={ownedProductIds.has(product.id)} />
+              <DigitalProductCard key={product.id} product={product} owned={ownedProductIds.has(product.id)} cardAvailable={cardAvailable} viewerCoins={viewerCoins} />
             ))}
           </div>
         </details>

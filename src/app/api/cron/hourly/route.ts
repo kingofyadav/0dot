@@ -3,6 +3,9 @@ import { runDmcaRestorationOnce } from "@/lib/dmca";
 import { runAccountDeletionSweepOnce } from "@/lib/account-deletion";
 import { runPlatformBillingSweepOnce } from "@/lib/platform-billing";
 import { runCustomDomainSweepOnce } from "@/lib/custom-domains";
+import { runWalletReconciliationOnce } from "@/lib/wallet/reconcile";
+import { runPromoExpirySweepOnce } from "@/lib/wallet/expiry";
+import { runHoldExpirySweepOnce } from "@/lib/wallet/holds";
 
 // Hourly-ish maintenance sweeps. Triggered at :17 past the hour by
 // .github/workflows/cron.yml (Hobby plan can't do sub-daily Vercel crons —
@@ -22,5 +25,8 @@ export async function GET(request: Request): Promise<Response> {
     "account-deletion": runAccountDeletionSweepOnce,
     "platform-billing": runPlatformBillingSweepOnce,
     "custom-domains": runCustomDomainSweepOnce,
+    "wallet-reconcile": runWalletReconciliationOnce,
+    "promo-expiry": runPromoExpirySweepOnce,
+    "hold-expiry": runHoldExpirySweepOnce,
   });
 }

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { getAvailableSlots } from "@/lib/appointments";
+import { getWalletBalance } from "@/lib/wallet/ledger";
 import { requestAppointment } from "@/app/actions/appointments";
 import { OfferingBuyButton } from "@/components/OfferingBuyButton";
 import { RequestSlotButton } from "@/components/RequestSlotButton";
@@ -38,8 +39,12 @@ export default async function UserServicesPage({
   });
   if (offerings.length === 0 && !isOwner) notFound();
 
-  const payoutAccount = await db.creatorPayoutAccount.findUnique({ where: { userId: username.userId } });
-  const nativeCheckoutAvailable = payoutAccount?.status === "active";
+  const [payoutAccount, viewerWallet] = await Promise.all([
+    db.creatorPayoutAccount.findUnique({ where: { userId: username.userId } }),
+    currentUser && !isOwner ? getWalletBalance(currentUser.id) : Promise.resolve(null),
+  ]);
+  const cardCheckoutAvailable = payoutAccount?.status === "active";
+  const viewerCoins = viewerWallet?.total ?? 0;
 
   const bookableOfferings = offerings.filter((o) => o.isBookable);
   const selectedOffering = offeringId ? bookableOfferings.find((o) => o.id === offeringId) : undefined;
@@ -89,14 +94,16 @@ export default async function UserServicesPage({
               ) : isPurchasable ? (
                 offering.paymentLinkUrl ? (
                   <a href={offering.paymentLinkUrl} target="_blank" rel="noopener noreferrer" className="button buttonSmall">Buy</a>
-                ) : nativeCheckoutAvailable ? (
-                  currentUser ? (
-                    <OfferingBuyButton offeringId={offering.id} price={offering.price!} currency={offering.currency!} />
-                  ) : (
-                    <Link href="/login" className="button buttonSmall">Log in to buy</Link>
-                  )
-                ) : (
-                  <p className="mutedText" style={{ fontSize: "0.75rem", margin: 0 }}>Not available for checkout yet.</p>
+                ) : !currentUser ? (
+                  <Link href="/login" className="button buttonSmall">Log in to buy</Link>
+                ) : isOwner ? null : (
+                  <OfferingBuyButton
+                    offeringId={offering.id}
+                    price={offering.price!}
+                    currency={offering.currency!}
+                    cardAvailable={cardCheckoutAvailable}
+                    viewerCoins={viewerCoins}
+                  />
                 )
               ) : null}
               {isOwner && (

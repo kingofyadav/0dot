@@ -8,7 +8,7 @@ Owner: TBD
 Related: [addendum-platform-billing.md](addendum-platform-billing.md),
 [addendum-premium-profiles.md](addendum-premium-profiles.md),
 [addendum-custom-domains.md](addendum-custom-domains.md),
-[addendum-coin-wallet.md](addendum-coin-wallet.md)
+[addendum-coin-wallet-v2.md](addendum-coin-wallet-v2.md)
 
 Every item below already has engineering built to support *some* answer —
 these are business decisions, not missing code. Where a doc proposed a
@@ -59,18 +59,13 @@ placeholder" rather than starting from nothing.
       some point? Three phases of specs already reference the field's
       original meaning, so this is a "when," not urgent.
 
-## Coin Wallet ([addendum-coin-wallet.md](addendum-coin-wallet.md) §6)
+## Coin Wallet ([addendum-coin-wallet-v2.md](addendum-coin-wallet-v2.md))
 
-- [ ] **INR peg source of truth** — `USD_COIN_TO_INR_RATE = 90`
-      (`src/lib/upi.ts`) is a hardcoded placeholder, not linked to any
-      live FX source. Needs either a live-rate feed or an explicit
-      finance-owned static rate with a review cadence — **should be
-      resolved before real money moves at meaningful volume.**
-- [ ] **Fraud-control ceiling** — both top-up approval and payout
-      execution are 100% manual (an admin eyeballs a UTR / sends a UPI
-      transfer by hand). At what volume does this stop being viable, and
-      what replaces it?
-- [ ] **Payout fee/spread** — coin-to-cash payout is now built
-      (`CoinPayoutRequest`, `/admin/wallet/payouts`), converting at the
-      same peg as top-ups with no fee deducted. Should a real payout
-      (real bank-transfer cost) charge one?
+The UPI top-up / payout rails these items used to track were removed
+(`a653cb8`) and their scaffolding dropped in v2 Phase 0. No live FX rate,
+no bank on-ramp, and no cash-out exist any more, so the peg / manual-review
+/ payout-spread questions are moot. The remaining open finance items —
+launch-promo tuning, referral-reward amounts, P2P transfer limits, refund
+policy — live in **addendum-coin-wallet-v2.md §18** and return here if that
+addendum wants a consolidated pass. Bank rails, when they come back, get
+their own addendum and their own checklist section.

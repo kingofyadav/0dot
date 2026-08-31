@@ -1,8 +1,14 @@
 # Addendum — Coin Wallet & UPI Top-Up
 
-Status: Built (2026-08-14) — §2 wallet primitive, §3 UPI top-up/review flow,
-§4 coin-funded Premium purchase, and §5 manual payout execution all
-implemented per this spec.
+> **SUPERSEDED by [addendum-coin-wallet-v2.md](addendum-coin-wallet-v2.md) (2026-08-30).**
+> The UPI top-up (§3) and manual payout (§5) flows were removed in commit
+> `a653cb8` and are not coming back in that form; the orphaned
+> `CoinTopUpRequest` / `CoinPayoutRequest` models, admin screens, and
+> `User.payoutUpiVpa` were dropped in v2's Phase 0. Kept for history only.
+
+Status: Superseded. Was: Built (2026-08-14) — §2 wallet primitive, §3 UPI
+top-up/review flow, §4 coin-funded Premium purchase, and §5 manual payout
+execution.
 Owner: TBD
 Related: [ROADMAP.md](../ROADMAP.md), [addendum-platform-billing.md](addendum-platform-billing.md),
 [addendum-premium-profiles.md](addendum-premium-profiles.md),

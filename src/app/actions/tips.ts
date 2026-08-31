@@ -6,6 +6,8 @@ import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { getPaymentProcessor, recordPaymentTransaction, resolveFeeRate } from "@/lib/payments";
+import { settleCoinPurchase, type FeatureSettlement } from "@/lib/wallet/charge";
+import { coinActionKey } from "@/lib/wallet/limits";
 import { getAppOrigin } from "@/lib/email";
 import { notifyTipReceived } from "@/lib/notifications";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -51,18 +53,41 @@ export async function sendTip(_prevState: ActionState, formData: FormData): Prom
   if (!creatorUsername) return { error: "Creator not found." };
   if (creatorUsername.userId === user.id) return { error: "You can't tip yourself." };
 
+  if (!checkTipRateLimit(user.id)) {
+    return { error: "You're sending tips too fast. Please slow down." };
+  }
+
+  // addendum-coin-wallet-v2.md §6.3/§6.4: coins settle synchronously and
+  // need no payout account on the payee (the coins just land in their
+  // wallet). Same activateTip row-creation the Stripe webhook uses.
+  if (String(formData.get("payWith") ?? "card") === "coins") {
+    const result = await settleCoinPurchase({
+      kind: "tip",
+      payerId: user.id,
+      payeeUserId: creatorUsername.userId,
+      amountUsd: amount,
+      currency: "usd",
+      relatedObjectType: "tip",
+      idempotencyKey: coinActionKey("tip:coin", formData.get("idempotencyKey"), user.id, creatorUsername.userId, amount),
+      metadata: { message },
+      createRows: createTipRow,
+    });
+    if ("error" in result) return { error: result.error };
+    if (!result.alreadySettled) {
+      await notifyTipReceived({ recipientId: creatorUsername.userId, actorId: user.id });
+      revalidatePath(`/${creatorHandle}`);
+    }
+    return { success: true };
+  }
+
   // spec §3.5's third acceptance criterion, the literal gate: a creator
-  // cannot receive a payout-requiring transaction until their payout
+  // cannot receive a payout-requiring (card) transaction until their payout
   // account is active.
   const payoutAccount = await db.creatorPayoutAccount.findUnique({
     where: { userId: creatorUsername.userId },
   });
   if (!payoutAccount || payoutAccount.status !== "active" || !payoutAccount.processorAccountId) {
     return { error: "This creator hasn't enabled payouts yet." };
-  }
-
-  if (!checkTipRateLimit(user.id)) {
-    return { error: "You're sending tips too fast. Please slow down." };
   }
 
   const feeRate = await resolveFeeRate(db, creatorUsername.userId);
@@ -94,11 +119,28 @@ export async function sendTip(_prevState: ActionState, formData: FormData): Prom
 // payment for a tip is confirmed — the real "charge succeeded" signal now
 // that sendTip only starts a redirect. Idempotent on processorReference
 // since Stripe can redeliver the same event.
+// The Tip row itself — the one place it's created, reached by both the
+// Stripe webhook (activateTip) and the coin rail (settleCoinPurchase),
+// per addendum-coin-wallet-v2.md §6.2.
+export async function createTipRow(tx: Prisma.TransactionClient, s: FeatureSettlement): Promise<void> {
+  const message = s.metadata.message ?? "";
+  await tx.tip.create({
+    data: {
+      fromUserId: s.payerId,
+      toCreatorId: s.payeeId!,
+      amount: s.amount,
+      currency: s.currency,
+      message: message.length > 0 ? message : null,
+      paymentTransactionId: s.paymentTransactionId,
+    },
+  });
+}
+
 export async function activateTip(metadata: Record<string, string>, processorReference: string): Promise<void> {
   const already = await db.paymentTransaction.findFirst({ where: { processorReference, kind: "tip" } });
   if (already) return;
 
-  const { payerId, payeeId, amount: amountStr, currency, message } = metadata;
+  const { payerId, payeeId, amount: amountStr, currency } = metadata;
   const amount = Number(amountStr);
 
   try {
@@ -113,15 +155,13 @@ export async function activateTip(metadata: Record<string, string>, processorRef
         status: "succeeded",
         relatedObjectType: "tip",
       });
-      await tx.tip.create({
-        data: {
-          fromUserId: payerId,
-          toCreatorId: payeeId,
-          amount,
-          currency,
-          message: message.length > 0 ? message : null,
-          paymentTransactionId: transaction.id,
-        },
+      await createTipRow(tx, {
+        paymentTransactionId: transaction.id,
+        payerId,
+        payeeId,
+        amount,
+        currency,
+        metadata,
       });
     });
   } catch (err) {

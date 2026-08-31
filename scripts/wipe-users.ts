@@ -33,7 +33,12 @@ const TABLES = [
   "DeviceToken","NotificationDeliveryPreference","IapPayoutBatch","JobAlert",
   "DigitalBusinessCard","ShortLink","ShortLinkClick","CalendarEntry","Form","FormResponse",
   "FundraisingCampaign","Donation","LearningPath","Quiz","QuizAttempt","Contact","Activity",
-  "CoinTopUpRequest","CoinTransfer","CoinPayoutRequest",
+  "CoinTransfer","ReferralCode",
+  // Coin ledger (addendum-coin-wallet-v2.md). Order doesn't matter — the
+  // script runs with foreign_keys OFF — but LedgerHold → LedgerPosting →
+  // LedgerTransaction reads naturally. LedgerAccount is handled separately
+  // in main() so the migration-seeded system_* rows survive the wipe.
+  "LedgerHold","LedgerPosting","LedgerTransaction",
 ];
 
 // This wipes every table above unconditionally — no dry-run, no per-row
@@ -74,6 +79,18 @@ async function main() {
       const n = await prisma.$executeRawUnsafe(`DELETE FROM "${table}";`);
       if (n > 0) console.log(`  cleared ${table}: ${n} rows`);
     }
+
+    // LedgerAccount: drop every per-user / per-business account but KEEP the
+    // migration-seeded system_* rows (both owner columns NULL), then zero
+    // every remaining cachedBalance so the next reconciliation run starts
+    // from a clean, globally-balanced ledger rather than alarming on the
+    // stale system_promo_issuance liability left by the wiped grants.
+    const acc = await prisma.$executeRawUnsafe(
+      `DELETE FROM "LedgerAccount" WHERE "ownerUserId" IS NOT NULL OR "ownerBusinessId" IS NOT NULL;`,
+    );
+    if (acc > 0) console.log(`  cleared LedgerAccount (owned): ${acc} rows`);
+    await prisma.$executeRawUnsafe(`UPDATE "LedgerAccount" SET "cachedBalance" = 0;`);
+
     await prisma.$executeRawUnsafe(`PRAGMA foreign_keys = ON;`);
 
     const after = await prisma.user.count();

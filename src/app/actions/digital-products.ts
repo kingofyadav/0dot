@@ -6,7 +6,9 @@ import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { saveProtectedFile, issueDownloadToken } from "@/lib/protected-storage";
+import { randomUUID } from "crypto";
 import { getPaymentProcessor, recordPaymentTransaction, resolveFeeRate } from "@/lib/payments";
+import { settleCoinPurchase, type FeatureSettlement } from "@/lib/wallet/charge";
 import { getAppOrigin } from "@/lib/email";
 import { getAttributedAffiliateLink, creditAffiliateConversion } from "@/lib/affiliate";
 import { notifyAffiliateConversion } from "@/lib/notifications";
@@ -129,13 +131,37 @@ export async function purchaseProduct(_prevState: ActionState, formData: FormDat
   const existing = await db.digitalProductPurchase.findFirst({ where: { productId: product.id, buyerId: user.id } });
   if (existing) return { error: "You already own this product." };
 
+  if (!checkPurchaseRateLimit(user.id)) {
+    return { error: "You're purchasing too fast. Please slow down." };
+  }
+
+  // addendum-coin-wallet-v2.md §6.3/§6.4: coin purchases settle synchronously
+  // and need no payout account on the creator. Affiliate attribution is
+  // card-rail only for now.
+  if (String(formData.get("payWith") ?? "card") === "coins") {
+    const result = await settleCoinPurchase({
+      kind: "digital_purchase",
+      payerId: user.id,
+      payeeUserId: product.creatorId,
+      amountUsd: product.price,
+      currency: product.currency,
+      relatedObjectType: "digital_product",
+      relatedObjectId: product.id,
+      idempotencyKey: `digital:coin:${randomUUID()}`,
+      metadata: { productId: product.id },
+      createRows: createDigitalPurchaseRow,
+    });
+    if ("error" in result) return { error: result.error };
+    if (!result.alreadySettled) {
+      const h = await db.username.findUnique({ where: { userId: product.creatorId }, select: { handle: true } });
+      if (h) revalidatePath(`/${h.handle}`);
+    }
+    return { success: true };
+  }
+
   const payoutAccount = await db.creatorPayoutAccount.findUnique({ where: { userId: product.creatorId } });
   if (!payoutAccount || payoutAccount.status !== "active" || !payoutAccount.processorAccountId) {
     return { error: "This creator hasn't enabled payouts yet." };
-  }
-
-  if (!checkPurchaseRateLimit(user.id)) {
-    return { error: "You're purchasing too fast. Please slow down." };
   }
 
   // spec §7.3: attribution is resolved here (it's just a cookie + read
@@ -182,6 +208,14 @@ export async function purchaseProduct(_prevState: ActionState, formData: FormDat
 // purchaseProduct-time `existing` check already blocks the common case)
 // that auto-refunding it is left as a known gap, not silently pretended
 // away.
+// The purchase row — one place, both rails (addendum-coin-wallet-v2.md
+// §6.2). Affiliate crediting stays in activateDigitalPurchase (card only).
+export async function createDigitalPurchaseRow(tx: Prisma.TransactionClient, s: FeatureSettlement): Promise<void> {
+  await tx.digitalProductPurchase.create({
+    data: { productId: s.metadata.productId, buyerId: s.payerId, paymentTransactionId: s.paymentTransactionId },
+  });
+}
+
 export async function activateDigitalPurchase(metadata: Record<string, string>, processorReference: string): Promise<void> {
   const already = await db.paymentTransaction.findFirst({ where: { processorReference, kind: "digital_purchase" } });
   if (already) return;
@@ -207,8 +241,13 @@ export async function activateDigitalPurchase(metadata: Record<string, string>, 
         relatedObjectType: "digital_product",
         relatedObjectId: productId,
       });
-      await tx.digitalProductPurchase.create({
-        data: { productId, buyerId: payerId, paymentTransactionId: transaction.id },
+      await createDigitalPurchaseRow(tx, {
+        paymentTransactionId: transaction.id,
+        payerId,
+        payeeId,
+        amount,
+        currency,
+        metadata,
       });
 
       if (!affiliateLink) return null;

@@ -4,6 +4,7 @@ import { ArrowLeft, Check, Lock } from "lucide-react";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { hasCourseAccess } from "@/lib/course-access";
+import { getWalletBalance } from "@/lib/wallet/ledger";
 import { markLessonComplete } from "@/app/actions/courses";
 import { CourseBuyButton } from "@/components/CourseBuyButton";
 import { LessonFileButton } from "@/components/LessonFileButton";
@@ -64,9 +65,14 @@ export default async function CoursePage({
       )
     : new Set<string>();
 
-  const payoutAccount = await db.creatorPayoutAccount.findUnique({ where: { userId: username.userId }, select: { status: true } });
-  const canBuy =
-    !isOwner && currentUser && !access && course.price !== null && course.currency !== null && payoutAccount?.status === "active";
+  const [payoutAccount, viewerWallet] = await Promise.all([
+    db.creatorPayoutAccount.findUnique({ where: { userId: username.userId }, select: { status: true } }),
+    currentUser && !isOwner ? getWalletBalance(currentUser.id) : Promise.resolve(null),
+  ]);
+  // The coin rail works with no creator payout account (§6.4).
+  const canBuy = !isOwner && currentUser && !access && course.price !== null && course.currency !== null;
+  const cardAvailable = payoutAccount?.status === "active";
+  const viewerCoins = viewerWallet?.total ?? 0;
 
   return (
     <div className="profileCard">
@@ -87,7 +93,13 @@ export default async function CoursePage({
           <Check size={14} aria-hidden="true" /> You have access to this course.
         </p>
       ) : canBuy && course.price !== null && course.currency !== null ? (
-        <CourseBuyButton courseId={course.id} price={course.price} currency={course.currency} />
+        <CourseBuyButton
+          courseId={course.id}
+          price={course.price}
+          currency={course.currency}
+          cardAvailable={cardAvailable}
+          viewerCoins={viewerCoins}
+        />
       ) : (
         !access &&
         !isOwner && (

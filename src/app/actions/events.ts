@@ -13,6 +13,10 @@ import { isBusinessStaff } from "@/lib/businesses";
 import { isCommunityStaff } from "@/lib/communities";
 import { isEventHost, getGoingAttendeeCount } from "@/lib/events";
 import { getPaymentProcessor, recordPaymentTransaction, resolveFeeRate } from "@/lib/payments";
+import { placeHold, captureHold } from "@/lib/wallet/holds";
+import { WalletError } from "@/lib/wallet/ledger";
+import { coinActionKey } from "@/lib/wallet/limits";
+import type { FeatureSettlement } from "@/lib/wallet/charge";
 import { getAppOrigin } from "@/lib/email";
 import { notifyEventCancelled, notifyTicketPurchased } from "@/lib/notifications";
 import type { ActionState } from "@/app/actions/auth";
@@ -420,6 +424,51 @@ export async function purchaseTicket(_prevState: ActionState, formData: FormData
     return undefined;
   }
 
+  // addendum-coin-wallet-v2.md §6.3/§6.5/§9: coins settle through an escrow
+  // hold — placeHold reserves the payer's coins, captureHold issues the
+  // ticket and pays the host (a user wallet, or the business wallet for a
+  // business-hosted event). No payout account required (§6.4).
+  if (String(formData.get("payWith") ?? "card") === "coins") {
+    const hostUserId = event.hostedByBusinessId ? null : (event.hostedByUserId ?? event.createdBy);
+    let alreadySettled: boolean;
+    try {
+      alreadySettled = await db.$transaction(async (tx) => {
+        const hold = await placeHold(tx, {
+          payerId: user.id,
+          amountUsd: ticketType.price!,
+          relatedObjectType: "ticket",
+          relatedObjectId: ticketType.id,
+          expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+          idempotencyKey: coinActionKey("ticket:coin", formData.get("idempotencyKey"), user.id, ticketTypeId),
+        });
+        const capture = await captureHold(tx, hold.holdId, {
+          payeeUserId: hostUserId,
+          payeeBusinessId: event.hostedByBusinessId ?? null,
+          kind: "ticket_purchase",
+          currency: ticketType.currency ?? "usd",
+          relatedObjectType: "ticket",
+          metadata: { ticketTypeId, qrCodeToken },
+          createRows: createTicketRow,
+        });
+        return capture.alreadySettled;
+      });
+    } catch (err) {
+      if (err instanceof WalletError && err.code === "INSUFFICIENT_FUNDS") {
+        return { error: "You don't have enough coins for this ticket." };
+      }
+      throw err;
+    }
+    // A deduped resubmit (same idempotency key) reissued no ticket and
+    // bumped no sold count — don't fire a second "ticket purchased"
+    // notification for it (review finding #3). Mirrors the settleCoinPurchase
+    // callers' `if (!result.alreadySettled)` guard.
+    if (!alreadySettled) {
+      await notifyTicketPurchased({ recipientId: user.id, eventSlug: event.slug });
+      revalidatePath(`/e/${event.slug}`);
+    }
+    return undefined;
+  }
+
   let payeeId: string | null = null;
   let payeeBusinessId: string | null = null;
   let payoutAccount;
@@ -468,11 +517,27 @@ export async function purchaseTicket(_prevState: ActionState, formData: FormData
 // purchaseTicket time only (same check-then-act window every other
 // inventory check in this codebase accepts) — a real double-sale race
 // here is no worse than what already existed synchronously.
+// The Ticket row + sold-count bump — one place, reached by the Stripe
+// webhook (activateTicketPurchase) and the coin rail's captureHold
+// (addendum-coin-wallet-v2.md §6.2).
+export async function createTicketRow(tx: Prisma.TransactionClient, s: FeatureSettlement): Promise<void> {
+  await tx.ticket.create({
+    data: {
+      ticketTypeId: s.metadata.ticketTypeId,
+      ownerId: s.payerId,
+      status: "valid",
+      qrCodeToken: s.metadata.qrCodeToken,
+      paymentTransactionId: s.paymentTransactionId,
+    },
+  });
+  await tx.ticketType.update({ where: { id: s.metadata.ticketTypeId }, data: { quantitySold: { increment: 1 } } });
+}
+
 export async function activateTicketPurchase(metadata: Record<string, string>, processorReference: string): Promise<void> {
   const already = await db.paymentTransaction.findFirst({ where: { processorReference, kind: "ticket_purchase" } });
   if (already) return;
 
-  const { payerId, payeeId, payeeBusinessId, ticketTypeId, eventSlug, qrCodeToken, amount: amountStr, currency } = metadata;
+  const { payerId, payeeId, payeeBusinessId, eventSlug, amount: amountStr, currency } = metadata;
   const amount = Number(amountStr);
 
   try {
@@ -488,10 +553,14 @@ export async function activateTicketPurchase(metadata: Record<string, string>, p
         status: "succeeded",
         relatedObjectType: "ticket",
       });
-      await tx.ticket.create({
-        data: { ticketTypeId, ownerId: payerId, status: "valid", qrCodeToken, paymentTransactionId: transaction.id },
+      await createTicketRow(tx, {
+        paymentTransactionId: transaction.id,
+        payerId,
+        payeeId: payeeId || null,
+        amount,
+        currency,
+        metadata,
       });
-      await tx.ticketType.update({ where: { id: ticketTypeId }, data: { quantitySold: { increment: 1 } } });
     });
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {

@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { getEventBySlug, isEventHost, getMyRSVP, getRSVPCounts, listAttendees } from "@/lib/events";
 import { getBusinessPayoutAccount } from "@/lib/payments";
+import { getWalletBalance } from "@/lib/wallet/ledger";
 import { renderWikiMarkdown } from "@/lib/wiki-markdown";
 import { EngagementSection } from "@/components/EngagementSection";
 import { EventActions } from "./EventActions";
@@ -42,7 +43,7 @@ export default async function EventPage({ params }: { params: Promise<{ slug: st
   // spec §3.4: a draft event is visible only to its host/creator.
   if (event.status === "draft" && !isHost) notFound();
 
-  const [rsvpCounts, myRSVP, myTickets, comments, isLiked, likeCount, businessPayoutAccount] = await Promise.all([
+  const [rsvpCounts, myRSVP, myTickets, comments, isLiked, likeCount, businessPayoutAccount, viewerWallet] = await Promise.all([
     getRSVPCounts(event.id),
     currentUser ? getMyRSVP(event.id, currentUser.id) : null,
     currentUser
@@ -62,6 +63,7 @@ export default async function EventPage({ params }: { params: Promise<{ slug: st
       : null,
     db.reaction.count({ where: { subjectType: "event", subjectId: event.id } }),
     event.hostedByBusinessId ? getBusinessPayoutAccount(event.hostedByBusinessId) : null,
+    currentUser && !isHost ? getWalletBalance(currentUser.id) : Promise.resolve(null),
   ]);
 
   // spec §4.2/§9.2: attendee list visibility is per-event, and never leaked
@@ -119,6 +121,7 @@ export default async function EventPage({ params }: { params: Promise<{ slug: st
             currentRsvpStatus={myRSVP?.status ?? null}
             ticketTypes={event.ticketTypes}
             myTickets={myTickets.map((t) => ({ id: t.id, qrCodeToken: t.qrCodeToken, status: t.status, ticketTypeName: t.ticketType.name }))}
+            viewerCoins={viewerWallet?.total ?? 0}
           />
         )}
 

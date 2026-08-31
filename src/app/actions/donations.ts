@@ -6,6 +6,8 @@ import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { getPaymentProcessor, recordPaymentTransaction, resolveFeeRate } from "@/lib/payments";
+import { settleCoinPurchase, type FeatureSettlement } from "@/lib/wallet/charge";
+import { coinActionKey } from "@/lib/wallet/limits";
 import { getAppOrigin } from "@/lib/email";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { saveUploadedImage } from "@/lib/uploads";
@@ -101,6 +103,27 @@ export async function donate(_prevState: ActionState, formData: FormData): Promi
   if (campaign.organizerType !== "user" || !campaign.organizerUserId) {
     return { error: "This campaign's payout route isn't supported yet." };
   }
+
+  // addendum-coin-wallet-v2.md §6.3: coins settle now, no payout account
+  // needed on the organizer.
+  if (String(formData.get("payWith") ?? "card") === "coins") {
+    const result = await settleCoinPurchase({
+      kind: "donation",
+      payerId: user.id,
+      payeeUserId: campaign.organizerUserId,
+      amountUsd: amount,
+      currency: campaign.currency,
+      relatedObjectType: "fundraising_campaign",
+      relatedObjectId: campaign.id,
+      idempotencyKey: coinActionKey("donation:coin", formData.get("idempotencyKey"), user.id, campaign.id, amount),
+      metadata: { campaignId: campaign.id, message, isAnonymous: String(isAnonymous) },
+      createRows: createDonationRows,
+    });
+    if ("error" in result) return { error: result.error };
+    if (!result.alreadySettled) revalidatePath(`/fund/${campaign.id}`);
+    return { success: true };
+  }
+
   const payoutAccount = await db.creatorPayoutAccount.findUnique({ where: { userId: campaign.organizerUserId } });
   if (!payoutAccount || payoutAccount.status !== "active" || !payoutAccount.processorAccountId) {
     return { error: "This fundraiser hasn't enabled payouts yet." };
@@ -136,11 +159,33 @@ export async function donate(_prevState: ActionState, formData: FormData): Promi
 // Called from the Stripe webhook on checkout.session.completed once
 // payment for a donation is confirmed — real "charge succeeded" signal now
 // that donate() only starts a redirect. Idempotent on processorReference.
+// The Donation row + running-total bump — one place, both rails
+// (addendum-coin-wallet-v2.md §6.2).
+export async function createDonationRows(tx: Prisma.TransactionClient, s: FeatureSettlement): Promise<void> {
+  const campaignId = s.metadata.campaignId;
+  const message = s.metadata.message ?? "";
+  await tx.donation.create({
+    data: {
+      campaignId,
+      donorId: s.payerId,
+      amount: s.amount,
+      currency: s.currency,
+      message: message.length > 0 ? message : null,
+      isAnonymous: s.metadata.isAnonymous === "true",
+      paymentTransactionId: s.paymentTransactionId,
+    },
+  });
+  await tx.fundraisingCampaign.update({
+    where: { id: campaignId },
+    data: { raisedAmount: { increment: s.amount } },
+  });
+}
+
 export async function activateDonation(metadata: Record<string, string>, processorReference: string): Promise<void> {
   const already = await db.paymentTransaction.findFirst({ where: { processorReference, kind: "donation" } });
   if (already) return;
 
-  const { payerId, payeeId, campaignId, amount: amountStr, currency, message, isAnonymous } = metadata;
+  const { payerId, payeeId, campaignId, amount: amountStr, currency } = metadata;
   const amount = Number(amountStr);
 
   try {
@@ -156,20 +201,13 @@ export async function activateDonation(metadata: Record<string, string>, process
         relatedObjectType: "fundraising_campaign",
         relatedObjectId: campaignId,
       });
-      await tx.donation.create({
-        data: {
-          campaignId,
-          donorId: payerId,
-          amount,
-          currency,
-          message: message.length > 0 ? message : null,
-          isAnonymous: isAnonymous === "true",
-          paymentTransactionId: transaction.id,
-        },
-      });
-      await tx.fundraisingCampaign.update({
-        where: { id: campaignId },
-        data: { raisedAmount: { increment: amount } },
+      await createDonationRows(tx, {
+        paymentTransactionId: transaction.id,
+        payerId,
+        payeeId,
+        amount,
+        currency,
+        metadata,
       });
     });
   } catch (err) {

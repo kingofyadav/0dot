@@ -71,15 +71,11 @@ model User {
   // — created lazily on first checkout (getOrCreateStripeCustomerId,
   // stripe.ts), never written any other way.
   stripeCustomerId       String?   @unique
-  // Internal coin wallet balance, separate from Stripe entirely — funded via
-  // manually-reviewed UPI top-ups (CoinTopUpRequest) and a 1-coin signup
-  // bonus, 1 coin = $1 (see USD_COIN_TO_INR_RATE in upi.ts). Spent via
-  // purchaseProfilePremiumWithCoins (platform-billing.ts) — the coin-funded
-  // alternative to Stripe Checkout for Premium Profile.
-  coinBalance            Int       @default(0)
-  // The user's own UPI VPA, on file for a future coin-to-cash payout —
-  // deliberately separate from CreatorPayoutAccount, which is Stripe-only.
-  payoutUpiVpa           String?
+  // addendum-coin-wallet-v2.md §7.5 — the inviter, resolved from the `ref`
+  // cookie at signup and written once, immutably. Nullable FK, SetNull on
+  // inviter delete (the referral just loses its attribution).
+  referredByUserId       String?
+  referredBy             User?     @relation("ReferredBy", fields: [referredByUserId], references: [id], onDelete: SetNull)
 
   username                        Username?
   profile                         Profile?
@@ -91,10 +87,11 @@ model User {
   passwordResetTokens        PasswordResetToken[]
   twoFactorRecoveryCodes     TwoFactorRecoveryCode[]
   pendingTwoFactorChallenges PendingTwoFactorChallenge[]
-  coinTopUpRequests          CoinTopUpRequest[]
-  coinPayoutRequests         CoinPayoutRequest[]
   coinTransfersSent          CoinTransfer[] @relation("CoinTransferSent")
   coinTransfersReceived      CoinTransfer[] @relation("CoinTransferReceived")
+  ledgerAccounts             LedgerAccount[]
+  referralCode               ReferralCode?
+  referrals                  User[]         @relation("ReferredBy")
   pendingEmailChanges        PendingEmailChange[]
   pendingPhoneChanges        PendingPhoneChange[]
   loginEvents                LoginEvent[]
@@ -502,7 +499,7 @@ model Notification {
   recipient   User      @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
   actorId     String?
   actor       User?     @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
-  type        String // like | comment | mention | new_follower | follow_request | follow_accepted | message | community_update | community_invite | business_review | job_application | application_status | appointment_request | appointment_confirmed | appointment_cancelled | tip_received | new_subscriber | affiliate_conversion | livestream_started | job_alert_match | business_approved | business_rejected
+  type        String // like | comment | mention | new_follower | follow_request | follow_accepted | message | community_update | community_invite | business_review | job_application | application_status | appointment_request | appointment_confirmed | appointment_cancelled | tip_received | new_subscriber | affiliate_conversion | livestream_started | job_alert_match | business_approved | business_rejected | coins_received
   subjectType String // post | message | user | community | business | livestream | project | skill | article
   subjectId   String
   readAt      DateTime?
@@ -1725,7 +1722,11 @@ model PaymentTransaction {
   // Stripe Connect where store policy requires it (spec §6.1). storeFee is
   // the store's own cut (historically 15-30%), deducted separately from
   // platformFee above, never conflated into one figure (§6.4).
-  processor          String          @default("stripe_connect") // stripe_connect | apple_iap | google_play_billing
+  // "wallet" (addendum-coin-wallet-v2.md §6.1): a coin-funded purchase,
+  // recorded here exactly like a Stripe sale so analytics/admin views see
+  // it — processorReference points at the backing LedgerTransaction and
+  // storeFee is null.
+  processor          String          @default("stripe_connect") // stripe_connect | apple_iap | google_play_billing | wallet
   storeFee           Float?
   iapPayoutBatchId   String?
   iapPayoutBatch     IapPayoutBatch? @relation(fields: [iapPayoutBatchId], references: [id], onDelete: SetNull)
@@ -4010,47 +4011,11 @@ model Activity {
   @@index([contactId, occurredAt])
 }
 
-// Coin wallet top-up, funded by UPI (no payment gateway) — the user pays the
-// platform's own UPI VPA directly (upi.ts builds the deep link/QR embedding
-// referenceCode as the "tn" note), then submits the UTR they got from their
-// UPI app as proof. There's no webhook/API confirming the payment landed, so
-// an admin manually cross-checks the UTR against the platform's own bank/UPI
-// statement before approving (wallet.ts) and crediting User.coinBalance.
-// Deliberately not a PaymentTransaction row — that ledger is Stripe's
-// money-movement record; this is an unrelated, wholly separate primitive.
-model CoinTopUpRequest {
-  id               String    @id @default(uuid())
-  userId           String
-  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  coinAmount       Int // coins requested, 1 coin = $1 (see USD_COIN_TO_INR_RATE in upi.ts)
-  amountInr        Int // the actual INR amount the UPI deep link asks for, captured at creation time (not recomputed later) so a later exchange-rate change never rewrites what a pending/past request expected to be paid
-  referenceCode    String    @unique // embedded in the UPI deep link's "tn" param so a payment is matchable back to this row
-  status           String    @default("pending_payment") // pending_payment | submitted | approved | rejected
-  utr              String? // user-submitted UPI transaction/reference number, set on submit
-  submittedAt      DateTime?
-  reviewedAt       DateTime?
-  reviewedByUserId String?
-  reviewNote       String?
-  createdAt        DateTime  @default(now())
-
-  @@index([userId, status])
-  @@index([status, createdAt])
-}
-
-// Coin-to-cash payout, the reverse of CoinTopUpRequest — coinBalance is
-// debited up front (escrow-style, at request time, not at payment time) so
-// a user can't also spend the same coins elsewhere while a payout is
-// pending. Same "no payment gateway" posture: an admin manually sends the
-// money via UPI to the snapshotted vpa outside the app, then marks this
-// paid with whatever reference their UPI app gave them. vpa is snapshotted
-// rather than read live off User.payoutUpiVpa at payout time so a later
-// address change can never retroactively change where an
-// already-requested-or-paid payout is understood to have gone.
 // User-to-user coin transfer — a plain append-only ledger row (unlike
 // coinBalance itself, which is a mutable running total on User). No status
-// field: unlike CoinTopUpRequest/CoinPayoutRequest there's no external
-// step to wait on, the transfer either fully lands in one transaction or
-// doesn't happen at all (wallet.ts's transferCoinsAction).
+// field: there's no external step to wait on, the transfer either fully
+// lands in one transaction or doesn't happen at all (wallet.ts's
+// transferCoinsAction).
 model CoinTransfer {
   id         String   @id @default(uuid())
   fromUserId String
@@ -4064,20 +4029,100 @@ model CoinTransfer {
   @@index([toUserId, createdAt])
 }
 
-model CoinPayoutRequest {
-  id               String    @id @default(uuid())
-  userId           String
-  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  coinAmount       Int // debited from coinBalance at request time
-  amountInr        Int // computed via coinsToInr at request time, same peg/rounding as the top-up side
-  vpa              String // snapshot of User.payoutUpiVpa at request time
-  status           String    @default("pending") // pending | paid | rejected
-  paidReference    String? // UTR/reference the admin used to send the money, set when marking paid
-  reviewedAt       DateTime?
-  reviewedByUserId String?
-  reviewNote       String?
-  createdAt        DateTime  @default(now())
+// ── Coin ledger (addendum-coin-wallet-v2.md §4) ──────────────────────────
+// Double-entry replacement for the bare mutable User.coinBalance integer.
+// Amounts everywhere are integer MINOR UNITS: 1 coin = 100 units
+// (src/lib/wallet/limits.ts COIN_UNIT). The source of truth for any
+// balance is SUM(LedgerPosting.amount) over the account; cachedBalance is
+// an optimization the reconciliation cron (§11.1) re-derives and heals.
+model LedgerAccount {
+  id              String  @id @default(uuid())
+  // user_wallet | user_promo | business_wallet | business_promo
+  // | system_platform_revenue | system_promo_issuance | system_escrow
+  // | system_refund_source | system_external_suspense
+  // (business_* wired in Phase 4; system_external_suspense reserved for the
+  // future bank-rails addendum, unused in v2.)
+  type            String
+  // set iff type in {user_wallet, user_promo}. SetNull (not Cascade) on a
+  // user hard-delete: the ledger is append-only and must stay globally
+  // balanced, so the account is de-owned rather than removed with its
+  // postings. @@unique tolerates the resulting repeated NULLs.
+  ownerUserId     String?
+  owner           User?   @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
+  // set iff type in {business_wallet, business_promo} (Phase 4)
+  ownerBusinessId String?
+  cachedBalance   Int     @default(0)
+  createdAt       DateTime        @default(now())
+  postings        LedgerPosting[]
 
-  @@index([userId, status])
-  @@index([status, createdAt])
+  @@unique([type, ownerUserId])
+  @@unique([type, ownerBusinessId])
+  @@index([ownerUserId])
+}
+
+model LedgerTransaction {
+  id                   String  @id @default(uuid())
+  // signup_grant | promo_grant | admin_adjustment | referral_reward
+  // | transfer | purchase | refund | hold | hold_capture | hold_release
+  // | promo_expiry | migration_opening | payout (payout reserved, unused in v2)
+  kind                 String
+  // dedupes double-click / webhook redelivery / retry. postTransaction
+  // returns the existing transaction on a key hit instead of posting again.
+  idempotencyKey       String  @unique
+  actorUserId          String? // who initiated; null for system/cron
+  memo                 String?
+  relatedObjectType    String? // tip | digital_product | platform_subscription | user | ...
+  relatedObjectId      String?
+  paymentTransactionId String? // set for kind in {purchase, refund}
+  // Set for grant kinds (signup_grant | promo_grant | referral_reward) — a
+  // real column, not JSON, so the promo-expiry sweep can query it directly
+  // instead of scanning every promo account. Null for everything else.
+  expiresAt            DateTime?
+  metadataJson         String  @default("{}")
+  createdAt            DateTime        @default(now())
+  postings            LedgerPosting[]
+  hold                LedgerHold?
+
+  @@index([kind, createdAt])
+  @@index([actorUserId, createdAt])
+  @@index([kind, expiresAt])
+}
+
+model LedgerPosting {
+  id            String @id @default(uuid())
+  // Restrict on both FKs — ledger rows are never deleted or reassigned.
+  transactionId String
+  transaction   LedgerTransaction @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  accountId     String
+  account       LedgerAccount     @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  amount        Int // signed minor units: debit negative, credit positive
+  createdAt     DateTime          @default(now())
+
+  @@index([accountId, createdAt])
+  @@index([transactionId])
+}
+
+// Schema only in Phase 1; placeHold/captureHold/releaseHold land in Phase 3.
+model LedgerHold {
+  id                String @id @default(uuid())
+  transactionId     String @unique
+  transaction       LedgerTransaction @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  state             String            @default("pending") // pending | captured | released
+  expiresAt         DateTime
+  relatedObjectType String?
+  relatedObjectId   String?
+  createdAt         DateTime          @default(now())
+
+  @@index([state, expiresAt])
+}
+
+// addendum-coin-wallet-v2.md §7.5 — one shareable referral code per user,
+// minted lazily on first use (0dot.in/join/<code>). Distinct from
+// AffiliateLink (which pays a % on a specific offering's sales); this
+// rewards bringing a brand-new person onto the platform.
+model ReferralCode {
+  userId    String   @id
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  code      String   @unique
+  createdAt DateTime @default(now())
 }

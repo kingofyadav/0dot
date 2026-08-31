@@ -1,7 +1,7 @@
 "use server";
 
 import { randomBytes, createHash } from "crypto";
-import { headers } from "next/headers";
+import { headers, cookies } from "next/headers";
 import bcrypt from "bcryptjs";
 import { redirect } from "next/navigation";
 import { Prisma } from "@/generated/prisma/client";
@@ -13,6 +13,9 @@ import { checkRateLimit, enforceRateLimit, getClientIp } from "@/lib/rate-limit"
 import { toE164 } from "@/lib/country-codes";
 import { getEmailSender, getAppOrigin, renderVerifyEmailHtml, renderPasswordResetEmailHtml } from "@/lib/email";
 import { isInternalSystemAccountEmail } from "@/lib/first-party-apps";
+import { ensureUserAccounts } from "@/lib/wallet/accounts";
+import { issueSignupGrant, issueLaunchPromoIfEligible } from "@/lib/wallet/grants";
+import { recordReferralAttribution, REFERRAL_COOKIE } from "@/lib/wallet/referral";
 
 export type ActionState = { error?: string; success?: boolean } | undefined;
 
@@ -136,18 +139,29 @@ export async function signup(
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
+  const refCode = (await cookies()).get(REFERRAL_COOKIE)?.value ?? null;
   let user;
   try {
-    user = await db.user.create({
-      data: {
-        email,
-        phone,
-        dateOfBirth,
-        passwordHash,
-        coinBalance: 1, // welcome bonus — every new account starts with 1 coin
-        username: { create: { handle } },
-        profile: { create: { displayName } },
-      },
+    // User row + coin ledger accounts + the audited signup grant (plus, for
+    // early accounts, the launch promo, §8.1) all commit together
+    // (addendum-coin-wallet-v2.md §7.1). The ledger is the sole source of
+    // truth for coin balances — there is no coinBalance mirror any more.
+    user = await db.$transaction(async (tx) => {
+      const created = await tx.user.create({
+        data: {
+          email,
+          phone,
+          dateOfBirth,
+          passwordHash,
+          username: { create: { handle } },
+          profile: { create: { displayName } },
+        },
+      });
+      await ensureUserAccounts(tx, created.id);
+      await issueSignupGrant(tx, created.id);
+      await issueLaunchPromoIfEligible(tx, created.id);
+      await recordReferralAttribution(tx, created.id, refCode);
+      return created;
     });
   } catch (err) {
     // The findUnique checks above are check-then-act, not atomic — two

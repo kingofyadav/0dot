@@ -17,6 +17,7 @@ const EVENT_SCOPE_MAP: Record<string, string> = {
   new_follower: "profile:read",
   message: "messages:read",
   tip_received: "payments:read",
+  coins_received: "payments:read",
   affiliate_conversion: "payments:read",
   new_subscriber: "marketplace:read",
   appointment_request: "marketplace:read",

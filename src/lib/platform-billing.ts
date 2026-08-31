@@ -4,6 +4,10 @@ import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { recordPaymentTransaction } from "@/lib/payments";
 import { stripe, getOrCreateStripeCustomerId } from "@/lib/stripe";
+import { spendBusinessCoins, WalletError } from "@/lib/wallet/ledger";
+import { chargeWallet } from "@/lib/wallet/charge";
+import { SYSTEM_ACCOUNT_IDS } from "@/lib/wallet/accounts";
+import { coinsToUnits, coinActionKey } from "@/lib/wallet/limits";
 
 // See payments.ts's checkoutIdempotencyKey for why: collapses a retried
 // subscribe() call (double-click, network retry) onto the same Checkout
@@ -348,10 +352,10 @@ export async function cancelPlatformSubscription(subscriptionId: string): Promis
 // PlatformSubscription model/plan Stripe Checkout writes to via
 // activateSubscriptionFromCheckout above — every real perk
 // (linkCapFor/isProfilePremium/analytics window/etc.) Just Works for a
-// coin-funded row with no separate gating logic needed. Coin cost is
-// TEST_MODE_VIP_COIN_COST below, not PLAN_PRICES (see that constant for
-// why); marked via a processorSubscriptionId prefix rather than a new
-// column, same "string discriminator" shape this schema already uses for
+// coin-funded row with no separate gating logic needed. The coin cost is
+// the real PLAN_PRICES value (1 coin = $1, addendum-coin-wallet-v2.md §14).
+// Marked via a processorSubscriptionId prefix rather than a new column,
+// same "string discriminator" shape this schema already uses for
 // subscriberType/plan/status.
 export const COIN_FUNDED_MARKER = "coin:";
 
@@ -375,16 +379,8 @@ function addBillingInterval(date: Date, billingInterval: string): Date {
 // expect.
 class InsufficientCoinsError extends Error {}
 
-// No real payment/billing right now — every account already gets 1 coin on
-// signup (auth.ts), so this lets that alone unlock every Premium perk for
-// testing. Deliberately decoupled from PLAN_PRICES/priceFor (still the real
-// $6/$60 price, kept for the Stripe rail and for restoring the coin cost
-// later) rather than reusing it, so re-enabling real pricing is a one-line
-// revert instead of untangling this from Stripe's numbers.
-export const TEST_MODE_VIP_COIN_COST = 1;
-
-export async function purchaseProfilePremiumWithCoins(userId: string, profileId: string, billingInterval: string): Promise<{ error?: string }> {
-  const coinCost = TEST_MODE_VIP_COIN_COST;
+export async function purchaseProfilePremiumWithCoins(userId: string, profileId: string, billingInterval: string, idempotencyToken?: unknown): Promise<{ error?: string }> {
+  const { amount: coinCost } = priceFor("profile_premium", billingInterval);
   const existing = await getActiveProfileSubscription(profileId);
   if (existing && !existing.processorSubscriptionId.startsWith(COIN_FUNDED_MARKER)) {
     return { error: "You already have Premium through a card subscription." };
@@ -396,11 +392,26 @@ export async function purchaseProfilePremiumWithCoins(userId: string, profileId:
     // no subscription to show for it, same posture as
     // activateSubscriptionFromCheckout's recordPaymentTransaction+create pair.
     await db.$transaction(async (tx) => {
-      const debited = await tx.user.updateMany({
-        where: { id: userId, coinBalance: { gte: coinCost } },
-        data: { coinBalance: { decrement: coinCost } },
-      });
-      if (debited.count === 0) throw new InsufficientCoinsError();
+      // §14: routed through chargeWallet with no external payee, so 0dot is
+      // the payee and the whole amount is platform revenue — and the coin
+      // spend gets a PaymentTransaction (processor "wallet") like any sale.
+      let charge;
+      try {
+        charge = await chargeWallet(tx, {
+          payerId: userId,
+          amountUsd: coinCost,
+          currency: "usd",
+          kind: "platform_subscription_charge",
+          relatedObjectType: "platform_subscription",
+          idempotencyKey: coinActionKey("premium_purchase", idempotencyToken, userId, billingInterval),
+        });
+      } catch (err) {
+        if (err instanceof WalletError && err.code === "INSUFFICIENT_FUNDS") {
+          throw new InsufficientCoinsError();
+        }
+        throw err;
+      }
+      if (charge.alreadySettled) return; // double-click — the first click already applied the period
 
       if (existing) {
         await tx.platformSubscription.update({
@@ -427,6 +438,78 @@ export async function purchaseProfilePremiumWithCoins(userId: string, profileId:
   }
 
   await reconcileLinkActivationForProfile(profileId);
+  return {};
+}
+
+// Kept for the wallet UI's disabled-state hint until PurchaseVipForm is
+// updated to take the real per-interval price directly.
+export function premiumCoinPrice(billingInterval = "monthly"): number {
+  return priceFor("profile_premium", billingInterval).amount;
+}
+
+// addendum-coin-wallet-v2.md §6.5 — the business-wallet counterpart of
+// purchaseProfilePremiumWithCoins: a business buys its own 0dot business
+// subscription with coins from its business_wallet. Owner/admin-gated by
+// the caller (subscribeBusinessWithCoinsAction). Renewal is a fresh coin
+// charge; the coin-subscription lapse sweep ends it if the period elapses.
+export async function purchaseBusinessPlanWithCoins(
+  businessId: string,
+  actorUserId: string,
+  billingInterval: string,
+  idempotencyToken?: unknown,
+): Promise<{ error?: string }> {
+  const { amount: coinCost } = priceFor("business_subscription", billingInterval);
+  const existing = await getActiveBusinessSubscription(businessId);
+  if (existing && !existing.processorSubscriptionId.startsWith(COIN_FUNDED_MARKER)) {
+    return { error: "This business already has a card subscription." };
+  }
+
+  try {
+    await db.$transaction(async (tx) => {
+      let spend;
+      try {
+        spend = await spendBusinessCoins(tx, {
+          businessId,
+          units: coinsToUnits(coinCost),
+          creditAccountId: SYSTEM_ACCOUNT_IDS.system_platform_revenue,
+          kind: "purchase",
+          idempotencyKey: coinActionKey("business_plan:coin", idempotencyToken, businessId, billingInterval),
+          actorUserId,
+          relatedObjectType: "platform_subscription",
+          memo: "Business subscription (coins)",
+        });
+      } catch (err) {
+        if (err instanceof WalletError && err.code === "INSUFFICIENT_FUNDS") throw new InsufficientCoinsError();
+        throw err;
+      }
+      if (!spend.created) return; // double-click — first click already applied the period
+
+      if (existing) {
+        await tx.platformSubscription.update({
+          where: { id: existing.id },
+          data: { currentPeriodEnd: addBillingInterval(existing.currentPeriodEnd, billingInterval), billingInterval },
+        });
+      } else {
+        await tx.platformSubscription.create({
+          data: {
+            subscriberType: "business",
+            subscriberBusinessId: businessId,
+            plan: "business_subscription",
+            status: "active",
+            billingInterval,
+            processorSubscriptionId: `${COIN_FUNDED_MARKER}${randomUUID()}`,
+            currentPeriodEnd: addBillingInterval(new Date(), billingInterval),
+          },
+        });
+      }
+    });
+  } catch (err) {
+    if (err instanceof InsufficientCoinsError) {
+      return { error: `This business's wallet needs ${coinCost} coins for this plan.` };
+    }
+    throw err;
+  }
+
   return {};
 }
 
@@ -492,6 +575,22 @@ async function expireLapsedCoinSubscriptions(): Promise<void> {
   }
 }
 
+// addendum-coin-wallet-v2.md §6.3 — the coin-membership equivalent of
+// expireLapsedCoinSubscriptions. A coin-funded MembershipSubscription
+// (processorSubscriptionId "coin:…") pays one period only and has no
+// Stripe webhook to advance it, so this is its sole "period ended" signal:
+// flip it to "cancelled" once currentPeriodEnd passes, ending gated access.
+async function expireLapsedCoinMemberships(): Promise<void> {
+  await db.membershipSubscription.updateMany({
+    where: {
+      status: "active",
+      processorSubscriptionId: { startsWith: COIN_FUNDED_MARKER },
+      currentPeriodEnd: { lt: new Date() },
+    },
+    data: { status: "cancelled" },
+  });
+}
+
 const LAPSE_SWEEP_INTERVAL_MS = 15 * 60 * 1000; // frequent enough that a lapsed link cap doesn't stay visible for long, cheap enough given the narrow candidate query above
 
 const globalForPlatformBilling = globalThis as unknown as { platformBillingSchedulerStarted?: boolean };
@@ -508,5 +607,6 @@ export function startPlatformBillingScheduler(): void {
 // Cron entry point (web-pro-upgrade addendum M1) — see runTrendingRecomputeOnce.
 export async function runPlatformBillingSweepOnce(): Promise<void> {
   await expireLapsedCoinSubscriptions();
+  await expireLapsedCoinMemberships();
   await sweepLinkActivation();
 }

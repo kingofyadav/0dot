@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { rsvpToEvent, purchaseTicket } from "@/app/actions/events";
+import { IdempotencyField } from "@/components/IdempotencyField";
 
 type TicketType = {
   id: string;
@@ -38,9 +39,10 @@ function RSVPButtons({ eventId, currentStatus }: { eventId: string; currentStatu
   );
 }
 
-function TicketPurchaseRow({ ticketType }: { ticketType: TicketType }) {
+function TicketPurchaseRow({ ticketType, viewerCoins }: { ticketType: TicketType; viewerCoins: number }) {
   const [state, formAction, pending] = useActionState(purchaseTicket, undefined);
   const soldOut = ticketType.quantityTotal !== null && ticketType.quantitySold >= ticketType.quantityTotal;
+  const canAffordCoins = ticketType.price !== null && viewerCoins >= ticketType.price;
 
   return (
     <div className="profileLinkItem" style={{ flexDirection: "column", alignItems: "stretch", gap: "0.4rem" }}>
@@ -55,13 +57,29 @@ function TicketPurchaseRow({ ticketType }: { ticketType: TicketType }) {
           {ticketType.quantityTotal - ticketType.quantitySold} left of {ticketType.quantityTotal}
         </span>
       )}
-      <form action={formAction}>
+      <form action={formAction} style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
         <input type="hidden" name="ticketTypeId" value={ticketType.id} />
-        <button type="submit" className="button buttonSecondary" disabled={pending || soldOut} style={{ fontSize: "0.85rem" }}>
+        <IdempotencyField />
+        <button type="submit" name="payWith" value="card" className="button buttonSecondary" disabled={pending || soldOut} style={{ fontSize: "0.85rem" }}>
           {soldOut ? "Sold out" : pending ? "Purchasing…" : ticketType.price === null ? "Get free ticket" : "Buy ticket"}
         </button>
+        {ticketType.price !== null && !soldOut && (
+          <button
+            type="submit"
+            name="payWith"
+            value="coins"
+            className="button buttonSecondary"
+            disabled={pending || !canAffordCoins}
+            style={{ fontSize: "0.85rem" }}
+          >
+            {ticketType.price} coins
+          </button>
+        )}
       </form>
       {state?.error && <p className="errorText">{state.error}</p>}
+      {ticketType.price !== null && !soldOut && !canAffordCoins && (
+        <p className="mutedText" style={{ fontSize: "0.75rem" }}>You have {viewerCoins} of {ticketType.price} coins.</p>
+      )}
     </div>
   );
 }
@@ -71,11 +89,13 @@ export function EventActions({
   currentRsvpStatus,
   ticketTypes,
   myTickets,
+  viewerCoins,
 }: {
   eventId: string;
   currentRsvpStatus: string | null;
   ticketTypes: TicketType[];
   myTickets: { id: string; qrCodeToken: string; status: string; ticketTypeName: string }[];
+  viewerCoins: number;
 }) {
   return (
     <div style={{ marginTop: "var(--space-5)", display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
@@ -86,7 +106,7 @@ export function EventActions({
           <p className="sectionHeading">Tickets</p>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
             {ticketTypes.map((tt) => (
-              <TicketPurchaseRow key={tt.id} ticketType={tt} />
+              <TicketPurchaseRow key={tt.id} ticketType={tt} viewerCoins={viewerCoins} />
             ))}
           </div>
         </div>

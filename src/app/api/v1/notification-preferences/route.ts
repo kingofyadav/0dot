@@ -18,6 +18,7 @@ const PUSH_NOTIFICATION_TYPES = [
   "message",
   "community_update",
   "tip_received",
+  "coins_received",
   "new_subscriber",
   "livestream_started",
   "event_cancelled",

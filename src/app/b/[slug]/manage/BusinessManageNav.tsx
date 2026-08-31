@@ -5,7 +5,7 @@ import Link from "next/link";
 // subpages, replacing four near-identical inline `<h1> + link row` headers
 // that each overflowed a phone viewport. Server component — the active
 // section is passed in per route rather than read from the pathname.
-export type ManageSection = "overview" | "catalog" | "messages" | "crm" | "billing";
+export type ManageSection = "overview" | "catalog" | "messages" | "crm" | "billing" | "wallet";
 
 export function BusinessManageNav({
   slug,
@@ -29,6 +29,7 @@ export function BusinessManageNav({
     { key: "messages", label: "Messages", href: `${base}/manage/contact`, badge: contactCount },
     { key: "crm", label: "CRM", href: `${base}/manage/crm` },
     { key: "billing", label: "Billing", href: `${base}/manage/billing` },
+    { key: "wallet", label: "Wallet", href: `${base}/manage/wallet` },
   ];
 
   return (

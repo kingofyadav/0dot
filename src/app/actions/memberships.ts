@@ -5,7 +5,11 @@ import { redirect } from "next/navigation";
 import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { requireVerifiedUser } from "@/lib/auth-guards";
+import { randomUUID } from "crypto";
 import { getPaymentProcessor, recordPaymentTransaction, resolveFeeRate } from "@/lib/payments";
+import { chargeWallet } from "@/lib/wallet/charge";
+import { WalletError } from "@/lib/wallet/ledger";
+import { coinIdempotencyKey } from "@/lib/wallet/limits";
 import { getAppOrigin } from "@/lib/email";
 import { notifyNewSubscriber, notifyAffiliateConversion } from "@/lib/notifications";
 import { getAttributedAffiliateLink, creditAffiliateConversion } from "@/lib/affiliate";
@@ -131,6 +135,60 @@ export async function subscribeToTier(_prevState: ActionState, formData: FormDat
   });
   if (existing) return { error: "You're already subscribed to this tier." };
 
+  if (!checkSubscribeRateLimit(user.id)) {
+    return { error: "You're subscribing too fast. Please slow down." };
+  }
+
+  // addendum-coin-wallet-v2.md §6.3: coins pay the FIRST PERIOD ONLY — no
+  // mandate, no auto-renew. currentPeriodEnd is one interval out; the
+  // coin-membership lapse sweep (platform-billing.ts) flips it to past_due
+  // when it elapses, and the fan re-subscribes with coins. Mirrors the
+  // coin-Premium model. No payout account required on the creator (§6.4).
+  if (String(formData.get("payWith") ?? "card") === "coins") {
+    const currentPeriodEnd = new Date();
+    if (tier.billingInterval === "yearly") currentPeriodEnd.setFullYear(currentPeriodEnd.getFullYear() + 1);
+    else currentPeriodEnd.setMonth(currentPeriodEnd.getMonth() + 1);
+
+    let subscribed = false;
+    try {
+      subscribed = await db.$transaction(async (tx) => {
+        const charge = await chargeWallet(tx, {
+          payerId: user.id,
+          payeeUserId: tier.creatorId,
+          amountUsd: tier.price,
+          currency: tier.currency,
+          kind: "membership_charge",
+          relatedObjectType: "membership_tier",
+          relatedObjectId: tier.id,
+          idempotencyKey: coinIdempotencyKey("membership:coin", user.id, tier.id),
+        });
+        if (charge.alreadySettled) return false; // double-click — first click already subscribed
+        await tx.membershipSubscription.create({
+          data: {
+            tierId: tier.id,
+            fanId: user.id,
+            status: "active",
+            currentPeriodEnd,
+            processorSubscriptionId: `coin:${randomUUID()}`,
+          },
+        });
+        return true;
+      });
+    } catch (err) {
+      if (err instanceof WalletError && err.code === "INSUFFICIENT_FUNDS") {
+        return { error: "You don't have enough coins for this membership." };
+      }
+      throw err;
+    }
+
+    if (subscribed) {
+      await notifyNewSubscriber({ recipientId: tier.creatorId, actorId: user.id });
+      const creatorHandle = (await db.username.findUnique({ where: { userId: tier.creatorId }, select: { handle: true } }))?.handle;
+      if (creatorHandle) revalidatePath(`/${creatorHandle}`);
+    }
+    return { success: true };
+  }
+
   // spec §3.5's literal gate, same check tips.ts's sendTip already
   // enforces for a different money-moving feature: a creator cannot
   // receive a payout-requiring transaction until their payout account is
@@ -138,10 +196,6 @@ export async function subscribeToTier(_prevState: ActionState, formData: FormDat
   const payoutAccount = await db.creatorPayoutAccount.findUnique({ where: { userId: tier.creatorId } });
   if (!payoutAccount || payoutAccount.status !== "active" || !payoutAccount.processorAccountId) {
     return { error: "This creator hasn't enabled payouts yet." };
-  }
-
-  if (!checkSubscribeRateLimit(user.id)) {
-    return { error: "You're subscribing too fast. Please slow down." };
   }
 
   const affiliateLink = await getAttributedAffiliateLink("membership_tier", tier.id, user.id);

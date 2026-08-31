@@ -42,6 +42,7 @@ type NotificationInput = {
     | "appointment_confirmed"
     | "appointment_cancelled"
     | "tip_received"
+    | "coins_received"
     | "new_subscriber"
     | "affiliate_conversion"
     | "livestream_started"
@@ -650,6 +651,21 @@ export function notifyTipReceived(args: { recipientId: string; actorId: string }
   });
 }
 
+// addendum-coin-wallet-v2.md §12: fires when coins land in a user's wallet
+// from another user — a P2P transfer, or a refund credited as coins — that
+// has no richer feature-specific notification of its own (a coin tip still
+// fires notifyTipReceived, not this). subjectId is the sender's id, same
+// "link to whoever caused this" shape as notifyTipReceived.
+export function notifyCoinsReceived(args: { recipientId: string; actorId: string }): Promise<void> {
+  return createNotification({
+    recipientId: args.recipientId,
+    actorId: args.actorId,
+    type: "coins_received",
+    subjectType: "user",
+    subjectId: args.actorId,
+  });
+}
+
 // spec §12: fires to the creator when a MembershipSubscription becomes
 // active. subjectId is the new subscriber's own id — same shape
 // notifyTipReceived/notifyNewFollower already use.
@@ -838,6 +854,8 @@ export function getNotificationVerb(type: string, subjectType?: string, subjectI
       return "cancelled your appointment";
     case "tip_received":
       return "sent you a tip";
+    case "coins_received":
+      return "sent you coins";
     case "new_subscriber":
       return "subscribed to your membership";
     case "affiliate_conversion":
@@ -941,6 +959,8 @@ export function getNotificationHref(
     case "new_subscriber":
     case "affiliate_conversion":
       return n.actor?.username?.handle ? `/${n.actor.username.handle}` : "/feed";
+    case "coins_received":
+      return "/wallet";
     case "message":
       return `/messages/${n.subjectId}`;
     case "community_update":

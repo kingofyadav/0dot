@@ -167,7 +167,6 @@ async function main() {
             status: "active",
             emailVerifiedAt: new Date(),
             dateOfBirth: randomDateOfBirth(),
-            coinBalance: 1,
             username: { create: { handle } },
             profile: { create: { displayName, bio: pick(BIO_LINES) } },
           },

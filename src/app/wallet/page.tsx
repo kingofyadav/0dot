@@ -1,38 +1,37 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Coins } from "lucide-react";
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { db } from "@/lib/db";
-import { getActiveProfileSubscription, COIN_FUNDED_MARKER, TEST_MODE_VIP_COIN_COST } from "@/lib/platform-billing";
+import { getActiveProfileSubscription, COIN_FUNDED_MARKER, premiumCoinPrice } from "@/lib/platform-billing";
+import { getWalletBalance, listTransactions } from "@/lib/wallet/ledger";
+import { walletActivityLabel } from "@/lib/wallet/activity-labels";
+import { getReferralStats } from "@/lib/wallet/referral";
+import { getAppOrigin } from "@/lib/email";
 import { PurchaseVipForm } from "@/components/PurchaseVipForm";
 import { TransferCoinsForm } from "@/components/TransferCoinsForm";
+import { ReferralLinkCard } from "@/components/ReferralLinkCard";
 import { EmptyState } from "@/components/EmptyState";
 
 export const metadata: Metadata = { title: "Wallet" };
 
-export default async function WalletPage() {
+export default async function WalletPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ cursor?: string; kind?: string }>;
+}) {
   const user = await requireVerifiedUser();
+  const { cursor, kind } = await searchParams;
 
   const profile = await db.profile.findUnique({ where: { userId: user.id } });
-  const [subscription, sentTransfers, receivedTransfers] = await Promise.all([
+  const balance = await getWalletBalance(user.id);
+  const [subscription, activity, referral] = await Promise.all([
     profile ? getActiveProfileSubscription(profile.id) : null,
-    db.coinTransfer.findMany({
-      where: { fromUserId: user.id },
-      orderBy: { createdAt: "desc" },
-      take: 20,
-      include: { toUser: { include: { username: true } } },
-    }),
-    db.coinTransfer.findMany({
-      where: { toUserId: user.id },
-      orderBy: { createdAt: "desc" },
-      take: 20,
-      include: { fromUser: { include: { username: true } } },
-    }),
+    listTransactions(user.id, { cursor: cursor ?? null, kind: kind || undefined, limit: 25 }),
+    getReferralStats(user.id),
   ]);
 
-  const transfers = [
-    ...sentTransfers.map((t) => ({ id: t.id, createdAt: t.createdAt, amount: t.amount, direction: "sent" as const, otherHandle: t.toUser.username?.handle ?? "unknown" })),
-    ...receivedTransfers.map((t) => ({ id: t.id, createdAt: t.createdAt, amount: t.amount, direction: "received" as const, otherHandle: t.fromUser.username?.handle ?? "unknown" })),
-  ].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  const filterQuery = kind ? `&kind=${encodeURIComponent(kind)}` : "";
 
   return (
     <div className="profileCard">
@@ -43,9 +42,12 @@ export default async function WalletPage() {
           <Coins size={16} aria-hidden="true" /> Balance
         </span>
         <span className="walletHeroBalance">
-          {user.coinBalance} <small>coins</small>
+          {balance.total} <small>coins</small>
         </span>
-        <span className="walletHeroSub">1 coin = $1</span>
+        <span className="walletHeroSub">
+          1 coin = $1
+          {balance.restricted > 0 && ` · ${balance.restricted} restricted (grant coins, not transferable)`}
+        </span>
       </div>
 
       {profile && (
@@ -59,35 +61,52 @@ export default async function WalletPage() {
                 }
               : null
           }
-          coinPrice={TEST_MODE_VIP_COIN_COST}
-          coinBalance={user.coinBalance}
+          prices={{ monthly: premiumCoinPrice("monthly"), yearly: premiumCoinPrice("yearly") }}
+          coinBalance={balance.total}
         />
       )}
 
-      <h2 className="settingsSectionHeading" style={{ fontSize: "0.95rem" }}>
-        Send coins
-      </h2>
+      <h2 className="settingsSectionHeading" style={{ fontSize: "0.95rem" }}>Send coins</h2>
       <div className="settingsGroup" style={{ padding: "0.9rem 1rem" }}>
         <TransferCoinsForm />
       </div>
 
-      <h2 className="settingsSectionHeading" style={{ fontSize: "0.95rem" }}>
-        Recent transfers
-      </h2>
-      <div className="settingsGroup" style={{ padding: transfers.length ? "0.4rem" : "0.9rem 1rem" }}>
-        {transfers.length === 0 && <EmptyState message="No transfers yet." />}
-        {transfers.map((t) => (
-          <div key={t.id} className="navLink" style={{ justifyContent: "space-between" }}>
-            <span>
-              {t.direction === "sent" ? `Sent to @${t.otherHandle}` : `Received from @${t.otherHandle}`}
-            </span>
+      <h2 className="settingsSectionHeading" style={{ fontSize: "0.95rem" }}>Invite &amp; earn</h2>
+      <ReferralLinkCard
+        joinUrl={`${getAppOrigin()}/join/${referral.code}`}
+        rewardedInvites={referral.rewardedInvites}
+        maxRewarded={referral.maxRewarded}
+        rewardCoins={referral.rewardCoins}
+      />
+
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+        <h2 className="settingsSectionHeading" style={{ fontSize: "0.95rem" }}>Activity</h2>
+        {/* A Route Handler that streams a CSV file (download), not a page nav. */}
+        <a href="/wallet/statement" className="mutedText" style={{ fontSize: "0.8rem" }} download>
+          Download statement (CSV)
+        </a>
+      </div>
+      <div className="settingsGroup" style={{ padding: activity.entries.length ? "0.4rem" : "0.9rem 1rem" }}>
+        {activity.entries.length === 0 && <EmptyState message="No wallet activity yet." />}
+        {activity.entries.map((e) => (
+          <div key={e.id} className="navLink" style={{ justifyContent: "space-between" }}>
+            <span>{walletActivityLabel(e)}{e.memo ? ` — ${e.memo}` : ""}</span>
             <span className="mutedText">
-              {t.direction === "sent" ? "-" : "+"}
-              {t.amount} coin{t.amount === 1 ? "" : "s"}
+              {e.amountCoins > 0 ? "+" : ""}
+              {e.amountCoins} coin{Math.abs(e.amountCoins) === 1 ? "" : "s"}
             </span>
           </div>
         ))}
       </div>
+      {activity.nextCursor && (
+        <Link
+          href={`/wallet?cursor=${encodeURIComponent(activity.nextCursor)}${filterQuery}`}
+          className="mutedText"
+          style={{ fontSize: "0.85rem" }}
+        >
+          Load older →
+        </Link>
+      )}
     </div>
   );
 }

@@ -6,7 +6,9 @@ import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { saveProtectedFile, issueDownloadToken } from "@/lib/protected-storage";
+import { randomUUID } from "crypto";
 import { getPaymentProcessor, recordPaymentTransaction, resolveFeeRate } from "@/lib/payments";
+import { settleCoinPurchase, type FeatureSettlement } from "@/lib/wallet/charge";
 import { getAppOrigin } from "@/lib/email";
 import { hasCourseAccess } from "@/lib/course-access";
 import { checkCourseCompletion } from "@/lib/learning-completion";
@@ -216,13 +218,36 @@ export async function purchaseCourse(_prevState: ActionState, formData: FormData
   const existing = await db.courseAccessGrant.findUnique({ where: { courseId_userId: { courseId, userId: user.id } } });
   if (existing) return { error: "You already have access to this course." };
 
+  if (!checkPurchaseRateLimit(user.id)) {
+    return { error: "You're purchasing too fast. Please slow down." };
+  }
+
+  // addendum-coin-wallet-v2.md §6.3/§6.4: coins settle now, no creator
+  // payout account required. Affiliate attribution is card-rail only.
+  if (String(formData.get("payWith") ?? "card") === "coins") {
+    const result = await settleCoinPurchase({
+      kind: "course_purchase",
+      payerId: user.id,
+      payeeUserId: course.creatorId,
+      amountUsd: course.price,
+      currency: course.currency,
+      relatedObjectType: "course",
+      relatedObjectId: course.id,
+      idempotencyKey: `course:coin:${randomUUID()}`,
+      metadata: { courseId: course.id },
+      createRows: createCoursePurchaseRow,
+    });
+    if ("error" in result) return { error: result.error };
+    if (!result.alreadySettled) {
+      const h = await db.username.findUnique({ where: { userId: course.creatorId }, select: { handle: true } });
+      if (h) revalidatePath(`/${h.handle}/courses/${course.id}`);
+    }
+    return { success: true };
+  }
+
   const payoutAccount = await db.creatorPayoutAccount.findUnique({ where: { userId: course.creatorId } });
   if (!payoutAccount || payoutAccount.status !== "active" || !payoutAccount.processorAccountId) {
     return { error: "This creator hasn't enabled payouts yet." };
-  }
-
-  if (!checkPurchaseRateLimit(user.id)) {
-    return { error: "You're purchasing too fast. Please slow down." };
   }
 
   const affiliateLink = await getAttributedAffiliateLink("course", course.id, user.id);
@@ -259,6 +284,19 @@ export async function purchaseCourse(_prevState: ActionState, formData: FormData
 // Called from the Stripe webhook once checkout.session.completed confirms
 // payment — mirrors activateDigitalPurchase's shape (digital-products.ts).
 // Idempotent on processorReference.
+// The access grant — one place, both rails (addendum-coin-wallet-v2.md
+// §6.2). Affiliate crediting stays in activateCoursePurchase (card only).
+export async function createCoursePurchaseRow(tx: Prisma.TransactionClient, s: FeatureSettlement): Promise<void> {
+  await tx.courseAccessGrant.create({
+    data: {
+      courseId: s.metadata.courseId,
+      userId: s.payerId,
+      grantedVia: "purchase",
+      paymentTransactionId: s.paymentTransactionId,
+    },
+  });
+}
+
 export async function activateCoursePurchase(metadata: Record<string, string>, processorReference: string): Promise<void> {
   const already = await db.paymentTransaction.findFirst({ where: { processorReference, kind: "course_purchase" } });
   if (already) return;
@@ -284,8 +322,13 @@ export async function activateCoursePurchase(metadata: Record<string, string>, p
         relatedObjectType: "course",
         relatedObjectId: courseId,
       });
-      await tx.courseAccessGrant.create({
-        data: { courseId, userId: payerId, grantedVia: "purchase", paymentTransactionId: transaction.id },
+      await createCoursePurchaseRow(tx, {
+        paymentTransactionId: transaction.id,
+        payerId,
+        payeeId,
+        amount,
+        currency,
+        metadata,
       });
 
       if (!affiliateLink) return null;

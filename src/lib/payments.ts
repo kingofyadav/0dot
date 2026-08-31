@@ -297,7 +297,7 @@ export async function recordPaymentTransaction(
     status: "pending" | "succeeded" | "failed" | "refunded";
     relatedObjectType?: string;
     relatedObjectId?: string;
-    processor?: "stripe_connect" | "apple_iap" | "google_play_billing";
+    processor?: "stripe_connect" | "apple_iap" | "google_play_billing" | "wallet";
     storeFee?: number;
   }
 ) {

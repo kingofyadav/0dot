@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { cancelFundraisingCampaign } from "@/app/actions/donations";
+import { getWalletBalance } from "@/lib/wallet/ledger";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { DonateForm } from "./DonateForm";
 import { EmptyState } from "@/components/EmptyState";
@@ -22,12 +23,20 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
   const currentUser = await getCurrentUser();
   const isOrganizer = currentUser?.id === campaign.organizerUserId;
 
-  const donations = await db.donation.findMany({
-    where: { campaignId: campaign.id },
-    orderBy: { createdAt: "desc" },
-    include: { donor: { select: { id: true, profile: true } } },
-    take: 50,
-  });
+  const [donations, organizerPayout, viewerWallet] = await Promise.all([
+    db.donation.findMany({
+      where: { campaignId: campaign.id },
+      orderBy: { createdAt: "desc" },
+      include: { donor: { select: { id: true, profile: true } } },
+      take: 50,
+    }),
+    campaign.organizerUserId
+      ? db.creatorPayoutAccount.findUnique({ where: { userId: campaign.organizerUserId }, select: { status: true } })
+      : Promise.resolve(null),
+    currentUser && !isOrganizer ? getWalletBalance(currentUser.id) : Promise.resolve(null),
+  ]);
+  const cardAvailable = organizerPayout?.status === "active";
+  const viewerCoins = viewerWallet?.total ?? 0;
 
   const progressPct = campaign.goalAmount ? Math.min(100, Math.round((campaign.raisedAmount / campaign.goalAmount) * 100)) : null;
 
@@ -63,7 +72,11 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
         <p className="mutedText" style={{ marginTop: "1rem" }}>This campaign is {campaign.status}.</p>
       ) : (
         <div style={{ marginTop: "1rem" }}>
-          <DonateForm campaignId={campaign.id} />
+          {currentUser ? (
+            <DonateForm campaignId={campaign.id} cardAvailable={cardAvailable} viewerCoins={viewerCoins} />
+          ) : (
+            <Link href="/login" className="button buttonSmall">Log in to donate</Link>
+          )}
         </div>
       )}
 

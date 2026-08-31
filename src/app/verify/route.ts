@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { createSession } from "@/lib/session";
+import { maybeGrantReferralReward } from "@/lib/wallet/referral";
 
 // A Route Handler, not a page — cookies can only be set from a Server
 // Action or a Route Handler, never during a Server Component render.
@@ -33,6 +34,11 @@ export async function GET(request: NextRequest) {
   ]);
 
   await createSession(record.userId);
+
+  // §7.5 — verifying is one half of the referral-reward trigger; grant now
+  // if the invitee already did a meaningful action, else the daily sweep
+  // catches it later. Idempotent, and never blocks the redirect.
+  await maybeGrantReferralReward(record.userId).catch(() => {});
 
   const handle = record.user.username?.handle;
   return NextResponse.redirect(

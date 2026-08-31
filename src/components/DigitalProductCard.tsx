@@ -12,9 +12,13 @@ import { purchaseProduct, requestDownloadUrl } from "@/app/actions/digital-produ
 export function DigitalProductCard({
   product,
   owned,
+  cardAvailable,
+  viewerCoins,
 }: {
   product: { id: string; title: string; description: string; price: number; currency: string };
   owned: boolean;
+  cardAvailable: boolean;
+  viewerCoins: number;
 }) {
   const [state, formAction, pending] = useActionState(purchaseProduct, undefined);
   const [downloadError, setDownloadError] = useState<string | null>(null);
@@ -44,9 +48,26 @@ export function DigitalProductCard({
         <form action={formAction}>
           <input type="hidden" name="productId" value={product.id} />
           {state?.error && <p className="errorText" style={{ margin: "0.2rem 0" }}>{state.error}</p>}
-          <button type="submit" className="button buttonSmall" disabled={pending}>
-            {pending ? "Buying…" : `Buy — ${product.price.toFixed(2)} ${product.currency.toUpperCase()}`}
-          </button>
+          {state?.success && <p className="mutedText" style={{ margin: "0.2rem 0", fontSize: "0.8rem" }}>Purchased — refresh to download.</p>}
+          <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
+            {cardAvailable && (
+              <button type="submit" name="payWith" value="card" className="button buttonSmall" disabled={pending}>
+                {pending ? "Buying…" : `Buy — ${product.price.toFixed(2)} ${product.currency.toUpperCase()}`}
+              </button>
+            )}
+            <button
+              type="submit"
+              name="payWith"
+              value="coins"
+              className={cardAvailable ? "button buttonSmall buttonSecondary" : "button buttonSmall"}
+              disabled={pending || viewerCoins < product.price}
+            >
+              {pending ? "Buying…" : `${product.price} coins`}
+            </button>
+          </div>
+          {viewerCoins < product.price && (
+            <p className="mutedText" style={{ margin: "0.2rem 0", fontSize: "0.8rem" }}>You have {viewerCoins} of {product.price} coins.</p>
+          )}
         </form>
       )}
     </div>

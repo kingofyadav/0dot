@@ -8,7 +8,7 @@ const SECTIONS = [
   { href: "/admin/trust-safety", label: "Trust & Safety", description: "Content/account reports, business claims, appeals, transparency report." },
   { href: "/admin/businesses", label: "Businesses", description: "Pending business listings awaiting approval." },
   { href: "/admin/payments", label: "Payments", description: "IAP (Apple/Google) payout batches." },
-  { href: "/admin/wallet", label: "Wallet", description: "Coin top-up and payout requests." },
+  { href: "/admin/wallet", label: "Wallet", description: "Coin economy overview, issuance audit, and the grant tool." },
   { href: "/admin/platform-roles", label: "Platform roles", description: "Grant/revoke staff access to this admin area (super_admin only)." },
 ];
 
