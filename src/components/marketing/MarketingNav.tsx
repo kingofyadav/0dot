@@ -1,18 +1,17 @@
-"use client";
-
 import Link from "next/link";
 import { Menu } from "lucide-react";
-import { track } from "@vercel/analytics";
 import { ThemeToggleLogo } from "@/components/ThemeToggleLogo";
+import { TrackedLink } from "@/components/marketing/TrackedLink";
 
 // Landing-page-only nav (spec §8) — deliberately not SiteHeader.tsx, whose
 // own comment explains why it skips "/", "/login", "/signup": those pages
 // already have their own sign-up form front and center. This nav sits above
 // that hero/form, not instead of it.
-
-function trackCta() {
-  track("nav_cta_click");
-}
+//
+// Server component: the mobile menu is a native <details>/<summary> (no
+// state), ThemeToggleLogo is already its own client island, and the one
+// analytics ping is in TrackedLink — so nothing here forces the marketing
+// page client-side.
 
 export function MarketingNav() {
   return (
@@ -26,9 +25,13 @@ export function MarketingNav() {
           <Link href="/login" className="button buttonSecondary buttonSmall">
             Log in
           </Link>
-          <Link href="/signup" className="button buttonSmall" onClick={trackCta}>
+          <TrackedLink
+            href="/signup"
+            className="button buttonSmall"
+            event="nav_cta_click"
+          >
             Create your 0dot
-          </Link>
+          </TrackedLink>
         </div>
 
         {/* Mobile compact menu — <details>/<summary>, the same disclosure
@@ -44,9 +47,9 @@ export function MarketingNav() {
             <Link href="/login" className="button buttonSecondary">
               Log in
             </Link>
-            <Link href="/signup" className="button" onClick={trackCta}>
+            <TrackedLink href="/signup" className="button" event="nav_cta_click">
               Create your 0dot
-            </Link>
+            </TrackedLink>
           </div>
         </details>
       </div>

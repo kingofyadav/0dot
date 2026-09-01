@@ -12,7 +12,13 @@
 // register() does two things: (1) initialize Sentry for the node and edge
 // runtimes (web-pro-upgrade addendum M1); (2) on the node runtime only, start
 // the boot tasks — ensureFirstPartyApps() plus, off Vercel, the recurring
-// schedulers. The trending recompute (src/lib/trending.ts, phase-2 §6.2), the
+// schedulers. register() must finish before the server accepts its first
+// request, so the two tasks that touch the network/DB (ensureFirstPartyApps,
+// the stripe-webhook config check) are fire-and-forget (`void runStartupTask`)
+// rather than awaited — see the ensureFirstPartyApps comment below. The
+// scheduler starters below only register setInterval handles and return
+// immediately, and only run off Vercel. The trending recompute
+// (src/lib/trending.ts, phase-2 §6.2), the
 // daily GitRepository metadata sync (src/lib/portfolio-sync.ts, phase-6
 // §5.2), and the AI accessibility captioning job (src/lib/ai-accessibility.ts,
 // phase-11 §6.3) all follow the same "never synchronously during a request"
@@ -69,11 +75,19 @@ export async function register() {
     // Phase-15 spec §3.1/§9 step 1: the platform-owned account + first-party
     // DeveloperApp registrations must exist before any client can authorize
     // through them — idempotent, same "ensure the fixed catalog exists"
-    // idiom as seedOAuthScopes. Run first, on its own: this gates sign-in
-    // itself, unlike every scheduler below, so it can't be left stranded
-    // behind another task's failure the way it previously was. (oauth/
-    // authorize/page.tsx also self-heals this lazily as a second safety net.)
-    await runStartupTask("ensureFirstPartyApps", async () => {
+    // idiom as seedOAuthScopes.
+    //
+    // NOT awaited: register() must fully complete before the server serves
+    // its first request (Next.js instrumentation contract), and this task is
+    // ~110 sequential libSQL round-trips (seedOAuthScopes' 27 scope upserts +
+    // 3 apps × 27 scope upserts) — on a cold Vercel instance that added tens
+    // of seconds to the first response on every scale-from-zero. Kicked off
+    // in the background instead: it makes progress while the first requests
+    // are served, and it no longer gates boot. Durable guarantees that it
+    // actually runs: (1) the daily cron (src/app/api/cron/daily) runs it too;
+    // (2) oauth/authorize/page.tsx self-heals it lazily. Both predate this
+    // change; this just stops it blocking the hot path.
+    void runStartupTask("ensureFirstPartyApps", async () => {
       const { ensureFirstPartyApps } = await import("@/lib/first-party-apps");
       await ensureFirstPartyApps();
     });
@@ -89,7 +103,7 @@ export async function register() {
     // the exact bug webhook-v2 exists to fix, so make its absence loud
     // (logger.warn → Sentry when a DSN is configured) instead of leaving it
     // to a code comment.
-    await runStartupTask("stripe-webhook-config-check", async () => {
+    void runStartupTask("stripe-webhook-config-check", async () => {
       if (process.env.STRIPE_SECRET_KEY && !process.env.STRIPE_THIN_WEBHOOK_SECRET) {
         const { logger } = await import("@/lib/logger");
         logger.warn(

@@ -28,6 +28,12 @@ const adapter = new PrismaLibSql({ url, authToken });
 
 export const db = globalForPrisma.prisma ?? new PrismaClient({ adapter });
 
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = db;
-}
+// Cache the client (and its libSQL connection) on globalThis in every
+// environment, production included. In dev this is the standard guard
+// against `next dev` HMR spawning a new pool on every reload. In production
+// on Vercel Fluid Compute a single instance serves many requests over its
+// lifetime and modules can be re-evaluated within it — without this, each
+// re-eval built a fresh PrismaClient and reconnected to Turso (visible as
+// repeated "[db] connecting to …" lines in the runtime logs). One client
+// per instance instead.
+globalForPrisma.prisma = db;

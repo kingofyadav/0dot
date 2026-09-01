@@ -1,24 +1,27 @@
-"use client";
-
-import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
-import { track } from "@vercel/analytics";
+import { TrackedLink } from "@/components/marketing/TrackedLink";
 
 // Was duplicated inline across page.tsx, login/page.tsx and signup/page.tsx
 // (identical JSX in all three) — consolidated here per COMPONENT_LIBRARY.md's
 // "avoid page-specific components whenever a pattern repeats" rule, and
 // gives the hero's one explicit CTA link a single place to fire
 // hero_cta_click (spec §53) rather than three copies to keep in sync.
+//
+// Server component: the only interactive bit is the analytics ping, which
+// lives in TrackedLink (the sole hydrated node here) so this can render on
+// the statically-prerendered marketing/login/signup pages without dragging
+// them client-side.
 export function ExploreLiveLink() {
   return (
-    <Link
+    <TrackedLink
       href="/explore"
       className="exploreLiveButton"
-      onClick={() => track("hero_cta_click", { cta: "explore" })}
+      event="hero_cta_click"
+      eventData={{ cta: "explore" }}
     >
       <span className="exploreLiveDot" aria-hidden="true" />
       Explore live
       <ArrowUpRight size={16} aria-hidden="true" />
-    </Link>
+    </TrackedLink>
   );
 }

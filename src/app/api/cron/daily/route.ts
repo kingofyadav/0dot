@@ -1,4 +1,5 @@
 import { assertCronAuthorized, runCronBucket } from "@/lib/cron";
+import { ensureFirstPartyApps } from "@/lib/first-party-apps";
 import { syncGitRepositoryMetadata } from "@/lib/portfolio-sync";
 import { syncExternalContent } from "@/lib/social-content-sync";
 import { runApiUsageBillingSweepOnce } from "@/lib/api-usage-billing";
@@ -18,6 +19,11 @@ export async function GET(request: Request): Promise<Response> {
   if (unauthorized) return unauthorized;
 
   return runCronBucket("daily", {
+    // Idempotent platform-catalog seed (first-party OAuth apps + scopes).
+    // instrumentation.ts kicks this off in the background on boot but no
+    // longer blocks on it, so this is the durable guarantee it runs — plus
+    // oauth/authorize/page.tsx self-heals it lazily on demand.
+    "first-party-apps": ensureFirstPartyApps,
     "portfolio-sync": syncGitRepositoryMetadata,
     "social-content-sync": syncExternalContent,
     "api-usage-billing": runApiUsageBillingSweepOnce,

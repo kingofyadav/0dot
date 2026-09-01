@@ -1,18 +1,7 @@
-"use client";
-
-import Link from "next/link";
-import { track } from "@vercel/analytics";
-import {
-  Link2,
-  Newspaper,
-  Users,
-  Store,
-  KeyRound,
-  ArrowRight,
-  BadgeCheck,
-} from "lucide-react";
-import { useReveal } from "@/components/useReveal";
+import { Link2, Newspaper, Users, Store, KeyRound, ArrowRight, BadgeCheck } from "lucide-react";
 import { Icon } from "@/components/Icon";
+import { MarketingSection } from "@/components/marketing/MarketingSection";
+import { TrackedLink } from "@/components/marketing/TrackedLink";
 
 // Redesign Phase 3 (docs/specs/phase-0-redesign.md §6). The below-the-fold
 // story on "/" — the hero + AuthTabs card above this get a visitor straight
@@ -20,43 +9,15 @@ import { Icon } from "@/components/Icon";
 // disciplined: an eyebrow, one display heading, a lead line, and one small
 // CSS-built visual (no images, same posture as DigitalHomeVisual). The
 // identity-node motif in the hero stays the single bold element.
-
-function trackSignup(where: string) {
-  track("story_cta_click", { where });
-}
-
-function Section({
-  eyebrow,
-  title,
-  children,
-  visual,
-  flip = false,
-}: {
-  eyebrow: string;
-  title: string;
-  children: React.ReactNode;
-  visual: React.ReactNode;
-  flip?: boolean;
-}) {
-  const ref = useReveal<HTMLElement>();
-  return (
-    <section ref={ref} className={`marketingSection motion-reveal${flip ? " marketingSection--flip" : ""}`}>
-      <div className="marketingSectionText">
-        <span className="eyebrow">{eyebrow}</span>
-        <h2 className="display-3">{title}</h2>
-        <p>{children}</p>
-      </div>
-      <div className="marketingSectionVisual" aria-hidden="true">
-        {visual}
-      </div>
-    </section>
-  );
-}
+//
+// Server component: the scroll-reveal behaviour lives in MarketingSection
+// and the CTA's analytics ping in TrackedLink, so the whole story renders
+// statically and only those leaves hydrate.
 
 export function MarketingStory() {
   return (
     <div className="marketingStory">
-      <Section
+      <MarketingSection
         eyebrow="Links"
         title="One link that holds everything you are."
         visual={
@@ -73,9 +34,9 @@ export function MarketingStory() {
         Put one address in every bio, signature, and business card. It never
         breaks, it never gets sold, and it grows with you instead of staying a
         flat list.
-      </Section>
+      </MarketingSection>
 
-      <Section
+      <MarketingSection
         eyebrow="Feed"
         flip
         title="Proof you're real — not just a bio."
@@ -101,9 +62,9 @@ export function MarketingStory() {
       >
         Post updates, work, and thoughts right on your identity. Anyone who
         lands on your profile sees a living person, not a placeholder.
-      </Section>
+      </MarketingSection>
 
-      <Section
+      <MarketingSection
         eyebrow="Communities & business"
         title="The rooms where your people already are."
         visual={
@@ -122,9 +83,9 @@ export function MarketingStory() {
         Run a community, open a storefront, take bookings, sell what you make —
         each one attaches to the same identity, so your reputation follows you
         everywhere.
-      </Section>
+      </MarketingSection>
 
-      <Section
+      <MarketingSection
         eyebrow="For developers"
         flip
         title="An identity other apps can build on."
@@ -141,14 +102,19 @@ export function MarketingStory() {
       >
         &ldquo;Sign in with 0dot&rdquo;, a public REST API, and signed webhooks.
         The identity layer is programmable by the people who own it.
-      </Section>
+      </MarketingSection>
 
       <section className="marketingCta">
         <h2 className="display-2">Claim your corner of the internet.</h2>
         <p>Your username is permanent. Setup takes about a minute.</p>
-        <Link href="/signup" className="button" onClick={() => trackSignup("footer_band")}>
+        <TrackedLink
+          href="/signup"
+          className="button"
+          event="story_cta_click"
+          eventData={{ where: "footer_band" }}
+        >
           Create your 0dot <Icon as={ArrowRight} size="sm" />
-        </Link>
+        </TrackedLink>
         <span className="marketingCtaNote">Free forever · no card required</span>
       </section>
     </div>
