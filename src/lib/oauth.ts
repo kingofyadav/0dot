@@ -117,12 +117,45 @@ export const OAUTH_SCOPES = [
 export type OAuthScopeKey = (typeof OAUTH_SCOPES)[number]["key"];
 
 export async function seedOAuthScopes(): Promise<void> {
+  // One read + one bulk insert of the missing rows, rather than an upsert
+  // per scope. seedOAuthScopes runs fire-and-forget from instrumentation.ts
+  // on every boot; ~27 sequential upserts (each its own interactive
+  // transaction) could sit half-open on a cold-start event loop long enough
+  // for Turso to expire the stream and 404 the rest — see the matching note
+  // in first-party-apps.ts ensureFirstPartyApps().
+  const existing = await db.oAuthScope.findMany({
+    select: { key: true, description: true, sensitivity: true },
+  });
+  const byKey = new Map(existing.map((s) => [s.key, s]));
+
+  const missing = OAUTH_SCOPES.filter((s) => !byKey.has(s.key)).map((s) => ({
+    key: s.key,
+    description: s.description,
+    sensitivity: s.sensitivity,
+  }));
+  if (missing.length > 0) {
+    try {
+      await db.oAuthScope.createMany({ data: missing });
+    } catch (err) {
+      // Lost a race with a concurrently-booting instance — its rows are
+      // fine. Anything else propagates to runStartupTask's logger.
+      if (!(typeof err === "object" && err !== null && "code" in err && (err as { code?: unknown }).code === "P2002")) {
+        throw err;
+      }
+    }
+  }
+
+  // Patch description/sensitivity drift on scopes that already exist (these
+  // strings are edited in this file over time). Targeted single-row updates,
+  // and only when a value actually changed — normally a no-op.
   for (const scope of OAUTH_SCOPES) {
-    await db.oAuthScope.upsert({
-      where: { key: scope.key },
-      create: scope,
-      update: { description: scope.description, sensitivity: scope.sensitivity },
-    });
+    const current = byKey.get(scope.key);
+    if (current && (current.description !== scope.description || current.sensitivity !== scope.sensitivity)) {
+      await db.oAuthScope.update({
+        where: { key: scope.key },
+        data: { description: scope.description, sensitivity: scope.sensitivity },
+      });
+    }
   }
 }
 
