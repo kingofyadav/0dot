@@ -68,6 +68,7 @@ export async function ensureFirstPartyApps(): Promise<void> {
   await seedOAuthScopes();
   const platformUser = await ensurePlatformAccount();
 
+  const appIds: string[] = [];
   for (const spec of FIRST_PARTY_APPS) {
     const existing = await db.developerApp.findFirst({ where: { ownerUserId: platformUser.id, name: spec.name } });
 
@@ -102,28 +103,56 @@ export async function ensureFirstPartyApps(): Promise<void> {
       });
       appId = app.id;
     }
+    appIds.push(appId);
+  }
 
-    // spec §3.3: the security model doesn't relax for first-party apps —
-    // every scope goes through the same DeveloperAppScope row a
-    // third-party app would have, just pre-approved outright (0dot owns
-    // both sides of this grant) rather than sitting `pending` for
-    // high-sensitivity scopes the way an external app's request would.
-    //
-    // Runs for *existing* apps too, not just newly-created ones — otherwise
-    // a scope added to OAUTH_SCOPES after an app's first boot would never
-    // get backfilled here (previously this loop sat only in the "new app"
-    // branch above, unreachable once the app row already existed), and the
-    // first-party app's own OAuth flow would start failing resolveApprovableScopes
-    // ("This app isn't approved to request: ...") the moment it asked for
-    // the new scope.
-    for (const scope of OAUTH_SCOPES) {
-      await db.developerAppScope.upsert({
-        where: { appId_scopeKey: { appId, scopeKey: scope.key } },
-        create: { appId, scopeKey: scope.key, status: "approved", reviewedAt: new Date() },
-        update: {},
-      });
+  // spec §3.3: the security model doesn't relax for first-party apps —
+  // every scope goes through the same DeveloperAppScope row a third-party
+  // app would have, just pre-approved outright (0dot owns both sides of
+  // this grant) rather than sitting `pending` for high-sensitivity scopes
+  // the way an external app's request would.
+  //
+  // Covers existing apps too, not just newly-created ones — otherwise a
+  // scope added to OAUTH_SCOPES after an app's first boot would never get
+  // backfilled, and the first-party app's own OAuth flow would start
+  // failing resolveApprovableScopes ("This app isn't approved to request:
+  // ...") the moment it asked for the new scope.
+  //
+  // One read of what's already there + one bulk insert of the diff — NOT a
+  // per-(app, scope) upsert. That was ~80 sequential libSQL round trips,
+  // each its own interactive transaction, running fire-and-forget from
+  // instrumentation.ts's register(). On a cold Vercel boot the event loop
+  // is busy rendering the first request, so a transaction opened here could
+  // sit open long enough for Turso to expire its stream server-side and
+  // fail every remaining statement with "SERVER_ERROR: HTTP status 404"
+  // (harmless — fire-and-forget, and the rows already exist — but it filled
+  // the error logs on every scale-from-zero after the aws-ap-south-1 move).
+  const wantPairs = appIds.flatMap((appId) =>
+    OAUTH_SCOPES.map((scope) => ({ appId, scopeKey: scope.key })),
+  );
+  const existingScopeRows = await db.developerAppScope.findMany({
+    where: { appId: { in: appIds } },
+    select: { appId: true, scopeKey: true },
+  });
+  const pairKey = (appId: string, scopeKey: string) => JSON.stringify([appId, scopeKey]);
+  const have = new Set(existingScopeRows.map((r) => pairKey(r.appId, r.scopeKey)));
+  const toCreate = wantPairs
+    .filter((p) => !have.has(pairKey(p.appId, p.scopeKey)))
+    .map((p) => ({ appId: p.appId, scopeKey: p.scopeKey, status: "approved", reviewedAt: new Date() }));
+  if (toCreate.length > 0) {
+    try {
+      await db.developerAppScope.createMany({ data: toCreate });
+    } catch (err) {
+      // A second instance booting concurrently can race us to the same
+      // inserts; its rows landing first is a success, not a failure. Any
+      // other error propagates to runStartupTask's logger.
+      if (!isUniqueConstraintError(err)) throw err;
     }
   }
+}
+
+function isUniqueConstraintError(err: unknown): boolean {
+  return typeof err === "object" && err !== null && "code" in err && (err as { code?: unknown }).code === "P2002";
 }
 
 // phase-15 build plan step 3: client_id is generated randomly per
