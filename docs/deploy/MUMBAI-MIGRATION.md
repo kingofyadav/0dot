@@ -7,83 +7,64 @@ inside that request pays it again. This runbook moves both to Mumbai.
 
 **Order matters: migrate the database first.** If the functions move to
 `bom1` while the DB is still in US‑East, every request gets *slower* (Mumbai
-→ Virginia per query).
+→ Virginia per query). (It still works — it's a latency regression, not an
+outage — so the ordering is a preference, not a hard requirement.)
 
 Nothing here needs a paid plan — Vercel Hobby allows one function region,
-and Turso's free tier allows choosing the primary location.
+and Turso Starter allows a second group + 3 locations.
 
 ---
 
-## 0. Pre‑flight
+## Steps 1–4 (Turso side) — DONE 2026‑09‑01
 
-- `turso auth login`
-- Confirm the current DB name/location:
-  `turso db show 0dot-app-us-restore` (host is
-  `…-kingofyadav.aws-us-east-1.turso.io`).
-- Pick a low‑traffic window. Writes that land on the old DB between the dump
-  and the env switch are lost — the app has no write queue.
-
-## 1. Back up the current production DB
+The Mumbai database already exists and is a verified byte‑for‑byte copy of
+production. What was run:
 
 ```bash
-turso db shell 0dot-app-us-restore ".dump" > ~/0dot-prod-$(date +%F-%H%M).sql
-wc -l ~/0dot-prod-*.sql          # sanity: should be large
-grep -c "INSERT INTO" ~/0dot-prod-*.sql
-```
+# backup (kept at ~/0dot-backups/0dot-prod-2026-09-01-2244.sql)
+turso db shell 0dot-app-us-restore ".dump" > ~/0dot-backups/0dot-prod-<ts>.sql
 
-Keep this file until the migration is confirmed good (step 6).
+# NOTE: the location ID is 'aws-ap-south-1', not 'bom'
+turso group create mumbai --location aws-ap-south-1 --wait
 
-## 2. Create the Mumbai database
+# --from-db does NOT work across groups ("record not found") — create empty,
+# then load the dump over stdin
+turso db create 0dot-app-in --group mumbai --wait
+turso db shell 0dot-app-in < ~/0dot-backups/0dot-prod-<ts>.sql
 
-```bash
-# A group pins the primary location. 'bom' = Mumbai (aws-ap-south-1).
-turso group create mumbai --location bom
-turso db create 0dot-app-in --group mumbai
-
-# Load the dump
-turso db shell 0dot-app-in < ~/0dot-prod-*.sql
-```
-
-## 3. Verify the copy
-
-```bash
-for t in User Session Username Profile LedgerAccount LedgerEntry Post _prisma_migrations; do
-  echo -n "$t: "
-  echo "SELECT count(*) FROM \"$t\";" | turso db shell 0dot-app-us-restore | tail -1 | tr -d '\n'
-  echo -n "  ->  "
-  echo "SELECT count(*) FROM \"$t\";" | turso db shell 0dot-app-in | tail -1
-done
-```
-
-Every pair must match. (`_prisma_migrations` matching is what lets
-`scripts/migrate-deploy.mjs` see the schema as fully applied on the next
-deploy — do **not** skip it.)
-
-## 4. Mint an auth token for the new DB
-
-```bash
+# verified: diff of `.dump` from both DBs is empty (168 tables, 230 inserts,
+# identical _prisma_migrations list)
 turso db tokens create 0dot-app-in
-# host: turso db show 0dot-app-in  ->  libsql://0dot-app-in-<org>.aws-ap-south-1.turso.io
 ```
 
-## 5. Switch Vercel over (one deploy)
+New DB: `libsql://0dot-app-in-kingofyadav.aws-ap-south-1.turso.io`
 
-1. Update **Production** env vars (Vercel dashboard → project `0dot` →
-   Settings → Environment Variables, or `vercel env`):
-   - `DATABASE_URL` → `libsql://0dot-app-in-<org>.aws-ap-south-1.turso.io`
-   - `DATABASE_AUTH_TOKEN` → the token from step 4
-2. Pin the function region — add to `vercel.json`:
-   ```json
-   {
-     "$schema": "https://openapi.vercel.sh/vercel.json",
-     "regions": ["bom1"],
-     "crons": [{ "path": "/api/cron/daily", "schedule": "23 3 * * *" }]
-   }
-   ```
-3. Commit `vercel.json`, push to `main`, let it deploy.
+**If more than a little time passes before the cutover**, re‑sync so writes
+that landed on prod in the meantime aren't lost:
+
+```bash
+turso db destroy 0dot-app-in --yes
+turso db shell 0dot-app-us-restore ".dump" > ~/0dot-backups/0dot-prod-<ts>.sql
+turso db create 0dot-app-in --group mumbai --wait
+turso db shell 0dot-app-in < ~/0dot-backups/0dot-prod-<ts>.sql
+turso db tokens create 0dot-app-in
+```
+
+## 5. Switch Vercel over
+
+1. Update **Production** env vars — Vercel dashboard → project `0dot` →
+   Settings → Environment Variables (the CLI here isn't authorized for this
+   project, so it's the dashboard):
+   - `DATABASE_URL` → `libsql://0dot-app-in-kingofyadav.aws-ap-south-1.turso.io`
+   - `DATABASE_AUTH_TOKEN` → the token minted in step 4
+2. The `"regions": ["bom1"]` pin in `vercel.json` ships in the PR that
+   contains this doc.
+3. **Merge that PR** — the merge deploy is the cutover: it picks up the new
+   env vars *and* the region pin in one go.
    `scripts/migrate-deploy.mjs` runs against the new URL during the build —
    expect **"No pending migrations."** If it tries to apply migrations, the
-   `_prisma_migrations` copy in step 3 was incomplete: stop and re‑check.
+   `_prisma_migrations` copy was incomplete: stop, roll back the env vars,
+   re‑check.
 4. Smoke‑test against the deployment:
    ```bash
    npm run smoke-test              # if it accepts a base URL; else do it by hand
