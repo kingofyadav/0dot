@@ -36,6 +36,20 @@ const nextConfig: NextConfig = {
   // Drop the `x-powered-by: Next.js` response header — free framework
   // fingerprinting for anyone matching the stack against known CVEs.
   poweredByHeader: false,
+  // Keep these heavy, Node-only SDKs out of the Server Components / Route
+  // Handler bundle — Turbopack otherwise parses and inlines them into shared
+  // server chunks, so a cold function pays to evaluate all of Stripe +
+  // LiveKit + nodemailer even on a route (the landing page) that touches
+  // none of them. External = a plain runtime `require()`, loaded lazily the
+  // first time the code path that needs it actually runs. `@libsql/client`
+  // and `@prisma/client` are already external via Next's built-in list.
+  serverExternalPackages: [
+    "stripe",
+    "nodemailer",
+    "livekit-server-sdk",
+    "qrcode",
+    "otplib",
+  ],
   // Sentry's Turbopack integration stamps every client chunk with a
   // `//# debugId=` comment (see withSentryConfig below) whether or not this
   // is on, but its upload step ("Could not auto-detect referenced
