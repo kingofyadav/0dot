@@ -27,6 +27,7 @@ TABLE OF CONTENTS
      4.2  Feed, Explore, Trending, Search
      4.3  Follow, notifications, messages
      4.4  Blocking and reporting
+     4.5  Jobs board & Map
   5. CONTENT & CREATOR TOOLS
      5.1  Articles, tutorials, notes
      5.2  Wiki & documentation
@@ -44,8 +45,9 @@ TABLE OF CONTENTS
      6.6  Affiliate program
      6.7  Courses & learning paths
      6.8  Livestreams
-     6.9  Coin wallet & UPI top-up
+     6.9  Coin wallet, UPI top-up & coin transfers
      6.10 Premium profile
+     6.11 Fundraisers & donations
   7. COMMUNITIES (0dot.in/c)
   8. BUSINESSES (0dot.in/b)
   9. ORGANIZATIONS (0dot.in/org)
@@ -278,6 +280,26 @@ their notifications to you. Report any post, profile, or other content via
 the report action available wherever content appears; your identity as the
 reporter is never disclosed to the person you reported.
 
+4.5  JOBS BOARD & MAP
+--------------------------------------------------------------------------
+Two platform-wide surfaces that aggregate what already exists elsewhere —
+no separate data to maintain.
+
+  0dot.in/jobs       A cross-business job board. Every opening any active
+                     Business has posted (§8) shows up here in one list,
+                     filterable by keyword, location, remote-only, and
+                     employment type (full-time / part-time / contract /
+                     internship). Applying still happens on the business's
+                     own Jobs tab.
+  0dot.in/jobs/alerts  Save a search (keywords / location / remote /
+                     employment type) as a standing alert and get notified
+                     when a new matching opening is posted. Manage or
+                     delete your alerts from the same page. (Login
+                     required.)
+  0dot.in/map        A map view of every geo-tagged Business location and
+                     every upcoming geo-tagged Event, rendered as pins you
+                     can click through to the business or event page.
+
 ================================================================================
 5. CONTENT & CREATOR TOOLS
 ================================================================================
@@ -421,7 +443,7 @@ membership tier, with optional recording (if you enable recording, every
 participant sees a clear, unmissable notice before/at the start — this is
 a legal requirement, not optional UI).
 
-6.9  COIN WALLET & UPI TOP-UP  —  0dot.in/wallet
+6.9  COIN WALLET, UPI TOP-UP & COIN TRANSFERS  —  0dot.in/wallet
 --------------------------------------------------------------------------
 An alternate, cash-first way to fund a Premium subscription (§6.10) for
 users who'd rather not use a card:
@@ -436,9 +458,11 @@ users who'd rather not use a card:
      coin-funded Premium subscription grants identical perks to a
      card-funded one.
 
-You can also request a payout of your coin balance back to a UPI VPA
-(minimum 50 coins) — also manually reviewed and paid by an admin. New
-accounts start with a small welcome bonus.
+You can also send coins directly to another account from the wallet
+("Send coins" — enter their username and an amount, rate-limited and
+capped per transfer), and request a payout of your coin balance back to a
+UPI VPA (minimum 50 coins) — also manually reviewed and paid by an admin.
+New accounts start with a small welcome bonus.
 
 6.10  PREMIUM PROFILE  —  Settings > Billing > Premium
 --------------------------------------------------------------------------
@@ -455,12 +479,35 @@ Cancelling is non-destructive: links beyond the free cap go inactive
 rather than deleted, and reactivate instantly if you resubscribe;
 analytics data itself is never deleted, only the visible window narrows.
 
+6.11  FUNDRAISERS & DONATIONS  —  0dot.in/fund/new
+--------------------------------------------------------------------------
+Run a donation campaign — a cause, a project, a personal ask. Start one at
+0dot.in/fund/new with a title, short description, optional cover image, an
+optional goal amount (leave it blank for an open-ended, ongoing
+fundraiser), and an optional end date. It lives at 0dot.in/fund/<id> with
+a running total and progress bar.
+
+  - Donations flow through the SAME payout account and payment ledger as
+    everything else in §6 — set up Payouts (§6.1) before you can receive
+    any. A single donation is between $1 and $5,000.
+  - Donors can leave an optional public thank-you message, and can choose
+    to donate anonymously — an anonymous donation hides the donor's name
+    from the public campaign page, but the organizer still sees who gave.
+  - The organizer can cancel a campaign at any time, which stops it
+    accepting further donations.
+  - Fundraisers have no central directory — share the campaign link
+    directly. In this release a fundraiser is hosted by an individual
+    account (business- and organization-hosted fundraisers are planned).
+
 ================================================================================
 7. COMMUNITIES  (0dot.in/c)
 ================================================================================
 
 Communities are shared spaces multiple people organize around — distinct
 from your personal profile.
+
+BROWSE:          0dot.in/c — your communities plus a discovery list of
+                  public ones (full filtering lives in Search, §4.2).
 
 CREATE ONE:      0dot.in/c/new
                   Set a name, unique slug (0dot.in/c/your-slug),
@@ -509,6 +556,9 @@ MANAGE:            0dot.in/c/your-slug — moderator/owner controls surface
 A Business page represents a company, not a person — with its own team,
 catalog, and public presence.
 
+BROWSE:           0dot.in/b — your businesses (including ones still under
+                  review) plus a discovery list of active ones.
+
 CREATE ONE:       0dot.in/b/new
                   Because a business page can be impersonated to damage a
                   real company's reputation, creation goes through a
@@ -535,7 +585,8 @@ WHAT A BUSINESS PAGE INCLUDES:
     bookable)
   - Store: a storefront view of your catalog with in-app checkout
     (0dot.in/b/your-slug/store)
-  - Jobs: post openings, review applications (0dot.in/b/your-slug/jobs)
+  - Jobs: post openings, review applications (0dot.in/b/your-slug/jobs);
+    open postings also appear on the platform-wide job board (§4.5)
   - Appointments: bookable services with staff availability and
     confirm/decline
   - Reviews: public star ratings + text, one official response per
@@ -560,6 +611,7 @@ control plane over its own employees' accounts — not a public storefront.
 You can have a Business, an Organization, both linked together, or just
 one — they're independent.
 
+BROWSE:            0dot.in/org — the organizations you belong to.
 CREATE ONE:        0dot.in/org/new
 
 WHAT AN ORGANIZATION GIVES YOU:
@@ -590,6 +642,7 @@ posts, or any content built outside the organization's context.
 10. EVENTS & TICKETING  (0dot.in/e)
 ================================================================================
 
+BROWSE:            0dot.in/e — upcoming events, soonest first.
 CREATE ONE:        0dot.in/e/new
                   Hosted by you personally, by a Business, or by a
                   Community — pick one host. Format: in-person, virtual,
@@ -855,6 +908,8 @@ PAYMENTS:           0dot.in/admin/payments/iap-batches
   Offer a bookable service                Settings > Monetization > Freelance services
   Start a paid membership tier            Settings > Monetization > Memberships
   Run an affiliate program                Settings > Monetization > Affiliate
+  Start a fundraiser / take donations      0dot.in/fund/new
+  Send coins to another user               0dot.in/wallet ("Send coins")
   Publish an article / private note       Settings > Content > Articles
   Start a personal wiki                   Settings > Content > Wiki & Docs
   Publish a podcast                       Settings > Content > Podcast
@@ -867,6 +922,9 @@ PAYMENTS:           0dot.in/admin/payments/iap-batches
   Set up company SSO / internal comms     0dot.in/org/new
   Host an event / sell tickets            0dot.in/e/new
   Browse/sell on the Marketplace          0dot.in/m
+  Browse jobs across all businesses        0dot.in/jobs
+  Get notified about new job postings      0dot.in/jobs/alerts
+  See businesses & events on a map         0dot.in/map
   Shorten a URL                           Settings > Tools > Short links
   Build a form or survey                  Settings > Tools > Forms & surveys
   Register a developer app / API access   Settings > Developer > Apps
