@@ -12,6 +12,13 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 const HEARTBEAT_MS = 20_000; // keeps the connection alive through idle proxies/load balancers
+// Proactively recycle before Vercel's maxDuration ceiling kills the
+// function mid-stream — that shows up in logs as a timeout error instead of
+// a clean close. Ending the response body normally here makes the
+// browser's native EventSource reconnect on its own (per spec, any
+// connection close it didn't initiate itself triggers a retry after the
+// `retry:` delay already set below), so no client-side change is needed.
+const STREAM_RECYCLE_MS = 280_000;
 
 // Notifies everyone who shares a conversation with this user that their
 // online state changed, so an open inbox/conversation on the other end can
@@ -43,10 +50,24 @@ export async function GET() {
   let unsubscribe: (() => void) | undefined;
   let heartbeat: ReturnType<typeof setInterval> | undefined;
   let connectionId: string | undefined;
+  let closed = false;
+
+  // Shared by the proactive recycle path and cancel() (client disconnects,
+  // tab closes) — guarded so whichever fires first is the only one that
+  // unsubscribes/marks offline.
+  const cleanup = () => {
+    if (closed) return;
+    closed = true;
+    unsubscribe?.();
+    if (heartbeat) clearInterval(heartbeat);
+    db.user.update({ where: { id: user.id }, data: { lastActiveAt: new Date() } }).catch(() => {});
+    if (connectionId) markUserOffline(user.id, connectionId, () => broadcastPresence(user.id, false));
+  };
 
   const stream = new ReadableStream({
     start(controller) {
       const encoder = new TextEncoder();
+      const startedAt = Date.now();
       // Tunes the browser's built-in reconnect delay explicitly (default is
       // ~3s) instead of leaving it implicit — comfortably inside
       // markUserOffline's PRESENCE_OFFLINE_GRACE_MS so a maxDuration recycle
@@ -59,6 +80,11 @@ export async function GET() {
       unsubscribe = subscribeToUser(user.id, send);
       connectionId = markUserOnline(user.id);
       heartbeat = setInterval(() => {
+        if (Date.now() - startedAt >= STREAM_RECYCLE_MS) {
+          cleanup();
+          controller.close();
+          return;
+        }
         controller.enqueue(encoder.encode(`: heartbeat\n\n`));
         // Push this connection's presence expiry forward (Redis store) so a
         // long-lived stream doesn't age out as offline.
@@ -69,11 +95,7 @@ export async function GET() {
       broadcastPresence(user.id, true);
     },
     cancel() {
-      unsubscribe?.();
-      if (heartbeat) clearInterval(heartbeat);
-
-      db.user.update({ where: { id: user.id }, data: { lastActiveAt: new Date() } }).catch(() => {});
-      if (connectionId) markUserOffline(user.id, connectionId, () => broadcastPresence(user.id, false));
+      cleanup();
     },
   });
 

@@ -10,6 +10,11 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300; // same as api/messages/stream/route.ts — see its comment
 
 const HEARTBEAT_MS = 20_000;
+// Proactively recycle before Vercel's maxDuration ceiling kills the
+// function mid-stream (see api/messages/stream/route.ts's comment) — the
+// Last-Event-ID replay above means a client reconnecting after this picks
+// up exactly where it left off, no gap.
+const STREAM_RECYCLE_MS = 280_000;
 
 // Realtime addendum Phase C — the bearer-token counterpart to
 // src/app/api/c/[slug]/chat/stream/route.ts, subscribing to the same
@@ -52,10 +57,18 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
 
   let unsubscribe: (() => void) | undefined;
   let heartbeat: ReturnType<typeof setInterval> | undefined;
+  let closed = false;
+  function cleanup() {
+    if (closed) return;
+    closed = true;
+    unsubscribe?.();
+    if (heartbeat) clearInterval(heartbeat);
+  }
 
   const stream = new ReadableStream({
     async start(controller) {
       const encoder = new TextEncoder();
+      const startedAt = Date.now();
       const enqueue = (chunk: string) => controller.enqueue(encoder.encode(chunk));
       enqueue(`retry: 2000\n\n`);
 
@@ -84,11 +97,17 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
       }
 
       unsubscribe = subscribeToCommunityChat(community.id, sendEvent);
-      heartbeat = setInterval(() => enqueue(`: heartbeat\n\n`), HEARTBEAT_MS);
+      heartbeat = setInterval(() => {
+        if (Date.now() - startedAt >= STREAM_RECYCLE_MS) {
+          cleanup();
+          controller.close();
+          return;
+        }
+        enqueue(`: heartbeat\n\n`);
+      }, HEARTBEAT_MS);
     },
     cancel() {
-      unsubscribe?.();
-      if (heartbeat) clearInterval(heartbeat);
+      cleanup();
     },
   });
 

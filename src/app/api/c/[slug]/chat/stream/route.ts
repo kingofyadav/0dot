@@ -8,6 +8,11 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300; // same as api/messages/stream/route.ts — see its comment
 
 const HEARTBEAT_MS = 20_000; // keeps the connection alive through idle proxies/load balancers
+// Proactively recycle before Vercel's maxDuration ceiling kills the
+// function mid-stream (see api/messages/stream/route.ts's comment) —
+// ending the response body normally makes the browser's native
+// EventSource reconnect on its own.
+const STREAM_RECYCLE_MS = 280_000;
 
 // Per-community SSE stream — same shape as /api/messages/stream, room-keyed
 // instead of user-keyed (see community-chat-events.ts). Viewing follows the
@@ -36,9 +41,18 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
   let unsubscribe: (() => void) | undefined;
   let heartbeat: ReturnType<typeof setInterval> | undefined;
 
+  let closed = false;
+  function cleanup() {
+    if (closed) return;
+    closed = true;
+    unsubscribe?.();
+    if (heartbeat) clearInterval(heartbeat);
+  }
+
   const stream = new ReadableStream({
     start(controller) {
       const encoder = new TextEncoder();
+      const startedAt = Date.now();
       controller.enqueue(encoder.encode(`retry: 2000\n\n`));
       const send = (event: CommunityChatEvent) => {
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
@@ -46,12 +60,16 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
 
       unsubscribe = subscribeToCommunityChat(community.id, send);
       heartbeat = setInterval(() => {
+        if (Date.now() - startedAt >= STREAM_RECYCLE_MS) {
+          cleanup();
+          controller.close();
+          return;
+        }
         controller.enqueue(encoder.encode(`: heartbeat\n\n`));
       }, HEARTBEAT_MS);
     },
     cancel() {
-      unsubscribe?.();
-      if (heartbeat) clearInterval(heartbeat);
+      cleanup();
     },
   });
 
