@@ -12,6 +12,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "backup": "node scripts/backup-db.mjs",
+    "backup:remote": "node scripts/backup-remote-db.mjs",
     "smoke-test": "node scripts/smoke-test.mjs"
   },
   "dependencies": {

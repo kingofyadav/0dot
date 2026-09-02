@@ -1,80 +1,72 @@
 # Database backups
 
-`scripts/backup-db.mjs` takes a hot backup of the SQLite database via
-`better-sqlite3`'s native backup API (SQLite's official online-backup
-mechanism) — safe to run while the app is serving traffic, unlike copying
-the `.db` file directly, which can capture a torn snapshot mid-write.
+Two separate scripts, for two separate `DATABASE_URL` shapes:
+
+- **Local dev** (`DATABASE_URL=file:./dev.db`) — `scripts/backup-db.mjs`,
+  a hot backup via `better-sqlite3`'s native backup API, written to disk
+  under `./backups`.
+- **Production/preview** (`DATABASE_URL=libsql://...`, remote Turso) —
+  `scripts/backup-remote-db.mjs`, described below. This is the one that
+  matters for prod — there is no local disk to snapshot for a remote DB.
+
+## Remote (Turso) backups
 
 ```bash
-node scripts/backup-db.mjs
+node scripts/backup-remote-db.mjs
+# or: npm run backup:remote
 ```
 
-Env vars (all optional):
+Shells out to the [Turso CLI](https://docs.turso.tech/cli/installation)
+(`turso db shell "<DATABASE_URL>?authToken=<DATABASE_AUTH_TOKEN>" ".dump"`)
+— a direct replica-URL connection using the database's own auth token, not
+`turso db shell <database-name>`, so it never depends on an interactive
+`turso auth login` session existing. The resulting SQL dump is uploaded to
+Vercel Blob as a **private** object (`backups/<label>-<timestamp>.sql`) —
+private, because a dump contains full user PII and must not be reachable
+via a public Blob URL.
 
-| Var | Default | Purpose |
+Env vars:
+
+| Var | Required | Purpose |
 |---|---|---|
-| `DATABASE_URL` | `file:./dev.db` | Same value the app uses |
-| `BACKUP_DIR` | `./backups` | Where `.bak` files are written |
-| `BACKUP_RETENTION_DAYS` | `14` | Backups older than this are pruned each run |
+| `DATABASE_URL` | yes | Remote libsql/Turso URL (refuses `file:` URLs) |
+| `DATABASE_AUTH_TOKEN` | yes | Turso database auth token for that URL |
+| `BLOB_READ_WRITE_TOKEN` | yes | Same Vercel Blob token the app uses |
+| `BACKUP_DB_LABEL` | no (default `db`) | Label used in the object name |
+| `BACKUP_RETENTION_DAYS` | no (default `30`) | Prune Blob backups older than this |
 
-## Scheduling on the VPS (systemd timer)
+### Scheduling
 
-`/etc/systemd/system/0dot-backup.service`:
+`.github/workflows/backup.yml` runs this daily at 03:30 UTC (after the
+native Vercel daily cron at 03:23) and on `workflow_dispatch`. It needs
+three **GitHub Actions repo secrets** (Settings → Secrets and variables →
+Actions) — copy the values straight from the Vercel Production environment,
+they are not created by the workflow:
 
-```ini
-[Unit]
-Description=0dot.in database backup
+- `DATABASE_URL`
+- `DATABASE_AUTH_TOKEN`
+- `BLOB_READ_WRITE_TOKEN`
 
-[Service]
-Type=oneshot
-WorkingDirectory=/opt/0dot-app
-EnvironmentFile=/opt/0dot-app/.env
-ExecStart=/usr/bin/node scripts/backup-db.mjs
-```
-
-`/etc/systemd/system/0dot-backup.timer`:
-
-```ini
-[Unit]
-Description=Run 0dot.in database backup daily
-
-[Timer]
-OnCalendar=daily
-Persistent=true
-
-[Install]
-WantedBy=timers.target
-```
-
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable --now 0dot-backup.timer
-sudo systemctl list-timers 0dot-backup.timer   # confirm it's scheduled
-sudo systemctl start 0dot-backup.service       # run once now to sanity-check
-```
-
-A plain cron entry works the same way if you'd rather not use systemd:
-
-```cron
-0 3 * * * cd /opt/0dot-app && /usr/bin/node scripts/backup-db.mjs >> /var/log/0dot-backup.log 2>&1
-```
-
-## Off-site copy
-
-Everything above still leaves every backup on the same disk as the live
-database — a disk failure takes both out at once. Once backups are landing
-reliably, add a second step that ships the latest file off the VPS (e.g.
-`rclone copy` to object storage, or `scp`/`rsync` to a second host) as part
-of the same service/cron job. Not automated yet — pick a destination first.
+Trigger a manual run any time from the Actions tab (`workflow_dispatch`) to
+sanity-check the pipeline or take an ad-hoc backup before a risky change.
 
 ## Restoring
 
-```bash
-# Stop the app first so nothing writes to the DB mid-restore.
-cp backups/dev.db.<timestamp>.bak prisma/dev.db   # or wherever DATABASE_URL points
-# Start the app back up.
-```
+There is no one-command restore — pick the path that fits the situation:
 
-No rollback/restore procedure has been tested end-to-end yet beyond this —
-worth a dry run against a copy of production before relying on it during a
-real incident.
+- **Spin up a scratch DB to inspect/verify a backup** (recommended before
+  ever relying on this for real): download the dump from Blob, then
+  `turso db shell <new-scratch-db-name> < dump.sql` after `turso db create
+  <new-scratch-db-name>`, or import into a local SQLite file with
+  `sqlite3 restored.db < dump.sql` and point a local `DATABASE_URL=file:./restored.db`
+  at it to boot the app against it.
+- **Actually replace production** (only during a real incident, and only
+  after the above verification step): create a new Turso database from the
+  dump, cut `DATABASE_URL`/`DATABASE_AUTH_TOKEN` over to it in Vercel, and
+  redeploy. Treat the previous (broken) database as evidence — don't
+  destroy it until the incident is closed.
+
+**Run the scratch-DB restore drill at least once** — either now, or before
+the first time this backup is actually needed for real — so "restore
+works" is a verified fact, not an assumption. As of 2026-09, this has not
+yet been done end-to-end against a real production dump.
