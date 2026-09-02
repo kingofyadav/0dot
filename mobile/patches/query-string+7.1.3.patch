@@ -1,0 +1,17 @@
+diff --git a/node_modules/query-string/index.js b/node_modules/query-string/index.js
+index d45e67d..cd8174d 100644
+--- a/node_modules/query-string/index.js
++++ b/node_modules/query-string/index.js
+@@ -1,6 +1,11 @@
+ 'use strict';
+ const strictUriEncode = require('strict-uri-encode');
+-const decodeComponent = require('decode-uri-component');
++const decodeUriComponentModule = require('decode-uri-component');
++// decode-uri-component >=0.5.0 ships as an ES module transpiled to CJS
++// ({ __esModule, default }); <0.5.0 exported the function directly. The
++// override in package.json forces 0.5.0 (the first release with the
++// GHSA-vcc3-ghjq-m6fr decode-bomb fix), so unwrap .default when present.
++const decodeComponent = decodeUriComponentModule.default || decodeUriComponentModule;
+ const splitOnFirst = require('split-on-first');
+ const filterObject = require('filter-obj');
+ 
