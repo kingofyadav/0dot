@@ -18,6 +18,7 @@ import { haptics } from "../../src/utils/haptics";
 import { getCached, setCached } from "../../src/utils/offlineCache";
 import { useAppForeground } from "../../src/utils/useAppForeground";
 import { useContentMaxWidth } from "../../src/utils/responsive";
+import { useTabBarContentPadding } from "../../src/utils/useTabBarInset";
 import { useTheme, type Theme } from "../../src/theme";
 import type { NotificationItem } from "../../src/api/types";
 
@@ -26,6 +27,7 @@ const CACHE_KEY = "notifications";
 export default function NotificationsScreen() {
   const theme = useTheme();
   const maxWidth = useContentMaxWidth();
+  const tabBarInset = useTabBarContentPadding();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const { refetch: refetchUnreadBadges } = useUnreadBadges();
 
@@ -132,7 +134,7 @@ export default function NotificationsScreen() {
   return (
     <FlatList
       style={[styles.screen, maxWidth ? { maxWidth, alignSelf: "center", width: "100%" } : null]}
-      contentContainerStyle={items.length === 0 ? styles.grow : undefined}
+      contentContainerStyle={[items.length === 0 && styles.grow, tabBarInset]}
       data={items}
       keyExtractor={(item) => item.id}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.accent} />}

@@ -44,6 +44,22 @@ export type Theme = {
   weight: { regular: "400"; label: "500"; emphasis: "600"; heading: "700" };
   shadow: { sm: ShadowStyle; md: ShadowStyle; lg: ShadowStyle };
   motion: { fast: number; base: number; slow: number; press: { damping: number; stiffness: number } };
+  // M15 (native-glass visual redesign, docs/specs/addendum-mobile-pro-
+  // upgrade.md §M15/D1): the restrained iOS Control-Center/nav-bar
+  // translucent-blur language — the persistent chrome (tab bar, BottomSheet)
+  // only, not decorative glassmorphism on every surface. `chromeTint` is
+  // passed straight to expo-blur's BlurView `tint`; intensities are 0–100
+  // BlurView values, kept distinct per scheme because a dark blur reads
+  // materially weaker than a light one at the same number.
+  glass: {
+    chromeTint: "light" | "dark";
+    chromeIntensity: number;
+    overlayIntensity: number;
+    // A hairline at `border`'s alpha can vanish against a blurred,
+    // content-varying backdrop — this is the stronger edge to use on top
+    // of a BlurView specifically (tab-bar top border, sheet top edge).
+    hairlineOnGlass: string;
+  };
 };
 
 // RN's shadow props (iOS) can't express web's dual-layer box-shadow
@@ -128,6 +144,12 @@ const light: Theme = {
   weight,
   shadow: lightShadow,
   motion,
+  glass: {
+    chromeTint: "light",
+    chromeIntensity: 40,
+    overlayIntensity: 18,
+    hairlineOnGlass: "rgba(23, 23, 23, 0.18)",
+  },
 };
 
 const dark: Theme = {
@@ -160,6 +182,12 @@ const dark: Theme = {
   weight,
   shadow: darkShadow,
   motion,
+  glass: {
+    chromeTint: "dark",
+    chromeIntensity: 55,
+    overlayIntensity: 30,
+    hairlineOnGlass: "rgba(237, 237, 237, 0.16)",
+  },
 };
 
 // M12 (settings/account parity): font-scale/high-contrast overrides,

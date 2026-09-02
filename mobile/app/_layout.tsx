@@ -15,6 +15,7 @@ import { OnboardingScreen } from "../src/screens/OnboardingScreen";
 import { subscribeToIncomingLinks } from "../src/links/universalLinks";
 import { subscribeToPushNavigation } from "../src/push/pushNavigation";
 import { hasSeenOnboarding, markOnboardingSeen } from "../src/utils/onboarding";
+import { useThemedAppIcon } from "../src/utils/useThemedAppIcon";
 import { useTheme } from "../src/theme";
 import { SENTRY_DSN } from "../src/config";
 
@@ -29,6 +30,10 @@ if (SENTRY_DSN) {
 function RootNavigator() {
   const { status } = useAuth();
   const theme = useTheme();
+
+  // Android: keep the launcher icon matched to the device's light/dark
+  // appearance (iOS does this itself from app.json's ios.icon variants).
+  useThemedAppIcon(theme.scheme);
 
   // Onboarding only ever makes sense ahead of sign-in, so it's read once
   // per cold start rather than gating every render — null means "haven't
@@ -119,7 +124,11 @@ function RootNavigator() {
       <Stack.Screen name="marketplace" options={{ title: "Marketplace" }} />
       <Stack.Screen name="events" options={{ title: "Events" }} />
       <Stack.Screen name="event/[slug]" options={{ title: "Event" }} />
-      <Stack.Screen name="live/[livestreamId]" options={{ title: "Live", headerStyle: { backgroundColor: "#000" }, headerTintColor: "#fff" }} />
+      {/* M15/D2: previously forced a literal #000 / #fff header, bypassing
+          the theme system for a screen whose own body (LivestreamViewerBody)
+          is already theme-aware — only its video area is legitimately black.
+          Inherits the themed Stack header like every other pushed screen. */}
+      <Stack.Screen name="live/[livestreamId]" options={{ title: "Live" }} />
       <Stack.Screen name="wallet" options={{ title: "Wallet" }} />
       <Stack.Screen name="wallet/transactions" options={{ title: "Activity" }} />
       <Stack.Screen name="wallet/referral" options={{ title: "Invite & earn" }} />

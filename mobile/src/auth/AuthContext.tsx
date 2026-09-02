@@ -17,6 +17,12 @@ type AuthContextValue = {
   signOut: () => Promise<void>;
   unlock: () => Promise<void>;
   clearError: () => void;
+  // Re-fetch the signed-in user. `status` flips to "signedIn" as soon as
+  // tokens restore — independent of whether `getMe()` has resolved — so a
+  // slow or failed /me on cold start leaves `me` null with the app
+  // otherwise usable. Screens that can't render without `me` (the profile
+  // tab) call this to retry rather than sitting on a dead blank screen.
+  refreshMe: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -39,6 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loadMe = useCallback(async () => {
     try {
       setMe(await getMe());
+      setError(null);
     } catch (err) {
       // api/client.ts's authorizedRequest already tries one silent
       // refresh-and-retry on a 401 — reaching here as a 401 means that
@@ -154,8 +161,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const status: AuthStatus = loading ? "loading" : locked ? "locked" : tokens ? "signedIn" : "signedOut";
 
+  // Self-heal a failed cold-start /me: if we're signed in but `me` never
+  // arrived (a slow backend or a transient 5xx — the 401 path already
+  // signs out), retry a few times with backoff rather than leaving the
+  // app in a half-loaded state until the user manually pulls to refresh.
+  useEffect(() => {
+    if (status !== "signedIn" || me) return;
+    let cancelled = false;
+    let attempt = 0;
+    const tick = () => {
+      if (cancelled) return;
+      attempt += 1;
+      loadMe().finally(() => {
+        if (cancelled || attempt >= 4) return;
+        timer = setTimeout(tick, 2000 * attempt);
+      });
+    };
+    let timer = setTimeout(tick, 2000);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [status, me, loadMe]);
+
   return (
-    <AuthContext.Provider value={{ status, tokens, me, error, signIn, signOut, unlock, clearError: () => setError(null) }}>
+    <AuthContext.Provider
+      value={{ status, tokens, me, error, signIn, signOut, unlock, clearError: () => setError(null), refreshMe: loadMe }}
+    >
       {children}
     </AuthContext.Provider>
   );

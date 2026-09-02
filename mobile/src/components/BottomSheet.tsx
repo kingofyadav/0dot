@@ -1,5 +1,6 @@
 import { useEffect, type ReactNode } from "react";
-import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { Modal, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { BlurView } from "expo-blur";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   runOnJS,
@@ -42,6 +43,20 @@ const DISMISS_VELOCITY = 800;
 // now a Reanimated shared value driving both the programmatic open/close
 // animation and the gesture, rather than two separate animation systems
 // disagreeing about the sheet's position.
+//
+// M15/D2: the backdrop and the sheet surface both became BlurViews — the
+// backdrop a light frost (glass.overlayIntensity) over a faint wash, the
+// sheet itself the same chrome material the tab bar uses
+// (glass.chromeTint/chromeIntensity). Pure background-layer swaps: the
+// radius/shadow/keyboard-lift/drag-to-dismiss logic is all untouched.
+//
+// expo-blur only blurs on iOS — on Android it renders a weak translucent
+// tint, which left the sheet's content floating over a barely-dimmed
+// screen with almost no surface behind it. So the blur layers are
+// iOS-only; Android gets a solid themed surface + a real dark scrim, the
+// same as the platform's own bottom sheets.
+const USE_BLUR = Platform.OS === "ios";
+
 export function BottomSheet({ visible, onClose, title, children }: Props) {
   const theme = useTheme();
   const styles = createStyles(theme);
@@ -94,18 +109,40 @@ export function BottomSheet({ visible, onClose, title, children }: Props) {
       navigationBarTranslucent
     >
       <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Dismiss" accessibilityRole="button">
-        <Animated.View style={[StyleSheet.absoluteFill, styles.backdrop, backdropStyle]} />
+        <Animated.View style={[StyleSheet.absoluteFill, backdropStyle]}>
+          {USE_BLUR ? (
+            <BlurView
+              tint={theme.glass.chromeTint}
+              intensity={theme.glass.overlayIntensity}
+              style={StyleSheet.absoluteFill}
+            />
+          ) : null}
+          <View style={[StyleSheet.absoluteFill, USE_BLUR ? styles.backdropWash : styles.backdropScrim]} />
+        </Animated.View>
       </Pressable>
-      <Animated.View style={[styles.sheet, { backgroundColor: theme.colors.surface }, sheetStyle]}>
-        <SafeAreaView edges={["bottom"]}>
-          <GestureDetector gesture={pan}>
-            <View style={styles.dragArea}>
-              <View style={styles.handle} />
-              {title ? <Text style={styles.title}>{title}</Text> : null}
-            </View>
-          </GestureDetector>
-          {children}
-        </SafeAreaView>
+      <Animated.View style={[styles.sheet, sheetStyle]}>
+        {/* Inner clip layer: overflow:hidden keeps the BlurView inside the
+            rounded top corners without also clipping the outer view's
+            shadow (which needs overflow visible on iOS). */}
+        <View style={styles.sheetClip}>
+          {USE_BLUR ? (
+            <BlurView
+              tint={theme.glass.chromeTint}
+              intensity={theme.glass.chromeIntensity}
+              style={StyleSheet.absoluteFill}
+            />
+          ) : null}
+          <View style={[StyleSheet.absoluteFill, USE_BLUR ? styles.sheetWash : styles.sheetSolid]} />
+          <SafeAreaView edges={["bottom"]} style={styles.sheetContent}>
+            <GestureDetector gesture={pan}>
+              <View style={styles.dragArea}>
+                <View style={styles.handle} />
+                {title ? <Text style={styles.title}>{title}</Text> : null}
+              </View>
+            </GestureDetector>
+            {children}
+          </SafeAreaView>
+        </View>
       </Animated.View>
     </Modal>
   );
@@ -113,7 +150,13 @@ export function BottomSheet({ visible, onClose, title, children }: Props) {
 
 function createStyles(theme: Theme) {
   return StyleSheet.create({
-    backdrop: { backgroundColor: "rgba(0, 0, 0, 0.4)" },
+    // A faint dark wash over the frosted (iOS) backdrop so the content
+    // behind still reads as dimmed, not just softened — the blur alone can
+    // leave a bright photo underneath too legible.
+    backdropWash: { backgroundColor: "rgba(0, 0, 0, 0.28)" },
+    // Android has no blur behind it, so the scrim does the whole job of
+    // separating the sheet from the screen — the standard Material dim.
+    backdropScrim: { backgroundColor: "rgba(0, 0, 0, 0.45)" },
     sheet: {
       position: "absolute",
       left: 0,
@@ -121,10 +164,24 @@ function createStyles(theme: Theme) {
       bottom: 0,
       borderTopLeftRadius: theme.radius.lg,
       borderTopRightRadius: theme.radius.lg,
+      ...theme.shadow.lg,
+    },
+    sheetClip: {
+      borderTopLeftRadius: theme.radius.lg,
+      borderTopRightRadius: theme.radius.lg,
+      overflow: "hidden",
+    },
+    // Tints the chrome blur toward the theme surface so text on the sheet
+    // keeps its contrast regardless of what's behind it — the same role
+    // the old solid `theme.colors.surface` fill played, at a translucency
+    // that lets the blur still read.
+    sheetWash: { backgroundColor: theme.scheme === "dark" ? "rgba(19, 19, 19, 0.55)" : "rgba(251, 250, 248, 0.6)" },
+    // Android: no blur, so the sheet is a plain opaque surface.
+    sheetSolid: { backgroundColor: theme.colors.surface },
+    sheetContent: {
       paddingHorizontal: theme.space[5],
       paddingTop: theme.space[3],
       paddingBottom: theme.space[4],
-      ...theme.shadow.lg,
     },
     dragArea: { paddingBottom: theme.space[1] },
     handle: {
@@ -132,7 +189,7 @@ function createStyles(theme: Theme) {
       width: 36,
       height: 4,
       borderRadius: theme.radius.full,
-      backgroundColor: theme.colors.border,
+      backgroundColor: theme.glass.hairlineOnGlass,
       marginBottom: theme.space[3],
     },
     title: { fontSize: theme.text.lg, fontWeight: theme.weight.heading, color: theme.colors.foreground, marginBottom: theme.space[3] },

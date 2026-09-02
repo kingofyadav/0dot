@@ -1,5 +1,6 @@
 import { Tabs } from "expo-router";
-import { StyleSheet, Text, View, type ColorValue } from "react-native";
+import { Platform, StyleSheet, Text, View, type ColorValue } from "react-native";
+import { BlurView } from "expo-blur";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTheme, type Theme } from "../../src/theme";
 import { useUnreadBadges } from "../../src/realtime/UnreadBadgeContext";
@@ -48,7 +49,34 @@ export default function TabsLayout() {
         headerStyle: { backgroundColor: theme.colors.surface },
         headerTitleStyle: { fontWeight: theme.weight.emphasis, color: theme.colors.foreground },
         headerTintColor: theme.colors.foreground,
-        tabBarStyle: { backgroundColor: theme.colors.surface, borderTopColor: theme.colors.border },
+        // M15/D2: the tab bar becomes translucent glass — absolutely
+        // positioned so screen content scrolls *under* it (that's what the
+        // blur has to sample), a transparent own-background so only the
+        // tabBarBackground paints, and the stronger on-glass hairline for
+        // its top edge. The 5 tab-root screens each add a matching bottom
+        // inset (useTabBarContentPadding) so nothing ends up trapped behind
+        // it.
+        tabBarStyle: {
+          position: "absolute",
+          backgroundColor: "transparent",
+          borderTopColor: theme.glass.hairlineOnGlass,
+        },
+        // expo-blur only produces a real blur on iOS — on Android it falls
+        // back to a thin translucent tint, which over a `transparent` bar
+        // left feed content clearly legible *through* the tab labels. So
+        // iOS gets the genuine frosted-glass material; Android gets a
+        // solid themed surface (the same treatment as the platform's own
+        // Material nav bars), so the bar is always fully opaque there.
+        tabBarBackground: () =>
+          Platform.OS === "ios" ? (
+            <BlurView
+              tint={theme.glass.chromeTint}
+              intensity={theme.glass.chromeIntensity}
+              style={StyleSheet.absoluteFill}
+            />
+          ) : (
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: theme.colors.surface }]} />
+          ),
         tabBarActiveTintColor: theme.colors.accent,
         tabBarInactiveTintColor: theme.colors.mutedForeground,
       }}

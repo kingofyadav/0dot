@@ -1,8 +1,8 @@
 {
   "expo": {
     "name": "0dot",
-    "slug": "zerodot",
-    "owner": "0dot",
+    "slug": "0dot",
+    "owner": "kingofyadav",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -68,7 +68,7 @@
     },
     "extra": {
       "eas": {
-        "projectId": "89a03d8a-a71c-4cea-8e0f-3b77f591a9de"
+        "projectId": "50c9f08d-e5bf-45fa-883c-1995c81846f2"
       }
     },
     "plugins": [
@@ -100,14 +100,8 @@
           "microphonePermission": false
         }
       ],
-      [
-        "@sentry/react-native/expo",
-        {
-          "disableAutoUpload": true
-        }
-      ],
+      "@sentry/react-native/expo",
       "expo-sharing",
-      "@sentry/react-native",
       "expo-audio",
       [
         "@config-plugins/react-native-webrtc",
@@ -115,13 +109,21 @@
           "microphonePermission": "0dot uses your microphone so you can speak in community voice rooms."
         }
       ],
-      "expo-asset"
+      "expo-asset",
+      [
+        "./plugins/withThemedAppIcons",
+        {
+          "name": "light",
+          "background": "#FFFFFF",
+          "foregroundSrc": "./assets/android-icon-foreground.png"
+        }
+      ]
     ],
     "runtimeVersion": {
       "policy": "appVersion"
     },
     "updates": {
-      "url": "https://u.expo.dev/89a03d8a-a71c-4cea-8e0f-3b77f591a9de"
+      "url": "https://u.expo.dev/50c9f08d-e5bf-45fa-883c-1995c81846f2"
     }
   }
 }

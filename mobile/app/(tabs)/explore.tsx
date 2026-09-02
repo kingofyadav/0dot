@@ -31,6 +31,7 @@ import { FeedRowSkeleton } from "../../src/components/Skeleton";
 import { animateNextLayout } from "../../src/utils/animateLayout";
 import { haptics } from "../../src/utils/haptics";
 import { useContentMaxWidth } from "../../src/utils/responsive";
+import { useTabBarContentPadding } from "../../src/utils/useTabBarInset";
 import { useTheme, type Theme } from "../../src/theme";
 import { API_BASE_URL } from "../../src/config";
 import type { Post, SearchUser, CommunitySummary, BusinessSummary, EventSearchResult, MarketplaceItem } from "../../src/api/types";
@@ -56,6 +57,7 @@ function formatWhen(iso: string): string {
 export default function ExploreScreen() {
   const theme = useTheme();
   const maxWidth = useContentMaxWidth();
+  const tabBarInset = useTabBarContentPadding();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const { me } = useAuth();
 
@@ -206,7 +208,7 @@ export default function ExploreScreen() {
       </View>
 
       {!debouncedQuery ? (
-        <DiscoverHub />
+        <DiscoverHub bottomInset={tabBarInset.paddingBottom} />
       ) : loading ? (
         <View style={styles.flex}>
           {[0, 1, 2].map((i) => (
@@ -216,6 +218,7 @@ export default function ExploreScreen() {
       ) : tab === "users" ? (
         <FlatList
           style={styles.flex}
+          contentContainerStyle={tabBarInset}
           data={users}
           keyExtractor={(user) => user.username}
           renderItem={({ item }) => <UserRow user={item} onPress={() => router.push(`/${item.username}`)} />}
@@ -224,6 +227,7 @@ export default function ExploreScreen() {
       ) : tab === "posts" ? (
         <FlatList
           style={styles.flex}
+          contentContainerStyle={tabBarInset}
           data={posts}
           keyExtractor={(post) => post.id}
           onEndReached={onPostsEndReached}
@@ -245,6 +249,7 @@ export default function ExploreScreen() {
       ) : tab === "communities" ? (
         <FlatList
           style={styles.flex}
+          contentContainerStyle={tabBarInset}
           data={communities}
           keyExtractor={(item) => item.slug}
           ListEmptyComponent={<EmptyState icon="people-circle-outline" message={error ?? `No communities found for "${debouncedQuery}".`} />}
@@ -266,6 +271,7 @@ export default function ExploreScreen() {
       ) : tab === "businesses" ? (
         <FlatList
           style={styles.flex}
+          contentContainerStyle={tabBarInset}
           data={businesses}
           keyExtractor={(item) => item.slug}
           ListEmptyComponent={<EmptyState icon="storefront-outline" message={error ?? `No businesses found for "${debouncedQuery}".`} />}
@@ -288,6 +294,7 @@ export default function ExploreScreen() {
       ) : tab === "events" ? (
         <FlatList
           style={styles.flex}
+          contentContainerStyle={tabBarInset}
           data={events}
           keyExtractor={(item) => item.slug}
           ListEmptyComponent={<EmptyState icon="calendar-outline" message={error ?? `No events found for "${debouncedQuery}".`} />}
@@ -309,6 +316,7 @@ export default function ExploreScreen() {
       ) : (
         <FlatList
           style={styles.flex}
+          contentContainerStyle={tabBarInset}
           data={marketplaceItems}
           keyExtractor={(item) => `${item.category}-${item.id}`}
           ListEmptyComponent={<EmptyState icon="bag-outline" message={error ?? `No marketplace results found for "${debouncedQuery}".`} />}

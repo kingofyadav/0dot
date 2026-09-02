@@ -1,14 +1,29 @@
 import { useEffect, useMemo, useState } from "react";
-import { Animated, Easing, StyleSheet, View, type DimensionValue } from "react-native";
+import { StyleSheet, View, type DimensionValue } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import Animated, {
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from "react-native-reanimated";
 import { useTheme, type Theme } from "../theme";
 
-// One shared pulsing placeholder, composed per-screen (feed/notifications/
-// profile each arrange a few of these into their own card shape) instead of
-// each screen re-implementing the animation loop.
+// One shared placeholder, composed per-screen (feed/notifications/profile
+// each arrange a few of these into their own card shape) instead of each
+// screen re-implementing the animation loop.
+//
+// M15/D3: the flat opacity pulse became a moving highlight sweep (the
+// "shimmer" every polished app's loading state has) — a LinearGradient
+// band translated across the block via Reanimated. Falls back to the
+// original opacity pulse when Reduce Motion is on, the same gate
+// usePressScale/animateLayout already use. Default corner radius is now
+// theme.radius.sm (was a bare `6`, matching no radius step).
 export function SkeletonBlock({
   width,
   height,
-  radius = 6,
+  radius,
   style,
 }: {
   width: DimensionValue;
@@ -17,26 +32,55 @@ export function SkeletonBlock({
   style?: object;
 }) {
   const theme = useTheme();
-  const [opacity] = useState(() => new Animated.Value(0.35));
+  const reduceMotion = useReducedMotion();
+  const cornerRadius = radius ?? theme.radius.sm;
+  const [blockWidth, setBlockWidth] = useState(0);
+
+  // Drives the sweep (0 → 1, translateX from off the left edge to off the
+  // right) when motion is allowed, and the opacity pulse otherwise — one
+  // shared value, one of two loops depending on the reduced-motion signal.
+  const progress = useSharedValue(reduceMotion ? 0.35 : 0);
 
   useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(opacity, { toValue: 1, duration: 650, easing: Easing.ease, useNativeDriver: true }),
-        Animated.timing(opacity, { toValue: 0.35, duration: 650, easing: Easing.ease, useNativeDriver: true }),
-      ])
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [opacity]);
+    if (reduceMotion) {
+      progress.value = withRepeat(withTiming(1, { duration: 650 }), -1, true);
+    } else {
+      progress.value = withRepeat(withTiming(1, { duration: 1100 }), -1, false);
+    }
+  }, [reduceMotion, progress]);
+
+  const pulseStyle = useAnimatedStyle(() => ({ opacity: reduceMotion ? progress.value : 1 }));
+  const sweepStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: -blockWidth + progress.value * (blockWidth * 2) }],
+  }));
 
   return (
     <Animated.View
+      onLayout={(e) => setBlockWidth(e.nativeEvent.layout.width)}
       style={[
-        { width, height, borderRadius: radius, backgroundColor: theme.colors.border, opacity },
+        { width, height, borderRadius: cornerRadius, backgroundColor: theme.colors.border, overflow: "hidden" },
+        pulseStyle,
         style,
       ]}
-    />
+    >
+      {!reduceMotion && blockWidth > 0 ? (
+        <Animated.View style={[StyleSheet.absoluteFill, sweepStyle]}>
+          <LinearGradient
+            // A brightening band, not a color block — a translucent white
+            // lift over the base fill so it reads as light passing across,
+            // dimmer in dark mode where the same alpha would glare.
+            colors={[
+              "transparent",
+              theme.scheme === "dark" ? "rgba(255, 255, 255, 0.07)" : "rgba(255, 255, 255, 0.55)",
+              "transparent",
+            ]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={StyleSheet.absoluteFill}
+          />
+        </Animated.View>
+      ) : null}
+    </Animated.View>
   );
 }
 

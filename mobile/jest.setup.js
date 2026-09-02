@@ -16,7 +16,7 @@ jest.mock("react-native-reanimated", () => {
   // standard pattern this repo's own test files already use for the same
   // reason.
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { View, Text, FlatList } = require("react-native");
+  const { View, Text, FlatList, ScrollView } = require("react-native");
 
   function useSharedValue(initial) {
     return { value: initial };
@@ -52,6 +52,11 @@ jest.mock("react-native-reanimated", () => {
   function withTiming(toValue) {
     return toValue;
   }
+  // Skeleton's shimmer/pulse loop (M15) — under Jest there's no animation
+  // frame loop, so this just resolves to the target value like the others.
+  function withRepeat(animation) {
+    return animation;
+  }
   function createAnimatedComponent(Component) {
     return Component;
   }
@@ -61,9 +66,29 @@ jest.mock("react-native-reanimated", () => {
     return (...args) => fn(...args);
   }
 
+  // Layout-animation builders (FadeIn / FadeInDown / …) used for the
+  // pre-login screens' entrance transitions. Real Reanimated exposes them
+  // as chainable builder objects (`FadeInDown.duration(400).delay(80)`);
+  // under Jest there's no animation loop, so a self-returning stub covers
+  // every chained call and the `entering={…}` prop is ignored by the
+  // plain View the mock substitutes for Animated.View.
+  function makeLayoutAnimStub() {
+    const stub = new Proxy(
+      {},
+      {
+        get: () => () => stub,
+      }
+    );
+    return stub;
+  }
+  const FadeIn = makeLayoutAnimStub();
+  const FadeInDown = makeLayoutAnimStub();
+  const FadeInUp = makeLayoutAnimStub();
+  const FadeOut = makeLayoutAnimStub();
+
   return {
     __esModule: true,
-    default: { View, Text, FlatList, createAnimatedComponent },
+    default: { View, Text, FlatList, ScrollView, createAnimatedComponent },
     useSharedValue,
     useAnimatedStyle,
     useReducedMotion,
@@ -72,9 +97,14 @@ jest.mock("react-native-reanimated", () => {
     useAnimatedScrollHandler,
     withSpring,
     withTiming,
+    withRepeat,
     runOnJS,
     interpolate: () => 0,
     Extrapolation: { CLAMP: "clamp", EXTEND: "extend", IDENTITY: "identity" },
+    FadeIn,
+    FadeInDown,
+    FadeInUp,
+    FadeOut,
   };
 });
 

@@ -15,6 +15,7 @@ import { animateNextLayout } from "../../src/utils/animateLayout";
 import { haptics } from "../../src/utils/haptics";
 import { getCached, setCached } from "../../src/utils/offlineCache";
 import { useAppForeground } from "../../src/utils/useAppForeground";
+import { useTabBarContentPadding } from "../../src/utils/useTabBarInset";
 import { useContentMaxWidth } from "../../src/utils/responsive";
 import { useTheme, type Theme } from "../../src/theme";
 import type { Post } from "../../src/api/types";
@@ -24,6 +25,7 @@ const CACHE_KEY = "feed";
 export default function HomeScreen() {
   const theme = useTheme();
   const maxWidth = useContentMaxWidth();
+  const tabBarInset = useTabBarContentPadding();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const { me } = useAuth();
 
@@ -212,7 +214,7 @@ export default function HomeScreen() {
         <FlatList
           ref={listRef}
           style={styles.screen}
-          contentContainerStyle={posts.length === 0 ? styles.grow : undefined}
+          contentContainerStyle={[posts.length === 0 && styles.grow, tabBarInset]}
           data={posts}
           keyExtractor={(post) => post.id}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.accent} />}
@@ -243,7 +245,12 @@ export default function HomeScreen() {
             />
           )}
         />
-        <FAB icon="add" accessibilityLabel="New post" onPress={() => router.push("/compose")} />
+        <FAB
+          icon="add"
+          accessibilityLabel="New post"
+          onPress={() => router.push("/compose")}
+          bottomInset={tabBarInset.paddingBottom}
+        />
         {hasNewPosts ? (
           <Pressable
             onPress={onNewPostsPress}

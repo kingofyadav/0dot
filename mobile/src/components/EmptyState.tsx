@@ -1,8 +1,12 @@
 import { useMemo, type ReactNode } from "react";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import Animated from "react-native-reanimated";
 import { useTheme, type Theme } from "../theme";
 import { haptics } from "../utils/haptics";
+import { usePressScale } from "../utils/usePressScale";
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 type Props = {
   icon: keyof typeof Ionicons.glyphMap;
@@ -27,6 +31,10 @@ export function EmptyState({ icon, message, title, description, action, onRetry 
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const heading = title ?? message;
+  // M15/D3: the retry button used a bare `pressed ? 0.6 : 1` opacity
+  // callback — now the same shared spring press feedback every other
+  // pressable in the app uses.
+  const retryPress = usePressScale();
 
   return (
     <View style={styles.container}>
@@ -37,17 +45,19 @@ export function EmptyState({ icon, message, title, description, action, onRetry 
       {description ? <Text style={styles.description}>{description}</Text> : null}
       {action ? <View style={styles.action}>{action}</View> : null}
       {onRetry ? (
-        <Pressable
+        <AnimatedPressable
           onPress={() => {
             haptics.light();
             onRetry();
           }}
+          onPressIn={retryPress.onPressIn}
+          onPressOut={retryPress.onPressOut}
           accessibilityRole="button"
           accessibilityLabel="Retry"
-          style={({ pressed }) => [styles.retryButton, { opacity: pressed ? 0.6 : 1 }]}
+          style={[styles.retryButton, retryPress.animatedStyle]}
         >
           <Text style={styles.retryText}>Try again</Text>
-        </Pressable>
+        </AnimatedPressable>
       ) : null}
     </View>
   );

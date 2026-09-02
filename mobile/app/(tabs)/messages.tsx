@@ -11,12 +11,14 @@ import { useUnreadBadges } from "../../src/realtime/UnreadBadgeContext";
 import { animateNextLayout } from "../../src/utils/animateLayout";
 import { haptics } from "../../src/utils/haptics";
 import { useContentMaxWidth } from "../../src/utils/responsive";
+import { useTabBarContentPadding } from "../../src/utils/useTabBarInset";
 import { useTheme, type Theme } from "../../src/theme";
 import type { ConversationSummary } from "../../src/api/types";
 
 export default function MessagesScreen() {
   const theme = useTheme();
   const maxWidth = useContentMaxWidth();
+  const tabBarInset = useTabBarContentPadding();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const { refetch: refetchUnreadBadges } = useUnreadBadges();
 
@@ -107,7 +109,7 @@ export default function MessagesScreen() {
       <View style={[styles.contentWrap, maxWidth ? { maxWidth, alignSelf: "center", width: "100%" } : null]}>
         <FlatList
           style={styles.screen}
-          contentContainerStyle={conversations.length === 0 ? styles.grow : undefined}
+          contentContainerStyle={[conversations.length === 0 && styles.grow, tabBarInset]}
           data={conversations}
           keyExtractor={(c) => c.id}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.accent} />}
@@ -138,7 +140,12 @@ export default function MessagesScreen() {
             />
           )}
         />
-        <FAB icon="create-outline" accessibilityLabel="New message" onPress={() => router.push("/messages/new")} />
+        <FAB
+          icon="create-outline"
+          accessibilityLabel="New message"
+          onPress={() => router.push("/messages/new")}
+          bottomInset={tabBarInset.paddingBottom}
+        />
       </View>
     </View>
   );

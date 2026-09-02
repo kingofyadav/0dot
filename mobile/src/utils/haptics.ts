@@ -9,6 +9,8 @@ const supported = Platform.OS === "ios" || Platform.OS === "android";
 
 // Light: low-stakes state toggles (mark-all-read, retry, pull-to-refresh).
 // Medium: a confirmed, harder-to-undo action (sign out).
+// Selection: a discrete value ticked past (onboarding page changes) — the
+// lightest cue, distinct from an impact.
 // Warning: something went wrong (a failed action surfaced to the user).
 export const haptics = {
   light: () => {
@@ -16,6 +18,9 @@ export const haptics = {
   },
   medium: () => {
     if (supported) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  },
+  selection: () => {
+    if (supported) Haptics.selectionAsync();
   },
   warning: () => {
     if (supported) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);

@@ -11,12 +11,15 @@ import { useTheme, type Theme } from "../theme";
 // (and from search results, once those domains grow their own search
 // tabs), not from the tab bar directly — five new domains would overflow
 // a 5-tab bar built for Home/Explore/Messages/Notifications/Profile.
-export function DiscoverHub() {
+// M15/D2: the tab bar is now translucent glass positioned over the content,
+// so Explore passes the measured bar height for the hub's scroll content to
+// clear it — same inset every tab-root screen's list adds.
+export function DiscoverHub({ bottomInset = 0 }: { bottomInset?: number } = {}) {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   return (
-    <ScrollView contentContainerStyle={styles.content}>
+    <ScrollView contentContainerStyle={[styles.content, { paddingBottom: theme.space[5] + bottomInset }]}>
       <View style={styles.header}>
         <Ionicons name="search-outline" size={28} color={theme.colors.mutedForeground} />
         <Text style={styles.headerText}>Search for people and posts, or browse below.</Text>

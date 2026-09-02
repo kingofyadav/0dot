@@ -32,5 +32,8 @@ export function Card({ children, elevated, style }: { children: ReactNode; eleva
 }
 
 const styles = StyleSheet.create({
-  card: { borderWidth: 1 },
+  // M15/D3: was a full 1px while every other bordered surface in the app
+  // (Chip, Button, ListRow, the settings groups) uses a true hairline —
+  // 1px reads noticeably heavier than a hairline on a 3x screen.
+  card: { borderWidth: StyleSheet.hairlineWidth },
 });

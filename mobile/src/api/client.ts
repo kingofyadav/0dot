@@ -175,7 +175,11 @@ async function authorizedRequest<T>(
     );
   } catch (err) {
     if (isAbortError(err)) throw new ApiError("Request timed out. Check your connection and try again.", 0);
-    throw err;
+    // A raw fetch rejection is always a connectivity problem (no network,
+    // DNS/TLS failure, captive portal) — the underlying message is a
+    // platform stack-trace string ("java.net.UnknownHostException…") that
+    // should never reach a user. Normalize it like the timeout case above.
+    throw new ApiError("Couldn't reach 0dot. Check your connection and try again.", 0);
   }
 
   // A 401 here means the access token is dead — expired (the common case)

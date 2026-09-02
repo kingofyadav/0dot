@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, RefreshControl, Share, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Platform, Pressable, RefreshControl, Share, StyleSheet, Text, View } from "react-native";
 import { Image } from "expo-image";
+import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import Animated, {
   Extrapolation,
@@ -58,7 +59,20 @@ const CONTENT_TABS: { key: ContentTabKey; label: string }[] = [
 // between the two call sites is which username they pass in and whether a
 // Settings shortcut belongs in the header — not a second copy of this
 // logic to keep in sync by hand.
-export function ProfileScreenBody({ username, showSettingsShortcut = false }: { username: string; showSettingsShortcut?: boolean }) {
+export function ProfileScreenBody({
+  username,
+  showSettingsShortcut = false,
+  bottomInset = 0,
+}: {
+  username: string;
+  showSettingsShortcut?: boolean;
+  // M15/D4: only the profile *tab* passes this (useBottomTabBarHeight) —
+  // it's the one render path where the now-translucent glass tab bar sits
+  // over this screen's post list. app/[username].tsx renders the same body
+  // pushed on the stack, where the tab bar isn't visible at all, so it
+  // passes nothing and this stays 0.
+  bottomInset?: number;
+}) {
   const theme = useTheme();
   const maxWidth = useContentMaxWidth();
   const { me } = useAuth();
@@ -306,6 +320,7 @@ export function ProfileScreenBody({ username, showSettingsShortcut = false }: { 
     <>
       <Animated.FlatList
         style={[styles.screen, maxWidth ? { maxWidth, alignSelf: "center", width: "100%" } : null]}
+        contentContainerStyle={bottomInset ? { paddingBottom: bottomInset } : undefined}
         data={posts}
         keyExtractor={(post: Post) => post.id}
         onScroll={scrollHandler}
@@ -325,7 +340,17 @@ export function ProfileScreenBody({ username, showSettingsShortcut = false }: { 
           />
         )}
         ListFooterComponent={postsLoadingMore ? <ActivityIndicator style={styles.footerSpinner} color={theme.colors.accent} /> : null}
-        ListEmptyComponent={<EmptyState icon="document-text-outline" message="No posts yet." />}
+        ListEmptyComponent={
+          // A compact inline placeholder — not the full centred EmptyState.
+          // This screen's header is tall, and the tab bar is absolute
+          // glass over the list, so a big vertically-centred empty state
+          // ends up jammed against (or behind) the bar. This sits calmly
+          // just under the content tabs, like X's "you haven't posted" row.
+          <View style={styles.emptyPosts}>
+            <Ionicons name="document-text-outline" size={22} color={theme.colors.mutedForeground} />
+            <Text style={styles.emptyPostsText}>No posts yet.</Text>
+          </View>
+        }
         ListHeaderComponent={
           <View>
             <View style={styles.coverClip}>
@@ -358,30 +383,17 @@ export function ProfileScreenBody({ username, showSettingsShortcut = false }: { 
                 style={styles.coverScrim}
               />
               <View style={styles.headerButtons}>
-                <Pressable onPress={onShare} accessibilityRole="button" accessibilityLabel="Share profile" hitSlop={8} style={styles.headerButton}>
-                  <Ionicons name="share-outline" size={20} color="#fff" />
-                </Pressable>
+                <GlassIconButton icon="share-outline" label="Share profile" onPress={onShare} theme={theme} />
                 {showSettingsShortcut ? (
-                  <Pressable
-                    onPress={() => router.push("/settings")}
-                    accessibilityRole="button"
-                    accessibilityLabel="Settings"
-                    hitSlop={8}
-                    style={styles.headerButton}
-                  >
-                    <Ionicons name="settings-outline" size={20} color="#fff" />
-                  </Pressable>
+                  <GlassIconButton icon="settings-outline" label="Settings" onPress={() => router.push("/settings")} theme={theme} />
                 ) : !profile.isOwnProfile ? (
-                  <Pressable
+                  <GlassIconButton
+                    icon="ellipsis-horizontal"
+                    label="More options"
                     onPress={onBlockPress}
                     disabled={blocking}
-                    accessibilityRole="button"
-                    accessibilityLabel="More options"
-                    hitSlop={8}
-                    style={[styles.headerButton, blocking && { opacity: 0.6 }]}
-                  >
-                    <Ionicons name="ellipsis-horizontal" size={20} color="#fff" />
-                  </Pressable>
+                    theme={theme}
+                  />
                 ) : null}
               </View>
             </View>
@@ -470,9 +482,47 @@ export function ProfileScreenBody({ username, showSettingsShortcut = false }: { 
   );
 }
 
+// M15/D4: the cover header buttons' hardcoded `rgba(0,0,0,0.6)` disc
+// becomes a fixed-dark BlurView chip — the same treatment real iOS apps
+// use for controls floating over a photo of unknown brightness (fixed
+// dark, not theme-following, precisely because the backdrop is a user
+// photo, not an app surface). Clipped to the circle via overflow:hidden.
+function GlassIconButton({
+  icon,
+  label,
+  onPress,
+  disabled,
+  theme,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  onPress: () => void;
+  disabled?: boolean;
+  theme: Theme;
+}) {
+  const styles = createStyles(theme);
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      hitSlop={8}
+      style={[styles.headerButton, disabled && { opacity: 0.6 }]}
+    >
+      {/* Real frosted glass on iOS; on Android (no blur) the solid dark
+          disc from `headerButton`'s backgroundColor carries it. */}
+      {Platform.OS === "ios" ? <BlurView tint="dark" intensity={36} style={StyleSheet.absoluteFill} /> : null}
+      <Ionicons name={icon} size={20} color="#fff" />
+    </Pressable>
+  );
+}
+
 function createStyles(theme: Theme) {
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: theme.colors.background },
+    emptyPosts: { alignItems: "center", gap: theme.space[2], paddingTop: theme.space[8], paddingHorizontal: theme.space[6] },
+    emptyPostsText: { color: theme.colors.mutedForeground, fontSize: theme.text.sm },
     // overflow: hidden clips the cover's scroll-driven overscroll stretch
     // (scale transform) to the cover's own bounds, rather than letting the
     // scaled-up image spill into the avatar/name area below it.
@@ -492,12 +542,17 @@ function createStyles(theme: Theme) {
     // previous theme.colors.foreground (which assumed a plain background,
     // not a photo underneath).
     headerButton: {
-      minWidth: 36,
-      minHeight: 36,
+      width: 36,
+      height: 36,
       borderRadius: 18,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: "rgba(0, 0, 0, 0.6)",
+      overflow: "hidden",
+      // The disc under the icon: on iOS it's the tint the BlurView paints
+      // over for the split second before the blur resolves; on Android
+      // (no blur) it's the whole treatment — a touch more opaque there so
+      // the white icon stays legible over a bright cover photo.
+      backgroundColor: Platform.OS === "ios" ? "rgba(0, 0, 0, 0.4)" : "rgba(0, 0, 0, 0.55)",
     },
     cover: { width: "100%", height: COVER_HEIGHT },
     center: { alignItems: "center", justifyContent: "center", padding: theme.space[6], gap: theme.space[2] },

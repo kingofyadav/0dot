@@ -31,6 +31,15 @@ const eslintConfig = defineConfig([
       "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
     },
   },
+  // Expo config plugins (mobile/plugins/*.js) are CommonJS build-time
+  // scripts run by @expo/config-plugins during `expo prebuild`, not app
+  // code — `require()` is the only module form they support.
+  {
+    files: ["mobile/plugins/**/*.js"],
+    rules: {
+      "@typescript-eslint/no-require-imports": "off",
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:

@@ -299,6 +299,7 @@ export default function WalletScreen() {
           </View>
         }
         ListEmptyComponent={<EmptyState icon="receipt-outline" message={isPersonal ? "No transfers yet." : "No activity yet."} />}
+        ItemSeparatorComponent={() => <View style={styles.rowSeparator} />}
         renderItem={({ item }) =>
           "amount" in item ? <HistoryRow entry={item} theme={theme} /> : <WalletActivityRow entry={item} />
         }
@@ -365,13 +366,22 @@ function HistoryRow({ entry, theme }: { entry: WalletTransferEntry; theme: Theme
 function createStyles(theme: Theme) {
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: theme.colors.background },
-    list: { padding: theme.space[5], gap: theme.space[2] },
+    list: { padding: theme.space[5] },
     header: { gap: theme.space[4], marginBottom: theme.space[2] },
-    balanceCard: { alignItems: "center", gap: theme.space[1] },
+    // M15/D4: a tighter, deliberate vertical rhythm on the balance card —
+    // the label as a tracked caption over a large figure, the promo-credit
+    // line pushed a step down so it reads as secondary, not a second value.
+    balanceCard: { alignItems: "center", gap: theme.space[2], paddingVertical: theme.space[5] },
     scopeRow: { gap: theme.space[2], paddingBottom: theme.space[1] },
-    balanceLabel: { color: theme.colors.mutedForeground, fontSize: theme.text.sm },
-    balanceValue: { color: theme.colors.foreground, fontSize: 40, fontWeight: theme.weight.heading },
-    balanceRestricted: { color: theme.colors.mutedForeground, fontSize: theme.text.sm },
+    balanceLabel: {
+      color: theme.colors.mutedForeground,
+      fontSize: theme.text.xs,
+      fontWeight: theme.weight.emphasis,
+      textTransform: "uppercase",
+      letterSpacing: 0.6,
+    },
+    balanceValue: { color: theme.colors.foreground, fontSize: 44, fontWeight: theme.weight.heading, lineHeight: 48 },
+    balanceRestricted: { color: theme.colors.mutedForeground, fontSize: theme.text.sm, marginTop: theme.space[1] },
     referralBanner: {
       flexDirection: "row",
       alignItems: "center",
@@ -398,14 +408,34 @@ function createStyles(theme: Theme) {
     },
     error: { color: theme.colors.danger, fontSize: theme.text.sm },
     sendButton: { marginTop: theme.space[1] },
-    historyRow: { flexDirection: "row", alignItems: "center", gap: theme.space[3], paddingVertical: theme.space[2] },
-    historyIcon: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
+    // M15/D4: consistent row height so the transfer history reads as a
+    // list, not a loose stack of lines. A hairline *between* rows (via the
+    // FlatList's ItemSeparatorComponent) does the visual grouping — a
+    // per-row bottom border left a stray hairline trailing the last row.
+    historyRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.space[3],
+      paddingVertical: theme.space[3],
+    },
+    rowSeparator: { height: StyleSheet.hairlineWidth, backgroundColor: theme.colors.border },
+    historyIcon: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
     historyBody: { flex: 1, gap: 2 },
     historyName: { color: theme.colors.foreground, fontSize: theme.text.base, fontWeight: theme.weight.label },
     historyTime: { color: theme.colors.mutedForeground, fontSize: theme.text.xs },
     historyAmount: { fontSize: theme.text.base, fontWeight: theme.weight.emphasis },
     confirmBody: { gap: theme.space[2], paddingBottom: theme.space[2] },
-    confirmLabel: { color: theme.colors.mutedForeground, fontSize: theme.text.xs, marginTop: theme.space[2] },
+    // M15/D4: same tracked-caption treatment as the balance card's label,
+    // so the confirm sheet (now a glass surface) reads as part of the same
+    // screen rather than its own dialect.
+    confirmLabel: {
+      color: theme.colors.mutedForeground,
+      fontSize: theme.text.xs,
+      fontWeight: theme.weight.emphasis,
+      textTransform: "uppercase",
+      letterSpacing: 0.6,
+      marginTop: theme.space[3],
+    },
     confirmRecipient: { flexDirection: "row", alignItems: "center", gap: theme.space[3] },
     confirmRecipientText: { flex: 1, gap: 2 },
     confirmNameRow: { flexDirection: "row", alignItems: "center", gap: theme.space[1] },

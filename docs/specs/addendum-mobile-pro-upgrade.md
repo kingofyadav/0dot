@@ -1,11 +1,12 @@
 # Addendum — Mobile Pro-Level Upgrade
 
-Status: M1–M10, M12, M13, M14 built. M11's schema half already existed
-pre-addendum (verified) and its missing admin trigger surface is now
-built too (see §6) — only the legal-gated native-purchase flow and
+Status: M1–M10, M12, M13, M14, M15 built. M11's schema half already
+existed pre-addendum (verified) and its missing admin trigger surface is
+now built too (see §6) — only the legal-gated native-purchase flow and
 finance-ops disbursement remain, neither buildable by this addendum
-alone. M15 (native-glass visual redesign) is planned, not built — see
-below.
+alone. M15 (native-glass visual redesign) is built as scoped (foundation
++ shared chrome + component polish + the two flagship screens); the
+device/simulator visual-QA pass it names is still outstanding — see below.
 Owner: TBD
 Related: [phase-15-mobile-apps.md](phase-15-mobile-apps.md), [phase-10-developer-platform.md](phase-10-developer-platform.md), [phase-2-social-platform.md](phase-2-social-platform.md)
 
@@ -1060,7 +1061,7 @@ resolved versions) and both new manifest permissions/services (RECORD_AUDIO,
 MODIFY_AUDIO_SETTINGS) confirmed present via a clean `BUILD SUCCESSFUL` and
 a crash-free app launch afterward.
 
-### M15 — Native-glass visual redesign (planned)
+### M15 — Native-glass visual redesign (built)
 
 Requested directly by the user: "world class pro level UI or UX for both
 android or ios with glass dark or light themes, micro level details
@@ -1167,11 +1168,48 @@ the one class of bug D2's tab-bar change can introduce — is any content
 on the 5 tab-root screens now hidden behind the transparent bar) needs a
 real device/simulator pass after this lands.
 
-Verification (once built): `cd mobile && npx tsc --noEmit` clean; `cd
-mobile && npx jest` green (check whether any test asserts on
-`BottomSheet`'s literal backdrop color or `Skeleton`'s animation
-mechanism before assuming none need updating); then the device/simulator
-pass above.
+**As built — deviations from the plan above, all minor:**
+
+- **Tab-bar inset (D2)** is factored into `src/utils/useTabBarInset.ts`
+  (`useTabBarContentPadding()`) rather than each screen calling
+  `useBottomTabBarHeight()` inline — expo-router (SDK 57) vendors
+  react-navigation, so the hook is imported from
+  `expo-router/build/react-navigation/bottom-tabs`, not a top-level
+  `@react-navigation/bottom-tabs` package (there is none installed). Wired
+  into all 5 tab-root screens' list `contentContainerStyle`; `explore.tsx`
+  has 7 `FlatList`s + `DiscoverHub` (which gained an optional `bottomInset`
+  prop), so it's more than "one line" there but still mechanical.
+- **`BottomSheet` (D2)** needed an inner `overflow: hidden` clip layer so
+  the surface `BlurView` respects the rounded top corners without also
+  clipping the outer view's `shadow.lg` — plus a faint theme-tinted wash
+  over both the backdrop blur (dark, so content behind still reads dimmed)
+  and the sheet blur (toward `surface`, so on-sheet text keeps contrast).
+- **`Skeleton` shimmer (D3)** measures its own width via `onLayout` and
+  translates the `LinearGradient` band by pixels (Reanimated), rather than
+  a percentage transform RN doesn't support; the reduced-motion fallback
+  is the original opacity pulse, now also Reanimated-driven. This
+  incidentally cleared `Skeleton.tsx`'s long-standing
+  `react-hooks/set-state-in-effect` lint error (M7/M13 documented it as
+  pre-existing) — the new effect only writes a shared value.
+- **Profile header buttons (D4)** were refactored into one local
+  `GlassIconButton` (fixed `tint="dark"`, `intensity={36}`) rather than
+  three copies of the `Pressable` + `BlurView` pair; `[username].tsx`
+  passes no `bottomInset`, only `(tabs)/profile.tsx` does.
+- `expo-blur@~57.0.2` added (`npx expo install`). `npm audit` in `mobile/`
+  reports 3 moderate advisories — all pre-existing (present on a clean
+  `main` checkout too, unrelated to the one transitive package this
+  added).
+
+Verification: `cd mobile && npx tsc --noEmit` clean; `cd mobile && npx
+jest` — 85/85 across 18 suites (no test asserts on `BottomSheet`'s
+backdrop color or `Skeleton`'s animation mechanism; the reanimated Jest
+mock gained a `withRepeat` no-op stub); `cd mobile && npx expo export
+--platform web` bundles successfully. Root `npm run lint` — no new
+findings from any file this pass touched (the one remaining error,
+`LivestreamViewerBody.tsx:81`, is the same pre-existing family M7/M13
+documented); root `npm test` — 217/217. The device/simulator visual-QA
+pass described in the caveat above was **not** done — no simulator is
+attached — and remains the real outstanding work for M15.
 
 ### Sequencing
 

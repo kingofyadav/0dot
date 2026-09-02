@@ -37,12 +37,16 @@ export function Avatar({ uri, name, size = 40 }: Props) {
   }
 
   return (
-    <View style={[dimension, styles.fallback]} accessible accessibilityLabel={label}>
+    // M15/D3: the fallback container gained a surface2 background — without
+    // one, a no-photo avatar was a bare brand mark floating on the screen
+    // background and could read as a failed image load rather than an
+    // intentional placeholder.
+    <View style={[dimension, styles.fallback, { backgroundColor: theme.colors.surface2 }]} accessible accessibilityLabel={label}>
       <Image source={LOGO_SOURCE[theme.scheme]} style={{ width: size * 0.62, height: size * 0.62 }} contentFit="contain" alt="" />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  fallback: { alignItems: "center", justifyContent: "center" },
+  fallback: { alignItems: "center", justifyContent: "center", overflow: "hidden" },
 });
