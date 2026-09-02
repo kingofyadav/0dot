@@ -36,17 +36,17 @@ export const metadata: Metadata = { title: "Download" };
 // weeks after the build finishes, which is fine for internal QA but not for
 // a link this page keeps serving indefinitely. Re-run the same upload step
 // and bump the constants below whenever a new build replaces this one.
-// (The `preview` EAS profile doesn't auto-increment versionCode, so the
-// build number can repeat across rebuilds — ANDROID_APK_UPDATED is what
-// actually tells a returning visitor the download is fresher.)
+// ANDROID_APK_UPDATED is what actually tells a returning visitor the
+// download is fresher — the EAS versionCode restarted at 1 when the project
+// moved to the kingofyadav account, so it's no longer a monotonic signal.
 //
-// Current source build (EAS, account 0dot / project zerodot, commit bd7fb2b):
-// https://expo.dev/accounts/0dot/projects/zerodot/builds/7c628817-6c39-4225-970c-5d37220fdaf7
+// Current source build (EAS, account kingofyadav / project 0dot,
+// versionCode 2, commit ea442b1):
+// https://expo.dev/accounts/kingofyadav/projects/0dot/builds/1881a675-272a-49b2-ab99-5481446fc981
 const ANDROID_APK_URL = process.env.ANDROID_APK_DOWNLOAD_URL;
 const ANDROID_APK_VERSION = "1.0.0";
-const ANDROID_APK_BUILD = "6";
 const ANDROID_APK_SIZE_MB = 161;
-const ANDROID_APK_UPDATED = "Aug 28, 2026";
+const ANDROID_APK_UPDATED = "Sep 2, 2026";
 const IOS_TESTFLIGHT_URL = process.env.IOS_TESTFLIGHT_URL;
 
 type DetectedPlatform = "android" | "ios" | "other";
@@ -107,7 +107,7 @@ export default async function DownloadPage() {
               }
               meta={
                 ANDROID_APK_URL
-                  ? `v${ANDROID_APK_VERSION} (build ${ANDROID_APK_BUILD}) · ${ANDROID_APK_SIZE_MB} MB · updated ${ANDROID_APK_UPDATED}`
+                  ? `v${ANDROID_APK_VERSION} · ${ANDROID_APK_SIZE_MB} MB · updated ${ANDROID_APK_UPDATED}`
                   : undefined
               }
             />
