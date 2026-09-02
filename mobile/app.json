@@ -110,14 +110,7 @@
         }
       ],
       "expo-asset",
-      [
-        "./plugins/withThemedAppIcons",
-        {
-          "name": "light",
-          "background": "#FFFFFF",
-          "foregroundSrc": "./assets/android-icon-foreground.png"
-        }
-      ]
+      "./plugins/withAndroidLauncherRecovery"
     ],
     "runtimeVersion": {
       "policy": "appVersion"

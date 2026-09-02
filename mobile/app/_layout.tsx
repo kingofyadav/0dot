@@ -15,7 +15,6 @@ import { OnboardingScreen } from "../src/screens/OnboardingScreen";
 import { subscribeToIncomingLinks } from "../src/links/universalLinks";
 import { subscribeToPushNavigation } from "../src/push/pushNavigation";
 import { hasSeenOnboarding, markOnboardingSeen } from "../src/utils/onboarding";
-import { useThemedAppIcon } from "../src/utils/useThemedAppIcon";
 import { useTheme } from "../src/theme";
 import { SENTRY_DSN } from "../src/config";
 
@@ -30,10 +29,6 @@ if (SENTRY_DSN) {
 function RootNavigator() {
   const { status } = useAuth();
   const theme = useTheme();
-
-  // Android: keep the launcher icon matched to the device's light/dark
-  // appearance (iOS does this itself from app.json's ios.icon variants).
-  useThemedAppIcon(theme.scheme);
 
   // Onboarding only ever makes sense ahead of sign-in, so it's read once
   // per cold start rather than gating every render — null means "haven't

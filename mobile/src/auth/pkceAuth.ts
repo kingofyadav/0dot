@@ -9,6 +9,24 @@ import { saveTokens, clearTokens, loadTokens, type StoredTokens } from "./tokenS
 // tab instead of leaving it open — expo-auth-session's own setup step.
 WebBrowser.maybeCompleteAuthSession();
 
+// A sign-in that can't complete must fail loudly, not hang: promptAsync
+// never resolves if the OAuth redirect can't route back into the app (the
+// exact failure the withdrawn themed-icon feature caused), and
+// exchangeCodeAsync's underlying fetch has no timeout of its own. Bound
+// both so AuthContext's spinner always clears and the user gets a retry.
+const PROMPT_TIMEOUT_MS = 5 * 60 * 1000;
+const EXCHANGE_TIMEOUT_MS = 30 * 1000;
+
+class SignInTimeoutError extends Error {}
+
+function withTimeout<T>(work: Promise<T>, ms: number, message: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const guard = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new SignInTimeoutError(message)), ms);
+  });
+  return Promise.race([work, guard]).finally(() => clearTimeout(timer)) as Promise<T>;
+}
+
 // Phase 15 spec §3: the same authorization-code + PKCE flow Phase 10 built
 // for third-party apps, reused as-is — /oauth/authorize is the same
 // consent-screen page a third-party app's browser redirect lands on.
@@ -86,7 +104,23 @@ export async function signIn(): Promise<StoredTokens> {
     usePKCE: true,
   });
 
-  const result = await request.promptAsync(discovery);
+  let result: AuthSession.AuthSessionResult;
+  try {
+    result = await withTimeout(
+      request.promptAsync(discovery),
+      PROMPT_TIMEOUT_MS,
+      "Sign-in timed out. Please try again."
+    );
+  } catch (err) {
+    // Tear down a Custom Tab / auth session that's still open so the next
+    // attempt starts clean rather than resuming the stale one.
+    try {
+      WebBrowser.dismissAuthSession();
+    } catch {
+      // iOS-only API on some SDKs — nothing to dismiss on Android.
+    }
+    throw err instanceof SignInTimeoutError ? err : new Error("Sign-in failed. Please try again.");
+  }
   if (result.type !== "success" || !result.params.code) {
     throw new Error(result.type === "cancel" || result.type === "dismiss" ? "Sign-in was cancelled." : "Sign-in failed.");
   }
@@ -94,14 +128,18 @@ export async function signIn(): Promise<StoredTokens> {
   // No clientSecret here: this app is a public client (prisma
   // DeveloperApp.isPublicClient, build plan step 3) — the token endpoint
   // accepts request.codeVerifier alone as proof of possession instead.
-  const tokenResponse = await AuthSession.exchangeCodeAsync(
-    {
-      clientId,
-      code: result.params.code,
-      redirectUri: REDIRECT_URI,
-      extraParams: { code_verifier: request.codeVerifier ?? "" },
-    },
-    discovery
+  const tokenResponse = await withTimeout(
+    AuthSession.exchangeCodeAsync(
+      {
+        clientId,
+        code: result.params.code,
+        redirectUri: REDIRECT_URI,
+        extraParams: { code_verifier: request.codeVerifier ?? "" },
+      },
+      discovery
+    ),
+    EXCHANGE_TIMEOUT_MS,
+    "Sign-in timed out finishing up. Please try again."
   );
 
   // The server always mints a refresh token (exchangeAuthorizationCode,

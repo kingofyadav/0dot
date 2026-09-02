@@ -52,7 +52,11 @@ export function SignInScreen() {
         </Animated.View>
       </View>
 
-      <Animated.View entering={FadeInDown.duration(500).delay(320)} style={styles.footer}>
+      {/* Plain View, not an entering-animated one: a Reanimated layout
+          animation that fails to run leaves its subtree stuck at opacity 0,
+          and the primary sign-in CTA must never be able to end up invisible
+          or untappable. The hero above can animate — it's decorative. */}
+      <View style={styles.footer}>
         <AnimatedPressable
           onPress={() => {
             haptics.light();
@@ -84,7 +88,7 @@ export function SignInScreen() {
             <Text style={styles.learnMoreText}>New here? Learn more at 0dot.in</Text>
           </Pressable>
         )}
-      </Animated.View>
+      </View>
     </SafeAreaView>
   );
 }

@@ -3,7 +3,16 @@ jest.mock("../../api/http", () => ({
   isAbortError: () => false,
 }));
 
-jest.mock("expo-web-browser", () => ({ maybeCompleteAuthSession: jest.fn() }));
+jest.mock("expo-web-browser", () => ({
+  maybeCompleteAuthSession: jest.fn(),
+  dismissAuthSession: jest.fn(),
+}));
+
+jest.mock("../tokenStorage", () => ({
+  saveTokens: jest.fn(),
+  clearTokens: jest.fn(),
+  loadTokens: jest.fn(),
+}));
 
 // A minimal stand-in for expo-auth-session's real TokenError (which the
 // real class needs an RFC 6749 error-code params object to construct) —
@@ -22,10 +31,14 @@ jest.mock("expo-auth-session", () => {
 
 import * as AuthSession from "expo-auth-session";
 import { fetchWithTimeout } from "../../api/http";
-import { refreshAccessToken, RefreshFailedError } from "../pkceAuth";
+import { saveTokens } from "../tokenStorage";
+import { signIn, refreshAccessToken, RefreshFailedError } from "../pkceAuth";
 
 const mockFetch = fetchWithTimeout as jest.Mock;
 const mockRefreshAsync = AuthSession.refreshAsync as jest.Mock;
+const mockAuthRequest = AuthSession.AuthRequest as unknown as jest.Mock;
+const mockExchangeCode = AuthSession.exchangeCodeAsync as jest.Mock;
+const mockSaveTokens = saveTokens as jest.Mock;
 
 function mockClientIdLookup() {
   mockFetch.mockResolvedValueOnce({
@@ -87,5 +100,67 @@ describe("refreshAccessToken", () => {
 
     const err = await refreshAccessToken("RT1").catch((e: unknown) => e);
     expect(err).not.toBeInstanceOf(RefreshFailedError);
+  });
+});
+
+// Regression coverage for the "sign-in did nothing" failure: promptAsync
+// never resolves when the OAuth redirect can't route back into the app, and
+// exchangeCodeAsync's fetch has no timeout — either one would otherwise
+// strand AuthContext on its loading spinner indefinitely.
+describe("signIn timeouts", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.useFakeTimers();
+    mockClientIdLookup();
+  });
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  function mockAuthRequestWith(promptAsync: jest.Mock) {
+    mockAuthRequest.mockImplementation(() => ({ promptAsync, codeVerifier: "verifier" }));
+  }
+
+  it("rejects when the browser prompt never returns", async () => {
+    mockAuthRequestWith(jest.fn().mockReturnValue(new Promise(() => {})));
+
+    const settled = signIn().then(
+      () => ({ ok: true }),
+      (e: Error) => ({ ok: false, message: e.message })
+    );
+
+    await jest.advanceTimersByTimeAsync(5 * 60 * 1000 + 1);
+
+    expect(await settled).toEqual({ ok: false, message: "Sign-in timed out. Please try again." });
+    expect(mockSaveTokens).not.toHaveBeenCalled();
+  });
+
+  it("rejects when the token exchange hangs", async () => {
+    mockAuthRequestWith(jest.fn().mockResolvedValue({ type: "success", params: { code: "auth-code" } }));
+    mockExchangeCode.mockReturnValue(new Promise(() => {}));
+
+    const settled = signIn().then(
+      () => ({ ok: true }),
+      (e: Error) => ({ ok: false, message: e.message })
+    );
+
+    await jest.advanceTimersByTimeAsync(30 * 1000 + 1);
+
+    expect(await settled).toEqual({
+      ok: false,
+      message: "Sign-in timed out finishing up. Please try again.",
+    });
+    expect(mockSaveTokens).not.toHaveBeenCalled();
+  });
+
+  it("completes and stores tokens on the happy path", async () => {
+    mockAuthRequestWith(jest.fn().mockResolvedValue({ type: "success", params: { code: "auth-code" } }));
+    mockExchangeCode.mockResolvedValue({ accessToken: "AT", refreshToken: "RT", expiresIn: 3600 });
+
+    const tokens = await signIn();
+
+    expect(tokens.accessToken).toBe("AT");
+    expect(tokens.refreshToken).toBe("RT");
+    expect(mockSaveTokens).toHaveBeenCalledWith(expect.objectContaining({ accessToken: "AT", refreshToken: "RT" }));
   });
 });
