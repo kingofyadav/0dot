@@ -2,6 +2,7 @@ import "server-only";
 import { db } from "@/lib/db";
 import { POST_PAGE_SIZE } from "@/lib/pagination";
 import { getBlockedEitherWayUserIds, getPostVisibilityConditions } from "@/lib/post-visibility";
+import { cached } from "@/lib/cache/redis-cache";
 
 // phase-2 spec §6.2: velocity, not lifetime popularity or plain recency —
 // an old post with many likes accumulated slowly must not outrank a new
@@ -213,6 +214,28 @@ const mediaInclude = { orderBy: { position: "asc" as const } };
 // would eventually drift into an arbitrary, meaningless tie-break order
 // across the entire zero-score long tail.
 export async function getTrendingPosts({
+  cursor,
+  viewerId,
+}: {
+  cursor: TrendingCursor | null;
+  viewerId: string | null;
+}) {
+  // Anonymous viewers all see the identical, content-only visibility filter
+  // (getPostVisibilityConditions with no viewerId/blockedIds) — safe to
+  // share one cached result across every logged-out request. A signed-in
+  // viewer's result depends on their own blocks/community-membership/tier
+  // state (post-visibility.ts), so it is never cached here. Scores only
+  // change every RECOMPUTE_INTERVAL_MS anyway, so this TTL trails that by
+  // design rather than adding staleness of its own.
+  if (viewerId === null) {
+    return cached(`trending:${cursor ? `${cursor.score}:${cursor.id}` : "first"}`, 90, () =>
+      fetchTrendingPosts({ cursor, viewerId })
+    );
+  }
+  return fetchTrendingPosts({ cursor, viewerId });
+}
+
+async function fetchTrendingPosts({
   cursor,
   viewerId,
 }: {

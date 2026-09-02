@@ -2,6 +2,7 @@ import "server-only";
 import { db } from "@/lib/db";
 import { cursorWhere, paginate, POST_PAGE_SIZE, type PostCursor } from "@/lib/pagination";
 import { getBlockedEitherWayUserIds, getPostVisibilityConditions } from "@/lib/post-visibility";
+import { cached } from "@/lib/cache/redis-cache";
 
 // Exported so src/lib/community-feed.ts can build the identical post shape
 // for the community feed rather than duplicating these — one post
@@ -59,6 +60,29 @@ export async function getVotedPollOptionIds(
 // spec §6.1. Only top-level posts are listed here — replies render inline
 // under their parent (phase-1 spec §5.3), handled by PostCard itself.
 export async function getFeedPosts({
+  authorFilter,
+  cursor,
+  viewerId,
+}: {
+  authorFilter?: { authorId: { in: string[] } };
+  cursor: PostCursor | null;
+  viewerId: string | null;
+}) {
+  // The unfiltered, anonymous-viewer case (/explore with nobody logged in)
+  // is the one place this result is identical for every caller sharing a
+  // cursor — no authorFilter, no blocks/community-membership/tier state to
+  // vary by viewer (same reasoning as getTrendingPosts in trending.ts).
+  // Any other combination (a specific viewer, or an authorFilter-scoped
+  // profile/community feed) is left uncached rather than guessed at.
+  if (viewerId === null && !authorFilter) {
+    return cached(`feed:${cursor ? `${cursor.createdAt.toISOString()}:${cursor.id}` : "first"}`, 60, () =>
+      fetchFeedPosts({ cursor, viewerId })
+    );
+  }
+  return fetchFeedPosts({ authorFilter, cursor, viewerId });
+}
+
+async function fetchFeedPosts({
   authorFilter,
   cursor,
   viewerId,
