@@ -1,9 +1,18 @@
 import bcrypt from "bcryptjs";
+import { z } from "zod";
 import { db } from "@/lib/db";
 import { resolveApiRequest, requireScope, requireVerifiedApiUser, requireCurrentPassword, apiError } from "@/lib/api-auth";
 import { checkApiRateLimit } from "@/lib/api-rate-limit";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { revokeAllOtherSessions } from "@/app/actions/session-management";
+
+// Same "" for a missing/non-string field pattern as
+// v1/wallet/transfer/route.ts — the actual length/equality checks below are
+// unchanged business rules, not schema constraints, so an empty string is a
+// valid parse here and gets rejected by requireCurrentPassword/the length
+// check instead, same as the old typeof-checked version did.
+const stringOrEmpty = z.preprocess((v) => (typeof v === "string" ? v : ""), z.string());
+const changePasswordSchema = z.object({ currentPassword: stringOrEmpty, newPassword: stringOrEmpty });
 
 // Bearer-token counterpart to changePassword (src/app/actions/auth.ts) —
 // same validation and same revokeAllOtherSessions call after a successful
@@ -27,8 +36,7 @@ export async function POST(request: Request) {
   }
 
   const payload = await request.json().catch(() => null);
-  const currentPassword = typeof payload?.currentPassword === "string" ? payload.currentPassword : "";
-  const newPassword = typeof payload?.newPassword === "string" ? payload.newPassword : "";
+  const { currentPassword, newPassword } = changePasswordSchema.parse(payload ?? {});
 
   const passwordError = await requireCurrentPassword(ctx, currentPassword);
   if (passwordError) return apiError(passwordError.error, passwordError.status);

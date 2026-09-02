@@ -1,4 +1,5 @@
 import { randomBytes } from "crypto";
+import { z } from "zod";
 import { db } from "@/lib/db";
 import { resolveApiRequest, requireScope, requireVerifiedApiUser, requireCurrentPassword, apiError } from "@/lib/api-auth";
 import { checkApiRateLimit } from "@/lib/api-rate-limit";
@@ -7,6 +8,15 @@ import { getEmailSender, getAppOrigin, renderEmailChangeEmailHtml } from "@/lib/
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const EMAIL_CHANGE_TTL_MS = 24 * 60 * 60 * 1000;
+
+// Same pattern as v1/wallet/transfer and v1/account/password's schemas —
+// empty string for a missing/non-string field; the EMAIL_PATTERN test
+// below (not a schema constraint) is what actually rejects a bad address,
+// same business-rule split as the old typeof-checked version.
+const changeEmailSchema = z.object({
+  currentPassword: z.preprocess((v) => (typeof v === "string" ? v : ""), z.string()),
+  newEmail: z.preprocess((v) => (typeof v === "string" ? v.trim().toLowerCase() : ""), z.string()),
+});
 
 // Bearer-token counterpart to requestEmailChange (account-contact.ts) — the
 // verification link still lands on the web app's own
@@ -30,8 +40,7 @@ export async function POST(request: Request) {
   }
 
   const payload = await request.json().catch(() => null);
-  const currentPassword = typeof payload?.currentPassword === "string" ? payload.currentPassword : "";
-  const newEmail = (typeof payload?.newEmail === "string" ? payload.newEmail : "").trim().toLowerCase();
+  const { currentPassword, newEmail } = changeEmailSchema.parse(payload ?? {});
 
   const passwordError = await requireCurrentPassword(ctx, currentPassword);
   if (passwordError) return apiError(passwordError.error, passwordError.status);

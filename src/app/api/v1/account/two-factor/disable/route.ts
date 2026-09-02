@@ -1,7 +1,15 @@
+import { z } from "zod";
 import { db } from "@/lib/db";
 import { resolveApiRequest, requireScope, requireVerifiedApiUser, requireCurrentPassword, apiError } from "@/lib/api-auth";
 import { checkApiRateLimit } from "@/lib/api-rate-limit";
 import { enforceRateLimit } from "@/lib/rate-limit";
+
+// Same pattern as v1/wallet/transfer and v1/account/password's schemas —
+// empty string for a missing/non-string field, requireCurrentPassword does
+// the actual rejection.
+const disable2faSchema = z.object({
+  currentPassword: z.preprocess((v) => (typeof v === "string" ? v : ""), z.string()),
+});
 
 export async function POST(request: Request) {
   const ctx = await resolveApiRequest(request);
@@ -21,7 +29,7 @@ export async function POST(request: Request) {
   }
 
   const payload = await request.json().catch(() => null);
-  const currentPassword = typeof payload?.currentPassword === "string" ? payload.currentPassword : "";
+  const { currentPassword } = disable2faSchema.parse(payload ?? {});
 
   const passwordError = await requireCurrentPassword(ctx, currentPassword);
   if (passwordError) return apiError(passwordError.error, passwordError.status);
