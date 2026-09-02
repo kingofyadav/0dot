@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { BadgeCheck } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { PresenceDot } from "@/components/PresenceDot";
@@ -45,13 +46,13 @@ export function ConversationListItem({
         <span style={{ display: "flex", alignItems: "center", gap: "0.6rem", minWidth: 0 }}>
           <span style={{ position: "relative", flexShrink: 0, display: "inline-flex" }}>
             {avatarUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element -- user-supplied URL, not a local/optimizable asset
-              <img
+              <Image
                 src={avatarUrl}
                 alt=""
                 width={40}
                 height={40}
                 style={{ borderRadius: "50%", objectFit: "cover" }}
+                unoptimized={!avatarUrl.includes(".public.blob.vercel-storage.com/")}
               />
             ) : (
               <span style={{ display: "inline-flex", borderRadius: "50%" }}>

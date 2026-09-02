@@ -36,6 +36,19 @@ const nextConfig: NextConfig = {
   // Drop the `x-powered-by: Next.js` response header — free framework
   // fingerprinting for anyone matching the stack against known CVEs.
   poweredByHeader: false,
+  // Wildcarded on the store-id subdomain rather than one literal hostname —
+  // dev/preview/production each have their own Vercel Blob store, so a
+  // single hardcoded host would only work for whichever one that literal
+  // happened to name. AVIF/WebP negotiation wasn't possible for any remote
+  // image at all before this (next/image refuses an unlisted remote host),
+  // which is why user-content images (avatars, post media) still render as
+  // plain <img> in several places — see the `next/next/no-img-element`
+  // eslint-disable comments next to them; each is safe to reconsider now
+  // that a host is actually configured, not a decision to leave standing.
+  images: {
+    remotePatterns: [{ protocol: "https", hostname: "*.public.blob.vercel-storage.com" }],
+    formats: ["image/avif", "image/webp"],
+  },
   // Keep these heavy, Node-only SDKs out of the Server Components / Route
   // Handler bundle — Turbopack otherwise parses and inlines them into shared
   // server chunks, so a cold function pays to evaluate all of Stripe +

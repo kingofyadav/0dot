@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { Logo } from "./Logo";
 
 // Shared avatar-with-fallback: a real avatarUrl renders as an image, no
@@ -18,14 +19,14 @@ export function Avatar({
 }) {
   if (src) {
     return (
-      // eslint-disable-next-line @next/next/no-img-element -- user-supplied URL, not a local/optimizable asset
-      <img
+      <Image
         src={src}
         alt={alt}
         width={size}
         height={size}
         className={className}
         style={{ width: size, height: size, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }}
+        unoptimized={!src.includes(".public.blob.vercel-storage.com/")}
       />
     );
   }
