@@ -1,3 +1,5 @@
+import { getBlobPublicHost } from "@/lib/uploads";
+
 export async function GET(request: Request, { params }: { params: Promise<{ path: string[] }> }) {
   const { path: segments } = await params;
   const filename = segments.join("/");
@@ -13,7 +15,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ path
     return Response.redirect(new URL("/missing-file", request.url), 307);
   }
 
-  const blobUrl = `https://k82rdlknd7r0iore.public.blob.vercel-storage.com/uploads/${filename}`;
+  const blobUrl = `https://${getBlobPublicHost()}/uploads/${filename}`;
 
   return Response.redirect(blobUrl, 307);
 }

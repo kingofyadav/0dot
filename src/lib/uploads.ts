@@ -209,7 +209,23 @@ export async function saveMessageAttachment(
 // does inline — but reading ~4KB of the finished object rather than the
 // whole file.
 
-const BLOB_PUBLIC_HOST_SUFFIX = ".public.blob.vercel-storage.com";
+export const BLOB_PUBLIC_HOST_SUFFIX = ".public.blob.vercel-storage.com";
+
+// Derives this app's Blob store's public hostname from BLOB_READ_WRITE_TOKEN
+// (format vercel_blob_rw_<storeId>_<random>) rather than hardcoding it —
+// dev/preview/production each have their own store, so a literal hostname
+// only ever matched one of them (src/app/uploads/[...path]/route.ts used to
+// hardcode one directly). Resolved lazily, not at module load, so a `next
+// build`'s route-data collection — which evaluates every route module,
+// that one included — never depends on this secret being present; same
+// posture as protected-storage.ts's DOWNLOAD_TOKEN_SECRET.
+export function getBlobPublicHost(): string {
+  const token = process.env.BLOB_READ_WRITE_TOKEN;
+  if (!token) throw new Error("BLOB_READ_WRITE_TOKEN is not configured.");
+  const storeId = token.split("_")[3];
+  if (!storeId) throw new Error("BLOB_READ_WRITE_TOKEN is not in the expected vercel_blob_rw_<storeId>_... format.");
+  return `${storeId}${BLOB_PUBLIC_HOST_SUFFIX}`;
+}
 
 export const POST_MEDIA_IMAGE_TYPES = Object.keys(ALLOWED_IMAGE_EXTENSIONS);
 export const POST_MEDIA_MAX_BYTES = 8 * 1024 * 1024;
