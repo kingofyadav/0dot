@@ -4,7 +4,8 @@ Status: M1–M10, M12, M13, M14 built. M11's schema half already existed
 pre-addendum (verified) and its missing admin trigger surface is now
 built too (see §6) — only the legal-gated native-purchase flow and
 finance-ops disbursement remain, neither buildable by this addendum
-alone.
+alone. M15 (native-glass visual redesign) is planned, not built — see
+below.
 Owner: TBD
 Related: [phase-15-mobile-apps.md](phase-15-mobile-apps.md), [phase-10-developer-platform.md](phase-10-developer-platform.md), [phase-2-social-platform.md](phase-2-social-platform.md)
 
@@ -1058,6 +1059,119 @@ cleanly). Native rebuild required twice — once for `expo-clipboard`
 resolved versions) and both new manifest permissions/services (RECORD_AUDIO,
 MODIFY_AUDIO_SETTINGS) confirmed present via a clean `BUILD SUCCESSFUL` and
 a crash-free app launch afterward.
+
+### M15 — Native-glass visual redesign (planned)
+
+Requested directly by the user: "world class pro level UI or UX for both
+android or ios with glass dark or light themes, micro level details
+improve." A code audit (three parallel Explore passes over `theme.ts`,
+the tab bar/header/BottomSheet chrome, the shared component library, and
+the wallet/profile flagship screens) found the app functionally complete
+through M14 but visually flat everywhere — every surface (tab bar, stack
+header, BottomSheet, cards) is a solid opaque fill, `expo-blur` isn't
+even a dependency, and several small real inconsistencies exist:
+`Chip`/`EmptyState`'s retry button use a plain `Pressable` opacity
+callback instead of the shared `usePressScale` hook `Button`/`ListRow`
+already use; `Card`'s border is a full 1px where every other bordered
+component uses `StyleSheet.hairlineWidth`; `Skeleton`'s default corner
+radius is a bare `6` matching no `theme.radius` step; `Avatar`'s no-photo
+fallback container has no background, so it can look like a rendering
+bug rather than a placeholder.
+
+Two decisions the user made explicitly when scoping this (asked via
+options, not assumed): the "glass" look means the restrained iOS
+Control-Center/nav-bar translucent-blur language, not decorative heavy
+glassmorphism (glowing borders, heavy frosted panels everywhere); and the
+pass is scoped to the design-system foundation plus the chrome every
+screen shares plus the shared component library plus two flagship
+screens (wallet, profile) as the reference standard for the rest of the
+app to catch up to later, not a screen-by-screen rewrite of all ~40+
+mobile screens in one pass.
+
+**D1 — Foundation (`theme.ts`).** Add `expo-blur` (SDK-57-resolved
+version, `npx expo install expo-blur`). Add a `glass` token group,
+mirrored per light/dark like every other token: `chromeTint` ("light"/
+"dark" passed straight to `BlurView`'s `tint`), `chromeIntensity` (tab
+bar/header blur strength, distinct light/dark values since dark blur
+reads differently), `overlayIntensity` (a lighter blur for the
+BottomSheet backdrop — frosting, not a strong blur), `hairlineOnGlass`
+(a stronger border alpha than the existing `border` token, since a
+hairline at that alpha can disappear against a blurred, content-varying
+background). No other token restructuring — `space`/`radius`/`text`/
+`weight`/`shadow`/`motion` are already consistent, not the gap here.
+
+**D2 — Global chrome.** Tab bar (`app/(tabs)/_layout.tsx`):
+`tabBarStyle` becomes `position:"absolute"` with a transparent
+background and a `hairlineOnGlass` top border; `tabBarBackground` renders
+a `BlurView`. Because an absolutely-positioned bar lets content scroll
+underneath it, this necessarily also touches the 5 tab-root screens
+(`index.tsx`, `explore.tsx`, `messages.tsx`, `notifications.tsx`,
+`profile.tsx`) to add bottom padding via `@react-navigation/bottom-tabs`'s
+`useBottomTabBarHeight()` (already a transitive dependency through
+expo-router's `Tabs`) — the one place this pass necessarily reaches past
+"chrome + components + 2 flagships," and it's mechanical, one line per
+screen. Stack header (`app/_layout.tsx`) stays **opaque, not blurred** —
+`headerTransparent: true` would need the same per-screen top-padding
+treatment across ~35 pushed screens for a part of the UI that's far less
+persistent chrome than the tab bar; instead just fold the one hardcoded
+outlier (`live/[livestreamId]`'s literal `backgroundColor:"#000"`/
+`headerTintColor:"#fff"`, bypassing the theme system entirely) back onto
+theme tokens. BottomSheet (`components/BottomSheet.tsx`): backdrop
+becomes a `BlurView` (`overlayIntensity`, same drag-driven opacity
+interpolation already wired) instead of flat `rgba(0,0,0,0.4)`; the sheet
+surface itself becomes a `BlurView` (`chromeTint`/`chromeIntensity`)
+instead of a solid `theme.colors.surface` fill, keeping the existing
+`radius.lg`/`shadow.lg`/drag-to-dismiss gesture logic untouched — a pure
+background-layer swap.
+
+**D3 — Shared component micro-polish.** Each fix below is one of the
+concrete inconsistencies the audit found, not a rewrite: `Chip` and
+`EmptyState`'s retry button switch to `usePressScale` for consistent
+press feedback and reduced-motion handling app-wide; `Card`'s border
+becomes `StyleSheet.hairlineWidth`; `Avatar`'s fallback container gets
+`backgroundColor: theme.colors.surface2` so it reads as an intentional
+placeholder; `Skeleton`'s default radius becomes `theme.radius.sm`, and
+its flat opacity-pulse becomes a moving `LinearGradient` highlight sweep
+via Reanimated (falling back to the existing opacity pulse when reduced
+motion is on, same gating `usePressScale`/`animateLayout` already use) —
+likely the single most noticeable "feels expensive" detail in a loading
+state. `SegmentedControl` needs no direct change; it's a thin `Chip`
+wrapper and inherits the fix.
+
+**D4 — Flagship screens.** `wallet.tsx` is pushed full-screen from the
+tabs (no tab bar visible while it's open, per this app's root-Stack-plus-
+nested-Tabs structure), so it needs no bottom-inset fix, and per the
+"blur is chrome, not general content" decision above it gets no BlurView
+surfaces of its own either — it inherits D3's Card/Chip/Button fixes,
+plus a direct spacing-rhythm and dark-mode-contrast pass on the balance
+card, the now-glass confirm sheet, and history rows.
+`screens/ProfileScreenBody.tsx` (rendered both as the tab-root profile
+screen and, via `app/[username].tsx`, as a pushed view of someone else's
+profile — confirm at build time whether the tab-root case hides the
+navigator header, since this screen already renders its own cover-photo
+header with absolutely-positioned buttons) gets the tab-bar inset fix via
+a new optional `bottomInset` prop (only `(tabs)/profile.tsx` passes
+`useBottomTabBarHeight()`; `[username].tsx` doesn't, since the tab bar is
+never visible there) and a `BlurView` (`tint="dark"`, fixed regardless of
+app theme — these buttons always sit over a photo of unknown brightness,
+the same reason real iOS apps use a fixed-dark blur chip here) in place
+of the header buttons' hardcoded `rgba(0,0,0,0.6)` backdrop.
+
+**Caveat, stated up front rather than discovered late:** no iOS/Android
+simulator or device is attached to the environment building this, so
+none of it can be visually verified by rendering it before landing —
+verification there is limited to `tsc`/`jest`/code review against the
+design intent above. Visual QA (does the blur actually look right, do
+both themes read correctly, does spacing feel right, and specifically —
+the one class of bug D2's tab-bar change can introduce — is any content
+on the 5 tab-root screens now hidden behind the transparent bar) needs a
+real device/simulator pass after this lands.
+
+Verification (once built): `cd mobile && npx tsc --noEmit` clean; `cd
+mobile && npx jest` green (check whether any test asserts on
+`BottomSheet`'s literal backdrop color or `Skeleton`'s animation
+mechanism before assuming none need updating); then the device/simulator
+pass above.
 
 ### Sequencing
 
