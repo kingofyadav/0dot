@@ -1,0 +1,90 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
+import { router } from "expo-router";
+import { getWikiPages, ApiError } from "../api/client";
+import { EmptyState } from "../components/EmptyState";
+import { useContentMaxWidth } from "../utils/responsive";
+import { useTheme, type Theme } from "../theme";
+import type { WikiPageSummary } from "../api/types";
+
+// Bearer-token-backed counterpart to src/app/[username]/wiki/page.tsx —
+// top-level pages only, public visibility only (unlisted is direct-link/
+// API reachable, private never appears here).
+export function WikiListBody({ username }: { username: string }) {
+  const theme = useTheme();
+  const maxWidth = useContentMaxWidth();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+
+  const [pages, setPages] = useState<WikiPageSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setError(null);
+    try {
+      setPages((await getWikiPages(username)).items);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not load pages.");
+    }
+  }, [username]);
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      await load();
+      setLoading(false);
+    })();
+  }, [load]);
+
+  async function onRefresh() {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
+  }
+
+  if (loading) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator color={theme.colors.accent} />
+      </View>
+    );
+  }
+
+  return (
+    <FlatList
+      style={[styles.screen, maxWidth ? { maxWidth, alignSelf: "center", width: "100%" } : null]}
+      contentContainerStyle={[styles.list, pages.length === 0 ? styles.grow : undefined]}
+      data={pages}
+      keyExtractor={(p) => p.id}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.accent} />}
+      ListEmptyComponent={<EmptyState icon="book-outline" message={error ?? "No pages yet."} onRetry={error ? load : undefined} />}
+      renderItem={({ item }) => (
+        <Pressable
+          style={styles.row}
+          onPress={() => router.push({ pathname: "/[username]/wiki/[slug]", params: { username, slug: item.slug } })}
+        >
+          <Text style={styles.title}>{item.title}</Text>
+          <Text style={styles.meta}>{item.kindLabel}</Text>
+        </Pressable>
+      )}
+    />
+  );
+}
+
+function createStyles(theme: Theme) {
+  return StyleSheet.create({
+    screen: { flex: 1, backgroundColor: theme.colors.background },
+    list: { padding: theme.space[5], gap: theme.space[3] },
+    grow: { flexGrow: 1 },
+    center: { flex: 1, alignItems: "center", justifyContent: "center", padding: theme.space[6] },
+    row: {
+      gap: 2,
+      paddingVertical: theme.space[2],
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.colors.border,
+    },
+    title: { color: theme.colors.foreground, fontSize: theme.text.base, fontWeight: theme.weight.emphasis },
+    meta: { color: theme.colors.mutedForeground, fontSize: theme.text.xs },
+  });
+}

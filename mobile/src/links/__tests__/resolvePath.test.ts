@@ -60,6 +60,21 @@ describe("resolvePath", () => {
     expect(mockPush).toHaveBeenCalledWith({ pathname: "/event/[slug]", params: { slug: "summer-meetup" } });
   });
 
+  it("routes a livestream path (livestream_started notifications)", () => {
+    resolvePath("/live/stream-1");
+    expect(mockPush).toHaveBeenCalledWith({ pathname: "/live/[livestreamId]", params: { livestreamId: "stream-1" } });
+  });
+
+  it("routes the wallet path to the wallet screen (coins_received notifications)", () => {
+    resolvePath("/wallet");
+    expect(mockPush).toHaveBeenCalledWith("/wallet");
+  });
+
+  it("never mistakes /wallet for a username", () => {
+    resolvePath("/wallet");
+    expect(mockPush).not.toHaveBeenCalledWith({ pathname: "/[username]", params: { username: "wallet" } });
+  });
+
   it("routes a bare username to the profile screen", () => {
     resolvePath("/johndoe");
     expect(mockPush).toHaveBeenCalledWith({ pathname: "/[username]", params: { username: "johndoe" } });

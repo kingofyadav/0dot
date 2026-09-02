@@ -12,6 +12,10 @@ jest.mock("expo-router", () => ({
   useFocusEffect: (callback: () => void) => {
     mockUseEffect(callback, [callback]);
   },
+  // "View all activity" link — real Link's `asChild` prop-merging isn't
+  // replicated, just render the child as-is; no test here asserts on
+  // actual navigation.
+  Link: ({ children }: { children: React.ReactNode }) => children,
 }));
 
 // Defined entirely inside the factory (no outside reference) so it isn't
@@ -24,19 +28,27 @@ jest.mock("../../src/api/client", () => {
       this.status = status;
     }
   }
-  return { getWallet: jest.fn(), getProfile: jest.fn(), transferCoins: jest.fn(), ApiError };
+  return {
+    getWallet: jest.fn(),
+    getBusinesses: jest.fn(),
+    getBusinessWallet: jest.fn(),
+    getProfile: jest.fn(),
+    transferCoins: jest.fn(),
+    ApiError,
+  };
 });
 
 import { render, fireEvent, waitFor } from "@testing-library/react-native";
 import WalletScreen from "../wallet";
-import { getWallet, getProfile, transferCoins, ApiError } from "../../src/api/client";
+import { getWallet, getBusinesses, getProfile, transferCoins, ApiError } from "../../src/api/client";
 import type { WalletResponse, Profile } from "../../src/api/types";
 
 const mockGetWallet = getWallet as jest.Mock;
+const mockGetBusinesses = getBusinesses as jest.Mock;
 const mockGetProfile = getProfile as jest.Mock;
 const mockTransferCoins = transferCoins as jest.Mock;
 
-const WALLET: WalletResponse = { coinBalance: 50, history: [] };
+const WALLET: WalletResponse = { coinBalance: 50, balance: { spendable: 50, restricted: 0, total: 50 }, history: [] };
 const RECIPIENT = {
   isOwnProfile: false,
   username: "amit",
@@ -54,6 +66,7 @@ describe("WalletScreen send-coins flow", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockGetWallet.mockResolvedValue(WALLET);
+    mockGetBusinesses.mockResolvedValue({ mine: [], discover: [] });
   });
 
   it("rejects an amount over the cap without calling the API at all", async () => {

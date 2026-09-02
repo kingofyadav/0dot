@@ -30,6 +30,19 @@ import type {
   VoiceRoomDetail,
   VoiceRoomAction,
   LiveKitToken,
+  LivestreamDetail,
+  LivestreamChatResponse,
+  ResumeResponse,
+  ArticleSummary,
+  ArticleDetail,
+  WikiPageSummary,
+  WikiPageDetail,
+  BookSummary,
+  BookDetail,
+  BookChapterDetail,
+  CourseSummary,
+  CourseDetail,
+  QuizAttemptResult,
   BusinessesResponse,
   BusinessDetail,
   MarketplaceResponse,
@@ -38,6 +51,11 @@ import type {
   EventDetail,
   EventRsvpStatus,
   WalletResponse,
+  BusinessWalletResponse,
+  WalletTransactionsResponse,
+  WalletPurchaseTarget,
+  WalletPurchaseResponse,
+  ReferralInfo,
   PrivacySettings,
   BlockedUsersResponse,
   SessionsResponse,
@@ -186,6 +204,74 @@ export function getMe(): Promise<Me> {
 
 export function getProfile(username: string): Promise<Profile> {
   return authorizedRequest<Profile>(`/api/v1/profiles/${encodeURIComponent(username)}`);
+}
+
+export function getResume(username: string): Promise<ResumeResponse> {
+  return authorizedRequest<ResumeResponse>(`/api/v1/profiles/${encodeURIComponent(username)}/resume`);
+}
+
+export function getArticles(username: string): Promise<{ items: ArticleSummary[] }> {
+  return authorizedRequest(`/api/v1/profiles/${encodeURIComponent(username)}/articles`);
+}
+
+export function getArticle(username: string, slug: string): Promise<ArticleDetail> {
+  return authorizedRequest(`/api/v1/profiles/${encodeURIComponent(username)}/articles/${encodeURIComponent(slug)}`);
+}
+
+export function getWikiPages(username: string): Promise<{ items: WikiPageSummary[] }> {
+  return authorizedRequest(`/api/v1/profiles/${encodeURIComponent(username)}/wiki`);
+}
+
+export function getWikiPage(username: string, slug: string): Promise<WikiPageDetail> {
+  return authorizedRequest(`/api/v1/profiles/${encodeURIComponent(username)}/wiki/${encodeURIComponent(slug)}`);
+}
+
+export function getBooks(username: string): Promise<{ items: BookSummary[] }> {
+  return authorizedRequest(`/api/v1/profiles/${encodeURIComponent(username)}/books`);
+}
+
+export function getBook(username: string, slug: string): Promise<BookDetail> {
+  return authorizedRequest(`/api/v1/profiles/${encodeURIComponent(username)}/books/${encodeURIComponent(slug)}`);
+}
+
+export function getBookChapter(username: string, slug: string, chapterSlug: string): Promise<BookChapterDetail> {
+  return authorizedRequest(
+    `/api/v1/profiles/${encodeURIComponent(username)}/books/${encodeURIComponent(slug)}/${encodeURIComponent(chapterSlug)}`
+  );
+}
+
+export function getCourses(username: string): Promise<{ items: CourseSummary[] }> {
+  return authorizedRequest(`/api/v1/profiles/${encodeURIComponent(username)}/courses`);
+}
+
+export function getCourse(username: string, courseId: string): Promise<CourseDetail> {
+  return authorizedRequest(`/api/v1/profiles/${encodeURIComponent(username)}/courses/${encodeURIComponent(courseId)}`);
+}
+
+export function markLessonComplete(username: string, courseId: string, lessonId: string): Promise<{ ok: true }> {
+  return authorizedRequest(
+    `/api/v1/profiles/${encodeURIComponent(username)}/courses/${encodeURIComponent(courseId)}/progress`,
+    { method: "POST", body: JSON.stringify({ lessonId }) }
+  );
+}
+
+export function submitQuizAttempt(
+  username: string,
+  courseId: string,
+  quizId: string,
+  answers: number[]
+): Promise<QuizAttemptResult> {
+  return authorizedRequest(
+    `/api/v1/profiles/${encodeURIComponent(username)}/courses/${encodeURIComponent(courseId)}/quiz-attempts`,
+    { method: "POST", body: JSON.stringify({ quizId, answers }) }
+  );
+}
+
+export function getLessonFileUrl(username: string, courseId: string, lessonId: string): Promise<{ url: string }> {
+  return authorizedRequest(
+    `/api/v1/profiles/${encodeURIComponent(username)}/courses/${encodeURIComponent(courseId)}/lessons/${encodeURIComponent(lessonId)}/file`,
+    { method: "POST" }
+  );
 }
 
 export function getPost(id: string): Promise<Post> {
@@ -413,6 +499,19 @@ export function getVoiceRoomToken(slug: string, roomId: string): Promise<LiveKit
   );
 }
 
+export function getLivestream(livestreamId: string): Promise<LivestreamDetail> {
+  return authorizedRequest(`/api/v1/live/${encodeURIComponent(livestreamId)}`);
+}
+
+export function getLivestreamToken(livestreamId: string): Promise<LiveKitToken> {
+  return authorizedRequest(`/api/v1/live/${encodeURIComponent(livestreamId)}/token`, { method: "POST" });
+}
+
+export function getLivestreamChat(livestreamId: string, cursor?: string | null): Promise<LivestreamChatResponse> {
+  const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
+  return authorizedRequest(`/api/v1/live/${encodeURIComponent(livestreamId)}/chat${query}`);
+}
+
 export function createVoiceRoom(slug: string, title: string): Promise<{ id: string }> {
   return authorizedRequest(`/api/v1/communities/${encodeURIComponent(slug)}/voice`, {
     method: "POST",
@@ -458,6 +557,27 @@ export function getWallet(): Promise<WalletResponse> {
 
 export function transferCoins(args: { username: string; coinAmount: number }): Promise<{ ok: true }> {
   return authorizedRequest("/api/v1/wallet/transfer", { method: "POST", body: JSON.stringify(args) });
+}
+
+export function getBusinessWallet(businessId: string): Promise<BusinessWalletResponse> {
+  return authorizedRequest<BusinessWalletResponse>(`/api/v1/wallet?scope=business&businessId=${encodeURIComponent(businessId)}`);
+}
+
+export function getWalletTransactions(opts?: { cursor?: string | null; kind?: string; limit?: number }): Promise<WalletTransactionsResponse> {
+  const params = new URLSearchParams();
+  if (opts?.cursor) params.set("cursor", opts.cursor);
+  if (opts?.kind) params.set("kind", opts.kind);
+  if (opts?.limit) params.set("limit", String(opts.limit));
+  const query = params.toString();
+  return authorizedRequest<WalletTransactionsResponse>(`/api/v1/wallet/transactions${query ? `?${query}` : ""}`);
+}
+
+export function purchaseWithCoins(args: WalletPurchaseTarget & { idempotencyKey?: string }): Promise<WalletPurchaseResponse> {
+  return authorizedRequest("/api/v1/wallet/purchases", { method: "POST", body: JSON.stringify(args) });
+}
+
+export function getWalletReferral(): Promise<ReferralInfo> {
+  return authorizedRequest<ReferralInfo>("/api/v1/wallet/referral");
 }
 
 export function followUser(username: string): Promise<{ status: FollowStatus }> {

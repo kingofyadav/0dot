@@ -67,6 +67,7 @@ export async function GET(request: Request) {
     return Response.json(
       {
         items: rows.map((b) => ({
+          id: b.id,
           slug: b.slug,
           name: b.name,
           logoUrl: b.logoUrl,

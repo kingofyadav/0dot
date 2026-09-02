@@ -29,7 +29,11 @@ export async function GET(request: Request) {
     take: 20,
   });
 
-  const summarize = (b: { slug: string; name: string; logoUrl: string | null; category: string; status: string; isVerified: boolean }) => ({
+  const summarize = (b: { id: string; slug: string; name: string; logoUrl: string | null; category: string; status: string; isVerified: boolean }) => ({
+    // Added for the mobile wallet business-switcher (GET /wallet?scope=business
+    // needs a businessId, not a slug) — additive field, existing clients
+    // that only read the fields below are unaffected.
+    id: b.id,
     slug: b.slug,
     name: b.name,
     logoUrl: b.logoUrl,

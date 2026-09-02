@@ -4,8 +4,14 @@ import { hasTierAccess } from "@/lib/tier-access";
 import { subscribeToLivestreamChat, type LivestreamChatEvent } from "@/lib/livestream-chat-events";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;
 
 const HEARTBEAT_MS = 20_000;
+// Proactively recycle before Vercel's maxDuration ceiling kills the
+// function mid-stream (see api/messages/stream/route.ts's comment) —
+// ending the response body normally makes the browser's native
+// EventSource reconnect on its own.
+const STREAM_RECYCLE_MS = 280_000;
 
 // Same shape as /api/c/[slug]/chat/stream — reading the live stream follows
 // the same gate sendChatMessage applies to sending (spec §8.3's second
@@ -25,22 +31,34 @@ export async function GET(_request: Request, { params }: { params: Promise<{ liv
 
   let unsubscribe: (() => void) | undefined;
   let heartbeat: ReturnType<typeof setInterval> | undefined;
+  let closed = false;
+  const cleanup = () => {
+    if (closed) return;
+    closed = true;
+    unsubscribe?.();
+    if (heartbeat) clearInterval(heartbeat);
+  };
 
   const stream = new ReadableStream({
     start(controller) {
       const encoder = new TextEncoder();
+      const startedAt = Date.now();
       const send = (event: LivestreamChatEvent) => {
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
       };
 
       unsubscribe = subscribeToLivestreamChat(livestreamId, send);
       heartbeat = setInterval(() => {
+        if (Date.now() - startedAt >= STREAM_RECYCLE_MS) {
+          cleanup();
+          controller.close();
+          return;
+        }
         controller.enqueue(encoder.encode(`: heartbeat\n\n`));
       }, HEARTBEAT_MS);
     },
     cancel() {
-      unsubscribe?.();
-      if (heartbeat) clearInterval(heartbeat);
+      cleanup();
     },
   });
 

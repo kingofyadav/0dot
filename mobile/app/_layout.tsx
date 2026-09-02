@@ -87,6 +87,16 @@ function RootNavigator() {
       <Stack.Screen name="[username]" options={{ title: "Profile" }} />
       <Stack.Screen name="[username]/followers" options={{ title: "Followers" }} />
       <Stack.Screen name="[username]/following" options={{ title: "Following" }} />
+      <Stack.Screen name="[username]/resume" options={{ title: "Résumé" }} />
+      <Stack.Screen name="[username]/articles/index" options={{ title: "Articles" }} />
+      <Stack.Screen name="[username]/articles/[slug]" options={{ title: "Article" }} />
+      <Stack.Screen name="[username]/wiki/index" options={{ title: "Wiki" }} />
+      <Stack.Screen name="[username]/wiki/[slug]" options={{ title: "Wiki page" }} />
+      <Stack.Screen name="[username]/books/index" options={{ title: "Books" }} />
+      <Stack.Screen name="[username]/books/[slug]/index" options={{ title: "Book" }} />
+      <Stack.Screen name="[username]/books/[slug]/[chapterSlug]" options={{ title: "Chapter" }} />
+      <Stack.Screen name="[username]/courses/index" options={{ title: "Courses" }} />
+      <Stack.Screen name="[username]/courses/[courseId]" options={{ title: "Course" }} />
       <Stack.Screen name="compose" options={{ headerShown: false, presentation: "modal" }} />
       <Stack.Screen name="edit-profile" options={{ headerShown: false, presentation: "modal" }} />
       <Stack.Screen name="notification-preferences" options={{ title: "Notifications" }} />
@@ -109,7 +119,10 @@ function RootNavigator() {
       <Stack.Screen name="marketplace" options={{ title: "Marketplace" }} />
       <Stack.Screen name="events" options={{ title: "Events" }} />
       <Stack.Screen name="event/[slug]" options={{ title: "Event" }} />
+      <Stack.Screen name="live/[livestreamId]" options={{ title: "Live", headerStyle: { backgroundColor: "#000" }, headerTintColor: "#fff" }} />
       <Stack.Screen name="wallet" options={{ title: "Wallet" }} />
+      <Stack.Screen name="wallet/transactions" options={{ title: "Activity" }} />
+      <Stack.Screen name="wallet/referral" options={{ title: "Invite & earn" }} />
     </Stack>
   );
 }

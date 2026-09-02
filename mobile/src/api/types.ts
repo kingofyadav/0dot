@@ -234,9 +234,32 @@ export type VoiceRoomAction =
   | "force-stop"
   | "end-room";
 
+// GET /api/v1/live/[livestreamId] — ingestKey is deliberately never
+// returned by that route (schema.prisma's own comment on that column).
+export type LivestreamDetail = {
+  id: string;
+  title: string;
+  status: string; // scheduled | live | ended
+  scheduledAt: string | null;
+  startedAt: string | null;
+  endedAt: string | null;
+  hasAccess: boolean;
+  creator: { username: string | null; displayName: string | null; avatarUrl: string | null };
+};
+
+export type LivestreamChatMessage = {
+  id: string;
+  body: string;
+  createdAt: string;
+  sender: { username: string | null; displayName: string | null; avatarUrl: string | null };
+};
+
+export type LivestreamChatResponse = { items: LivestreamChatMessage[]; nextCursor: string | null };
+
 export type LiveKitToken = { token: string; url: string };
 
 export type BusinessSummary = {
+  id: string;
   slug: string;
   name: string;
   logoUrl: string | null;
@@ -337,7 +360,58 @@ export type WalletTransferEntry = {
   createdAt: string;
 };
 
-export type WalletResponse = { coinBalance: number; history: WalletTransferEntry[] };
+export type WalletBalance = { spendable: number; restricted: number; total: number };
+
+export type WalletResponse = {
+  coinBalance: number;
+  // Spendable/restricted split (server always returns it — see
+  // GET /api/v1/wallet). `coinBalance` above is kept for older clients but
+  // equals `balance.total`.
+  balance: WalletBalance;
+  history: WalletTransferEntry[];
+};
+
+export type BusinessWalletResponse = {
+  balance: WalletBalance;
+  activity: WalletTransactionEntry[];
+  nextCursor: string | null;
+};
+
+// GET /api/v1/wallet/transactions — the full ledger (grants, purchases,
+// holds, admin adjustments, not just peer transfers). `kind` is the coarse
+// ledger kind; `feature` resolves to the specific PaymentTransaction kind
+// (tip/donation/course_purchase/...) when the ledger kind is a generic
+// purchase/refund, else equals `kind` — see
+// src/lib/wallet/ledger.ts::listLedgerEntries and
+// src/lib/wallet/activity-labels.ts for the exact server-side mapping this
+// mirrors.
+export type WalletTransactionEntry = {
+  id: string;
+  transactionId: string;
+  kind: string;
+  feature: string;
+  direction: "in" | "out";
+  amountCoins: number;
+  memo: string | null;
+  createdAt: string;
+};
+
+export type WalletTransactionsResponse = { entries: WalletTransactionEntry[]; nextCursor: string | null };
+
+export type WalletPurchaseTarget =
+  | { target: "premium"; billingInterval: "monthly" | "yearly" }
+  | { target: "tip"; username: string; amount: number; message?: string };
+
+export type WalletPurchaseResponse = { ok: true; target: "premium" | "tip" };
+
+export type ReferralInfo = {
+  code: string;
+  joinUrl: string;
+  attributedSignups: number;
+  rewardedInvites: number;
+  maxRewardedInvites: number;
+  rewardCoinsPerInvite: number;
+};
 
 // M12 (settings/account parity) — mirror the corresponding
 // /api/v1/{privacy,blocks,account/*,preferences}* routes' response shapes.
@@ -373,3 +447,123 @@ export type RecoveryCodes = { recoveryCodes: string[] };
 
 export type AccessibilityPrefs = { reducedMotion: boolean; fontScale: string; highContrast: boolean };
 export type PreferencesResponse = { locale: string | null; timezone: string | null; accessibilityPrefs: AccessibilityPrefs };
+
+// GET /api/v1/profiles/[username]/resume — a pure recomposition of Profile
+// fields, no separate resume model server-side either.
+export type WorkExperienceItem = {
+  id: string;
+  title: string;
+  company: string;
+  location: string | null;
+  startDate: string;
+  endDate: string | null;
+  description: string;
+};
+
+export type EducationItem = {
+  id: string;
+  institution: string;
+  degree: string | null;
+  fieldOfStudy: string | null;
+  startDate: string;
+  endDate: string | null;
+  description: string;
+};
+
+export type ResumeResponse = {
+  resumePdfUrl: string | null;
+  workExperiences: WorkExperienceItem[];
+  education: EducationItem[];
+  skills: { id: string; name: string }[];
+  featuredProjects: { id: string; slug: string; title: string; summary: string }[];
+};
+
+// GET /api/v1/profiles/[username]/articles(/[slug])
+export type ArticleSummary = {
+  id: string;
+  slug: string;
+  title: string;
+  subtitle: string | null;
+  format: string;
+  formatLabel: string;
+  coverImageUrl: string | null;
+  readingTimeMinutes: number;
+  publishedAt: string | null;
+};
+
+export type ArticleDetail = ArticleSummary & {
+  body: string;
+  status: string;
+  visibility: string;
+  likeCount: number;
+  commentCount: number;
+  isOwner: boolean;
+  hashtags: string[];
+};
+
+// GET /api/v1/profiles/[username]/wiki(/[slug])
+export type WikiPageSummary = { id: string; slug: string; title: string; kind: string; kindLabel: string };
+
+export type WikiPageDetail = WikiPageSummary & {
+  visibility: string | null;
+  body: string;
+  isOwner: boolean;
+  parent: { slug: string; title: string } | null;
+  children: { id: string; slug: string; title: string }[];
+};
+
+// GET /api/v1/profiles/[username]/books(/[slug](/[chapterSlug]))
+export type BookSummary = { id: string; slug: string; title: string; description: string; coverImageUrl: string | null };
+
+export type BookChapterSummary = { id: string; slug: string; title: string };
+
+export type BookDetail = BookSummary & {
+  ebookFileUrl: string | null;
+  status: string;
+  visibility: string;
+  likeCount: number;
+  commentCount: number;
+  isOwner: boolean;
+  chapters: BookChapterSummary[];
+};
+
+export type BookChapterDetail = {
+  id: string;
+  slug: string;
+  title: string;
+  visibility: string | null;
+  body: string;
+  isOwner: boolean;
+  parent: { slug: string; title: string } | null;
+  children: BookChapterSummary[];
+};
+
+// GET /api/v1/profiles/[username]/courses(/[courseId])
+export type CourseSummary = { id: string; title: string; description: string; price: number | null; currency: string | null };
+
+// correctIndex is deliberately never included — see the route's own comment.
+export type QuizQuestion = { question: string; options: string[] };
+
+export type CourseQuiz = { id: string; passingScore: number; passed: boolean; questions: QuizQuestion[] };
+
+export type CourseLesson = {
+  id: string;
+  title: string;
+  contentType: string; // video | text | download
+  isCompleted: boolean;
+  hasFile: boolean;
+  body: string | null;
+  quizzes: CourseQuiz[];
+};
+
+export type CourseModuleDetail = { id: string; title: string; lessons: CourseLesson[] };
+
+export type CourseDetail = CourseSummary & {
+  requiredTier: { id: string; name: string } | null;
+  status: string;
+  isOwner: boolean;
+  hasAccess: boolean;
+  modules: CourseModuleDetail[];
+};
+
+export type QuizAttemptResult = { score: number; passed: boolean };

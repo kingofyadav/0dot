@@ -16,6 +16,7 @@ import { getProfile, getUserPosts, followUser, unfollowUser, likePost, repostPos
 import { Avatar } from "../components/Avatar";
 import { defaultCoverSource } from "../components/defaultCover";
 import { Button } from "../components/Button";
+import { SegmentedControl } from "../components/SegmentedControl";
 import { VerifiedBadge } from "../components/VerifiedBadge";
 import { PremiumBadge } from "../components/PremiumBadge";
 import { ImageLightbox } from "../components/ImageLightbox";
@@ -32,6 +33,21 @@ import { API_BASE_URL } from "../config";
 import type { Post, Profile } from "../api/types";
 
 const COVER_HEIGHT = 140;
+
+// Posts stay inline (this screen's own FlatList, fetched above); the rest
+// are each their own standalone screen (Phase C content-viewing routes) —
+// SegmentedControl here is reused as a tab-styled navigation bar rather
+// than an in-place content switcher, so this screen's existing posts-
+// fetching machinery doesn't need to grow a second data shape per tab.
+type ContentTabKey = "posts" | "articles" | "books" | "courses" | "wiki" | "resume";
+const CONTENT_TABS: { key: ContentTabKey; label: string }[] = [
+  { key: "posts", label: "Posts" },
+  { key: "articles", label: "Articles" },
+  { key: "books", label: "Books" },
+  { key: "courses", label: "Courses" },
+  { key: "wiki", label: "Wiki" },
+  { key: "resume", label: "Résumé" },
+];
 
 // The full profile screen body (fetch, optimistic like/repost/bookmark/
 // follow, header, posts list) — shared by app/[username].tsx (any
@@ -214,6 +230,28 @@ export function ProfileScreenBody({ username, showSettingsShortcut = false }: { 
     } catch {
       haptics.warning();
       setProfile((prev) => (prev ? { ...prev, followStatus: "none", followerCount: prevCount } : prev));
+    }
+  }
+
+  function onSelectContentTab(tab: ContentTabKey) {
+    if (tab === "posts") return; // already showing, no navigation needed
+    haptics.light();
+    switch (tab) {
+      case "articles":
+        router.push({ pathname: "/[username]/articles", params: { username } });
+        break;
+      case "books":
+        router.push({ pathname: "/[username]/books", params: { username } });
+        break;
+      case "courses":
+        router.push({ pathname: "/[username]/courses", params: { username } });
+        break;
+      case "wiki":
+        router.push({ pathname: "/[username]/wiki", params: { username } });
+        break;
+      case "resume":
+        router.push({ pathname: "/[username]/resume", params: { username } });
+        break;
     }
   }
 
@@ -404,7 +442,9 @@ export function ProfileScreenBody({ username, showSettingsShortcut = false }: { 
                 />
               )}
             </View>
-            <Text style={styles.postsHeading}>Posts</Text>
+            <View style={styles.tabsWrap}>
+              <SegmentedControl options={CONTENT_TABS} value="posts" onChange={onSelectContentTab} />
+            </View>
           </View>
         }
       />
@@ -482,11 +522,8 @@ function createStyles(theme: Theme) {
     statNumber: { fontWeight: theme.weight.heading, color: theme.colors.foreground, fontSize: theme.text.base },
     statLabel: { color: theme.colors.mutedForeground, fontSize: theme.text.sm },
     followButton: { marginTop: theme.space[4], minWidth: 140 },
-    postsHeading: {
-      fontSize: theme.text.lg,
-      fontWeight: theme.weight.heading,
-      color: theme.colors.foreground,
-      paddingHorizontal: theme.space[4],
+    tabsWrap: {
+      marginTop: theme.space[4],
       paddingBottom: theme.space[2],
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: theme.colors.border,

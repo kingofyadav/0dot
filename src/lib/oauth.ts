@@ -112,6 +112,16 @@ export const OAUTH_SCOPES = [
   { key: "account:write", description: "Change your password, email, phone, two-factor settings, or deactivate/delete your account", sensitivity: "high" },
   { key: "preferences:read", description: "Read your language, timezone, and accessibility preferences", sensitivity: "low" },
   { key: "preferences:write", description: "Change your language, timezone, and accessibility preferences", sensitivity: "low" },
+  // Mobile livestream viewer (v1/live/*): watching a livestream (detail,
+  // viewer token, chat read/stream) is read-only from the API consumer's
+  // perspective — no participation-state change the way voice's join does
+  // — so it stays on the read scope alone, same reasoning events:read/
+  // communities:read cover pure viewing. :write is declared now per this
+  // catalog's own "reserved before a first real use" precedent
+  // (businesses:write above) for a future send-chat-message-from-mobile
+  // route — not wired to any route yet.
+  { key: "livestreams:read", description: "Watch livestreams you have access to and read their chat", sensitivity: "low" },
+  { key: "livestreams:write", description: "Send livestream chat messages on your behalf", sensitivity: "low" },
 ] as const;
 
 export type OAuthScopeKey = (typeof OAUTH_SCOPES)[number]["key"];

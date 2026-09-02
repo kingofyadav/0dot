@@ -1,22 +1,37 @@
 import { useCallback, useMemo, useState } from "react";
-import { FlatList, RefreshControl, StyleSheet, Text, TextInput, View } from "react-native";
+import { FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useFocusEffect } from "expo-router";
-import { getWallet, getProfile, transferCoins, ApiError } from "../src/api/client";
+import { Link, useFocusEffect } from "expo-router";
+import { getWallet, getBusinesses, getBusinessWallet, getProfile, transferCoins, ApiError } from "../src/api/client";
 import { Avatar } from "../src/components/Avatar";
 import { BottomSheet } from "../src/components/BottomSheet";
 import { Button } from "../src/components/Button";
 import { Card } from "../src/components/Card";
+import { Chip } from "../src/components/Chip";
+import { WalletActivityRow } from "../src/components/WalletActivityRow";
 import { EmptyState } from "../src/components/EmptyState";
 import { SkeletonBlock } from "../src/components/Skeleton";
 import { VerifiedBadge } from "../src/components/VerifiedBadge";
+import { isBiometricLockAvailable, unlockWithBiometrics } from "../src/auth/biometricLock";
 import { haptics } from "../src/utils/haptics";
 import { relativeTime } from "../src/utils/relativeTime";
 import { useContentMaxWidth } from "../src/utils/responsive";
 import { useTheme, type Theme } from "../src/theme";
-import type { Profile, WalletResponse, WalletTransferEntry } from "../src/api/types";
+import type {
+  BusinessSummary,
+  BusinessWalletResponse,
+  Profile,
+  WalletBalance,
+  WalletResponse,
+  WalletTransactionEntry,
+  WalletTransferEntry,
+} from "../src/api/types";
 
 const MAX_TRANSFER_COINS = 20;
+
+// "Personal" always exists; a business scope is only offered when the
+// caller actually administers one (businesses.mine from GET /businesses).
+type WalletScope = { kind: "personal" } | { kind: "business"; business: BusinessSummary };
 
 // Snapshot of who's about to receive coins and how many — captured once at
 // "Review transfer" time so the confirm sheet can't drift if the (disabled,
@@ -30,6 +45,9 @@ export default function WalletScreen() {
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   const [wallet, setWallet] = useState<WalletResponse | null>(null);
+  const [businesses, setBusinesses] = useState<BusinessSummary[]>([]);
+  const [scope, setScope] = useState<WalletScope>({ kind: "personal" });
+  const [businessWallet, setBusinessWallet] = useState<BusinessWalletResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,10 +61,21 @@ export default function WalletScreen() {
   const [sending, setSending] = useState(false);
   const [confirmError, setConfirmError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  // Personal wallet + the list of businesses the switcher offers are always
+  // both fetched — cheap (one extra request) and means switching scopes
+  // never needs a loading spinner for the chip row itself, only for the
+  // selected wallet's own data.
+  const load = useCallback(async (currentScope: WalletScope) => {
     setError(null);
     try {
-      setWallet(await getWallet());
+      const [walletResult, businessesResult] = await Promise.all([getWallet(), getBusinesses()]);
+      setWallet(walletResult);
+      setBusinesses(businessesResult.mine);
+      if (currentScope.kind === "business") {
+        setBusinessWallet(await getBusinessWallet(currentScope.business.id));
+      } else {
+        setBusinessWallet(null);
+      }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not load your wallet.");
     }
@@ -56,16 +85,34 @@ export default function WalletScreen() {
     useCallback(() => {
       (async () => {
         setLoading(true);
-        await load();
+        await load(scope);
         setLoading(false);
+        // Deliberately not depending on `scope` here — a screen focus
+        // shouldn't reset which wallet is being viewed. Switching scopes
+        // (below) reloads on its own.
       })();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [load])
   );
+
+  async function onSelectScope(next: WalletScope) {
+    if (
+      (next.kind === "personal" && scope.kind === "personal") ||
+      (next.kind === "business" && scope.kind === "business" && scope.business.id === next.business.id)
+    ) {
+      return;
+    }
+    haptics.light();
+    setScope(next);
+    setLoading(true);
+    await load(next);
+    setLoading(false);
+  }
 
   async function onRefresh() {
     setRefreshing(true);
     haptics.light();
-    await load();
+    await load(scope);
     setRefreshing(false);
   }
 
@@ -115,17 +162,28 @@ export default function WalletScreen() {
   }
 
   // The actual, irreversible send — only reachable from the confirm sheet.
+  // Biometric-gated when the device has it set up (never blocks a device
+  // without biometrics enrolled — see biometricLock.ts's own posture on
+  // this being a convenience gate, not a new auth factor); a cancelled/
+  // failed prompt just reopens the confirm sheet rather than erroring.
   async function onConfirmSend() {
     if (!pending || sending) return;
     setSending(true);
     setConfirmError(null);
     try {
+      if (await isBiometricLockAvailable()) {
+        const confirmed = await unlockWithBiometrics();
+        if (!confirmed) {
+          setSending(false);
+          return;
+        }
+      }
       await transferCoins({ username: pending.profile.username, coinAmount: pending.coinAmount });
       haptics.light();
       setPending(null);
       setUsername("");
       setAmount("");
-      await load();
+      await load(scope);
     } catch (err) {
       haptics.warning();
       setConfirmError(err instanceof ApiError ? err.message : "Could not send coins.");
@@ -146,60 +204,104 @@ export default function WalletScreen() {
   if (!wallet) {
     return (
       <View style={styles.screen}>
-        <EmptyState icon="wallet-outline" message={error ?? "Could not load your wallet."} onRetry={error ? load : undefined} />
+        <EmptyState icon="wallet-outline" message={error ?? "Could not load your wallet."} onRetry={error ? () => load(scope) : undefined} />
       </View>
     );
   }
 
+  const isPersonal = scope.kind === "personal";
+  const balance: WalletBalance = isPersonal ? wallet.balance : businessWallet?.balance ?? { spendable: 0, restricted: 0, total: 0 };
+  const transferItems = isPersonal ? wallet.history : [];
+  const activityItems = !isPersonal ? businessWallet?.activity ?? [] : [];
+
   return (
     <>
-      <FlatList
+      <FlatList<WalletTransferEntry | WalletTransactionEntry>
         style={[styles.screen, maxWidth ? { maxWidth, alignSelf: "center", width: "100%" } : null]}
         contentContainerStyle={styles.list}
-        data={wallet.history}
+        data={isPersonal ? transferItems : activityItems}
         keyExtractor={(entry) => entry.id}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.accent} />}
         ListHeaderComponent={
           <View style={styles.header}>
+            {businesses.length > 0 ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scopeRow}>
+                <Chip label="Personal" selected={isPersonal} onPress={() => onSelectScope({ kind: "personal" })} />
+                {businesses.map((business) => (
+                  <Chip
+                    key={business.id}
+                    label={business.name}
+                    selected={scope.kind === "business" && scope.business.id === business.id}
+                    onPress={() => onSelectScope({ kind: "business", business })}
+                  />
+                ))}
+              </ScrollView>
+            ) : null}
+
             <Card elevated style={styles.balanceCard}>
-              <Text style={styles.balanceLabel}>Coin balance</Text>
-              <Text style={styles.balanceValue}>{wallet.coinBalance}</Text>
+              <Text style={styles.balanceLabel}>Spendable</Text>
+              <Text style={styles.balanceValue}>{balance.spendable}</Text>
+              {balance.restricted > 0 ? (
+                <Text style={styles.balanceRestricted}>+{balance.restricted} restricted (promo credit)</Text>
+              ) : null}
             </Card>
 
-            <Card style={styles.transferCard}>
-              <Text style={styles.sectionHeading}>Send coins</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Recipient username"
-                placeholderTextColor={theme.colors.mutedForeground}
-                value={username}
-                onChangeText={setUsername}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-              <TextInput
-                style={styles.input}
-                placeholder={`Amount (max ${MAX_TRANSFER_COINS})`}
-                placeholderTextColor={theme.colors.mutedForeground}
-                value={amount}
-                onChangeText={setAmount}
-                keyboardType="number-pad"
-              />
-              {sendError ? <Text style={styles.error}>{sendError}</Text> : null}
-              <Button
-                label="Review transfer"
-                onPress={onSend}
-                loading={resolving}
-                disabled={!username.trim() || !amount}
-                style={styles.sendButton}
-              />
-            </Card>
+            {isPersonal ? (
+              <Link href="/wallet/referral" asChild>
+                <Pressable accessibilityRole="button" style={styles.referralBanner}>
+                  <Text style={styles.referralText}>Invite friends & earn coins</Text>
+                  <Ionicons name="chevron-forward" size={16} color={theme.colors.accent} />
+                </Pressable>
+              </Link>
+            ) : null}
 
-            <Text style={styles.sectionHeading}>History</Text>
+            {isPersonal ? (
+              <Card style={styles.transferCard}>
+                <Text style={styles.sectionHeading}>Send coins</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Recipient username"
+                  placeholderTextColor={theme.colors.mutedForeground}
+                  value={username}
+                  onChangeText={setUsername}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder={`Amount (max ${MAX_TRANSFER_COINS})`}
+                  placeholderTextColor={theme.colors.mutedForeground}
+                  value={amount}
+                  onChangeText={setAmount}
+                  keyboardType="number-pad"
+                />
+                {sendError ? <Text style={styles.error}>{sendError}</Text> : null}
+                <Button
+                  label="Review transfer"
+                  onPress={onSend}
+                  loading={resolving}
+                  disabled={!username.trim() || !amount}
+                  style={styles.sendButton}
+                />
+              </Card>
+            ) : null}
+
+            <View style={styles.historyHeadingRow}>
+              <Text style={styles.sectionHeading}>{isPersonal ? "Recent transfers" : "Recent activity"}</Text>
+              {isPersonal ? (
+                <Link href="/wallet/transactions" asChild>
+                  <Pressable accessibilityRole="button">
+                    <Text style={styles.link}>View all activity</Text>
+                  </Pressable>
+                </Link>
+              ) : null}
+            </View>
           </View>
         }
-        ListEmptyComponent={<EmptyState icon="receipt-outline" message="No transfers yet." />}
-        renderItem={({ item }) => <HistoryRow entry={item} theme={theme} />}
+        ListEmptyComponent={<EmptyState icon="receipt-outline" message={isPersonal ? "No transfers yet." : "No activity yet."} />}
+        renderItem={({ item }) =>
+          "amount" in item ? <HistoryRow entry={item} theme={theme} /> : <WalletActivityRow entry={item} />
+        }
       />
 
       <BottomSheet visible={!!pending} onClose={closeConfirm} title="Confirm transfer">
@@ -266,8 +368,22 @@ function createStyles(theme: Theme) {
     list: { padding: theme.space[5], gap: theme.space[2] },
     header: { gap: theme.space[4], marginBottom: theme.space[2] },
     balanceCard: { alignItems: "center", gap: theme.space[1] },
+    scopeRow: { gap: theme.space[2], paddingBottom: theme.space[1] },
     balanceLabel: { color: theme.colors.mutedForeground, fontSize: theme.text.sm },
     balanceValue: { color: theme.colors.foreground, fontSize: 40, fontWeight: theme.weight.heading },
+    balanceRestricted: { color: theme.colors.mutedForeground, fontSize: theme.text.sm },
+    referralBanner: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      minHeight: 44,
+      paddingHorizontal: theme.space[4],
+      borderRadius: theme.radius.md,
+      backgroundColor: theme.colors.accentSoft,
+    },
+    referralText: { color: theme.colors.accent, fontSize: theme.text.sm, fontWeight: theme.weight.label },
+    historyHeadingRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+    link: { color: theme.colors.accent, fontSize: theme.text.sm, fontWeight: theme.weight.label },
     transferCard: { gap: theme.space[2] },
     sectionHeading: { fontSize: theme.text.lg, fontWeight: theme.weight.heading, color: theme.colors.foreground },
     input: {

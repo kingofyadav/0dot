@@ -49,6 +49,25 @@ export function resolvePath(path: string): void {
     return;
   }
 
+  // getNotificationHref sends livestream_started notifications to
+  // "/live/{livestreamId}" — mirrors communityMatch/businessMatch/
+  // eventMatch above.
+  const liveMatch = path.match(/^\/live\/([^/?#]+)/);
+  if (liveMatch) {
+    router.push({ pathname: "/live/[livestreamId]", params: { livestreamId: liveMatch[1] } });
+    return;
+  }
+
+  // getNotificationHref (src/lib/notifications.ts) sends coins_received
+  // notifications to exactly "/wallet" — without this case it fell through
+  // to the bare-username catch-all below (misread as a profile for a user
+  // named "wallet") rather than the in-app browser fallback either way, so
+  // this is a native-screen upgrade, not a behavior fix.
+  if (path === "/wallet" || path.startsWith("/wallet?") || path.startsWith("/wallet#")) {
+    router.push("/wallet");
+    return;
+  }
+
   // Mobile pro-upgrade addendum M13: followers/following lists. Two
   // segments, so these must be checked before the single-segment
   // usernameMatch catch-all below (which only matches "/{username}",
