@@ -41,8 +41,8 @@ export const metadata: Metadata = { title: "Download" };
 // moved to the kingofyadav account, so it's no longer a monotonic signal.
 //
 // Current source build (EAS, account kingofyadav / project 0dot,
-// versionCode 2, commit ea442b1):
-// https://expo.dev/accounts/kingofyadav/projects/0dot/builds/1881a675-272a-49b2-ab99-5481446fc981
+// versionCode 3, commit 443e253):
+// https://expo.dev/accounts/kingofyadav/projects/0dot/builds/70ae3bda-671b-4dc1-8c6f-8d9528ead3e9
 const ANDROID_APK_URL = process.env.ANDROID_APK_DOWNLOAD_URL;
 const ANDROID_APK_VERSION = "1.0.0";
 const ANDROID_APK_SIZE_MB = 161;
