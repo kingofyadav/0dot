@@ -52,6 +52,59 @@ const CHECKS = [
   ...JSON_API_CHECKS,
 ];
 
+// Optional authenticated check: everything above only proves a route
+// exists and correctly *rejects* an unauthenticated request — it can't
+// catch a bug that only breaks the authenticated path. This one logs in
+// with a real (dedicated, low-privilege) session and confirms
+// /api/messages/stream actually opens for a real user, not just that it
+// 401s for an anonymous one — see scripts/mint-smoke-test-session.ts for
+// how to provision SMOKE_TEST_SESSION_TOKEN. Skipped, not failed, when
+// that secret isn't set, so this stays optional infrastructure rather than
+// a new hard requirement for every environment running this script.
+const SMOKE_TEST_SESSION_TOKEN = process.env.SMOKE_TEST_SESSION_TOKEN;
+
+async function runAuthenticatedStreamCheck() {
+  const path = "/api/messages/stream";
+  const url = `${BASE_URL}${path}`;
+  if (!SMOKE_TEST_SESSION_TOKEN) {
+    return { ok: true, url, skipped: true };
+  }
+
+  let lastError;
+  for (let attempt = 1; attempt <= RETRIES; attempt++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    try {
+      const res = await fetch(url, {
+        signal: controller.signal,
+        redirect: "manual",
+        headers: { Cookie: `0dot_session=${SMOKE_TEST_SESSION_TOKEN}` },
+      });
+      const contentType = res.headers.get("content-type") ?? "";
+      if (res.status === 200 && contentType.includes("text/event-stream")) {
+        // Confirm the stream actually sends bytes (the `retry: 2000\n\n`
+        // preamble) rather than opening and immediately hanging/erroring —
+        // then abort. Waiting for the stream to end would mean waiting out
+        // its full recycle window, which isn't the point of a smoke test.
+        const reader = res.body.getReader();
+        const { value } = await reader.read();
+        controller.abort();
+        if (value && value.length > 0) return { ok: true, url };
+        lastError = "stream opened (200, text/event-stream) but sent no bytes before timeout";
+      } else {
+        const body = await res.text();
+        lastError = `expected 200 text/event-stream, got ${res.status} ${contentType || "(no content-type)"} — body starts: ${body.slice(0, 120).replace(/\s+/g, " ")}`;
+      }
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : String(err);
+    } finally {
+      clearTimeout(timeout);
+    }
+    if (attempt < RETRIES) await sleep(RETRY_DELAY_MS);
+  }
+  return { ok: false, url, error: lastError };
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -95,11 +148,13 @@ async function runCheck(check) {
 async function main() {
   console.log(`Smoke-testing ${BASE_URL} (${CHECKS.length} checks)...\n`);
 
-  const results = await Promise.all(CHECKS.map(runCheck));
+  const results = await Promise.all([...CHECKS.map(runCheck), runAuthenticatedStreamCheck()]);
 
   let failures = 0;
   for (const result of results) {
-    if (result.ok) {
+    if (result.skipped) {
+      console.log(`  SKIP  ${result.url}\n        SMOKE_TEST_SESSION_TOKEN not set — authenticated check skipped.`);
+    } else if (result.ok) {
       console.log(`  PASS  ${result.url}`);
     } else {
       failures++;

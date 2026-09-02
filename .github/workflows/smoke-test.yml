@@ -30,4 +30,30 @@ jobs:
       # check a few times with a delay to absorb that, rather than needing a
       # fixed sleep here.
       - name: Smoke test production
+        id: smoke
+        env:
+          # Optional — scripts/mint-smoke-test-session.ts provisions this.
+          # The authenticated check is skipped, not failed, when unset.
+          SMOKE_TEST_SESSION_TOKEN: ${{ secrets.SMOKE_TEST_SESSION_TOKEN }}
         run: node scripts/smoke-test.mjs
+
+      # Alert-only, deliberately no automatic rollback: a flaky/false-
+      # positive smoke test auto-reverting a legitimate deploy is worse than
+      # a human taking a minute to look. This step exists so that minute
+      # isn't spent finding out where to look.
+      - name: Surface failure + rollback command
+        if: failure() && steps.smoke.outcome == 'failure'
+        run: |
+          {
+            echo "## :rotating_light: Post-deploy smoke test failed"
+            echo
+            echo "Production (https://0dot.in) is serving a deployment that just failed its smoke test — see the \"Smoke test production\" step's log above for which check(s) failed."
+            echo
+            echo "**To roll back:**"
+            echo '```'
+            echo "vercel rollback --token=\$VERCEL_TOKEN"
+            echo '```'
+            echo "(or promote a specific known-good deployment: \`vercel promote <deployment-url> --token=\$VERCEL_TOKEN\`, listing candidates with \`vercel ls\`)"
+            echo
+            echo "See docs/deploy/ for the full rollback procedure."
+          } >> "$GITHUB_STEP_SUMMARY"
