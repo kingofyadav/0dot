@@ -18,7 +18,7 @@ import path from "path";
 
 const MIGRATIONS_DIR = path.resolve(process.cwd(), "prisma/migrations");
 
-function splitStatements(sql) {
+export function splitStatements(sql) {
   return sql
     .split("\n")
     .filter((line) => !line.trim().startsWith("--"))
@@ -26,6 +26,35 @@ function splitStatements(sql) {
     .split(";")
     .map((s) => s.trim())
     .filter(Boolean);
+}
+
+// Extracted so scripts/__tests__/migrate-deploy.test.mjs can exercise this
+// dispatch directly against a scratch DB — this is the exact logic behind
+// the 2026-08-31 cascade-delete incident (see the comment on the
+// executeMultiple branch), so it's worth a regression test of its own
+// rather than only being reachable through the full directory-scanning
+// main() below.
+export async function applyMigrationSql(client, sql) {
+  if (/PRAGMA\s+(defer_)?foreign_keys/i.test(sql)) {
+    // A table-rebuild migration (Prisma's "RedefineTables"): it drops and
+    // recreates a table, guarding the drop with `PRAGMA foreign_keys=OFF`
+    // so the implicit row-delete inside DROP TABLE doesn't cascade to
+    // child tables. That PRAGMA is a silent NO-OP inside a transaction —
+    // so client.batch (which wraps everything in one) leaves foreign keys
+    // ON and `DROP TABLE "User"` cascade-deletes every Session/Username/
+    // Profile/LedgerAccount row (production incident 2026-08-31).
+    // executeMultiple runs the script with NO implicit transaction — the
+    // way `prisma migrate deploy` applies it — so the PRAGMA takes effect.
+    // Trade-off: no atomicity, a mid-migration failure leaves it partly
+    // applied (fix-forward), same as native prisma migrate deploy.
+    await client.executeMultiple(sql);
+  } else {
+    // client.batch runs all statements in one transaction — a mid-migration
+    // failure (e.g. the payment-idempotency migration's unique index
+    // rejecting pre-existing duplicate rows) leaves nothing partially
+    // applied.
+    await client.batch(splitStatements(sql), "write");
+  }
 }
 
 async function main() {
@@ -92,26 +121,7 @@ async function main() {
 
     console.log(`Applying ${name} (${statements.length} statement(s))...`);
 
-    if (/PRAGMA\s+(defer_)?foreign_keys/i.test(sql)) {
-      // A table-rebuild migration (Prisma's "RedefineTables"): it drops and
-      // recreates a table, guarding the drop with `PRAGMA foreign_keys=OFF`
-      // so the implicit row-delete inside DROP TABLE doesn't cascade to
-      // child tables. That PRAGMA is a silent NO-OP inside a transaction —
-      // so client.batch (which wraps everything in one) leaves foreign keys
-      // ON and `DROP TABLE "User"` cascade-deletes every Session/Username/
-      // Profile/LedgerAccount row (production incident 2026-08-31).
-      // executeMultiple runs the script with NO implicit transaction — the
-      // way `prisma migrate deploy` applies it — so the PRAGMA takes effect.
-      // Trade-off: no atomicity, a mid-migration failure leaves it partly
-      // applied (fix-forward), same as native prisma migrate deploy.
-      await client.executeMultiple(sql);
-    } else {
-      // client.batch runs all statements in one transaction — a mid-migration
-      // failure (e.g. the payment-idempotency migration's unique index
-      // rejecting pre-existing duplicate rows) leaves nothing partially
-      // applied.
-      await client.batch(statements, "write");
-    }
+    await applyMigrationSql(client, sql);
 
     await client.execute({
       sql: `INSERT INTO _prisma_migrations (id, checksum, finished_at, migration_name, started_at, applied_steps_count)
@@ -124,7 +134,13 @@ async function main() {
   console.log(`Applied ${pending.length} migration(s).`);
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+// Only auto-run when executed directly (`node scripts/migrate-deploy.mjs`) —
+// scripts/__tests__/migrate-deploy.test.mjs imports splitStatements/
+// applyMigrationSql from this same module, and must not trigger a real
+// DATABASE_URL connection attempt as a side effect of that import.
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}
