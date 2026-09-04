@@ -66,7 +66,13 @@ export function buildCsp(nonce: string): string {
     "https://vitals.vercel-insights.com",
     ...livekitConnectSrc(),
   ];
-  const frameSrc = ["'self'"];
+  // openstreetmap.org — /map (src/app/map/page.tsx) has no maps-SDK
+  // dependency and embeds each pin as a plain, key-free OSM iframe
+  // (osmEmbedSrc/defaultOsmEmbedSrc). frame-src 'self' silently blocked
+  // every one of those in production ("This content is blocked. Contact
+  // the site owner to fix the issue.", confirmed live via the iframe's
+  // getBoundingClientRect matching the blocked-content placeholder box).
+  const frameSrc = ["'self'", "https://www.openstreetmap.org"];
   if (isPreview) {
     connectSrc.push("https://vercel.live", "wss://*.pusher.com");
     frameSrc.push("https://vercel.live");

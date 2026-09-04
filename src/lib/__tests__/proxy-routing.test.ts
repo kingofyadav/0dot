@@ -60,6 +60,13 @@ describe("buildCsp", () => {
     expect(csp).toContain("https://vercel.com");
   });
 
+  it("allows the OpenStreetMap embed host in frame-src", () => {
+    const csp = buildCsp("n");
+    // /map (src/app/map/page.tsx) embeds each pin as a plain OSM iframe —
+    // without this, every one of those is CSP-blocked in production.
+    expect(csp).toContain("frame-src 'self' https://www.openstreetmap.org");
+  });
+
   it("omits 'unsafe-eval' in a production build", () => {
     vi.stubEnv("NODE_ENV", "production");
     expect(buildCsp("n")).not.toContain("unsafe-eval");
