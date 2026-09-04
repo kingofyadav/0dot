@@ -26,8 +26,20 @@ export function EditProfileForm({
 }) {
   const [state, formAction, pending] = useActionState(updateProfile, undefined);
   const [bioValue, setBioValue] = useState(bio);
+  // Mirrors saveUploadedImage's default maxBytes (src/lib/uploads.ts) — kept
+  // in sync manually since that module is server-only. Catching an oversize
+  // file on selection means the error shows immediately next to the input
+  // instead of only after a full upload round-trip ends in the same
+  // rejection.
+  const [avatarError, setAvatarError] = useState<string | null>(null);
+  const [coverError, setCoverError] = useState<string | null>(null);
   const { setUnsaved, flash, resolveStaleSaving } = useBrowserTab();
   const wasPending = useRef(false);
+
+  function checkFileSize(e: React.ChangeEvent<HTMLInputElement>, setError: (msg: string | null) => void) {
+    const file = e.target.files?.[0];
+    setError(file && file.size > 5 * 1024 * 1024 ? "Images must be 5MB or smaller." : null);
+  }
 
   // Success redirects back to this same URL (see updateProfile), which
   // makes Next.js remount this whole form with the freshly saved data —
@@ -54,6 +66,14 @@ export function EditProfileForm({
     <form
       action={formAction}
       onChange={() => setUnsaved(true)}
+      // Belt-and-suspenders: Next.js intercepts this submit via JS and builds
+      // FormData directly from the DOM form regardless of encType, so this
+      // has no effect in the normal case. It matters only if hydration
+      // hasn't finished (or breaks) and the browser falls back to a native
+      // submit — without it, that fallback silently defaults to
+      // application/x-www-form-urlencoded, which drops the file fields
+      // while text fields still "save," with no error shown at all.
+      encType="multipart/form-data"
       className="authCard"
       style={{ maxWidth: "none" }}
     >
@@ -95,7 +115,14 @@ export function EditProfileForm({
           // eslint-disable-next-line @next/next/no-img-element -- preview of a user-uploaded file, not an optimizable static asset
           <img src={avatarUrl} alt="Current avatar" width={56} height={56} style={{ borderRadius: "50%", objectFit: "cover", marginBottom: "0.4rem" }} />
         )}
-        <input id="avatar" name="avatar" type="file" accept="image/png,image/jpeg,image/webp,image/gif" />
+        <input
+          id="avatar"
+          name="avatar"
+          type="file"
+          accept="image/png,image/jpeg,image/webp,image/gif"
+          onChange={(e) => checkFileSize(e, setAvatarError)}
+        />
+        {avatarError && <p className="errorText">{avatarError}</p>}
       </div>
 
       <div className="field">
@@ -104,7 +131,14 @@ export function EditProfileForm({
           // eslint-disable-next-line @next/next/no-img-element -- preview of a user-uploaded file, not an optimizable static asset
           <img src={coverUrl} alt="Current cover" style={{ width: "100%", maxHeight: "80px", objectFit: "cover", borderRadius: "8px", marginBottom: "0.4rem" }} />
         )}
-        <input id="cover" name="cover" type="file" accept="image/png,image/jpeg,image/webp,image/gif" />
+        <input
+          id="cover"
+          name="cover"
+          type="file"
+          accept="image/png,image/jpeg,image/webp,image/gif"
+          onChange={(e) => checkFileSize(e, setCoverError)}
+        />
+        {coverError && <p className="errorText">{coverError}</p>}
       </div>
 
       <div className="field">
@@ -142,7 +176,7 @@ export function EditProfileForm({
 
       {state?.error && <p className="errorText">{state.error}</p>}
 
-      <button type="submit" className="button" disabled={pending}>
+      <button type="submit" className="button" disabled={pending || Boolean(avatarError || coverError)}>
         {pending ? "Saving…" : "Save"}
       </button>
     </form>

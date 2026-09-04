@@ -37,10 +37,25 @@ export default function ComposeScreen() {
 
   async function onAddImage() {
     if (images.length >= MAX_IMAGES) return;
-    const image = await pickImage();
-    if (image) {
-      haptics.light();
-      setImages((prev) => [...prev, image]);
+    const result = await pickImage();
+    switch (result.status) {
+      case "picked":
+        haptics.light();
+        setImages((prev) => [...prev, result.image]);
+        return;
+      case "permission_denied":
+        haptics.warning();
+        Alert.alert(
+          "Photo access needed",
+          "0dot needs permission to access your photos to attach one. Enable it in your device Settings."
+        );
+        return;
+      case "too_large":
+        haptics.warning();
+        Alert.alert("Image too large", "Please choose an image under 5MB.");
+        return;
+      case "cancelled":
+        return;
     }
   }
 

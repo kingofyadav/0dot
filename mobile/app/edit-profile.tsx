@@ -72,20 +72,34 @@ export default function EditProfileScreen() {
     })();
   }, []);
 
-  async function onPickAvatar() {
-    const image = await pickImage({ aspect: [1, 1] });
-    if (image) {
-      haptics.light();
-      setNewAvatar(image);
+  async function handlePicked(result: Awaited<ReturnType<typeof pickImage>>, apply: (image: LocalImage) => void) {
+    switch (result.status) {
+      case "picked":
+        haptics.light();
+        apply(result.image);
+        return;
+      case "permission_denied":
+        haptics.warning();
+        Alert.alert(
+          "Photo access needed",
+          "0dot needs permission to access your photos to change this. Enable it in your device Settings."
+        );
+        return;
+      case "too_large":
+        haptics.warning();
+        Alert.alert("Image too large", "Please choose an image under 5MB.");
+        return;
+      case "cancelled":
+        return;
     }
   }
 
+  async function onPickAvatar() {
+    await handlePicked(await pickImage({ aspect: [1, 1] }), setNewAvatar);
+  }
+
   async function onPickCover() {
-    const image = await pickImage({ aspect: [3, 1] });
-    if (image) {
-      haptics.light();
-      setNewCover(image);
-    }
+    await handlePicked(await pickImage({ aspect: [3, 1] }), setNewCover);
   }
 
   const isDirty = initialSnapshot
