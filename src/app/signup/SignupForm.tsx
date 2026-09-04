@@ -123,8 +123,11 @@ export function SignupForm() {
           {pending ? "Creating account…" : "Sign up"}
         </button>
 
+        {/* prefetch={false}: same DB-connection-burst-503 fix as
+            DigitalHomeVisual/ExploreLiveLink/MarketingNav, which mount
+            alongside this form on the same page. */}
         <p className="authFooter">
-          Already have an account? <Link href="/login">Log in</Link>
+          Already have an account? <Link href="/login" prefetch={false}>Log in</Link>
         </p>
         <AuthTrust />
       </form>

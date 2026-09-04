@@ -15,6 +15,10 @@ export function ExploreLiveLink() {
   return (
     <TrackedLink
       href="/explore"
+      // Same DB-connection-burst-503 fix as DigitalHomeVisual's nodes —
+      // this renders alongside them on the same pages, one more concurrent
+      // prefetch in the same burst.
+      prefetch={false}
       className="exploreLiveButton"
       event="hero_cta_click"
       eventData={{ cta: "explore" }}

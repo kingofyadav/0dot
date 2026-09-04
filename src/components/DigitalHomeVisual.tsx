@@ -109,8 +109,16 @@ export function DigitalHomeVisual({ variant = "hero", onProfileActivate }: Digit
         return (
           <div className="dhNodeWrap" key={node.id} style={{ "--dh-angle": `${node.angle}deg` } as React.CSSProperties}>
             {node.href ? (
+              // prefetch={false}: this visual mounts with 4 of these nodes
+              // viewport-visible at once on the landing/login/signup pages —
+              // Next's default prefetch would fire all 4 RSC payload fetches
+              // together on every anonymous page view, on top of the other
+              // links these same pages render (nav CTAs, forgot-password).
+              // Same DB-connection-burst-503 root cause NavLinks.tsx's own
+              // comment documents; same fix.
               <Link
                 href={node.href}
+                prefetch={false}
                 className="dhNode"
                 onClick={() => track("3d_node_click", { node: node.id })}
               >

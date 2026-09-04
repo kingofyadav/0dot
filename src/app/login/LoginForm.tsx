@@ -75,11 +75,15 @@ export function LoginForm() {
             {pending ? "Logging in…" : "Log in"}
           </button>
 
+          {/* prefetch={false}: this form mounts alongside DigitalHomeVisual's
+              4 nodes, ExploreLiveLink, and MarketingNav — without it, this
+              page view adds two more concurrent RSC prefetches to that same
+              burst. Same DB-connection-burst-503 fix as those. */}
           <p className="authFooter">
-            <Link href="/forgot-password">Forgot password?</Link>
+            <Link href="/forgot-password" prefetch={false}>Forgot password?</Link>
           </p>
           <p className="authFooter">
-            New here? <Link href="/signup">Create an account</Link>
+            New here? <Link href="/signup" prefetch={false}>Create an account</Link>
           </p>
           <AuthTrust />
         </form>

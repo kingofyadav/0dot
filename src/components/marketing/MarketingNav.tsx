@@ -17,16 +17,23 @@ export function MarketingNav() {
   return (
     <header className="marketingNav">
       <div className="marketingNavInner">
-        <Link href="/" className="marketingNavBrand" aria-label="0dot home">
+        {/* prefetch={false} on every link in this header: it, plus
+            DigitalHomeVisual's 4 nodes and ExploreLiveLink, all mount
+            together on the landing/login/signup pages — without it, a
+            single anonymous page view fires this many concurrent RSC
+            prefetches at once. Same DB-connection-burst-503 root cause
+            NavLinks.tsx's own comment documents; same fix. */}
+        <Link href="/" prefetch={false} className="marketingNavBrand" aria-label="0dot home">
           <ThemeToggleLogo size={32} interactive={false} />
         </Link>
 
         <div className="marketingNavActions">
-          <Link href="/login" className="button buttonSecondary buttonSmall">
+          <Link href="/login" prefetch={false} className="button buttonSecondary buttonSmall">
             Log in
           </Link>
           <TrackedLink
             href="/signup"
+            prefetch={false}
             className="button buttonSmall"
             event="nav_cta_click"
           >

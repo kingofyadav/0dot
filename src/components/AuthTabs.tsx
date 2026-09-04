@@ -177,8 +177,11 @@ export function AuthTabs() {
             </button>
           </form>
 
+          {/* prefetch={false}: this renders on the landing page alongside
+              DigitalHomeVisual/ExploreLiveLink/MarketingNav — same
+              DB-connection-burst-503 fix as those. */}
           <p className="authFooter">
-            <Link href="/forgot-password">Forgot password?</Link>
+            <Link href="/forgot-password" prefetch={false}>Forgot password?</Link>
           </p>
           <p className="authFooter">
             New here?{" "}
