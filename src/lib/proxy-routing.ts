@@ -38,18 +38,23 @@ export function buildCsp(nonce: string): string {
   const scriptSrc = ["'self'", `'nonce-${nonce}'`, "'strict-dynamic'"];
   if (process.env.NODE_ENV !== "production") scriptSrc.push("'unsafe-eval'");
 
-  // https://vercel.live: the Vercel Toolbar, which embeds an <iframe> and
-  // talks to it over fetch/WebSocket. This was previously gated on
-  // VERCEL_ENV indicating a preview deploy, on the assumption that "real
-  // production traffic never gets the toolbar" — wrong: the toolbar's
-  // trigger is the *viewer's own* Vercel session (any authenticated team
-  // member gets it on production too, e.g. to leave comments), not the
-  // deployment environment, so a team member visiting 0dot.in directly hit
-  // the exact CSP violation this comment claimed couldn't happen ("Framing
-  // 'https://vercel.live/' violates... frame-src"). Unconditional now, same
-  // posture as the Blob-storage and OpenStreetMap entries below — none of
-  // those are gated on environment either.
-  scriptSrc.push("https://vercel.live");
+  // NOT adding https://vercel.live here: with 'strict-dynamic' present (just
+  // above), the browser ignores every host-based entry in script-src by
+  // spec — only a matching nonce, or a script dynamically inserted by an
+  // already-nonce-trusted script, can execute. The Vercel Toolbar's script
+  // tag is injected by Vercel's edge without this app's per-request nonce,
+  // so no script-src entry can let it load short of dropping
+  // 'strict-dynamic' entirely — a real regression, since every legitimate
+  // framework script currently relies on it instead of a broad host
+  // allowlist. Confirmed live: adding "https://vercel.live" here did not
+  // stop "Loading the script 'https://vercel.live/_next-live/...' violates
+  // ... script-src" — this is a documented CSP3 strict-dynamic interaction,
+  // not a missing allowlist entry. The frame-src/connect-src entries below
+  // ARE real (those directives have no strict-dynamic semantics) but moot
+  // on their own since the script that would use them never loads. If the
+  // Toolbar's console noise matters, disable it for this project in
+  // Vercel's dashboard (Project Settings → Toolbar) rather than loosening
+  // this CSP — it's an optional team-member convenience, not end-user-facing.
 
   // *.public.blob.vercel-storage.com — blob object reads (<img>/<video>).
   // https://vercel.com — the client-direct post-image upload PUT
@@ -79,8 +84,12 @@ export function buildCsp(nonce: string): string {
   // the site owner to fix the issue.", confirmed live via the iframe's
   // getBoundingClientRect matching the blocked-content placeholder box).
   //
-  // https://vercel.live — the Vercel Toolbar's own iframe (see the
-  // script-src comment above for why this isn't preview-only).
+  // https://vercel.live — the Vercel Toolbar's own iframe. Real, unlike the
+  // script-src entry this directive doesn't have — see that comment above:
+  // this alone doesn't make the Toolbar work (its script never loads to
+  // open the iframe), but it's correct in isolation and costs nothing to
+  // keep, unconditional for the same "viewer's own session, any
+  // environment" reason as everywhere else vercel.live appears here.
   const frameSrc = ["'self'", "https://www.openstreetmap.org", "https://vercel.live"];
 
   return [

@@ -67,7 +67,7 @@ describe("buildCsp", () => {
     expect(csp).toContain("frame-src 'self' https://www.openstreetmap.org https://vercel.live");
   });
 
-  it("allows the Vercel Toolbar's iframe/script/websocket unconditionally", () => {
+  it("allows the Vercel Toolbar's iframe/websocket unconditionally", () => {
     // The toolbar's trigger is the viewer's own Vercel session (any
     // authenticated team member, on any environment including production),
     // not VERCEL_ENV — so this must never be gated on it. See buildCsp's
@@ -76,6 +76,16 @@ describe("buildCsp", () => {
     const csp = buildCsp("n");
     expect(csp).toContain("https://vercel.live");
     expect(csp).toContain("wss://*.pusher.com");
+  });
+
+  it("never adds vercel.live to script-src (strict-dynamic makes host allowlisting a no-op there)", () => {
+    // A regression here would be silent — the browser simply ignores the
+    // entry rather than erroring — so this asserts the negative directly
+    // rather than relying on someone noticing script-src is unaffected.
+    const csp = buildCsp("n");
+    const scriptSrcLine = csp.split("; ").find((d) => d.startsWith("script-src "));
+    expect(scriptSrcLine).toBeDefined();
+    expect(scriptSrcLine).not.toContain("vercel.live");
   });
 
   it("omits 'unsafe-eval' in a production build", () => {
