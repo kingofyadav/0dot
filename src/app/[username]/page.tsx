@@ -1085,7 +1085,7 @@ async function ProfilePosts({
         />
       )}
       <div className="itemStack">
-        {posts.map((post) => (
+        {posts.map((post, index) => (
           <PostCard
             key={post.id}
             post={post}
@@ -1094,6 +1094,7 @@ async function ProfilePosts({
             isOwner={currentUser?.id === post.authorId}
             currentUserId={currentUser?.id}
             votedOptionIds={votedOptionIds}
+            priority={index === 0}
           />
         ))}
       </div>

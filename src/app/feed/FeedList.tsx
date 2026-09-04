@@ -72,7 +72,7 @@ export function FeedList({
                 description="Posts from across 0dot will show up here as people start sharing."
               />
             ))}
-          {posts.map((post) => (
+          {posts.map((post, index) => (
             <PostCard
               key={post.id}
               post={post}
@@ -81,6 +81,7 @@ export function FeedList({
               isOwner={currentUser?.id === post.authorId}
               currentUserId={currentUser?.id}
               votedOptionIds={votedOptionIds}
+              priority={index === 0}
             />
           ))}
         </div>

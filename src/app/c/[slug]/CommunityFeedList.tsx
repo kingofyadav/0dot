@@ -74,7 +74,7 @@ export function CommunityFeedList({
 
       <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
         {pinned.length === 0 && posts.length === 0 && <EmptyState message="No posts yet." />}
-        {pinned.map((post) => (
+        {pinned.map((post, index) => (
           <PostCard
             key={post.id}
             post={post}
@@ -85,9 +85,10 @@ export function CommunityFeedList({
             votedOptionIds={votedOptionIds}
             isPinned
             canModerate={canModerate}
+            priority={index === 0}
           />
         ))}
-        {posts.map((post) => (
+        {posts.map((post, index) => (
           <PostCard
             key={post.id}
             post={post}
@@ -97,6 +98,11 @@ export function CommunityFeedList({
             currentUserId={currentUser?.id}
             votedOptionIds={votedOptionIds}
             canModerate={canModerate}
+            // Pinned posts render first when there are any — only make the
+            // very first *unpinned* one priority when there's nothing
+            // pinned above it, so at most one image on the whole page ever
+            // gets marked priority (see PostMediaGrid's comment).
+            priority={pinned.length === 0 && index === 0}
           />
         ))}
       </div>

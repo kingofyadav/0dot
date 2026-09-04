@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import {
   BadgeCheck,
   Bookmark,
@@ -256,7 +257,19 @@ function PostBody({ body }: { body: string }) {
   );
 }
 
-function PostMediaGrid({ media, authorName }: { media: MediaItem[]; authorName: string }) {
+// `priority`: only ever true for the very first image of the very first
+// post in a list (each caller passes it just for index === 0) — Lighthouse
+// confirmed live on 0dot.in/feed that this exact image is the page's LCP
+// element (largest-contentful-paint scored 0.26/1 — the single biggest
+// weighted metric in the Performance category), and a plain <img
+// loading="lazy"> actively deferred it despite already being above the
+// fold. next/image with `fill` (blob storage is already in next.config.ts's
+// images.remotePatterns) gets it a same-domain optimized/responsive
+// source, correct `loading`/`fetchPriority`, and no separate img-src
+// allowlist entry needed. `fill` needs a sized, positioned ancestor —
+// .postMediaItem already is one (fixed aspect-ratio, width:100%), moved
+// from the <img> itself to this wrapper.
+function PostMediaGrid({ media, authorName, priority = false }: { media: MediaItem[]; authorName: string; priority?: boolean }) {
   if (media.length === 0) return null;
   const columns = media.length === 1 ? 1 : 2;
   return (
@@ -267,15 +280,16 @@ function PostMediaGrid({ media, authorName }: { media: MediaItem[]; authorName: 
         // than empty alt="" (which claims the image is decorative, when
         // it's the actual content someone is looking at) without a data
         // model change to add real author-authored captions.
-        // eslint-disable-next-line @next/next/no-img-element -- user-uploaded content, not an optimizable static asset
-        <img
-          key={item.id}
-          src={item.url}
-          alt={`Image ${index + 1} posted by ${authorName}`}
-          className="postMediaItem"
-          loading="lazy"
-          decoding="async"
-        />
+        <div key={item.id} className="postMediaItem" style={{ position: "relative" }}>
+          <Image
+            src={item.url}
+            alt={`Image ${index + 1} posted by ${authorName}`}
+            fill
+            sizes={columns === 1 ? "(max-width: 640px) 100vw, 640px" : "(max-width: 640px) 50vw, 320px"}
+            style={{ objectFit: "cover" }}
+            priority={priority && index === 0}
+          />
+        </div>
       ))}
     </div>
   );
@@ -374,6 +388,7 @@ export function PostCard({
   isPinned,
   canModerate,
   votedOptionIds,
+  priority,
 }: {
   post: FeedPost;
   isLiked: boolean;
@@ -391,6 +406,10 @@ export function PostCard({
   // never fetch poll votes (not worth the query on a page with no polls)
   // still render correctly.
   votedOptionIds?: Set<string>;
+  // True only for the first post in whatever list is rendering this card
+  // (every caller passes index === 0) — see PostMediaGrid's own comment for
+  // why that one image needs it and every other one must not have it.
+  priority?: boolean;
 }) {
   const isRepost = post.repostOfId !== null;
   const isQuoteRepost = isRepost && post.body.trim().length > 0;
@@ -475,7 +494,7 @@ export function PostCard({
             </span>
           </div>
           <PostBody body={post.body} />
-          <PostMediaGrid media={post.media} authorName={post.author.profile?.displayName ?? "Unknown"} />
+          <PostMediaGrid media={post.media} authorName={post.author.profile?.displayName ?? "Unknown"} priority={priority} />
           {post.poll && <PollBlock poll={post.poll} votedOptionIds={votedOptionIds ?? new Set()} />}
         </>
       )}

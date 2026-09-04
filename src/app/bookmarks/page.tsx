@@ -84,7 +84,7 @@ export default async function BookmarksPage({
       <h1 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "1rem" }}>Bookmarks</h1>
       <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
         {posts.length === 0 && <EmptyState message="No bookmarks yet." />}
-        {posts.map((post) => (
+        {posts.map((post, index) => (
           <PostCard
             key={post.id}
             post={post}
@@ -92,6 +92,7 @@ export default async function BookmarksPage({
             isBookmarked
             isOwner={currentUser.id === post.authorId}
             currentUserId={currentUser.id}
+            priority={index === 0}
           />
         ))}
       </div>

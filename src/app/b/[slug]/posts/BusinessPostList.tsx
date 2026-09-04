@@ -29,7 +29,7 @@ export function BusinessPostList({
     <div className="profileCard">
       <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
         {posts.length === 0 && <EmptyState message="No posts yet." />}
-        {posts.map((post) => (
+        {posts.map((post, index) => (
           <PostCard
             key={post.id}
             post={post}
@@ -38,6 +38,7 @@ export function BusinessPostList({
             isOwner={currentUser?.id === post.authorId}
             currentUserId={currentUser?.id}
             votedOptionIds={votedOptionIds}
+            priority={index === 0}
           />
         ))}
       </div>
