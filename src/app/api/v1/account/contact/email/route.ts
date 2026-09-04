@@ -63,7 +63,14 @@ export async function POST(request: Request) {
 
   const sender = getEmailSender();
   const confirmUrl = `${getAppOrigin()}/verify-email-change?token=${token}`;
-  await sender.send({ to: newEmail, subject: "Confirm your new 0dot.in email", html: renderEmailChangeEmailHtml(confirmUrl) });
+  const result = await sender.send({ to: newEmail, subject: "Confirm your new 0dot.in email", html: renderEmailChangeEmailHtml(confirmUrl) });
+  // Same fire-and-forget gap signup() had (see auth.ts's signup()) — this
+  // returned {ok: true} even when the send failed, telling the mobile app
+  // a confirmation email was on its way when nothing was ever going to
+  // arrive.
+  if (result.status === "failed") {
+    return apiError("We couldn't send that confirmation email just now. Please try again.", 502);
+  }
 
   return Response.json(
     { ok: true },

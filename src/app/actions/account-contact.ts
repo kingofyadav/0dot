@@ -52,11 +52,20 @@ export async function requestEmailChange(_prevState: ActionState, formData: Form
 
   const sender = getEmailSender();
   const confirmUrl = `${getAppOrigin()}/verify-email-change?token=${token}`;
-  await sender.send({
+  const result = await sender.send({
     to: newEmail,
     subject: "Confirm your new 0dot.in email",
     html: renderEmailChangeEmailHtml(confirmUrl),
   });
+  // Same fire-and-forget gap signup() had (see its own fix) — this returned
+  // {success: true} even when the send failed (bad domain, provider outage),
+  // telling the user to check an inbox that was never going to get anything.
+  // Unlike signup, there's no separate resend control here — the fix is
+  // just to surface the failure as a normal form error so the existing
+  // "Send confirmation link" button is the retry path.
+  if (result.status === "failed") {
+    return { error: "We couldn't send that confirmation email just now. Please try again." };
+  }
 
   return { success: true };
 }
@@ -93,7 +102,14 @@ export async function requestPhoneChange(
     data: { userId: user.id, newPhone, codeHash: hashCode(code), expiresAt: new Date(Date.now() + PHONE_CHANGE_TTL_MS) },
   });
 
-  await getSmsSender().send({ to: newPhone, body: `Your 0dot.in verification code is ${code}` });
+  const result = await getSmsSender().send({ to: newPhone, body: `Your 0dot.in verification code is ${code}` });
+  // Same class of bug as requestEmailChange above (and signup() before its
+  // own fix): telling the user a code is on its way when the send actually
+  // failed leaves them stuck on the confirm-code screen with nothing to
+  // enter and no way to know why.
+  if (result.status === "failed") {
+    return { error: "We couldn't send that verification code just now. Please try again." };
+  }
 
   return { success: true };
 }

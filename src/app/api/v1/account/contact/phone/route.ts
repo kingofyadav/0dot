@@ -55,7 +55,14 @@ export async function POST(request: Request) {
     data: { userId: ctx.userId, newPhone, codeHash: hashCode(code), expiresAt: new Date(Date.now() + PHONE_CHANGE_TTL_MS) },
   });
 
-  await getSmsSender().send({ to: newPhone, body: `Your 0dot.in verification code is ${code}` });
+  const result = await getSmsSender().send({ to: newPhone, body: `Your 0dot.in verification code is ${code}` });
+  // Same class of bug as the email-change route above (and signup() before
+  // its own fix) — telling the app a code is on its way when the send
+  // actually failed leaves the user stuck on the confirm-code screen with
+  // nothing to enter.
+  if (result.status === "failed") {
+    return apiError("We couldn't send that verification code just now. Please try again.", 502);
+  }
 
   return Response.json(
     { ok: true },

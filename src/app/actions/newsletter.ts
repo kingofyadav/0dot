@@ -173,6 +173,8 @@ export async function sendIssue(formData: FormData): Promise<void> {
   const sender = getEmailSender();
   const html = bodyToEmailHtml(issue.body);
 
+  let attempted = 0;
+  let delivered = 0;
   for (const sub of subscriptions) {
     if (issue.requiredTierId) {
       const hasAccess = sub.subscriberUserId
@@ -182,12 +184,23 @@ export async function sendIssue(formData: FormData): Promise<void> {
     }
 
     const unsubscribeUrl = `${getAppOrigin()}/newsletter/unsubscribe/${sub.unsubscribeToken}`;
-    await sender.send({
+    attempted++;
+    const result = await sender.send({
       to: sub.subscriberEmail,
       subject: issue.subject,
       html: `${html}\n<p><a href="${unsubscribeUrl}">Unsubscribe</a></p>`,
     });
+    if (result.status === "sent") delivered++;
   }
+
+  // Same fire-and-forget gap signup()/account-contact's sends had: this
+  // used to flip to "sent" unconditionally, so a full provider outage
+  // (every send in the loop failing) still told the creator the issue went
+  // out. A partial failure still counts as sent — same as any real bulk
+  // sender, and there's no per-recipient retry UI to send it to anyway —
+  // but a total failure leaves status as "draft" so the same Send button
+  // is the retry path instead of a dashboard that silently lies.
+  if (attempted > 0 && delivered === 0) return;
 
   await db.newsletterIssue.update({ where: { id: issue.id }, data: { status: "sent", sentAt: new Date() } });
   if (user.username) revalidatePath(`/s/${user.username.handle}`);
