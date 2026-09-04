@@ -56,13 +56,17 @@ export async function signup(
   _prevState: ActionState,
   formData: FormData
 ): Promise<ActionState> {
-  // Honeypot: a field styled off-screen (see .honeypotField in globals.css)
-  // and never exposed to autofill, so only a script filling every input
-  // blindly ever populates it. Redirect straight to the same success
-  // destination a real signup hits — same response shape either way, no
-  // "invalid" signal a bot could learn from — without touching the DB or
-  // spending a rate-limit slot on it.
-  if (String(formData.get("website") ?? "").trim()) {
+  // Honeypot: a field styled off-screen (see .honeypotField in globals.css).
+  // Named away from any recognizable autofill category (not "website",
+  // "company", "url", etc.) — mobile Chrome's Android-level autofill
+  // ignores autocomplete="off" and will silently populate a hidden field
+  // it heuristically recognizes, which previously made every real signup
+  // from an affected phone silently no-op (redirected to the same success
+  // screen, no account created, no email sent). Redirect straight to the
+  // same success destination a real signup hits — same response shape
+  // either way, no "invalid" signal a bot could learn from — without
+  // touching the DB or spending a rate-limit slot on it.
+  if (String(formData.get("hp_extra_field") ?? "").trim()) {
     redirect("/verify/sent");
   }
 

@@ -45,7 +45,7 @@ export function SignupForm() {
 
         <input
           type="text"
-          name="website"
+          name="hp_extra_field"
           className="honeypotField"
           tabIndex={-1}
           autoComplete="off"
