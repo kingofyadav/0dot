@@ -211,8 +211,19 @@ export default async function RootLayout({
             </MessagingProvider>
           </KeyboardShortcutProvider>
          </BrowserTabProvider>
-        <SpeedInsights/>
-       <Analytics/> 
+        {/* Both scripts only resolve when actually served from Vercel's own
+            edge (they fetch /_vercel/speed-insights/script.js and
+            /_vercel/insights/script.js, which only exist there) — gated on
+            Vercel's own VERCEL env var so a non-Vercel deployment (e.g. this
+            app's self-hosted box) doesn't render them at all, rather than
+            rendering them to fail every load with a console.log("Failed to
+            load script...") on every single page view. */}
+        {process.env.VERCEL && (
+          <>
+            <SpeedInsights />
+            <Analytics />
+          </>
+        )}
       </body>
     </html>
   );
