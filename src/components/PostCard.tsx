@@ -46,8 +46,14 @@ function postAvatarProps(post: BasicPost): { src: string | null; alt: string; hr
 function PostAvatar({ post, size }: { post: BasicPost; size: number }) {
   const { src, alt, href } = postAvatarProps(post);
   const img = <Avatar src={src} alt={alt} size={size} className="postAvatar" />;
+  // prefetch={false}: every post row in a feed renders this — a feed of N
+  // posts would otherwise fire N concurrent RSC prefetches (each running
+  // its own profile/business page's DB reads) just from scrolling into
+  // view. Same DB-connection-burst-503 fix as NavLinks.tsx and the
+  // marketing/auth pages; every other Link in this file gets the same
+  // treatment for the same reason.
   return href ? (
-    <Link href={href} className="postAvatarLink" aria-label={alt} tabIndex={-1}>
+    <Link href={href} prefetch={false} className="postAvatarLink" aria-label={alt} tabIndex={-1}>
       {img}
     </Link>
   ) : (
@@ -172,12 +178,12 @@ function AuthorLine({
             (postAvatarProps below) so every post row leads with a consistent
             avatar column instead of a small inline mark on business posts
             only. */}
-        <Link href={`/b/${businessAuthor.slug}`} style={{ fontWeight: 700 }}>
+        <Link href={`/b/${businessAuthor.slug}`} prefetch={false} style={{ fontWeight: 700 }}>
           {businessAuthor.name}
         </Link>
         {/* Blue tick button, shown for every business post — single click
             straight to the business's public profile. */}
-        <Link href={`/b/${businessAuthor.slug}`} className="verifiedBadge" aria-label="View public profile" title="View public profile">
+        <Link href={`/b/${businessAuthor.slug}`} prefetch={false} className="verifiedBadge" aria-label="View public profile" title="View public profile">
           <BadgeCheck size={14} aria-hidden="true" />
         </Link>{" "}
         <span className="mutedText">
@@ -185,7 +191,7 @@ function AuthorLine({
           {community && (
             <>
               {" "}
-              in <Link href={`/c/${community.slug}`}>{community.name}</Link>
+              in <Link href={`/c/${community.slug}`} prefetch={false}>{community.name}</Link>
             </>
           )}
         </span>
@@ -198,7 +204,7 @@ function AuthorLine({
   return (
     <div>
       {handle ? (
-        <Link href={`/${handle}`} style={{ fontWeight: 700 }}>
+        <Link href={`/${handle}`} prefetch={false} style={{ fontWeight: 700 }}>
           {displayName}
         </Link>
       ) : (
@@ -211,7 +217,7 @@ function AuthorLine({
           follower/following rows (UserListItem) so the same "go to public
           profile" button is available everywhere a name shows up. */}
       {handle && (
-        <Link href={`/${handle}`} className="verifiedBadge" aria-label="View public profile" title="View public profile">
+        <Link href={`/${handle}`} prefetch={false} className="verifiedBadge" aria-label="View public profile" title="View public profile">
           <BadgeCheck size={14} aria-hidden="true" />
         </Link>
       )}{" "}
@@ -220,7 +226,7 @@ function AuthorLine({
         {community && (
           <>
             {" "}
-            in <Link href={`/c/${community.slug}`}>{community.name}</Link>
+            in <Link href={`/c/${community.slug}`} prefetch={false}>{community.name}</Link>
           </>
         )}
       </span>

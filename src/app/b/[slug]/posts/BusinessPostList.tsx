@@ -44,6 +44,7 @@ export function BusinessPostList({
       {nextCursor && (
         <Link
           href={`/b/${businessSlug}/posts?cursor=${encodeURIComponent(nextCursor)}`}
+          prefetch={false}
           className="button buttonSecondary loadMoreLink"
         >
           Load more

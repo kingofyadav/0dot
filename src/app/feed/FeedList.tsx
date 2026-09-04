@@ -86,8 +86,15 @@ export function FeedList({
         </div>
       </ListKeyNav>
       {nextCursor && (
+        // prefetch={false}: sits at the bottom of every initial feed load,
+        // usually in viewport immediately — eagerly prefetching would run
+        // the next page's full feed query (posts + likes + bookmarks +
+        // poll votes) before anyone scrolls near it. Same
+        // DB-connection-burst-503 fix as PostCard.tsx's Links, which this
+        // list is full of.
         <Link
           href={`${basePath}?cursor=${encodeURIComponent(nextCursor)}`}
+          prefetch={false}
           className="button buttonSecondary loadMoreLink"
         >
           Load more

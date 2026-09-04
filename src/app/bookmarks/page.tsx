@@ -98,6 +98,7 @@ export default async function BookmarksPage({
       {nextCursor && (
         <Link
           href={`/bookmarks?cursor=${encodeURIComponent(nextCursor)}`}
+          prefetch={false}
           className="button buttonSecondary loadMoreLink"
         >
           Load more

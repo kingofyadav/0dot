@@ -47,9 +47,14 @@ export function linkifyPostBody(body: string): ReactNode[] {
     if (part.startsWith("@")) {
       const handle = part.slice(1).toLowerCase();
       return (
+        // prefetch={false}: a single post can carry up to
+        // MAX_MENTIONS_PER_POST (10) of these, and a feed renders many
+        // posts at once (this function's main caller, PostCard.tsx) — same
+        // DB-connection-burst-503 fix as every other Link in that file.
         <Link
           key={index}
           href={`/${handle}`}
+          prefetch={false}
           style={{ color: "var(--accent)", fontWeight: 600 }}
         >
           {part}

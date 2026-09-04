@@ -43,8 +43,13 @@ export function UserListItem({
 }) {
   return (
     <div className="profileLinkItem" style={{ justifyContent: "space-between" }}>
+      {/* prefetch={false}: every "list of users" surface renders several of
+          these rows at once (ContextualRail's "Suggested for you"/"Who to
+          follow", follower/following lists) — same DB-connection-burst-503
+          fix as PostCard.tsx's Links. */}
       <Link
         href={handle ? `/${handle}` : "#"}
+        prefetch={false}
         style={{ display: "flex", alignItems: "center", gap: compact ? "0.5rem" : "0.6rem", minWidth: 0 }}
       >
         <Avatar src={avatarUrl} alt="" size={compact ? 36 : 40} />

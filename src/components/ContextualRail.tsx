@@ -43,8 +43,12 @@ export async function ContextualRail() {
         </div>
         {notifications.length === 0 && <EmptyState message="Nothing yet." />}
         <div className="stack">
+          {/* prefetch={false}: up to PREVIEW_COUNT (5) of these render at
+              once, each pointing at a different post/profile/message
+              thread — same DB-connection-burst-503 fix as the "See all"
+              link above and every Link elsewhere in this file. */}
           {notifications.map((n) => (
-            <Link key={n.id} href={getNotificationHref(n, recipientHandle)} className="railNotificationItem">
+            <Link key={n.id} href={getNotificationHref(n, recipientHandle)} prefetch={false} className="railNotificationItem">
               <strong>{n.actor?.profile?.displayName ?? "Someone"}</strong>
               {n.actor?.profile?.isVerified && (
                 <span className="verifiedBadge" title="Verified" aria-label="Verified">

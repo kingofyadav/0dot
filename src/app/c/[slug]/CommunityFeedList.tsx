@@ -47,8 +47,14 @@ export function CommunityFeedList({
 
       {flairs.length > 0 && (
         <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap", marginBottom: "1rem" }}>
+          {/* prefetch={false} on every flair filter below: all render at
+              once, each re-running this community's full feed query for a
+              different filter — same DB-connection-burst-503 fix as
+              PostCard.tsx's Links (this list is full of them) and the
+              "Load more" link further down. */}
           <Link
             href={basePath}
+            prefetch={false}
             className={`button buttonSmall ${activeFlairId === null ? "" : "buttonSecondary"}`}
           >
             All
@@ -57,6 +63,7 @@ export function CommunityFeedList({
             <Link
               key={f.id}
               href={`${basePath}?flair=${f.id}`}
+              prefetch={false}
               className={`button buttonSmall ${activeFlairId === f.id ? "" : "buttonSecondary"}`}
             >
               {f.label}
@@ -96,6 +103,7 @@ export function CommunityFeedList({
       {nextCursor && (
         <Link
           href={`${basePath}?cursor=${encodeURIComponent(nextCursor)}${activeFlairId ? `&flair=${activeFlairId}` : ""}`}
+          prefetch={false}
           className="button buttonSecondary loadMoreLink"
         >
           Load more
