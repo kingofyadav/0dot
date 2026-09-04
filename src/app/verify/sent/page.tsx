@@ -7,17 +7,24 @@ export const metadata: Metadata = { title: "Verify your email" };
 export default async function VerifySentPage({
   searchParams,
 }: {
-  searchParams: Promise<{ token?: string }>;
+  searchParams: Promise<{ token?: string; sendFailed?: string }>;
 }) {
-  const { token } = await searchParams;
+  const { token, sendFailed } = await searchParams;
 
   return (
     <div className="authWrap">
       <div className="authCard">
         <h1>Check your email</h1>
-        <p className="mutedText">
-          We&apos;ve sent a verification link to your email address.
-        </p>
+        {sendFailed ? (
+          <p className="errorText">
+            We couldn&apos;t send that email just now. Your account was created — tap
+            &quot;Resend email&quot; below to try again.
+          </p>
+        ) : (
+          <p className="mutedText">
+            We&apos;ve sent a verification link to your email address.
+          </p>
+        )}
 
         <ResendVerificationButton />
 

@@ -187,7 +187,7 @@ export async function signup(
   // configured (see src/lib/email.ts) — same dev/prod seam as payments.
   const sender = getEmailSender();
   const verifyUrl = `${getAppOrigin()}/verify?token=${token}`;
-  await sender.send({
+  const result = await sender.send({
     to: email,
     subject: "Verify your 0dot.in email",
     html: renderVerifyEmailHtml(verifyUrl),
@@ -197,7 +197,16 @@ export async function signup(
   // a real sender is configured, an account-verification token has no
   // business appearing in a URL that can land in browser history, a
   // Referer header, or a screenshot.
-  redirect(sender.name === "console-stub" ? `/verify/sent?token=${token}` : "/verify/sent");
+  if (sender.name === "console-stub") redirect(`/verify/sent?token=${token}`);
+  // Previously this redirect happened unconditionally, so a failed Resend/SMTP
+  // send (bad domain, unverified sender, provider outage) still landed the
+  // new account on "Check your email" with no indication anything went
+  // wrong — the account exists, but nothing to click ever arrives. The
+  // ?sendFailed flag lets /verify/sent tell the user to hit "Resend email"
+  // right away instead of waiting on a message that isn't coming; see
+  // resendVerificationEmail below, which already surfaces this same
+  // failure via an ActionState error.
+  redirect(result.status === "failed" ? "/verify/sent?sendFailed=1" : "/verify/sent");
 }
 
 // /verify/sent's resend button — the original signup() send is a
