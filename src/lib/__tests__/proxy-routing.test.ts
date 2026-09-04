@@ -64,7 +64,18 @@ describe("buildCsp", () => {
     const csp = buildCsp("n");
     // /map (src/app/map/page.tsx) embeds each pin as a plain OSM iframe —
     // without this, every one of those is CSP-blocked in production.
-    expect(csp).toContain("frame-src 'self' https://www.openstreetmap.org");
+    expect(csp).toContain("frame-src 'self' https://www.openstreetmap.org https://vercel.live");
+  });
+
+  it("allows the Vercel Toolbar's iframe/script/websocket unconditionally", () => {
+    // The toolbar's trigger is the viewer's own Vercel session (any
+    // authenticated team member, on any environment including production),
+    // not VERCEL_ENV — so this must never be gated on it. See buildCsp's
+    // own comment for the live CSP violation this fixed.
+    vi.stubEnv("VERCEL_ENV", "production");
+    const csp = buildCsp("n");
+    expect(csp).toContain("https://vercel.live");
+    expect(csp).toContain("wss://*.pusher.com");
   });
 
   it("omits 'unsafe-eval' in a production build", () => {

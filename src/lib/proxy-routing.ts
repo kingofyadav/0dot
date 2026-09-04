@@ -38,16 +38,18 @@ export function buildCsp(nonce: string): string {
   const scriptSrc = ["'self'", `'nonce-${nonce}'`, "'strict-dynamic'"];
   if (process.env.NODE_ENV !== "production") scriptSrc.push("'unsafe-eval'");
 
-  // VERCEL_ENV (not NODE_ENV, which is "production" for preview builds too)
-  // is how Vercel's own build distinguishes a real production deploy from a
-  // preview one. Preview deploys auto-inject the Vercel Toolbar, which
-  // embeds https://vercel.live in an <iframe> and talks to it over
-  // fetch/WebSocket — with no frame-src/connect-src/script-src entry for
-  // it, default-src 'self' silently blocked the iframe (a CSP violation
-  // logged to the console on every preview page load). Real production
-  // traffic never gets the toolbar, so it gets none of this allowance.
-  const isPreview = process.env.VERCEL_ENV && process.env.VERCEL_ENV !== "production";
-  if (isPreview) scriptSrc.push("https://vercel.live");
+  // https://vercel.live: the Vercel Toolbar, which embeds an <iframe> and
+  // talks to it over fetch/WebSocket. This was previously gated on
+  // VERCEL_ENV indicating a preview deploy, on the assumption that "real
+  // production traffic never gets the toolbar" — wrong: the toolbar's
+  // trigger is the *viewer's own* Vercel session (any authenticated team
+  // member gets it on production too, e.g. to leave comments), not the
+  // deployment environment, so a team member visiting 0dot.in directly hit
+  // the exact CSP violation this comment claimed couldn't happen ("Framing
+  // 'https://vercel.live/' violates... frame-src"). Unconditional now, same
+  // posture as the Blob-storage and OpenStreetMap entries below — none of
+  // those are gated on environment either.
+  scriptSrc.push("https://vercel.live");
 
   // *.public.blob.vercel-storage.com — blob object reads (<img>/<video>).
   // https://vercel.com — the client-direct post-image upload PUT
@@ -64,6 +66,10 @@ export function buildCsp(nonce: string): string {
     "https://blob.vercel-storage.com",
     "https://vercel.com",
     "https://vitals.vercel-insights.com",
+    // wss://*.pusher.com: the Vercel Toolbar's realtime channel for live
+    // comments — same "any authenticated team member, any environment"
+    // trigger as the vercel.live entries above, so unconditional too.
+    "wss://*.pusher.com",
     ...livekitConnectSrc(),
   ];
   // openstreetmap.org — /map (src/app/map/page.tsx) has no maps-SDK
@@ -72,11 +78,10 @@ export function buildCsp(nonce: string): string {
   // every one of those in production ("This content is blocked. Contact
   // the site owner to fix the issue.", confirmed live via the iframe's
   // getBoundingClientRect matching the blocked-content placeholder box).
-  const frameSrc = ["'self'", "https://www.openstreetmap.org"];
-  if (isPreview) {
-    connectSrc.push("https://vercel.live", "wss://*.pusher.com");
-    frameSrc.push("https://vercel.live");
-  }
+  //
+  // https://vercel.live — the Vercel Toolbar's own iframe (see the
+  // script-src comment above for why this isn't preview-only).
+  const frameSrc = ["'self'", "https://www.openstreetmap.org", "https://vercel.live"];
 
   return [
     "default-src 'self'",
