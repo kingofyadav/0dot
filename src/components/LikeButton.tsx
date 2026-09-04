@@ -35,13 +35,24 @@ export function LikeButton({
       }}
     >
       <input type="hidden" name="postId" value={postId} />
+      {/* aria-label must contain the button's visible text verbatim (the
+          count, when shown) — Lighthouse/axe's label-content-name-mismatch
+          flags "Like" as the accessible name for a button whose visible
+          content is just a number, since a voice-control user saying "click
+          1" (what they see) wouldn't match a name of "Like". */}
       <button
         type="submit"
         className="postAction"
         data-nav-like
         data-like
         aria-pressed={optimistic.liked}
-        aria-label={optimistic.liked ? "Unlike" : "Like"}
+        aria-label={
+          optimistic.count > 0
+            ? `${optimistic.liked ? "Unlike" : "Like"}, ${formatCount(optimistic.count)} like${optimistic.count === 1 ? "" : "s"}`
+            : optimistic.liked
+              ? "Unlike"
+              : "Like"
+        }
       >
         <Heart size={16} aria-hidden="true" fill={optimistic.liked ? "currentColor" : "none"} />
         {optimistic.count > 0 ? formatCount(optimistic.count) : "Like"}

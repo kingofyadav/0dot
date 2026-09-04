@@ -3249,7 +3249,12 @@ a.profileMetaItem:hover {
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  opacity: 0.55;
+  /* 0.55 measured at 3.88:1 in light mode (fails WCAG AA's 4.5:1 for normal
+     text — confirmed live via Lighthouse on 0dot.in/feed's "Creator studio"
+     toggle; dark mode already cleared it at 5.5:1). 0.65 matches
+     .mutedText's already-passing value (5.35:1 light, comfortably higher in
+     dark) rather than inventing a second bespoke opacity. */
+  opacity: 0.65;
   margin-bottom: 0.85rem;
 }
 

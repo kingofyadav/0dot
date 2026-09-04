@@ -126,7 +126,7 @@ export function ComposeBox({
     >
       {communityId && <input type="hidden" name="communityId" value={communityId} />}
       {!communityId && postableBusinesses && postableBusinesses.length > 0 && (
-        <select name="businessId" defaultValue="" className="textInput" style={{ marginBottom: "0.5rem" }}>
+        <select name="businessId" defaultValue="" className="textInput" style={{ marginBottom: "0.5rem" }} aria-label="Post as">
           <option value="">Post as myself</option>
           {postableBusinesses.map((b) => (
             <option key={b.id} value={b.id}>
@@ -207,13 +207,18 @@ export function ComposeBox({
         }}
       >
         <span style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "0.6rem" }}>
+          {/* aria-label moved from the <label> to the actual form control it
+              wraps — axe's aria-prohibited-attr rule flags aria-label on a
+              <label> element itself (it gets its accessible name from
+              content or its associated control, not this attribute); the
+              wrapped <input> is the real interactive/focusable element and
+              the correct place for it. */}
           <label
             className="button buttonSecondary iconButton"
             style={{
               cursor: files.length >= MAX_MEDIA ? "not-allowed" : "pointer",
               opacity: files.length >= MAX_MEDIA ? 0.5 : 1,
             }}
-            aria-label="Attach images"
           >
             <Camera size={16} aria-hidden="true" />
             <input
@@ -221,6 +226,7 @@ export function ComposeBox({
               accept="image/png,image/jpeg,image/webp,image/gif"
               multiple
               disabled={files.length >= MAX_MEDIA}
+              aria-label="Attach images"
               onChange={(e) => {
                 addFiles(e.target.files);
                 e.target.value = "";
