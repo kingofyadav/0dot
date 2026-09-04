@@ -49,14 +49,20 @@ export function buildCsp(nonce: string): string {
   const isPreview = process.env.VERCEL_ENV && process.env.VERCEL_ENV !== "production";
   if (isPreview) scriptSrc.push("https://vercel.live");
 
-  // *.public.blob.vercel-storage.com — blob object reads (<img>/<video>) and
-  // the client-direct post-image upload PUT (src/app/feed/ComposeBox.tsx via
-  // @vercel/blob/client). blob.vercel-storage.com is the control-plane host
-  // the client SDK hits to negotiate that upload in some SDK versions.
+  // *.public.blob.vercel-storage.com — blob object reads (<img>/<video>).
+  // https://vercel.com — the client-direct post-image upload PUT
+  // (src/app/feed/ComposeBox.tsx via @vercel/blob/client): the installed
+  // SDK's browser `upload()` PUTs bytes to `https://vercel.com/api/blob`
+  // (its default API origin, @vercel/blob/dist/chunk-YYMLUMXS.js
+  // `defaultVercelBlobApiUrl`), not blob.vercel-storage.com — confirmed live
+  // via `securitypolicyviolation` events on 0dot.in/feed: every image
+  // attachment's upload was silently CSP-blocked (connect-src) before this
+  // fix, so "Post" with an image attached never got past the token request.
   const connectSrc = [
     "'self'",
     "https://*.public.blob.vercel-storage.com",
     "https://blob.vercel-storage.com",
+    "https://vercel.com",
     "https://vitals.vercel-insights.com",
     ...livekitConnectSrc(),
   ];

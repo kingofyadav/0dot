@@ -54,6 +54,10 @@ describe("buildCsp", () => {
     const csp = buildCsp("n");
     expect(csp).toContain("https://*.public.blob.vercel-storage.com");
     expect(csp).toContain("https://blob.vercel-storage.com");
+    // @vercel/blob/client's browser upload() PUTs to https://vercel.com/api/blob
+    // (its default API origin) — without this, ComposeBox's image attach
+    // (src/app/feed/ComposeBox.tsx) is silently CSP-blocked on every post.
+    expect(csp).toContain("https://vercel.com");
   });
 
   it("omits 'unsafe-eval' in a production build", () => {
