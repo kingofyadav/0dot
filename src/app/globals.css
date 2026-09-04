@@ -3526,6 +3526,20 @@ a.profileMetaItem:hover {
   list-style: none;
 }
 
+/* .sectionHeading's opacity (a gray-eyebrow-label dimming rule) and this
+   selector's color: var(--accent) both apply when an element carries both
+   classes (e.g. feed/page.tsx's "Creator studio" toggle) — composing them
+   dims the accent blue toward the background, which measured 2.92:1 in
+   dark mode (Lighthouse, live on 0dot.in/feed) against WCAG AA's 4.5:1,
+   since blue has much lower relative luminance than the near-white
+   --foreground .sectionHeading was actually designed to dim. Higher
+   specificity than either rule alone, restoring full-strength --accent
+   (5.56:1 in dark mode) without changing .sectionHeading's own dimming
+   for every other (gray, non-accent) element that uses it alone. */
+.profileEditToggle summary.sectionHeading {
+  opacity: 1;
+}
+
 .profileEditToggle summary::-webkit-details-marker {
   display: none;
 }
