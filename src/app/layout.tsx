@@ -19,6 +19,7 @@ import { getCurrentUser } from "@/lib/session";
 import { getUnreadConversationCount } from "@/lib/messaging";
 import { getUnreadNotificationCount } from "@/lib/notifications";
 import { isChromelessPath, isFixedViewportPath } from "@/lib/route-context";
+import { SITE_DESCRIPTION } from "@/lib/site-metadata";
 import { SpeedInsights } from "@vercel/speed-insights/next"
 import { Analytics } from "@vercel/analytics/next"
 
@@ -56,6 +57,11 @@ export async function generateMetadata(): Promise<Metadata> {
   const title = user?.profile ? user.profile.displayName : "Welcome";
 
   return {
+    // Required for next/og-generated images (opengraph-image.tsx) and any
+    // relative URL in metadata to resolve to an absolute one — without it
+    // Next.js warns at build time and social scrapers (which never share
+    // this app's own base URL) get a relative, unusable image path.
+    metadataBase: new URL("https://0dot.in"),
     // `default` is what renders as-is on routes with no title of their own
     // (marketing pages, the account name itself) — unchanged from before.
     // `template` only kicks in for routes that set their own `title`
@@ -63,8 +69,34 @@ export async function generateMetadata(): Promise<Metadata> {
     // exports), composing "0dot · <page>" so open tabs are distinguishable
     // instead of every one just repeating your own name.
     title: { default: title, template: "0dot · %s" },
-    description:
-      "Claim your permanent home on the internet — a profile, a link hub, and a feed, all under one identity.",
+    description: SITE_DESCRIPTION,
+    // Site-wide defaults for link previews (Slack, Discord, iMessage,
+    // Facebook, LinkedIn, ...) — previously unset entirely, so every share
+    // of any page rendered with no image and the browser's generic
+    // fallback title/description instead of this. Profile/business/
+    // community pages override title/description/images with the real
+    // subject's own data in their own generateMetadata; this is what every
+    // other route (marketing, auth, /explore, /trending, ...) gets as-is.
+    // No explicit `images` here — Next.js's file-convention
+    // opengraph-image.tsx at this same segment supplies it automatically,
+    // and a page-specific generateMetadata that sets its own `images`
+    // overrides it, same resolution order as title/description above.
+    openGraph: {
+      title,
+      description: SITE_DESCRIPTION,
+      siteName: "0dot",
+      type: "website",
+    },
+    // "summary_large_image" is what actually makes X/Twitter render a
+    // large image card instead of a small thumbnail; without it the image
+    // above renders tiny even though it's set. Twitter's own card
+    // validator falls back to og:image when no separate twitter:image is
+    // set, so one image source covers both without a duplicate file.
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description: SITE_DESCRIPTION,
+    },
     icons: {
       icon: [
         { url: "/1dot.png", media: "(prefers-color-scheme: light)" },

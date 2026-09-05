@@ -1,6 +1,8 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
+import { SITE_DESCRIPTION } from "@/lib/site-metadata";
 import { getCurrentUser } from "@/lib/session";
 import { getCommunityMember } from "@/lib/communities";
 import { isGatedFromCommunityContent } from "@/lib/organizations";
@@ -17,6 +19,33 @@ const VISIBILITY_LABEL: Record<string, string> = {
   restricted: "Restricted",
   private: "Private",
 };
+
+// No custom-domain support for communities (getPrimaryLiveDomain only
+// covers profile/business), so no canonical override like those two pages.
+// Name/description/avatar are public-safe regardless of visibility — same
+// "identity/about-level info, not gated" posture the component below
+// already applies to rules/tags (only the post feed itself is gated).
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug: rawSlug } = await params;
+  const slug = decodeURIComponent(rawSlug).toLowerCase();
+
+  const community = await db.community.findUnique({
+    where: { slug },
+    select: { name: true, description: true, avatarUrl: true },
+  });
+  if (!community) return {};
+
+  const title = community.name;
+  const description = community.description || SITE_DESCRIPTION;
+  const images = community.avatarUrl ? [community.avatarUrl] : undefined;
+
+  return {
+    title,
+    description,
+    openGraph: { title, description, images, type: "website" },
+    twitter: { card: "summary_large_image", title, description, images },
+  };
+}
 
 // Identity + membership header (step 1) plus, per §3.1's visibility rules,
 // the community's post feed (step 3) — public/restricted content is

@@ -15,6 +15,7 @@ import { getThemePreset, getSocialPlatformLabel, type SocialPlatform } from "@/l
 import { isProfilePremium } from "@/lib/platform-billing";
 import { getWalletBalance } from "@/lib/wallet/ledger";
 import { getPrimaryLiveDomain } from "@/lib/custom-domains";
+import { SITE_DESCRIPTION } from "@/lib/site-metadata";
 import { getFeedPosts, getVotedPollOptionIds } from "@/lib/feed-query";
 import { parseCursor } from "@/lib/pagination";
 import { Avatar } from "@/components/Avatar";
@@ -111,11 +112,33 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
   const { username: rawParam } = await params;
   const handle = decodeURIComponent(rawParam).toLowerCase();
 
-  const username = await db.username.findUnique({ where: { handle }, select: { user: { select: { profile: { select: { id: true } } } } } });
-  if (!username?.user.profile) return {};
+  const username = await db.username.findUnique({
+    where: { handle },
+    select: { user: { select: { profile: { select: { id: true, displayName: true, bio: true, avatarUrl: true } } } } },
+  });
+  const profile = username?.user.profile;
+  if (!profile) return {};
 
-  const primaryDomain = await getPrimaryLiveDomain("profile", username.user.profile.id);
-  return primaryDomain ? { alternates: { canonical: `https://${primaryDomain}` } } : {};
+  const primaryDomain = await getPrimaryLiveDomain("profile", profile.id);
+  const canonical = primaryDomain ? { alternates: { canonical: `https://${primaryDomain}` } } : {};
+
+  // isPrivate only hides posts/links/portfolio (see EditProfileForm's own
+  // copy) — name, avatar, and bio are defined as public regardless, so
+  // there's nothing extra to gate here versus a non-private profile.
+  const title = profile.displayName;
+  const description = profile.bio || SITE_DESCRIPTION;
+  // Falls back to the site-wide default (opengraph-image.tsx) when there's
+  // no avatar rather than omitting `images` — an empty array would still
+  // suppress Next's automatic file-convention fallback for this route.
+  const images = profile.avatarUrl ? [profile.avatarUrl] : undefined;
+
+  return {
+    ...canonical,
+    title,
+    description,
+    openGraph: { title, description, images, type: "profile" },
+    twitter: { card: "summary_large_image", title, description, images },
+  };
 }
 
 // Public, read-only profile — identity, links, follow counts, and (spec

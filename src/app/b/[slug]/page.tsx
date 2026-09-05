@@ -8,6 +8,7 @@ import { getBusinessMember, parseBusinessHours } from "@/lib/businesses";
 import { businessCategoryLabel } from "@/lib/business-categories";
 import { leaveBusinessTeam } from "@/app/actions/businesses";
 import { getPrimaryLiveDomain } from "@/lib/custom-domains";
+import { SITE_DESCRIPTION } from "@/lib/site-metadata";
 import { Logo } from "@/components/Logo";
 import { BusinessViewerCount } from "@/components/BusinessViewerCount";
 import { BusinessContactForm } from "./BusinessContactForm";
@@ -38,11 +39,32 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const { slug: rawSlug } = await params;
   const slug = decodeURIComponent(rawSlug).toLowerCase();
 
-  const business = await db.business.findUnique({ where: { slug }, select: { id: true } });
+  const business = await db.business.findUnique({
+    where: { slug },
+    select: { id: true, name: true, tagline: true, description: true, logoUrl: true, status: true },
+  });
   if (!business) return {};
 
   const primaryDomain = await getPrimaryLiveDomain("business", business.id);
-  return primaryDomain ? { alternates: { canonical: `https://${primaryDomain}` } } : {};
+  const canonical = primaryDomain ? { alternates: { canonical: `https://${primaryDomain}` } } : {};
+
+  // A "pending" business 404s for everyone but its own team (see the page
+  // component's own notFound() gate below) — matching that here rather
+  // than exposing its name/description to a scraper that never gets to
+  // see the page itself.
+  if (business.status === "pending") return canonical;
+
+  const title = business.name;
+  const description = business.tagline || business.description || SITE_DESCRIPTION;
+  const images = business.logoUrl ? [business.logoUrl] : undefined;
+
+  return {
+    ...canonical,
+    title,
+    description,
+    openGraph: { title, description, images, type: "website" },
+    twitter: { card: "summary_large_image", title, description, images },
+  };
 }
 
 // Identity header + about content (build plan step 1) plus links to every
