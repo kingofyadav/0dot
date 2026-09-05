@@ -1,10 +1,54 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { listBookChapters } from "@/lib/wiki";
 import { renderWikiMarkdown } from "@/lib/wiki-markdown";
 import { EngagementSection } from "@/components/EngagementSection";
+import { JsonLd } from "@/components/JsonLd";
+import { SITE_DESCRIPTION } from "@/lib/site-metadata";
+
+// Same "match the page's own access gate" posture as every other
+// generateMetadata added this session (draft/private are owner-only per
+// the page component's check below).
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ username: string; slug: string }>;
+}): Promise<Metadata> {
+  const { username: rawParam, slug: rawSlug } = await params;
+  const handle = decodeURIComponent(rawParam).toLowerCase();
+  const slug = decodeURIComponent(rawSlug).toLowerCase();
+
+  const username = await db.username.findUnique({ where: { handle }, include: { user: { include: { profile: true } } } });
+  if (!username?.user.profile) return {};
+  const book = await db.book.findUnique({ where: { profileId_slug: { profileId: username.user.profile.id, slug } } });
+  if (!book || book.status !== "published" || book.visibility === "private") return {};
+
+  const title = book.title;
+  const description = book.description || SITE_DESCRIPTION;
+  const images = book.coverImageUrl ? [book.coverImageUrl] : undefined;
+
+  return {
+    title,
+    description,
+    openGraph: { title, description, images, type: "book" },
+    twitter: { card: "summary_large_image", title, description, images },
+  };
+}
+
+function bookJsonLd(book: { title: string; description: string; coverImageUrl: string | null }, authorName: string, url: string) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Book",
+    name: book.title,
+    description: book.description || SITE_DESCRIPTION,
+    author: { "@type": "Person", name: authorName },
+    ...(book.coverImageUrl ? { image: [book.coverImageUrl] } : {}),
+    url,
+  };
+}
 
 export default async function BookPage({ params }: { params: Promise<{ username: string; slug: string }> }) {
   const { username: rawParam, slug: rawSlug } = await params;
@@ -37,13 +81,16 @@ export default async function BookPage({ params }: { params: Promise<{ username:
 
   return (
     <div className="profileCard">
+      {book.status === "published" && book.visibility !== "private" && (
+        <JsonLd data={bookJsonLd(book, username.user.profile.displayName ?? handle, `https://0dot.in/${handle}/books/${slug}`)} />
+      )}
       <Link href={`/${handle}/books`} className="mutedText" style={{ fontSize: "0.85rem" }}>
         ← {username.user.profile.displayName ?? handle}&rsquo;s books
       </Link>
 
       {book.coverImageUrl && (
         // eslint-disable-next-line @next/next/no-img-element -- user-supplied URL, not a local/optimizable asset
-        <img src={book.coverImageUrl} alt="" style={{ width: "100%", borderRadius: "10px", marginTop: "0.6rem", maxHeight: "320px", objectFit: "cover" }} />
+        <img src={book.coverImageUrl} alt={book.title} style={{ width: "100%", borderRadius: "10px", marginTop: "0.6rem", maxHeight: "320px", objectFit: "cover" }} />
       )}
 
       <h1 style={{ fontSize: "1.3rem", fontWeight: 700, marginTop: "0.6rem" }}>{book.title}</h1>

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Heart, Star, X } from "lucide-react";
 import { db } from "@/lib/db";
@@ -7,6 +8,42 @@ import { renderWikiMarkdown } from "@/lib/wiki-markdown";
 import { toggleProjectLike, deleteProjectComment } from "@/app/actions/projects";
 import { ProjectCommentForm } from "./ProjectCommentForm";
 import { ConfirmButton } from "@/components/ConfirmButton";
+import { JsonLd } from "@/components/JsonLd";
+import { SITE_DESCRIPTION } from "@/lib/site-metadata";
+
+// No visibility gate here, matching the page component's own comment: an
+// unlisted project resolves via direct link same as a public one
+// (obscurity, not access control) — so there's no "don't describe this to
+// a scraper" case to handle, unlike every gated content type above.
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug: rawSlug } = await params;
+  const slug = decodeURIComponent(rawSlug).toLowerCase();
+  const project = await db.project.findUnique({ where: { slug }, select: { title: true, summary: true, coverImageUrl: true } });
+  if (!project) return {};
+
+  const title = project.title;
+  const description = project.summary || SITE_DESCRIPTION;
+  const images = project.coverImageUrl ? [project.coverImageUrl] : undefined;
+
+  return {
+    title,
+    description,
+    openGraph: { title, description, images, type: "website" },
+    twitter: { card: "summary_large_image", title, description, images },
+  };
+}
+
+function projectJsonLd(project: { title: string; summary: string; coverImageUrl: string | null }, creatorName: string, url: string) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "CreativeWork",
+    name: project.title,
+    description: project.summary || SITE_DESCRIPTION,
+    creator: { "@type": "Person", name: creatorName },
+    ...(project.coverImageUrl ? { image: [project.coverImageUrl] } : {}),
+    url,
+  };
+}
 
 const STATUS_LABEL: Record<string, string> = {
   in_progress: "In progress",
@@ -55,6 +92,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
 
   return (
     <div className="profileCard">
+      <JsonLd data={projectJsonLd(project, project.owner.profile?.displayName ?? ownerHandle ?? "Unknown", `https://0dot.in/p/${slug}`)} />
       {ownerHandle && (
         <Link href={`/${ownerHandle}`} className="mutedText" style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.85rem" }}>
           <ArrowLeft size={14} aria-hidden="true" /> {project.owner.profile?.displayName ?? ownerHandle}
@@ -63,7 +101,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
 
       {project.coverImageUrl && (
         // eslint-disable-next-line @next/next/no-img-element -- user-supplied URL, not a local/optimizable asset
-        <img src={project.coverImageUrl} alt="" style={{ width: "100%", borderRadius: "10px", marginTop: "0.6rem", maxHeight: "320px", objectFit: "cover" }} />
+        <img src={project.coverImageUrl} alt={project.title} style={{ width: "100%", borderRadius: "10px", marginTop: "0.6rem", maxHeight: "320px", objectFit: "cover" }} />
       )}
 
       <h1 style={{ fontSize: "1.3rem", fontWeight: 700, marginTop: "0.6rem" }}>{project.title}</h1>
@@ -90,9 +128,9 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
 
       {gallery.length > 0 && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", marginTop: "0.75rem" }}>
-          {gallery.map((url) => (
+          {gallery.map((url, index) => (
             // eslint-disable-next-line @next/next/no-img-element -- user-supplied URL, not a local/optimizable asset
-            <img key={url} src={url} alt="" style={{ width: "140px", height: "140px", objectFit: "cover", borderRadius: "8px" }} />
+            <img key={url} src={url} alt={`${project.title} — image ${index + 1}`} style={{ width: "140px", height: "140px", objectFit: "cover", borderRadius: "8px" }} />
           ))}
         </div>
       )}

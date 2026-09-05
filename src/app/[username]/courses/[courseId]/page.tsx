@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Check, Lock } from "lucide-react";
 import { db } from "@/lib/db";
@@ -9,7 +10,48 @@ import { markLessonComplete } from "@/app/actions/courses";
 import { CourseBuyButton } from "@/components/CourseBuyButton";
 import { LessonFileButton } from "@/components/LessonFileButton";
 import { QuizWidget } from "@/components/QuizWidget";
+import { JsonLd } from "@/components/JsonLd";
+import { SITE_DESCRIPTION } from "@/lib/site-metadata";
 import type { QuizQuestion } from "@/app/actions/quizzes";
+
+// Only an `active` course is publicly visible (matching the page
+// component's own gate below).
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ username: string; courseId: string }>;
+}): Promise<Metadata> {
+  const { courseId } = await params;
+  const course = await db.course.findUnique({ where: { id: courseId }, select: { title: true, description: true, status: true } });
+  if (!course || course.status !== "active") return {};
+
+  const title = course.title;
+  const description = course.description || SITE_DESCRIPTION;
+
+  return {
+    title,
+    description,
+    openGraph: { title, description, type: "website" },
+    twitter: { card: "summary", title, description },
+  };
+}
+
+// No coverImageUrl exists on Course today (unlike Article/Book/Event), so
+// no image field here — falls back to the site default OG image, same as
+// every other type with no cover data.
+function courseJsonLd(course: { title: string; description: string; price: number | null; currency: string | null }, providerName: string, url: string) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Course",
+    name: course.title,
+    description: course.description || SITE_DESCRIPTION,
+    provider: { "@type": "Organization", name: providerName, sameAs: "https://0dot.in" },
+    url,
+    ...(course.price !== null
+      ? { offers: { "@type": "Offer", price: course.price, priceCurrency: course.currency ?? "USD", availability: "https://schema.org/InStock", url } }
+      : {}),
+  };
+}
 
 // spec §11: public course landing + lesson content, gated server-side —
 // every lesson's content (video_url/file_url/body) is only ever rendered
@@ -76,6 +118,9 @@ export default async function CoursePage({
 
   return (
     <div className="profileCard">
+      {course.status === "active" && (
+        <JsonLd data={courseJsonLd(course, username.user.profile?.displayName ?? handle, `https://0dot.in/${handle}/courses/${courseId}`)} />
+      )}
       <Link href={`/${handle}`} className="mutedText" style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.85rem" }}>
         <ArrowLeft size={14} aria-hidden="true" /> {username.user.profile?.displayName ?? handle}
       </Link>

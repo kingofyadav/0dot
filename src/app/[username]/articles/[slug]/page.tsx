@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Heart, X } from "lucide-react";
 import { db } from "@/lib/db";
@@ -8,6 +9,68 @@ import { toggleReaction, deleteComment } from "@/app/actions/reactions";
 import { ArticleCommentForm } from "./ArticleCommentForm";
 import { TranslateArticleButton } from "./TranslateArticleButton";
 import { ConfirmButton } from "@/components/ConfirmButton";
+import { JsonLd } from "@/components/JsonLd";
+import { SITE_DESCRIPTION } from "@/lib/site-metadata";
+
+function excerptFor(body: string, max = 155): string {
+  const trimmed = body.trim();
+  if (!trimmed || trimmed.length <= max) return trimmed;
+  const cut = trimmed.lastIndexOf(" ", max);
+  return `${trimmed.slice(0, cut > 0 ? cut : max)}…`;
+}
+
+// Same "match the page's own access gate" posture as every other
+// generateMetadata added this session — a draft or private article is
+// owner-only per the page component's own check below, so it gets no
+// public metadata (an unlisted one still gets real metadata: it's
+// public-but-unenumerated, not access-controlled, same distinction the
+// page component itself draws).
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ username: string; slug: string }>;
+}): Promise<Metadata> {
+  const { username: rawParam, slug: rawSlug } = await params;
+  const handle = decodeURIComponent(rawParam).toLowerCase();
+  const slug = decodeURIComponent(rawSlug).toLowerCase();
+
+  const username = await db.username.findUnique({ where: { handle }, select: { userId: true } });
+  if (!username) return {};
+  const article = await db.article.findUnique({ where: { authorId_slug: { authorId: username.userId, slug } } });
+  if (!article || article.status !== "published" || article.visibility === "private") return {};
+
+  const title = article.title;
+  const description = article.subtitle || excerptFor(article.body) || SITE_DESCRIPTION;
+  const images = article.coverImageUrl ? [article.coverImageUrl] : undefined;
+
+  return {
+    title,
+    description,
+    openGraph: { title, description, images, type: "article", publishedTime: article.publishedAt?.toISOString() },
+    twitter: { card: "summary_large_image", title, description, images },
+  };
+}
+
+function articleJsonLd(article: {
+  title: string;
+  subtitle: string | null;
+  body: string;
+  coverImageUrl: string | null;
+  publishedAt: Date | null;
+  updatedAt: Date;
+}, authorName: string, url: string) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    headline: article.title,
+    description: article.subtitle || excerptFor(article.body) || SITE_DESCRIPTION,
+    author: { "@type": "Person", name: authorName },
+    ...(article.coverImageUrl ? { image: [article.coverImageUrl] } : {}),
+    ...(article.publishedAt ? { datePublished: article.publishedAt.toISOString() } : {}),
+    dateModified: article.updatedAt.toISOString(),
+    mainEntityOfPage: url,
+  };
+}
 
 const FORMAT_LABEL: Record<string, string> = { article: "Article", tutorial: "Tutorial", note: "Note" };
 const LICENSE_LABEL: Record<string, string> = {
@@ -65,13 +128,22 @@ export default async function ArticlePage({ params }: { params: Promise<{ userna
 
   return (
     <div className="profileCard">
+      {article.status === "published" && article.visibility !== "private" && (
+        <JsonLd
+          data={articleJsonLd(
+            article,
+            username.user.profile?.displayName ?? handle,
+            `https://0dot.in/${handle}/articles/${slug}`
+          )}
+        />
+      )}
       <Link href={`/${handle}`} className="mutedText" style={{ fontSize: "0.85rem" }}>
         ← {username.user.profile?.displayName ?? handle}
       </Link>
 
       {article.coverImageUrl && (
         // eslint-disable-next-line @next/next/no-img-element -- user-supplied URL, not a local/optimizable asset
-        <img src={article.coverImageUrl} alt="" style={{ width: "100%", borderRadius: "10px", marginTop: "0.6rem", maxHeight: "320px", objectFit: "cover" }} />
+        <img src={article.coverImageUrl} alt={article.title} style={{ width: "100%", borderRadius: "10px", marginTop: "0.6rem", maxHeight: "320px", objectFit: "cover" }} />
       )}
 
       <h1 style={{ fontSize: "1.3rem", fontWeight: 700, marginTop: "0.6rem" }}>{article.title}</h1>

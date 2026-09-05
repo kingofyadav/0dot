@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
@@ -7,6 +8,27 @@ import { getWalletBalance } from "@/lib/wallet/ledger";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { DonateForm } from "./DonateForm";
 import { EmptyState } from "@/components/EmptyState";
+import { SITE_DESCRIPTION } from "@/lib/site-metadata";
+
+// No access gate here, matching the page component: any campaign
+// (active/completed/cancelled alike) is publicly viewable by design — no
+// private/draft state exists on this model.
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  const campaign = await db.fundraisingCampaign.findUnique({ where: { id }, select: { title: true, description: true, coverImageUrl: true } });
+  if (!campaign) return {};
+
+  const title = campaign.title;
+  const description = campaign.description || SITE_DESCRIPTION;
+  const images = campaign.coverImageUrl ? [campaign.coverImageUrl] : undefined;
+
+  return {
+    title,
+    description,
+    openGraph: { title, description, images, type: "website" },
+    twitter: { card: "summary_large_image", title, description, images },
+  };
+}
 
 // spec §11: is_anonymous hides the donor's name from *public* display
 // only — the organizer still sees who donated (§11.1's acceptance
@@ -46,7 +68,7 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
         // eslint-disable-next-line @next/next/no-img-element -- user-supplied URL, not a local/optimizable asset
         <img
           src={campaign.coverImageUrl}
-          alt=""
+          alt={campaign.title}
           style={{ width: "100%", maxHeight: "280px", objectFit: "cover", borderRadius: "10px", marginBottom: "0.75rem" }}
         />
       )}

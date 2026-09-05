@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
@@ -6,7 +7,48 @@ import { getCommunityMember } from "@/lib/communities";
 import { isGatedFromCommunityContent } from "@/lib/organizations";
 import { getWikiPage } from "@/lib/wiki";
 import { renderWikiMarkdown } from "@/lib/wiki-markdown";
+import { SITE_DESCRIPTION } from "@/lib/site-metadata";
 import { EditWikiPageForm } from "./EditWikiPageForm";
+
+function excerptFor(body: string, max = 155): string {
+  const trimmed = body.trim();
+  if (!trimmed || trimmed.length <= max) return trimmed;
+  const cut = trimmed.lastIndexOf(" ", max);
+  return `${trimmed.slice(0, cut > 0 ? cut : max)}…`;
+}
+
+// Same isGatedFromCommunityContent gate the page component uses — a
+// private/org-restricted community's wiki gets no metadata for a
+// non-member, matching what the page itself shows them (a "join to see
+// this" placeholder, no content).
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string; wikiSlug: string }>;
+}): Promise<Metadata> {
+  const { slug: rawSlug, wikiSlug: rawWikiSlug } = await params;
+  const slug = decodeURIComponent(rawSlug).toLowerCase();
+  const wikiSlug = decodeURIComponent(rawWikiSlug).toLowerCase();
+
+  const community = await db.community.findUnique({
+    where: { slug },
+    select: { id: true, visibility: true, restrictedToOrganizationId: true },
+  });
+  if (!community || isGatedFromCommunityContent(community, false)) return {};
+
+  const page = await getWikiPage(community.id, wikiSlug);
+  if (!page || !page.currentRevision) return {};
+
+  const title = page.title;
+  const description = excerptFor(page.currentRevision.body) || SITE_DESCRIPTION;
+
+  return {
+    title,
+    description,
+    openGraph: { title, description, type: "article" },
+    twitter: { card: "summary", title, description },
+  };
+}
 
 export default async function WikiPageView({
   params,

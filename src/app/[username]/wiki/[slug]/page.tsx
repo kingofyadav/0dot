@@ -1,12 +1,48 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { getProfileWikiPage } from "@/lib/wiki";
 import { renderWikiMarkdown } from "@/lib/wiki-markdown";
 import { EngagementSection } from "@/components/EngagementSection";
+import { SITE_DESCRIPTION } from "@/lib/site-metadata";
 
 const KIND_LABEL: Record<string, string> = { wiki: "Wiki page", documentation: "Documentation" };
+
+function excerptFor(body: string, max = 155): string {
+  const trimmed = body.trim();
+  if (!trimmed || trimmed.length <= max) return trimmed;
+  const cut = trimmed.lastIndexOf(" ", max);
+  return `${trimmed.slice(0, cut > 0 ? cut : max)}…`;
+}
+
+// Same "no draft, visibility is the only gate" posture as the page
+// component's own comment below.
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ username: string; slug: string }>;
+}): Promise<Metadata> {
+  const { username: rawParam, slug: rawSlug } = await params;
+  const handle = decodeURIComponent(rawParam).toLowerCase();
+  const slug = decodeURIComponent(rawSlug).toLowerCase();
+
+  const username = await db.username.findUnique({ where: { handle }, include: { user: { include: { profile: true } } } });
+  if (!username?.user.profile) return {};
+  const page = await getProfileWikiPage(username.user.profile.id, slug);
+  if (!page || page.visibility === "private") return {};
+
+  const title = page.title;
+  const description = excerptFor(page.currentRevision?.body ?? "") || SITE_DESCRIPTION;
+
+  return {
+    title,
+    description,
+    openGraph: { title, description, type: "article" },
+    twitter: { card: "summary", title, description },
+  };
+}
 
 export default async function ProfileWikiPage({ params }: { params: Promise<{ username: string; slug: string }> }) {
   const { username: rawParam, slug: rawSlug } = await params;

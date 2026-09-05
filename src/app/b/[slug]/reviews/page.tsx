@@ -1,11 +1,52 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { EmptyState } from "@/components/EmptyState";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { getBusinessMember, isBusinessStaff } from "@/lib/businesses";
 import { deleteReview, respondToReview } from "@/app/actions/reviews";
+import { JsonLd } from "@/components/JsonLd";
 import { ReviewForm } from "./ReviewForm";
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug: rawSlug } = await params;
+  const slug = decodeURIComponent(rawSlug).toLowerCase();
+  const business = await db.business.findUnique({ where: { slug }, select: { name: true, status: true } });
+  if (!business || business.status === "pending") return {};
+
+  const title = `${business.name} — Reviews`;
+  const description = `Read what people are saying about ${business.name}.`;
+  return {
+    title,
+    description,
+    openGraph: { title, description, type: "website" },
+    twitter: { card: "summary", title, description },
+  };
+}
+
+// AggregateRating rollup — averageRating/reviewCount are denormalized
+// columns already on Business (same pattern MarketplaceListing uses, and
+// the values this page's own render already displays), not recomputed
+// here. Omitted entirely with zero reviews, same "don't assert a
+// misleading average" posture as the marketplace listing's own
+// AggregateRating.
+// Honest caveat, not a guarantee: Google restricts self-serving review rich
+// snippets (an org/local-business marking up reviews of itself, on its own
+// page) — this is still valid, correct structured data, but may not
+// surface as a visible star rating in search results the way Product's
+// AggregateRating does. "Organization" rather than "LocalBusiness": this
+// model has no address/physical-location data, so the more specific type
+// would overclaim.
+function businessRatingJsonLd(business: { name: string; averageRating: number; reviewCount: number }, url: string) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: business.name,
+    url,
+    aggregateRating: { "@type": "AggregateRating", ratingValue: business.averageRating, reviewCount: business.reviewCount },
+  };
+}
 
 // build plan step 6 / spec §11: attributed reviews (author_id public, §15.2),
 // one per (business, author) enforced by the schema's own unique constraint
@@ -37,6 +78,7 @@ export default async function ReviewsPage({ params }: { params: Promise<{ slug: 
 
   return (
     <div className="profileCard">
+      {business.reviewCount > 0 && <JsonLd data={businessRatingJsonLd(business, `https://0dot.in/b/${business.slug}/reviews`)} />}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
         <h1 style={{ fontSize: "1.1rem", fontWeight: 700 }}>{business.name} — Reviews</h1>
         <Link href={`/b/${business.slug}`} className="button buttonSecondary" style={{ fontSize: "0.85rem", padding: "0.4rem 0.7rem" }}>
