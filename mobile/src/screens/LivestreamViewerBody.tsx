@@ -78,7 +78,9 @@ export function LivestreamViewerBody({ livestreamId }: { livestreamId: string })
 
   useEffect(() => {
     if (!isLive) return;
-    loadChat();
+    (async () => {
+      await loadChat();
+    })();
   }, [isLive, loadChat]);
 
   // Chat SSE — refetch the recent page on any signal (no payload/replay,
