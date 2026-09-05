@@ -39,4 +39,15 @@ jobs:
         # push to main and always targets production, so name the branch
         # directly (the `production` channel maps to it, set at build time in
         # eas.json) and carry the commit subject as the update message.
-        run: eas update --branch production --message "${{ github.event.head_commit.message }}" --non-interactive
+        #
+        # The commit message is threaded through an env var rather than
+        # interpolated straight into `run:` — GitHub substitutes
+        # ${{ }} expressions into the script text before bash ever parses it,
+        # so a commit message containing backticks or $(...) would otherwise
+        # execute as shell (this bit a real commit: a backtick-quoted `load`
+        # in the message ran as a command). $UPDATE_MESSAGE is a plain
+        # variable expansion — its contents are inert data, never re-parsed
+        # for shell metacharacters.
+        env:
+          UPDATE_MESSAGE: ${{ github.event.head_commit.message }}
+        run: eas update --branch production --message "$UPDATE_MESSAGE" --non-interactive
