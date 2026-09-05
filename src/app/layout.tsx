@@ -59,11 +59,21 @@ export const viewport: Viewport = {
 };
 
 // Dynamic (not a static `metadata` export) specifically so the tab title
-// can reflect auth state: a generic "Welcome" before login, just the real
-// user's name (no "Welcome" prefix) after — matching the header logo area.
+// can reflect auth state: the real user's name once they have a profile,
+// "Welcome" for a signed-in user mid-onboarding (matching the header logo
+// area), and a brand-forward title for genuinely signed-out visitors —
+// which includes Googlebot. That last case used to fall through to the
+// same bare "Welcome", so the one page search engines actually index had
+// no occurrence of "0dot" anywhere in its <title>, starving Google of the
+// brand-name signal it needs to treat "0dot" as a known entity instead of
+// a typo (search console showed "Did you mean: 0 dot" on the brand query).
 export async function generateMetadata(): Promise<Metadata> {
   const user = await getCurrentUser();
-  const title = user?.profile ? user.profile.displayName : "Welcome";
+  const title = user?.profile
+    ? user.profile.displayName
+    : user
+      ? "Welcome"
+      : "0dot — One identity. One profile. Infinite possibilities.";
 
   return {
     // Required for next/og-generated images (opengraph-image.tsx) and any
@@ -225,11 +235,13 @@ export default async function RootLayout({
               "@context": "https://schema.org",
               "@type": "WebSite",
               name: "0dot",
+              alternateName: "0dot.in",
               url: "https://0dot.in",
               description: SITE_DESCRIPTION,
               publisher: {
                 "@type": "Organization",
                 name: "0dot",
+                alternateName: "0dot.in",
                 url: "https://0dot.in",
                 logo: "https://0dot.in/icon-512.png",
               },
