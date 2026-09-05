@@ -906,14 +906,15 @@ export function getNotificationVerb(type: string, subjectType?: string, subjectI
   }
 }
 
-// No single-post permalink page exists in this codebase yet (pre-existing
-// Phase 1 gap — see COMPONENT_LIBRARY.md's "Comment thread" entry). Like/
-// reply notifications link to the recipient's own profile with an in-page
-// anchor (their own top-level posts are always listed there — see the
-// id={"post-"+post.id} added to PostCard/MiniPostCard). Mentions/follows
-// link to the actor's profile directly. A mention inside a reply has no
-// reachable anchor (profile Posts queries filter replyToId: null) — this
-// degrades to the actor's bare profile URL in that case, an accepted gap.
+// Like/comment notifications route to the post's own permalink
+// (src/app/[username]/status/[postId]/page.tsx) — recipientHandle is always
+// the post's own author here (you're only notified when someone likes/
+// comments on YOUR post), so it doubles as the permalink's username segment
+// with no extra lookup. Mentions/follows link to the actor's profile
+// directly. SEO-plan Phase 1: this previously anchor-scrolled to
+// `/${recipientHandle}#post-${id}` (a mention inside a reply had no
+// reachable anchor at all — profile Posts queries filter replyToId: null,
+// an accepted gap at the time) — the permalink now resolves every case.
 export function getNotificationHref(
   n: {
     type: string;
@@ -950,7 +951,7 @@ export function getNotificationHref(
       if (n.subjectType === "skill") {
         return n.actor?.username?.handle ? `/${n.actor.username.handle}` : "/feed";
       }
-      return recipientHandle ? `/${recipientHandle}#post-${n.subjectId}` : "/feed";
+      return recipientHandle ? `/${recipientHandle}/status/${n.subjectId}` : "/feed";
     case "mention":
     case "new_follower":
     case "follow_request":

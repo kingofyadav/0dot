@@ -299,8 +299,11 @@ function PostMediaGrid({ media, authorName, priority = false }: { media: MediaIt
 // nested reply/repost/bookmark actions one level deep, per phase-1 spec
 // §5.3 ("flattens to reply to the original post's thread"). Media is
 // summarized as a count rather than a full grid, to avoid a media grid
-// nested inside another card.
-function MiniPostCard({
+// nested inside another card. Exported for the post permalink page
+// (src/app/[username]/status/[postId]/page.tsx), which reuses this same
+// "flattened, read-only" treatment to show a reply's direct parent as
+// basic thread context.
+export function MiniPostCard({
   post,
   currentUserId,
   variant,

@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { db } from "@/lib/db";
 import { cursorWhere, paginate, POST_PAGE_SIZE, type PostCursor } from "@/lib/pagination";
 import { getBlockedEitherWayUserIds, getPostVisibilityConditions } from "@/lib/post-visibility";
@@ -81,6 +82,46 @@ export async function getFeedPosts({
   }
   return fetchFeedPosts({ authorFilter, cursor, viewerId });
 }
+
+// Backs the post permalink page (src/app/[username]/status/[postId]/page.tsx)
+// — same include shape as fetchFeedPosts below (so the exact same PostCard/
+// MiniPostCard rendering works unchanged) plus `replyTo`, which a feed row
+// never needs (replies render inline under their own parent there) but a
+// permalink does, to show "basic thread context" one level up. Reuses
+// getPostVisibilityConditions so a post that wouldn't appear in this
+// viewer's feed (blocked author, gated community, ungranted tier) 404s here
+// too, rather than being reachable only by knowing its direct URL.
+// cache()-wrapped: the permalink page's own generateMetadata and its default
+// export both need this same row — same "one call per request" posture as
+// getFolloweeIds (follow-graph.ts).
+export const getPostById = cache(async (postId: string, viewerId: string | null) => {
+  const blockedIds = viewerId ? await getBlockedEitherWayUserIds(viewerId) : [];
+  const visibilityConditions = await getPostVisibilityConditions(viewerId, blockedIds);
+
+  return db.post.findFirst({
+    where: {
+      id: postId,
+      deletedAt: null,
+      AND: visibilityConditions,
+    },
+    include: {
+      author: { include: authorInclude },
+      media: mediaInclude,
+      community: communityInclude,
+      flair: flairInclude,
+      businessAuthor: businessAuthorInclude,
+      poll: pollInclude,
+      requiredTier: requiredTierInclude,
+      repostOf: { include: { author: { include: authorInclude }, media: mediaInclude, requiredTier: requiredTierInclude } },
+      replies: {
+        where: { deletedAt: null, authorId: { notIn: blockedIds } },
+        orderBy: { createdAt: "asc" },
+        include: { author: { include: authorInclude }, media: mediaInclude },
+      },
+      replyTo: { include: { author: { include: authorInclude }, media: mediaInclude } },
+    },
+  });
+});
 
 async function fetchFeedPosts({
   authorFilter,
