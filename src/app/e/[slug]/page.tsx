@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
@@ -7,6 +8,8 @@ import { getBusinessPayoutAccount } from "@/lib/payments";
 import { getWalletBalance } from "@/lib/wallet/ledger";
 import { renderWikiMarkdown } from "@/lib/wiki-markdown";
 import { EngagementSection } from "@/components/EngagementSection";
+import { JsonLd } from "@/components/JsonLd";
+import { SITE_DESCRIPTION } from "@/lib/site-metadata";
 import { EventActions } from "./EventActions";
 import { EventHostPanel } from "./EventHostPanel";
 
@@ -28,6 +31,78 @@ function formatWhen(startsAt: Date, endsAt: Date | null, timezone: string): stri
 function toDatetimeLocal(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug: rawSlug } = await params;
+  const slug = decodeURIComponent(rawSlug).toLowerCase();
+
+  const event = await getEventBySlug(slug);
+  // A draft only renders for its host (see the page component's own gate) —
+  // no metadata for anyone else, same "match the page's own access" posture
+  // as the job page's pending-business case.
+  if (!event || event.status === "draft") return {};
+
+  const title = event.title;
+  const description = event.description || SITE_DESCRIPTION;
+  const images = event.coverImageUrl ? [event.coverImageUrl] : undefined;
+
+  return {
+    title,
+    description,
+    openGraph: { title, description, images, type: "website" },
+    twitter: { card: "summary_large_image", title, description, images },
+  };
+}
+
+// Event rich snippets (SEO plan Phase 3) — see
+// https://developers.google.com/search/docs/appearance/structured-data/event.
+// Only rendered for a published or cancelled event (draft never reaches
+// public viewers per the page component's own gate, so there's no public
+// audience to mark up for one). A cancelled event keeps its schema rather
+// than losing it — eventStatus: EventCancelled is exactly the signal Google
+// documents for "still index it, but show it's off."
+function eventJsonLd(event: NonNullable<Awaited<ReturnType<typeof getEventBySlug>>>, host: { label: string; href: string | null }) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Event",
+    name: event.title,
+    description: event.description || SITE_DESCRIPTION,
+    startDate: event.startsAt.toISOString(),
+    ...(event.endsAt ? { endDate: event.endsAt.toISOString() } : {}),
+    eventStatus: event.status === "cancelled" ? "https://schema.org/EventCancelled" : "https://schema.org/EventScheduled",
+    eventAttendanceMode:
+      event.format === "virtual"
+        ? "https://schema.org/OnlineEventAttendanceMode"
+        : event.format === "hybrid"
+          ? "https://schema.org/MixedEventAttendanceMode"
+          : "https://schema.org/OfflineEventAttendanceMode",
+    location:
+      event.format === "virtual"
+        ? { "@type": "VirtualLocation", url: event.virtualJoinUrl ?? `https://0dot.in/e/${event.slug}` }
+        : {
+            "@type": "Place",
+            name: event.location ?? event.title,
+            address: { "@type": "PostalAddress", addressLocality: event.location ?? undefined },
+            ...(event.latitude !== null && event.longitude !== null
+              ? { geo: { "@type": "GeoCoordinates", latitude: event.latitude, longitude: event.longitude } }
+              : {}),
+          },
+    organizer: { "@type": host.href?.startsWith("/b/") || host.href?.startsWith("/c/") ? "Organization" : "Person", name: host.label, ...(host.href ? { url: `https://0dot.in${host.href}` } : {}) },
+    ...(event.coverImageUrl ? { image: [event.coverImageUrl] } : {}),
+    ...(event.ticketTypes.length > 0
+      ? {
+          offers: event.ticketTypes.map((t) => ({
+            "@type": "Offer",
+            name: t.name,
+            price: t.price ?? 0,
+            priceCurrency: t.currency ?? "USD",
+            availability: t.quantityTotal !== null && t.quantitySold >= t.quantityTotal ? "https://schema.org/SoldOut" : "https://schema.org/InStock",
+            url: `https://0dot.in/e/${event.slug}`,
+          })),
+        }
+      : {}),
+  };
 }
 
 export default async function EventPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -79,10 +154,11 @@ export default async function EventPage({ params }: { params: Promise<{ slug: st
 
   return (
     <div>
+      {event.status !== "draft" && <JsonLd data={eventJsonLd(event, host)} />}
       <div className="profileCard">
         {event.coverImageUrl && (
           // eslint-disable-next-line @next/next/no-img-element -- user-supplied URL, not a local/optimizable asset
-          <img src={event.coverImageUrl} alt="" style={{ width: "100%", maxHeight: 280, objectFit: "cover", borderRadius: "10px", marginBottom: "var(--space-4)" }} />
+          <img src={event.coverImageUrl} alt={event.title} style={{ width: "100%", maxHeight: 280, objectFit: "cover", borderRadius: "10px", marginBottom: "var(--space-4)" }} />
         )}
 
         {event.status === "cancelled" && <p className="errorText" style={{ marginBottom: "var(--space-2)" }}>This event has been cancelled.</p>}

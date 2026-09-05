@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { EmptyState } from "@/components/EmptyState";
 import { db } from "@/lib/db";
@@ -6,6 +7,7 @@ import { getCurrentUser } from "@/lib/session";
 import { getBusinessMember, canManageCatalog } from "@/lib/businesses";
 import { archiveOffering, updateOfferingPurchaseStatus } from "@/app/actions/offerings";
 import { OfferingForm } from "@/components/OfferingForm";
+import { JsonLd } from "@/components/JsonLd";
 
 const KIND_VALUES = new Set(["product", "service"]);
 const STATUS_LABEL: Record<string, string> = { draft: "Draft", active: "Active", archived: "Archived" };
@@ -19,6 +21,59 @@ function firstImage(imagesJson: string | null): string | null {
   } catch {
     return null;
   }
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug: rawSlug } = await params;
+  const slug = decodeURIComponent(rawSlug).toLowerCase();
+  const business = await db.business.findUnique({ where: { slug }, select: { name: true, status: true } });
+  if (!business || business.status === "pending") return {};
+
+  const title = `${business.name} — Catalog`;
+  const description = `Browse products and services from ${business.name}.`;
+  return {
+    title,
+    description,
+    openGraph: { title, description, type: "website" },
+    twitter: { card: "summary", title, description },
+  };
+}
+
+// No individual offering has its own URL (same class of gap post
+// permalinks fixed for Post — out of scope to build a whole second detail
+// route here), so structured data lives on this shared listing page: one
+// ItemList of Product entities, each pointing back at this same catalog URL
+// rather than a nonexistent per-item one. Google's Merchant/Product rich
+// results still key off an item's own name/price/image even without a
+// dedicated URL for it.
+function catalogJsonLd(
+  offerings: { id: string; kind: string; name: string; description: string; price: number | null; currency: string | null; image: string | null }[],
+  businessSlug: string
+) {
+  const url = `https://0dot.in/b/${businessSlug}/catalog`;
+  return {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    itemListElement: offerings
+      .filter((o) => o.kind === "product")
+      .map((o, index) => ({
+        "@type": "ListItem",
+        position: index + 1,
+        item: {
+          "@type": "Product",
+          name: o.name,
+          description: o.description || undefined,
+          ...(o.image ? { image: [o.image] } : {}),
+          offers: {
+            "@type": "Offer",
+            price: o.price ?? 0,
+            priceCurrency: o.currency ?? "USD",
+            availability: "https://schema.org/InStock",
+            url,
+          },
+        },
+      })),
+  };
 }
 
 // spec §7/§8: the same grid backs both the "Products & Services" tab and
@@ -63,8 +118,18 @@ export default async function CatalogPage({
       })
     : [];
 
+  const productOfferings = offerings.filter((o) => o.status === "active" && o.kind === "product");
+
   return (
     <div className="profileCard">
+      {productOfferings.length > 0 && (
+        <JsonLd
+          data={catalogJsonLd(
+            productOfferings.map((o) => ({ id: o.id, kind: o.kind, name: o.name, description: o.description, price: o.price, currency: o.currency, image: firstImage(o.imagesJson) })),
+            business.slug
+          )}
+        />
+      )}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
         <h1 style={{ fontSize: "1.1rem", fontWeight: 700 }}>{business.name} — Catalog</h1>
         <Link href={`/b/${business.slug}`} className="button buttonSecondary" style={{ fontSize: "0.85rem", padding: "0.4rem 0.7rem" }}>
@@ -116,7 +181,7 @@ export default async function CatalogPage({
             <div key={offering.id} className="profileLinkItem" style={{ flexDirection: "column", alignItems: "stretch", gap: "0.4rem" }}>
               {image ? (
                 // eslint-disable-next-line @next/next/no-img-element -- user-supplied URL, not a local/optimizable asset
-                <img src={image} alt="" style={{ width: "100%", height: "120px", objectFit: "cover", borderRadius: "8px" }} />
+                <img src={image} alt={offering.name} style={{ width: "100%", height: "120px", objectFit: "cover", borderRadius: "8px" }} />
               ) : (
                 <div style={{ width: "100%", height: "120px", borderRadius: "8px", background: "color-mix(in srgb, var(--foreground) 6%, transparent)" }} />
               )}

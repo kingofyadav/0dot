@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
@@ -10,6 +11,8 @@ import { MarketplacePurchaseButton } from "@/components/MarketplacePurchaseButto
 import { MarketplaceListingForm } from "@/components/MarketplaceListingForm";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { LinkDeveloperAppForm } from "@/components/LinkDeveloperAppForm";
+import { JsonLd } from "@/components/JsonLd";
+import { SITE_DESCRIPTION } from "@/lib/site-metadata";
 import { InstallAppForm, UninstallAppButton } from "./InstallAppForm";
 import { ListingReviewForm } from "./ListingReviewForm";
 import { EmptyState } from "@/components/EmptyState";
@@ -21,6 +24,61 @@ const STATUS_LABELS: Record<string, string> = {
   rejected: "Rejected",
   archived: "Archived",
 };
+
+// Only an `active` listing is publicly visible (matching the page
+// component's own gate below) — pending_review/rejected/archived get no
+// metadata, same "don't describe what a scraper can't actually reach"
+// posture as the job/business pending cases.
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  const listing = await db.marketplaceListing.findUnique({
+    where: { id },
+    select: { title: true, description: true, status: true },
+  });
+  if (!listing || listing.status !== "active") return {};
+
+  const title = listing.title;
+  const description = listing.description || SITE_DESCRIPTION;
+
+  return {
+    title,
+    description,
+    openGraph: { title, description, type: "website" },
+    twitter: { card: "summary", title, description },
+  };
+}
+
+// Product rich snippets — star rating directly in search results (SEO plan
+// Phase 3). averageRating/reviewCount are denormalized columns on the
+// listing itself (updated alongside MarketplaceListingReview writes), not
+// recomputed here. AggregateRating is only valid schema.org-side with at
+// least one rating, so it's omitted entirely for a listing with none yet
+// rather than asserting a 0-star average that would misrepresent it.
+function marketplaceListingJsonLd(listing: { title: string; description: string; price: number | null; currency: string | null; averageRating: number; reviewCount: number }, listingId: string, sellerName: string) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: listing.title,
+    description: listing.description || SITE_DESCRIPTION,
+    brand: { "@type": "Brand", name: sellerName },
+    offers: {
+      "@type": "Offer",
+      price: listing.price ?? 0,
+      priceCurrency: listing.currency ?? "USD",
+      availability: "https://schema.org/InStock",
+      url: `https://0dot.in/m/${listingId}`,
+    },
+    ...(listing.reviewCount > 0
+      ? {
+          aggregateRating: {
+            "@type": "AggregateRating",
+            ratingValue: listing.averageRating,
+            reviewCount: listing.reviewCount,
+          },
+        }
+      : {}),
+  };
+}
 
 // spec §9 step 7's detail-page half of the browse experience — purchase
 // (or free "get it") + review UI shared by all three MarketplaceListing
@@ -86,6 +144,7 @@ export default async function MarketplaceListingPage({ params }: { params: Promi
 
   return (
     <div className="profileCard">
+      {listing.status === "active" && <JsonLd data={marketplaceListingJsonLd(listing, listing.id, sellerName)} />}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.5rem", flexWrap: "wrap", gap: "0.5rem" }}>
         <div>
           <h1 style={{ fontSize: "1.1rem", fontWeight: 700 }}>{listing.title}</h1>
