@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Suspense } from "react";
 import { headers } from "next/headers";
-import { Geist, Geist_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { SiteHeader } from "@/components/SiteHeader";
 import { ContextualRail } from "@/components/ContextualRail";
@@ -23,18 +23,27 @@ import { SITE_DESCRIPTION } from "@/lib/site-metadata";
 import { SpeedInsights } from "@vercel/speed-insights/next"
 import { Analytics } from "@vercel/analytics/next"
 
-const geistSans = Geist({
+// Self-hosted (not next/font/google) — Turbopack's Lightning CSS minifier
+// corrupts the Basic-Latin unicode-range it generates for Google-fonts
+// subsets (`U+0-FF` becomes literal invalid `U+??`, in both dev and prod
+// builds), which silently drops plain-ASCII text to the Arial fallback.
+// Local fonts get one @font-face with no unicode-range splitting, so
+// there's nothing for that bug to corrupt. Files are Vercel's own
+// official variable-font binaries, vendored from the `geist` npm package.
+const geistSans = localFont({
+  src: "./fonts/Geist-Variable.woff2",
   variable: "--font-geist-sans",
-  subsets: ["latin"],
+  weight: "100 900",
 });
 
 // preload:false — its only real consumer is .kbd styling inside
 // CommandPalette/ShortcutsHelp (see KeyboardShortcutProvider.tsx), both
 // lazy-loaded and closed by default, so there's no reason to fetch this
 // font on every route's first load.
-const geistMono = Geist_Mono({
+const geistMono = localFont({
+  src: "./fonts/GeistMono-Variable.woff2",
   variable: "--font-geist-mono",
-  subsets: ["latin"],
+  weight: "100 900",
   preload: false,
 });
 
