@@ -200,6 +200,38 @@ export default async function RootLayout({
     >
       <head>
         <ThemeInitScript nonce={nonce} />
+        {/* WebSite + Organization JSON-LD (SEO plan Phase 2) — site-wide,
+            not per-page, so it lives here rather than in any individual
+            page's metadata. The SearchAction is what makes 0dot eligible
+            for a Google sitelinks search box; /search?q= is the same query
+            param shape src/app/search/page.tsx already reads. Nonce'd like
+            ThemeInitScript above — this is hand-authored, not one of
+            Next's own framework scripts that the CSP nonce covers
+            automatically. */}
+        <script
+          type="application/ld+json"
+          nonce={nonce}
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "WebSite",
+              name: "0dot",
+              url: "https://0dot.in",
+              description: SITE_DESCRIPTION,
+              publisher: {
+                "@type": "Organization",
+                name: "0dot",
+                url: "https://0dot.in",
+                logo: "https://0dot.in/icon-512.png",
+              },
+              potentialAction: {
+                "@type": "SearchAction",
+                target: "https://0dot.in/search?q={search_term_string}",
+                "query-input": "required name=search_term_string",
+              },
+            }),
+          }}
+        />
       </head>
       <body className={bodyClassNames || undefined}>
         <a href="#main-content" className="skipLink">
