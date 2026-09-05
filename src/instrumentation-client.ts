@@ -56,6 +56,31 @@ if (dsn) {
           tracesSampleRate: 0,
           replaysSessionSampleRate: 0,
           replaysOnErrorSampleRate: 0,
+          // These fire from code we don't control (browser extensions, page
+          // translators, the browser itself) and were burying real
+          // application errors in the same issue stream. Filtered by
+          // message/origin, not silenced globally — anything not matching
+          // stays reported.
+          ignoreErrors: [
+            // Benign browser quirk, not an app bug: fires when a
+            // ResizeObserver callback doesn't finish within one frame.
+            /ResizeObserver loop/,
+            // Google Translate / Chrome's built-in translate (and similar
+            // DOM-rewriting extensions) wrap text nodes in <font> tags,
+            // detaching elements React still holds refs to. React's own
+            // unmount cleanup then throws trying to remove/reinsert an
+            // already-orphaned node — not something app code caused or can
+            // fix. See node removal investigation, 2026-09-05.
+            /Failed to execute 'removeChild' on 'Node'/,
+            /Failed to execute 'insertBefore' on 'Node'/,
+            // Thrown by non-Error values (e.g. a plain string or a
+            // third-party script rejecting with no Error object) — Sentry
+            // can't attach a useful stack trace to these regardless.
+            "Non-Error promise rejection captured",
+          ],
+          // Extension-injected scripts run in the page's context and can
+          // throw errors Sentry would otherwise attribute to our own bundle.
+          denyUrls: [/^chrome-extension:\/\//, /^moz-extension:\/\//, /^safari-extension:\/\//],
         });
         window.removeEventListener("error", bufferEarlyError);
         window.removeEventListener("unhandledrejection", bufferEarlyError);

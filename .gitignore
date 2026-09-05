@@ -61,3 +61,8 @@ next-env.d.ts
 # servable; only reachable through the signed download-token route (see
 # src/lib/protected-storage.ts)
 /storage/protected
+
+# Playwright output (e2e/, playwright.config.ts) — runtime artifacts, not source
+/test-results
+/playwright-report
+/blob-report

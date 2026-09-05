@@ -19,7 +19,11 @@ export default defineConfig({
     // still picks up mobile/src/**/__tests__/*.test.ts (it's not under
     // mobile/node_modules, vitest's only default exclude that would apply)
     // and fails trying to run Jest-specific mocking APIs under vitest.
-    exclude: [...configDefaults.exclude, "mobile/**"],
+    // e2e/ is Playwright's suite (run via `npm run test:e2e`), which
+    // registers its own global `test()` — vitest's default include pattern
+    // matches its *.spec.ts files too and errors calling test() outside a
+    // Playwright run.
+    exclude: [...configDefaults.exclude, "mobile/**", "e2e/**"],
     // Every test file shares the one SQLite file created by global setup —
     // running files in parallel would race on it.
     fileParallelism: false,

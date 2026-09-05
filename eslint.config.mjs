@@ -31,6 +31,24 @@ const eslintConfig = defineConfig([
       "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
     },
   },
+  // Forces new server-side logging through src/lib/logger.ts (which tags a
+  // level and forwards error/warning to Sentry) instead of scattering raw
+  // console calls that emit no consistent shape and never reach Sentry. A
+  // warning, not an error: ~50 pre-existing call sites (src/lib, src/app/
+  // actions, src/app/api) predate this rule and aren't migrated yet, so
+  // flipping this to "error" would fail every existing PR that touches
+  // those files. Tighten to "error" once that backlog is cleared.
+  {
+    files: ["src/app/**/*.{ts,tsx}", "src/lib/**/*.{ts,tsx}", "src/components/**/*.{ts,tsx}"],
+    ignores: [
+      "src/lib/logger.ts", // the one file allowed to call console directly — everything else routes through it
+      "src/components/ConsoleSelfXssWarning.tsx", // deliberately prints a user-facing security banner, not a dev log — must NOT go through logger (that would fire a Sentry alert every page load)
+      "**/__tests__/**",
+    ],
+    rules: {
+      "no-console": "warn",
+    },
+  },
   // Expo config plugins (mobile/plugins/*.js) are CommonJS build-time
   // scripts run by @expo/config-plugins during `expo prebuild`, not app
   // code — `require()` is the only module form they support.
