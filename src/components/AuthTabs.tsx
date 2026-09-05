@@ -2,12 +2,44 @@
 
 import { useActionState, useState } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { signup, login } from "@/app/actions/auth";
 import { ThemeToggleLogo } from "./ThemeToggleLogo";
 import { AuthTrust } from "./AuthTrust";
-import { PasswordField } from "./PasswordField";
-import { UsernameField } from "./UsernameField";
-import { COUNTRY_CODES } from "@/lib/country-codes";
+import { Skeleton } from "./Skeleton";
+
+// Lazy rather than static imports: this is the landing page's LCP element
+// (the "Create your account" <h1> just below lives in the same tree), and
+// Lighthouse traced ~2.4s of "element render delay" on it — not network, the
+// main thread staying busy parsing/executing/hydrating these three pieces
+// (password-strength scoring, the debounced username-availability checker,
+// and a ~195-entry country list) before the browser got a free slot to paint
+// the already-server-rendered heading. next/dynamic's default ssr:true keeps
+// them in the server HTML (no content flash, nothing lost for no-JS/SEO) but
+// splits their JS into separate chunks behind a Suspense boundary, so
+// selective hydration can commit the h1/shell without waiting on them.
+const PasswordField = dynamic(() => import("./PasswordField").then((m) => m.PasswordField), {
+  loading: () => <FieldSkeleton />,
+});
+const UsernameField = dynamic(() => import("./UsernameField").then((m) => m.UsernameField), {
+  loading: () => <FieldSkeleton />,
+});
+const CountryCodeSelect = dynamic(() => import("./CountryCodeSelect").then((m) => m.CountryCodeSelect), {
+  loading: () => <Skeleton height="2.7rem" width="6rem" style={{ flex: "0 0 auto", display: "block" }} />,
+});
+
+// Matches the label + input shape PasswordField/UsernameField each render
+// inside their own .field wrapper (see globals.css's `.field input` rule for
+// the 2.7rem-ish height) — only reached if the chunk genuinely isn't ready
+// yet, since ssr:true means the real markup is already in the server HTML.
+function FieldSkeleton() {
+  return (
+    <div className="field" aria-hidden="true">
+      <Skeleton height="0.85rem" width="30%" style={{ marginBottom: "0.4rem" }} />
+      <Skeleton height="2.7rem" style={{ display: "block" }} />
+    </div>
+  );
+}
 
 export function AuthTabs() {
   const [tab, setTab] = useState<"signup" | "login">("signup");
@@ -85,21 +117,7 @@ export function AuthTabs() {
             <div className="field">
               <label htmlFor="signup-phoneNumber">Mobile number</label>
               <div style={{ display: "flex", gap: "0.5rem" }}>
-                <select
-                  id="signup-phoneDialCode"
-                  name="phoneDialCode"
-                  autoComplete="tel-country-code"
-                  defaultValue="91"
-                  aria-label="Country dial code"
-                  style={{ flex: "0 0 auto" }}
-                  required
-                >
-                  {COUNTRY_CODES.map((c) => (
-                    <option key={c.iso} value={c.dialCode}>
-                      {c.iso} +{c.dialCode}
-                    </option>
-                  ))}
-                </select>
+                <CountryCodeSelect />
                 <input
                   id="signup-phoneNumber"
                   name="phoneNumber"
