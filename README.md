@@ -177,4 +177,4 @@ If you're using an AI coding agent here, read [`AGENTS.md`](AGENTS.md) first —
 
 ## License
 
-Private repository (`"private": true` in `package.json`). Not currently licensed for external use, modification, or redistribution — all rights reserved.
+Private repository. See [`LICENSE`](LICENSE) — all rights reserved; not currently licensed for external use, modification, or redistribution.
