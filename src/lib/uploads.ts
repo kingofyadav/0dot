@@ -290,10 +290,17 @@ export async function verifyRemoteImageBytes(rawUrl: string): Promise<string | n
 // overwriting the DB row and passes it here afterward. Wrapped so a del()
 // hiccup never fails the request that's replacing it — a stray orphaned
 // blob is far better than a failed save because cleanup errored.
+//
+// Every caller only ever passes a URL that writeToUploadsDir() produced
+// (avatar/cover/document/etc. replacement flows), so it always lives in
+// the public store — explicit token required since del() otherwise
+// defaults to BLOB_READ_WRITE_TOKEN, which is the *private* store's token
+// and can't delete a blob it doesn't own (see the writeToUploadsDir
+// comment above for why these are now two separate stores).
 export async function deleteOldBlob(url: string | null | undefined): Promise<void> {
   if (!url) return;
   try {
-    await del(url);
+    await del(url, { token: publicBlobToken() });
   } catch (err) {
     logger.warn("uploads: couldn't delete replaced blob", err, { url });
   }
