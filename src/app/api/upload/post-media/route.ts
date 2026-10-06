@@ -27,6 +27,12 @@ export async function POST(request: Request): Promise<NextResponse> {
     const result = await handleUpload({
       request,
       body,
+      // Public post images live in the dedicated public Blob store
+      // (BLOB_PUBLIC_READ_WRITE_TOKEN) — see src/lib/uploads.ts's
+      // writeToUploadsDir comment. Without this, handleUpload defaults to
+      // BLOB_READ_WRITE_TOKEN, which now points at a private-only store
+      // and rejects public uploads.
+      token: process.env.BLOB_PUBLIC_READ_WRITE_TOKEN,
       onBeforeGenerateToken: async (pathname) => {
         const user = await getCurrentUser();
         if (!user) throw new Error("You must be signed in to upload.");

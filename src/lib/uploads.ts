@@ -88,6 +88,22 @@ async function bytesMatchDeclaredType(buffer: Buffer, declaredType: string): Pro
   }
 }
 
+// Public uploads (this function) and protected-storage.ts's paid-product
+// files used to share one Blob store, on the assumption that access was a
+// per-object property regardless of store — true when this comment was
+// first written, no longer true: Vercel Blob stores now each have a fixed
+// access mode, and this project's original store (BLOB_READ_WRITE_TOKEN)
+// was reconfigured to private-only, which made every access:"public" put()
+// below 500 in production (docs/BUGS.md, "public file uploads broken in
+// production"). Fixed by provisioning a second, public-only store
+// (BLOB_PUBLIC_READ_WRITE_TOKEN) dedicated to this public tier, and leaving
+// the original private store to protected-storage.ts exactly as before.
+function publicBlobToken(): string {
+  const token = process.env.BLOB_PUBLIC_READ_WRITE_TOKEN;
+  if (!token) throw new Error("BLOB_PUBLIC_READ_WRITE_TOKEN is not configured.");
+  return token;
+}
+
 async function writeToUploadsDir(buffer: Buffer, ext: string): Promise<string> {
   const filename = `${randomBytes(16).toString("hex")}.${ext}`;
   const path = `uploads/${filename}`;
@@ -100,6 +116,7 @@ async function writeToUploadsDir(buffer: Buffer, ext: string): Promise<string> {
   const blob = await put(path, buffer, {
     access: "public",
     addRandomSuffix: false,
+    token: publicBlobToken(),
   });
 
   return blob.url;
@@ -212,19 +229,19 @@ export async function saveMessageAttachment(
 
 export const BLOB_PUBLIC_HOST_SUFFIX = ".public.blob.vercel-storage.com";
 
-// Derives this app's Blob store's public hostname from BLOB_READ_WRITE_TOKEN
-// (format vercel_blob_rw_<storeId>_<random>) rather than hardcoding it —
-// dev/preview/production each have their own store, so a literal hostname
-// only ever matched one of them (src/app/uploads/[...path]/route.ts used to
-// hardcode one directly). Resolved lazily, not at module load, so a `next
-// build`'s route-data collection — which evaluates every route module,
-// that one included — never depends on this secret being present; same
-// posture as protected-storage.ts's DOWNLOAD_TOKEN_SECRET.
+// Derives this app's public Blob store's hostname from
+// BLOB_PUBLIC_READ_WRITE_TOKEN (format vercel_blob_rw_<storeId>_<random>)
+// rather than hardcoding it — dev/preview/production each have their own
+// store, so a literal hostname only ever matched one of them
+// (src/app/uploads/[...path]/route.ts used to hardcode one directly).
+// Resolved lazily, not at module load, so a `next build`'s route-data
+// collection — which evaluates every route module, that one included —
+// never depends on this secret being present; same posture as
+// protected-storage.ts's DOWNLOAD_TOKEN_SECRET.
 export function getBlobPublicHost(): string {
-  const token = process.env.BLOB_READ_WRITE_TOKEN;
-  if (!token) throw new Error("BLOB_READ_WRITE_TOKEN is not configured.");
+  const token = publicBlobToken();
   const storeId = token.split("_")[3];
-  if (!storeId) throw new Error("BLOB_READ_WRITE_TOKEN is not in the expected vercel_blob_rw_<storeId>_... format.");
+  if (!storeId) throw new Error("BLOB_PUBLIC_READ_WRITE_TOKEN is not in the expected vercel_blob_rw_<storeId>_... format.");
   return `${storeId}${BLOB_PUBLIC_HOST_SUFFIX}`;
 }
 

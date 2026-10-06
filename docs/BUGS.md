@@ -1,3 +1,86 @@
+# Bug report: public file uploads broken in production (2026-10-06)
+
+Found manually while populating the official `@dot` account's content
+(business document library) in the live app, then confirmed via Vercel
+runtime-error logs (`get_runtime_errors`, project `prj_PkgwIWweDR4t2lDy14Buz76fjhTA`)
+that this is already hitting real traffic, not just this session.
+
+---
+
+## 1. `writeToUploadsDir()` requests public Blob access against a private-only store — every upload through it 500s
+
+**File:** `src/lib/uploads.ts:91-106` (`writeToUploadsDir`)
+**Severity:** High (broad, user-facing breakage — not a security issue, but
+it silently fails most of the app's file-upload surface)
+
+```ts
+// access: "public" — these URLs are handed straight to <img>/<a> tags
+// with no auth check on read, so "private" (which needs a signed
+// get()/token round trip) never actually served anything; public also
+// matches Vercel's own guidance against private access for
+// publicly-displayed content (slower delivery, higher egress cost).
+const blob = await put(path, buffer, {
+  access: "public",
+  addRandomSuffix: false,
+});
+```
+
+The project's Vercel Blob store is now provisioned as private-access only
+(matches the README's own "Vercel Blob (`@vercel/blob`, private access)"
+line, and `src/lib/protected-storage.ts`'s `access: "private"` calls), but
+`writeToUploadsDir` still unconditionally requests `access: "public"`. The
+Blob SDK rejects that combination outright:
+
+```
+Error: Vercel Blob: Cannot use public access on a private store. The store is configured with private access.
+    at async k (.next/server/chunks/ssr/_1qi-66j._.js:2:62817)
+    at async l (.next/server/chunks/ssr/_1qi-66j._.js:2:63184)
+    at async v (.next/server/chunks/ssr/_10nmun_._.js:2:9075)
+```
+
+**Vercel evidence** (`get_runtime_errors`, `since=2h` at the time of
+filing): 1 error group, **count=4, users=3**, routes
+`/b/[slug]/documents` and `/b/[slug]/manage`, first seen
+`2026-10-06T14:59:15Z`, last seen `2026-10-06T16:17:02Z`, on
+`lastDeployment=dpl_6qLfj913BBCzh7ZnRmY8TapmhEo8` — the current production
+deployment (commit `6ebcb29`, aliased to `0dot.in`). Three distinct users
+hit this before this session did; it is not specific to one account or
+one browser action.
+
+`writeToUploadsDir` is the shared implementation behind
+`saveUploadedImage`, `saveDocumentFile`, and `saveMessageAttachment` (all
+in `src/lib/uploads.ts`), which between them back nearly every
+server-side upload in the app — confirmed call sites: business
+documents/logo/cover (`business-documents.ts`, `businesses.ts`), profile
+avatar/cover (`profile.ts`, `EditProfileForm.tsx`), project/portfolio
+covers (`projects.ts`, `resume.ts`, `credentials.ts`), offerings/catalog
+images (`offerings.ts`), digital product covers (`digital-products.ts`),
+articles/books/podcasts/published-files covers (`articles.ts`,
+`books.ts`, `podcasts.ts`, `published-files.ts`), community/event/job
+covers (`communities.ts`, `events.ts`, `jobs.ts`), memberships/donations
+images (`memberships.ts`, `donations.ts`), developer app icons
+(`developer-apps.ts`), cross-post (`cross-post.ts`), and the public API
+(`api/v1/users/me`, `api/v1/posts`). Reproduced live in this session: a
+business-document upload on `/b/dot/documents` throws server-side, which
+the client then surfaces as an unhandled "Application error: a
+client-side exception has occurred" (React error #441) instead of the
+inline form error the `uploadDocument` action's `{ error }` return path
+is designed to show — so today it's both a 500 on write *and* a crashed
+page on top, not just a graceful inline error.
+
+**Recommended fix:** reconcile the store's actual access mode with the
+code's assumption — either flip the Blob store back to public access (the
+code comment's stated intent, and consistent with how these URLs are
+used: embedded directly in `<img>`/`<a>` with no auth gate), or change
+`writeToUploadsDir` to request `access: "private"` and switch every
+public-facing consumer over to a signed/token-based read path like
+`protected-storage.ts` already uses for paid digital-product files.
+Whichever direction is chosen, `uploadDocument`'s client-side error
+handling (`DocumentForm.tsx`) should also be checked — a thrown/rejected
+action shouldn't produce an uncaught client exception.
+
+---
+
 # Bug report: full-codebase review (2026-09-23)
 
 Found by a parallel multi-agent code review (`/code-review high`) across
