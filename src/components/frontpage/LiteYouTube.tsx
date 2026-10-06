@@ -32,10 +32,14 @@ export function LiteYouTube({ id, title, priority = false }: { id: string; title
   // The priority (lead) instance is "/"'s LCP element — a live maxresdefault
   // fetch runs ~170KB+ from a third-party CDN, slow enough under throttling
   // to cost real Lighthouse points. scripts/generate-video-poster.mjs
-  // pre-shrinks it to a ~40KB local WebP; this is the only poster that uses
-  // it. If a video's pinned as the lead before its poster's been generated,
-  // onError below falls through to the live fetch chain exactly as before.
-  const localPosterUrl = priority ? `/video-posters/${id}.webp` : null;
+  // pre-shrinks it into two local WebP widths; this is the only poster that
+  // uses them. 700w covers the single-column mobile slot (~662 physical px
+  // at DPR 1.75), 960w the two-column desktop slot (~784 CSS px) — without
+  // both, mobile either downloads 960w's extra ~22KB for nothing or 700w
+  // ships blurry on desktop. If a video's pinned as the lead before its
+  // posters have been generated, onError below falls through to the live
+  // fetch chain exactly as before.
+  const localPosterBase = priority ? `/video-posters/${id}` : null;
 
   return (
     <button type="button" className="fpVideo fpVideoPoster" onClick={() => setPlaying(true)} aria-label={`Play video: ${title}`}>
@@ -44,16 +48,19 @@ export function LiteYouTube({ id, title, priority = false }: { id: string; title
           correctly sized JPEG. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src={localPosterUrl ?? maxresUrl}
+        src={localPosterBase ? `${localPosterBase}-960.webp` : maxresUrl}
+        srcSet={localPosterBase ? `${localPosterBase}-700.webp 700w, ${localPosterBase}-960.webp 960w` : undefined}
+        sizes={localPosterBase ? "(max-width: 760px) calc(100vw - 32px), 784px" : undefined}
         // maxresdefault (1280x720, true 16:9) only exists for videos
         // uploaded in HD; YouTube serves a 120x90 grey placeholder, or a
         // 404, otherwise. Fall back to hqdefault, which always exists.
         onLoad={(e) => {
-          if (e.currentTarget.src.endsWith(".webp")) return; // local poster loaded fine
+          if (e.currentTarget.currentSrc.endsWith(".webp")) return; // local poster loaded fine
           if (e.currentTarget.naturalWidth <= 120) e.currentTarget.src = hqUrl;
         }}
         onError={(e) => {
-          if (localPosterUrl && e.currentTarget.src.endsWith(".webp")) {
+          if (localPosterBase && e.currentTarget.currentSrc.endsWith(".webp")) {
+            e.currentTarget.removeAttribute("srcset");
             e.currentTarget.src = maxresUrl;
             return;
           }

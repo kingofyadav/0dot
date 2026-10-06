@@ -101,6 +101,12 @@ const nextConfig: NextConfig = {
     // already optimized by Next's built-in default list, so it isn't
     // repeated here (see node_modules/next/dist/docs/.../optimizePackageImports.md).
     optimizePackageImports: ["radix-ui"],
+    // Next otherwise ships each route's CSS as separate render-blocking
+    // <link> tags (Lighthouse's render-blocking-resources audit measured
+    // ~210ms of avoidable delay across 3 chunks on "/") — inlining folds them
+    // into <style> tags alongside the SSR'd HTML so first paint doesn't wait
+    // on extra round trips. Production-build only; dev keeps <link> tags.
+    inlineCss: true,
   },
   // Next.js doesn't serve a /sitemap.xml index when sitemap.ts uses
   // generateSitemaps, and a route handler can't sit at that path (conflicts

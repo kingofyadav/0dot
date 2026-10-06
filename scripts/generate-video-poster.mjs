@@ -3,20 +3,25 @@
 // frontpage/LiteYouTube.tsx) — that poster is "/"'s LCP element, and YouTube's
 // own maxresdefault.jpg (1280x720, true 16:9) runs ~170KB+, which is slow
 // enough over a throttled connection to cost real Lighthouse performance
-// points. This fetches it once and re-encodes a much smaller WebP
-// (960w, ~40KB) into public/video-posters/<id>.webp. LiteYouTube.tsx only
-// uses this local file for the `priority` (lead) instance; it falls back to
-// the live YouTube fetch chain if no local file exists yet for a video id.
+// points. This fetches it once and re-encodes it into two local WebP widths
+// under public/video-posters/: <id>-700.webp (mobile/narrow viewports) and
+// <id>-960.webp (the two-column desktop layout). LiteYouTube.tsx wires both
+// into a srcset so each viewport downloads only the bytes it needs — Chrome
+// DevTools' mobile emulation (412 CSS px wide, DPR 1.75) was still being
+// served the 960w asset before this, ~22KB heavier than its ~662 physical-px
+// slot needed. LiteYouTube.tsx only uses these local files for the
+// `priority` (lead) instance; it falls back to the live YouTube fetch chain
+// if no local files exist yet for a video id.
 //
 // Run this whenever the pinned lead video (landing-content.ts's VIDEOS[0])
-// changes, so the new lead gets its own fast local poster:
+// changes, so the new lead gets its own fast local posters:
 //   node scripts/generate-video-poster.mjs <youtubeVideoId>
 
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
 
-const POSTER_WIDTH = 960; // ~1.15x the lead figure's rendered width — crisp without paying for full retina bytes
+const POSTER_WIDTHS = [700, 960]; // mobile slot (~662 physical px) and the desktop two-column slot (~784 CSS px)
 const POSTER_QUALITY = 75;
 
 async function main() {
@@ -35,11 +40,13 @@ async function main() {
 
   const outDir = path.resolve(import.meta.dirname, "../public/video-posters");
   await mkdir(outDir, { recursive: true });
-  const outPath = path.join(outDir, `${id}.webp`);
-  const webp = await sharp(bytes).resize({ width: POSTER_WIDTH }).webp({ quality: POSTER_QUALITY }).toBuffer();
-  await writeFile(outPath, webp);
 
-  console.log(`Wrote ${outPath} (${(webp.length / 1024).toFixed(1)}KB, from ${(bytes.length / 1024).toFixed(1)}KB source)`);
+  for (const width of POSTER_WIDTHS) {
+    const outPath = path.join(outDir, `${id}-${width}.webp`);
+    const webp = await sharp(bytes).resize({ width }).webp({ quality: POSTER_QUALITY }).toBuffer();
+    await writeFile(outPath, webp);
+    console.log(`Wrote ${outPath} (${(webp.length / 1024).toFixed(1)}KB, from ${(bytes.length / 1024).toFixed(1)}KB source)`);
+  }
 }
 
 main().catch((err) => {

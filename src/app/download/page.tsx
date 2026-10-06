@@ -17,7 +17,10 @@ import {
 import { Logo } from "@/components/Logo";
 import { MarketingNav } from "@/components/marketing/MarketingNav";
 
-export const metadata: Metadata = { title: "Download" };
+export const metadata: Metadata = {
+  title: "Download",
+  description: "Get the 0dot app for Android (direct APK) or iOS (TestFlight) — free forever, no app store account needed.",
+};
 
 // Distribution reality (phase-15 build plan §5.1/§6, and the "download
 // direct from the web, not a store" ask that motivated this page):
@@ -31,22 +34,25 @@ export const metadata: Metadata = { title: "Download" };
 // difference rather than presenting a broken or misleading iOS link.
 //
 // ANDROID_APK_URL points at a copy of the EAS build re-hosted on Vercel
-// Blob (scripts/upload not checked in — one-off), not the expo.dev
-// artifacts URL EAS prints: that link is signed and expires a couple of
-// weeks after the build finishes, which is fine for internal QA but not for
-// a link this page keeps serving indefinitely. Re-run the same upload step
-// and bump the constants below whenever a new build replaces this one.
+// Blob (uploaded via `vercel blob put`, stable pathname
+// downloads/0dot-android.apk with --allow-overwrite so this URL never
+// changes across re-uploads), not the expo.dev artifacts URL EAS prints:
+// that link is signed and expires a couple of weeks after the build
+// finishes, which is fine for internal QA but not for a link this page
+// keeps serving indefinitely. Re-run the same upload step and bump the
+// constants below whenever a new build replaces this one.
 // ANDROID_APK_UPDATED is what actually tells a returning visitor the
 // download is fresher — the EAS versionCode restarted at 1 when the project
-// moved to the kingofyadav account, so it's no longer a monotonic signal.
+// moved from the kingofyadav account to dotindia, so it's no longer a
+// monotonic signal.
 //
-// Current source build (EAS, account kingofyadav / project 0dot,
-// versionCode 3, commit 443e253):
-// https://expo.dev/accounts/kingofyadav/projects/0dot/builds/70ae3bda-671b-4dc1-8c6f-8d9528ead3e9
+// Current source build (EAS, account dotindia / project dot,
+// versionCode 1, commit 2318a50):
+// https://expo.dev/accounts/dotindia/projects/dot/builds/b8ff06d0-0305-44e7-a719-39eed4b7cb99
 const ANDROID_APK_URL = process.env.ANDROID_APK_DOWNLOAD_URL;
 const ANDROID_APK_VERSION = "1.0.0";
 const ANDROID_APK_SIZE_MB = 161;
-const ANDROID_APK_UPDATED = "Sep 2, 2026";
+const ANDROID_APK_UPDATED = "Oct 2, 2026";
 const IOS_TESTFLIGHT_URL = process.env.IOS_TESTFLIGHT_URL;
 
 type DetectedPlatform = "android" | "ios" | "other";
@@ -170,7 +176,7 @@ export default async function DownloadPage() {
             <Feature icon={RefreshCw} title="Always in sync" body="Same account, same feed, everywhere you sign in." />
           </ul>
 
-          <p className="flex items-center gap-2 text-xs opacity-55">
+          <p className="flex items-center gap-2 mutedTextSmall">
             <ShieldCheck size={14} aria-hidden="true" />
             Free forever. No app store account needed.
           </p>
@@ -209,7 +215,7 @@ function PlatformCard({
         {highlight && <span className="mutedText"> · this device</span>}
       </h2>
       <div className="flex w-full flex-col items-stretch">{action}</div>
-      {meta && <p className="text-xs opacity-55">{meta}</p>}
+      {meta && <p className="mutedTextSmall">{meta}</p>}
       {note && <p className="mutedTextSmall">{note}</p>}
     </div>
   );
