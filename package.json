@@ -83,6 +83,9 @@
     "mysql2": "^3.24.3",
     "qs": "^6.16.0"
   },
+  "resolutions": {
+    "vite": "^8.2.2"
+  },
   "browserslist": [
     "chrome >= 111",
     "edge >= 111",
