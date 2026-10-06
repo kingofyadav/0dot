@@ -51,7 +51,6 @@ export async function register() {
       dsn: sentryDsn,
       environment: process.env.VERCEL_ENV ?? process.env.NODE_ENV,
       tracesSampleRate: process.env.VERCEL_ENV === "production" ? 0.1 : 1.0,
-      sendDefaultPii: false,
       debug: process.env.SENTRY_DEBUG === "1",
     });
     if (process.env.SENTRY_DEBUG === "1") {
