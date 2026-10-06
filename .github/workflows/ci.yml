@@ -17,9 +17,9 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 24
-          cache: npm
+          cache: yarn
 
-      - run: npm ci
+      - run: yarn install --frozen-lockfile
 
       - run: npx prisma generate
 
@@ -29,16 +29,16 @@ jobs:
         run: npx tsc --noEmit
 
       - name: Lint
-        run: npm run lint
+        run: yarn lint
 
       - name: Test
-        run: npm test --if-present
+        run: yarn test
 
       - name: Build
-        run: npm run build
+        run: yarn build
 
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
 
       - name: Console-noise smoke test (e2e)
-        run: npm run test:e2e
+        run: yarn test:e2e

@@ -31,9 +31,9 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 24
-          cache: npm
+          cache: yarn
 
-      - run: npm ci
+      - run: yarn install --frozen-lockfile
 
       - name: Install turso CLI
         run: curl -sSfL https://get.tur.so/install.sh | bash && echo "$HOME/.turso" >> "$GITHUB_PATH"
