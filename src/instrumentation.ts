@@ -38,6 +38,20 @@ async function runStartupTask(name: string, task: () => void | Promise<void>): P
   }
 }
 
+// logger.ts's context objects (src/lib/logger.ts's ~dozen call sites) are
+// written for local debugging, not with "this leaves the process" in mind —
+// e.g. email.ts's send-failure logs include the recipient address. Sentry is
+// a third-party service, so known-PII-shaped keys are scrubbed here, at the
+// one chokepoint everything funnels through, rather than trusting every
+// current and future call site to redact itself.
+const PII_CONTEXT_KEYS = new Set(["to", "email", "phone", "address", "password", "token", "secret", "authorization", "cookie"]);
+function redactPii(context?: Record<string, unknown>): Record<string, unknown> | undefined {
+  if (!context) return context;
+  return Object.fromEntries(
+    Object.entries(context).map(([key, value]) => [key, PII_CONTEXT_KEYS.has(key.toLowerCase()) ? "[redacted]" : value]),
+  );
+}
+
 export async function register() {
   // Sentry (web-pro-upgrade addendum M1). Initialized directly here rather
   // than via a sentry.*.config.ts import — one file, and this project builds
@@ -60,10 +74,11 @@ export async function register() {
     if (process.env.NEXT_RUNTIME === "nodejs") {
       const { registerLogSink } = await import("@/lib/logger");
       registerLogSink((level, message, error, context) => {
+        const safeContext = redactPii(context);
         if (error !== undefined) {
-          Sentry.captureException(error, { level, extra: { message, ...context } });
+          Sentry.captureException(error, { level, extra: { message, ...safeContext } });
         } else {
-          Sentry.captureMessage(message, { level, extra: context });
+          Sentry.captureMessage(message, { level, extra: safeContext });
         }
       });
     }
