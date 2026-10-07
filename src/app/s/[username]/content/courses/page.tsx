@@ -35,7 +35,10 @@ export default async function CoursesSettingsPage() {
             description={`${course.price !== null ? formatCoins(course.price) : "Tier-only"} · ${course.status}`}
             trailing={
               <>
-                <Link href={`/s/${handle}/content/courses/${course.id}`} className="button buttonSecondary buttonSmall">Manage</Link>
+                {/* the lesson/module builder lives at /s/{handle}/courses/{id},
+                    a sibling of content/ rather than nested inside it — see
+                    src/app/s/[username]/courses/[courseId]/page.tsx */}
+                <Link href={`/s/${handle}/courses/${course.id}`} className="button buttonSecondary buttonSmall">Manage</Link>
                 {course.status !== "archived" && (
                   <form action={archiveCourse}>
                     <input type="hidden" name="courseId" value={course.id} />

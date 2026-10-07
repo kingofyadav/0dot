@@ -980,7 +980,10 @@ async function ProfileShopTab({
     viewerTierAccessRows,
     activeAffiliatePrograms,
   ] = await Promise.all([
-    canSubscribe
+    // listing is gated on canViewFullProfile (same as courses/podcast/etc.
+    // below), not canSubscribe — canSubscribe only gates whether the
+    // SubscribeForm renders, so the owner can see their own tiers listed.
+    canViewFullProfile
       ? db.membershipTier.findMany({ where: { creatorId: username.userId, status: "active" }, orderBy: { level: "asc" } })
       : Promise.resolve([]),
     // spec §11: a lightweight discovery list — the course's own page
@@ -1016,7 +1019,9 @@ async function ProfileShopTab({
           include: { requiredTier: { select: { name: true } } },
         })
       : Promise.resolve([]),
-    canBuy
+    // same reasoning as activeTiers above: list on canViewFullProfile,
+    // gate the BuyForm itself on canBuy.
+    canViewFullProfile
       ? db.digitalProduct.findMany({ where: { creatorId: username.userId, status: "active" }, orderBy: { createdAt: "desc" } })
       : Promise.resolve([]),
     canSubscribe && currentUser
@@ -1030,11 +1035,18 @@ async function ProfileShopTab({
         })
       : Promise.resolve([]),
     // spec §7.1: a non-owner signed-in visitor can become an affiliate for
-    // any of this creator's active programs.
-    showViewerControls && canViewFullProfile && currentUser
+    // any of this creator's active programs — but listing is gated on
+    // canViewFullProfile like the sections above, not showViewerControls,
+    // so the owner can see their own programs. The links sub-query (used to
+    // show "your link" vs. the become-affiliate form) only applies when
+    // there's a signed-in visitor to look it up for.
+    canViewFullProfile
       ? db.affiliateProgram.findMany({
           where: { creatorId: username.userId, status: "active" },
-          include: { links: { where: { affiliateId: currentUser.id }, select: { id: true, code: true } } },
+          // a consistent include shape (vs. a conditional one) keeps the
+          // inferred row type the same whether or not there's a viewer to
+          // look up; no currentUser just means affiliateId never matches.
+          include: { links: { where: { affiliateId: currentUser?.id ?? "" }, select: { id: true, code: true } } },
         })
       : Promise.resolve([]),
   ]);
@@ -1058,8 +1070,8 @@ async function ProfileShopTab({
   ]);
   const ownedProductIds = new Set(ownedProductRows.map((p) => p.productId));
 
-  const hasMemberships = canSubscribe && (subscribableTiers.length > 0 || viewerTierAccessIds.size > 0);
-  const hasDigitalProducts = canBuy && activeProducts.length > 0;
+  const hasMemberships = subscribableTiers.length > 0 || viewerTierAccessIds.size > 0;
+  const hasDigitalProducts = activeProducts.length > 0;
   const hasCourses = activeCourses.length > 0;
   const hasPodcast = !!podcast && podcast.episodes.length > 0;
   const showNewsletter = hasNewsletter && !isOwner;
@@ -1105,7 +1117,13 @@ async function ProfileShopTab({
                   {tier.description && (
                     <div className="mutedText" style={{ fontSize: "0.8rem", margin: "0.15rem 0" }}>{renderWikiMarkdown(tier.description)}</div>
                   )}
-                  <SubscribeForm tier={tier} viewerCoins={viewerCoins} />
+                  {canSubscribe ? (
+                    <SubscribeForm tier={tier} viewerCoins={viewerCoins} />
+                  ) : (
+                    <p className="mutedText" style={{ fontSize: "0.8rem", margin: 0 }}>
+                      {formatCoins(tier.price)} / {tier.billingInterval}
+                    </p>
+                  )}
                 </div>
               )
             )}
@@ -1119,9 +1137,19 @@ async function ProfileShopTab({
             <Package size={14} aria-hidden="true" /> Digital products
           </p>
           <div className="disclosureBody">
-            {activeProducts.map((product) => (
-              <DigitalProductCard key={product.id} product={product} owned={ownedProductIds.has(product.id)} viewerCoins={viewerCoins} />
-            ))}
+            {activeProducts.map((product) =>
+              canBuy ? (
+                <DigitalProductCard key={product.id} product={product} owned={ownedProductIds.has(product.id)} viewerCoins={viewerCoins} />
+              ) : (
+                <div key={product.id} className="contentCardNested">
+                  <p style={{ fontWeight: 600, fontSize: "0.9rem", margin: 0 }}>{product.title}</p>
+                  {product.description && (
+                    <p className="mutedText" style={{ fontSize: "0.8rem", margin: "0.15rem 0" }}>{product.description}</p>
+                  )}
+                  <p className="mutedText" style={{ fontSize: "0.8rem", margin: 0 }}>{formatCoins(product.price)}</p>
+                </div>
+              )
+            )}
           </div>
         </div>
       )}
@@ -1226,7 +1254,15 @@ async function ProfileShopTab({
           </p>
           <div className="disclosureBody">
             {activeAffiliatePrograms.map((program) =>
-              program.links.length > 0 ? (
+              !showViewerControls ? (
+                // owner viewing their own profile, or an anonymous visitor —
+                // neither can become an affiliate for this program, so show
+                // the plain terms instead of a form that would either be
+                // self-referral or require signing in first.
+                <p key={program.id} className="mutedText" style={{ fontSize: "0.85rem" }}>
+                  {affiliateOfferingLabels.get(program.id) ?? "This offering"} — {program.commissionPercent}% commission
+                </p>
+              ) : program.links.length > 0 ? (
                 <p key={program.id} className="mutedText row-sm" style={{ fontSize: "0.85rem" }}>
                   <Check size={14} aria-hidden="true" /> Your link: /aff/{program.links[0].code}
                 </p>

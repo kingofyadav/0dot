@@ -28,8 +28,13 @@ function parseAndValidateProductFields(formData: FormData): { error: string } | 
 
   const currency = String(formData.get("currency") ?? "usd").trim().toLowerCase() || "usd";
 
-  const statusRaw = String(formData.get("status") ?? "draft");
-  const status = STATUS_VALUES.has(statusRaw) ? statusRaw : "draft";
+  // ProductForm only shows the Status select in edit mode (mirrors
+  // TierForm), so creation never submits a "status" field — default to
+  // "active" there, same posture as MembershipTier's schema default, rather
+  // than silently landing new products in "draft" with no way to publish
+  // without a separate edit round-trip.
+  const statusRaw = String(formData.get("status") ?? "active");
+  const status = STATUS_VALUES.has(statusRaw) ? statusRaw : "active";
 
   return { title, description, price, currency, status };
 }
