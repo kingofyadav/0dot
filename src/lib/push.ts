@@ -97,6 +97,16 @@ export async function clearDeviceTokensForApp(userId: string, appClientId: strin
   await db.deviceToken.deleteMany({ where: { userId, appClientId } });
 }
 
+// Same device-token cleanup as above, but for the app owner deleting the
+// app entirely (developer-apps.ts's deleteDeveloperApp) rather than one
+// user disconnecting it — every user's token for this clientId, not just
+// one. DeviceToken has no FK relation to DeveloperApp (keyed by the string
+// appClientId, see its schema comment), so this doesn't happen for free via
+// DeveloperApp's cascading delete the way OAuthToken/OAuthAuthorization do.
+export async function clearAllDeviceTokensForApp(appClientId: string): Promise<void> {
+  await db.deviceToken.deleteMany({ where: { appClientId } });
+}
+
 // phase-15 spec §4.4: "revoking/logging out clears the associated
 // DeviceToken" — called from destroySession (session.ts) so that module
 // doesn't reach directly into a table push.ts otherwise owns (the same

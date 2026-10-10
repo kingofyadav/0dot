@@ -183,6 +183,32 @@ export async function createWebhookSubscription(_prevState: ActionState, formDat
   return undefined;
 }
 
+// Every child row (scopes, authorization codes, authorizations, tokens,
+// webhook subscriptions, usage counters) cascades at the DB level — see
+// each of their `onDelete: Cascade` relations to DeveloperApp in
+// schema.prisma — so this is a genuine hard delete, not a status flip, and
+// every live OAuthToken for this app stops working the instant this
+// commits. MarketplaceListing.developerAppId is the one exception
+// (`onDelete: SetNull`): a listing created via this app survives its
+// deletion, just loses the backref, same as a seller's own account being
+// deletable without nuking their past listings elsewhere in this schema.
+// DeviceToken has no FK relation (keyed by the clientId string, not
+// appId), so it needs an explicit cleanup call — see
+// clearAllDeviceTokensForApp's comment.
+export async function deleteDeveloperApp(formData: FormData): Promise<void> {
+  const user = await requireVerifiedUser();
+  const appId = String(formData.get("appId") ?? "");
+  const app = await requireOwnedDeveloperApp(appId, user.id);
+  if (!app) return;
+
+  await db.developerApp.delete({ where: { id: appId } });
+
+  const { clearAllDeviceTokensForApp } = await import("@/lib/push");
+  await clearAllDeviceTokensForApp(app.clientId);
+
+  revalidatePath(`/s/${await handleFor(user.id)}/developer`);
+}
+
 export async function deleteWebhookSubscription(formData: FormData): Promise<void> {
   const user = await requireVerifiedUser();
   const subscriptionId = String(formData.get("subscriptionId") ?? "");
