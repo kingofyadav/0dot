@@ -19,6 +19,16 @@ function currentHourWindow(): Date {
 const UNREVIEWED_LIMIT_PER_HOUR = 100;
 const REVIEWED_LIMIT_PER_HOUR = 2000;
 
+// trust:read sits at "high" sensitivity for a different reason than every
+// other scope in that bucket (oauth.ts) — it discloses moderation standing,
+// not an account-mutating/financial/messaging capability — so admin review
+// of it alone isn't the "this app can be trusted with real stakes" signal
+// the elevated throughput tier is meant to reward. Without this exclusion,
+// an app could clear the (comparatively easy) trust:read review and get the
+// same 20x rate-limit bump intended for apps reviewed for payments:write/
+// messages:write/account:write.
+const HIGH_SENSITIVITY_SCOPES_EXCLUDED_FROM_REVIEWED_TIER = ["trust:read"];
+
 // billing addendum §4.2's acceptance criterion: a free-plan app exceeding
 // its included usage is rate-limited (the tiering above, unchanged) rather
 // than silently over-billed. pay_as_you_go/committed apps opted into being
@@ -28,7 +38,15 @@ const REVIEWED_LIMIT_PER_HOUR = 2000;
 export async function checkApiRateLimit(appId: string): Promise<{ allowed: boolean; limit: number; remaining: number }> {
   const [app, hasApprovedHighSensitivityScope] = await Promise.all([
     db.developerApp.findUnique({ where: { id: appId }, select: { billingPlan: true } }),
-    db.developerAppScope.findFirst({ where: { appId, status: "approved", scope: { sensitivity: "high" } }, select: { appId: true } }),
+    db.developerAppScope.findFirst({
+      where: {
+        appId,
+        status: "approved",
+        scope: { sensitivity: "high" },
+        scopeKey: { notIn: HIGH_SENSITIVITY_SCOPES_EXCLUDED_FROM_REVIEWED_TIER },
+      },
+      select: { appId: true },
+    }),
   ]);
   const limit = hasApprovedHighSensitivityScope ? REVIEWED_LIMIT_PER_HOUR : UNREVIEWED_LIMIT_PER_HOUR;
   const windowStart = currentHourWindow();
