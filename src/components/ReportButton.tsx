@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Modal } from "./Modal";
 import { useToast } from "./Toast";
 import { fileReport } from "@/app/actions/reports";
@@ -24,6 +24,13 @@ const CATEGORY_LABELS: Record<ReportCategory, string> = {
 // codebase (§4.2) — this component doesn't even know who owns the subject,
 // only what it's reporting.
 export function ReportButton({ subjectType, subjectId, small = true }: { subjectType: string; subjectId: string; small?: boolean }) {
+  // One ReportButton per reportable item (every post in a feed, for one) —
+  // a modal stays mounted in the DOM even while closed (Modal.tsx), so a
+  // static id here duplicated across every instance on the page (Chrome's
+  // "Duplicate form field id in the same form" warning). useId() gives each
+  // instance its own.
+  const categoryId = useId();
+  const detailsId = useId();
   const [open, setOpen] = useState(false);
   const [category, setCategory] = useState<ReportCategory>("spam");
   const [details, setDetails] = useState("");
@@ -57,9 +64,9 @@ export function ReportButton({ subjectType, subjectId, small = true }: { subject
 
       <Modal open={open} onClose={() => setOpen(false)} title="Report content">
         <div className="field">
-          <label htmlFor="report-category">Reason</label>
+          <label htmlFor={categoryId}>Reason</label>
           <select
-            id="report-category"
+            id={categoryId}
             className="textInput"
             value={category}
             onChange={(e) => setCategory(e.target.value as ReportCategory)}
@@ -72,9 +79,9 @@ export function ReportButton({ subjectType, subjectId, small = true }: { subject
           </select>
         </div>
         <div className="field">
-          <label htmlFor="report-details">Details (optional)</label>
+          <label htmlFor={detailsId}>Details (optional)</label>
           <textarea
-            id="report-details"
+            id={detailsId}
             className="textInput"
             rows={3}
             maxLength={2000}
