@@ -105,7 +105,14 @@ export async function runWithDbResilience<T>(run: () => Promise<T>): Promise<T> 
 // the real target, not the Proxy — required because the client's internal
 // implementation uses private class fields, which throw if ever accessed
 // with `this` set to a Proxy rather than the real instance.
-export function wrapLibsqlExecutor<T extends object>(target: T): T {
+//
+// `beforeStatement`, when given, runs before every execute/batch/transaction
+// call — used by db.ts's embedded-replica config to gate statements on a
+// fresh-enough `.sync()` (see EMBEDDED_REPLICA_MAX_STALENESS_MS there) without
+// duplicating this Proxy's shape. It runs *inside* runWithDbResilience's
+// retried closure for execute/batch, so a transient failure mid-sync gets the
+// same backoff-and-retry treatment as any other transient libsql error.
+export function wrapLibsqlExecutor<T extends object>(target: T, beforeStatement?: () => Promise<void>): T {
   return new Proxy(target, {
     get(obj, prop, _receiver) {
       // Pass `obj` (not the Proxy) as the receiver so a getter's internal
@@ -114,10 +121,17 @@ export function wrapLibsqlExecutor<T extends object>(target: T): T {
       if (typeof value !== "function") return value;
 
       if (prop === "execute" || prop === "batch") {
-        return (...args: unknown[]) => runWithDbResilience(() => (value as (...a: unknown[]) => Promise<unknown>).apply(obj, args));
+        return (...args: unknown[]) =>
+          runWithDbResilience(async () => {
+            if (beforeStatement) await beforeStatement();
+            return (value as (...a: unknown[]) => Promise<unknown>).apply(obj, args);
+          });
       }
       if (prop === "transaction") {
-        return async (...args: unknown[]) => wrapLibsqlExecutor((await (value as (...a: unknown[]) => Promise<object>).apply(obj, args)) as object);
+        return async (...args: unknown[]) => {
+          if (beforeStatement) await beforeStatement();
+          return wrapLibsqlExecutor((await (value as (...a: unknown[]) => Promise<object>).apply(obj, args)) as object, beforeStatement);
+        };
       }
       return value.bind(obj);
     },

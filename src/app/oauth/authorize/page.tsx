@@ -23,15 +23,26 @@ export default async function AuthorizePage({
     code_challenge_method?: string;
   }>;
 }) {
-  const user = await requireVerifiedUser();
+  // requireVerifiedUser's session lookup and the developerApp lookup below
+  // don't depend on each other — kicking the user check off here and only
+  // awaiting it once clientId is known (via Promise.all below) overlaps the
+  // two DB round trips instead of paying for them back-to-back. Matters most
+  // under the transient Turso connectivity blips docs/BUGS.md and
+  // db-resilience.ts's retry wrapper already contend with: this is one of
+  // several sequential round trips on 0dot's single slowest-to-react page
+  // (an external app's "Sign in with 0dot" button lands here), so halving
+  // the serial chain measurably shrinks the window a flaky connection has to
+  // land in.
+  const userPromise = requireVerifiedUser();
   const params = await searchParams;
   const { client_id: clientId, redirect_uri: redirectUri, response_type: responseType, scope, state, code_challenge: codeChallenge, code_challenge_method: codeChallengeMethod } = params;
 
   if (!clientId || !redirectUri || !codeChallenge || responseType !== "code") {
+    await userPromise; // still enforce sign-in even on a malformed request, same as before
     return <ErrorPanel message="This authorization request is missing required parameters." />;
   }
 
-  const app = await db.developerApp.findUnique({ where: { clientId } });
+  const [user, app] = await Promise.all([userPromise, db.developerApp.findUnique({ where: { clientId } })]);
   if (!app || app.status !== "active") {
     return <ErrorPanel message="Unknown or suspended application." />;
   }

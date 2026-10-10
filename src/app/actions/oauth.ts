@@ -10,7 +10,6 @@ import { issueAuthorizationCode, validateRedirectUri, resolveApprovableScopes } 
 // query-param origin), same "request time, not display time" posture used
 // throughout this codebase for access checks.
 export async function approveAuthorization(formData: FormData): Promise<void> {
-  const user = await requireVerifiedUser();
   const clientId = String(formData.get("clientId") ?? "");
   const redirectUri = String(formData.get("redirectUri") ?? "");
   const state = String(formData.get("state") ?? "");
@@ -18,7 +17,12 @@ export async function approveAuthorization(formData: FormData): Promise<void> {
   const codeChallengeMethod = String(formData.get("codeChallengeMethod") ?? "S256");
   const approvedScopes = formData.getAll("scopes").map(String);
 
-  const app = await db.developerApp.findUnique({ where: { clientId } });
+  // Same "overlap the independent DB round trips" reasoning as
+  // /oauth/authorize/page.tsx: the session check and the app lookup don't
+  // depend on each other, so run them concurrently rather than serially —
+  // one fewer full round trip for a flaky Turso connection to stall on
+  // before this consent-screen submit can redirect to the third-party app.
+  const [user, app] = await Promise.all([requireVerifiedUser(), db.developerApp.findUnique({ where: { clientId } })]);
   if (!app || app.status !== "active" || !validateRedirectUri(app.redirectUrisJson, redirectUri) || !codeChallenge) {
     redirect("/oauth/error");
   }

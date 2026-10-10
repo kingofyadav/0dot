@@ -110,6 +110,16 @@ export const OAUTH_SCOPES = [
   // "high" tier as payments:write — getting this scope wrong lets a
   // malicious app lock the real owner out of their own account.
   { key: "account:write", description: "Change your password, email, phone, two-factor settings, or deactivate/delete your account", sensitivity: "high" },
+  // ZERO ID trust layer (../ZERO-ID-TRUST-ARCHITECTURE.md, sibling to this
+  // repo under 0dotindia/ — not part of this repo's own docs/specs):
+  // deliberately
+  // narrower than account:read above — a handful of booleans/scalars about
+  // verification and standing, no session list, no 2FA secret, no export.
+  // Meant to be grantable to an arm's-length third-party site asking "can I
+  // trust this person a little," not just the account owner's own client,
+  // so it sits at low sensitivity (auto-approved at request time) rather
+  // than high like account:read.
+  { key: "trust:read", description: "Read your verification status and account standing", sensitivity: "low" },
   { key: "preferences:read", description: "Read your language, timezone, and accessibility preferences", sensitivity: "low" },
   { key: "preferences:write", description: "Change your language, timezone, and accessibility preferences", sensitivity: "low" },
   // Mobile livestream viewer (v1/live/*): watching a livestream (detail,
