@@ -101,12 +101,21 @@ const nextConfig: NextConfig = {
     // already optimized by Next's built-in default list, so it isn't
     // repeated here (see node_modules/next/dist/docs/.../optimizePackageImports.md).
     optimizePackageImports: ["radix-ui"],
-    // Next otherwise ships each route's CSS as separate render-blocking
-    // <link> tags (Lighthouse's render-blocking-resources audit measured
-    // ~210ms of avoidable delay across 3 chunks on "/") — inlining folds them
-    // into <style> tags alongside the SSR'd HTML so first paint doesn't wait
-    // on extra round trips. Production-build only; dev keeps <link> tags.
-    inlineCss: true,
+    // Was briefly `true` to avoid ~210ms of render-blocking <link> tags on
+    // "/" — but Next's RSC flight payload (the self.__next_f.push blob every
+    // page carries for hydration) serializes the *same* CSS text a second
+    // time regardless, as style-preinit instructions for client-side
+    // navigations. With this app's full stylesheet (~170KB) that's ~350KB+
+    // of duplicated CSS on every single page load, with zero cross-page
+    // browser caching — measured live-site Lighthouse performance scores of
+    // 78 (/) and 83 (/login), both dominated by Total Blocking Time from
+    // parsing that payload. A Vercel preview deploy with this `false`
+    // (HTTP/2, so the <link> tags load in parallel off one connection
+    // instead of serially like plain HTTP/1.1 localhost) scored 97–100 on
+    // both once warm, with LCP still fine — the external, cacheable
+    // stylesheet the browser now reuses across navigations wins by a wide
+    // margin over the inlining trade this was meant to make.
+    inlineCss: false,
   },
   // Next.js doesn't serve a /sitemap.xml index when sitemap.ts uses
   // generateSitemaps, and a route handler can't sit at that path (conflicts
