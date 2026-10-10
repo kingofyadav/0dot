@@ -5,6 +5,7 @@ import { logAIGeneration } from "@/lib/ai-generation";
 import { notifyModerationAction } from "@/lib/notifications";
 import { softDeletePostAndDecrementCounts } from "@/lib/post-moderation";
 import { logger } from "@/lib/logger";
+import type { BatchOutcome } from "@/lib/cron";
 
 // phase-11 spec §4.2: content matching known CSAM hash-matching databases
 // (PhotoDNA/NCMEC) is categorically NOT handled by this file. It triggers a
@@ -29,7 +30,11 @@ const MODERATION_SUBJECT_OWNER: Record<string, (id: string) => Promise<string | 
 // ModerationFlag when the classifier actually suggests action, same
 // "flag_for_review is not manufactured for a zero-risk item" posture any
 // real classifier would need.
-export async function classifyAndFlag(params: { subjectType: string; subjectId: string; text: string }): Promise<void> {
+// Returns whether classification succeeded — the caller aggregates this
+// across a batch so a cron run can tell "a couple of odd rows" apart from
+// "every call is failing" (e.g. an invalid provider API key), which this
+// function's own per-item swallowing below would otherwise hide entirely.
+export async function classifyAndFlag(params: { subjectType: string; subjectId: string; text: string }): Promise<boolean> {
   const provider = getAIProvider();
   let classification: Awaited<ReturnType<typeof provider.classifyModeration>>;
   try {
@@ -40,7 +45,7 @@ export async function classifyAndFlag(params: { subjectType: string; subjectId: 
     // needs classifying, so leaving this item unlogged means the next 60s
     // sweep retries it automatically, with no separate retry bookkeeping.
     logger.error("classifyAndFlag failed", err, { subjectType: params.subjectType, subjectId: params.subjectId });
-    return;
+    return false;
   }
 
   const generation = await logAIGeneration({
@@ -54,7 +59,7 @@ export async function classifyAndFlag(params: { subjectType: string; subjectId: 
     costTokens: classification.costTokens,
   });
 
-  if (classification.suggestedAction === "none") return;
+  if (classification.suggestedAction === "none") return true;
 
   await db.moderationFlag.create({
     data: {
@@ -80,6 +85,8 @@ export async function classifyAndFlag(params: { subjectType: string; subjectId: 
     subjectId: params.subjectId,
     linkedAiGenerationId: generation.id,
   });
+
+  return true;
 }
 
 // §4.1/§4.3: the only place any flagged item is actually actioned, and only
@@ -131,7 +138,7 @@ export async function reviewModerationFlag(
 // and eventually exceeds the database's bound-parameter limit (P2029),
 // since Prisma binds one parameter per notIn element. NOT EXISTS keeps the
 // parameter count fixed regardless of history size.
-async function processPendingModerationJobs(): Promise<void> {
+async function processPendingModerationJobs(): Promise<BatchOutcome> {
   const [posts, articles, comments] = await Promise.all([
     db.$queryRaw<{ id: string; body: string }[]>`
       SELECT p.id, p.body FROM Post p
@@ -164,16 +171,28 @@ async function processPendingModerationJobs(): Promise<void> {
     `,
   ]);
 
-  for (const post of posts) await classifyAndFlag({ subjectType: "post", subjectId: post.id, text: post.body });
-  for (const article of articles) {
-    await classifyAndFlag({ subjectType: "article", subjectId: article.id, text: `${article.title}\n${article.body}` });
+  let attempted = 0;
+  let failed = 0;
+
+  for (const post of posts) {
+    attempted++;
+    if (!(await classifyAndFlag({ subjectType: "post", subjectId: post.id, text: post.body }))) failed++;
   }
-  for (const comment of comments) await classifyAndFlag({ subjectType: "comment", subjectId: comment.id, text: comment.body });
+  for (const article of articles) {
+    attempted++;
+    if (!(await classifyAndFlag({ subjectType: "article", subjectId: article.id, text: `${article.title}\n${article.body}` }))) failed++;
+  }
+  for (const comment of comments) {
+    attempted++;
+    if (!(await classifyAndFlag({ subjectType: "comment", subjectId: comment.id, text: comment.body }))) failed++;
+  }
+
+  return { attempted, failed };
 }
 
 const MODERATION_JOB_INTERVAL_MS = 60 * 1000;
 const globalForModeration = globalThis as unknown as { moderationSchedulerStarted?: boolean };
-let runningModeration: Promise<void> | null = null;
+let runningModeration: Promise<BatchOutcome> | null = null;
 
 function triggerModerationRun(): void {
   if (runningModeration) return;
@@ -192,6 +211,6 @@ export function startModerationScheduler(): void {
 }
 
 // Cron entry point (web-pro-upgrade addendum M1) — see runTrendingRecomputeOnce.
-export async function runModerationJobsOnce(): Promise<void> {
-  await processPendingModerationJobs();
+export async function runModerationJobsOnce(): Promise<BatchOutcome> {
+  return processPendingModerationJobs();
 }

@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getAIProvider } from "@/lib/ai-provider";
 import { logAIGeneration } from "@/lib/ai-generation";
 import { logger } from "@/lib/logger";
+import type { BatchOutcome } from "@/lib/cron";
 
 export type FileAssetContentType = "image" | "video" | "audio" | "document";
 
@@ -58,20 +59,25 @@ async function generateAccessibilityMetadataFor(asset: {
   });
 }
 
-async function processPendingAccessibilityJobs(): Promise<void> {
+async function processPendingAccessibilityJobs(): Promise<BatchOutcome> {
   const pending = await db.fileAsset.findMany({
     where: { contentType: { in: CAPTIONABLE_TYPES }, accessibilityMetadata: null },
     take: 50, // per-run cap, same safety-valve reasoning as trending.ts's CANDIDATE_LIMIT
   });
+  let failed = 0;
   for (const asset of pending) {
     try {
       await generateAccessibilityMetadataFor(asset);
     } catch (err) {
       // One bad asset shouldn't stop the rest of the batch — the next
       // 60s interval retries it (it's still missing accessibilityMetadata).
+      // The caller still aggregates this count so a cron run can tell a
+      // single odd asset apart from every call failing (e.g. a bad API key).
+      failed++;
       logger.error("generateAccessibilityMetadataFor failed", err, { fileAssetId: asset.id });
     }
   }
+  return { attempted: pending.length, failed };
 }
 
 // §6.4 acceptance criterion: human_edited=true guards a row against a later
@@ -91,7 +97,7 @@ export async function regenerateAccessibilityMetadata(fileAssetId: string): Prom
 
 const ACCESSIBILITY_JOB_INTERVAL_MS = 60 * 1000; // frequent — a cheap in-process stub call, not a real per-call-billed API
 const globalForAccessibility = globalThis as unknown as { accessibilitySchedulerStarted?: boolean };
-let running: Promise<void> | null = null;
+let running: Promise<BatchOutcome> | null = null;
 
 function triggerAccessibilityRun(): void {
   if (running) return;
@@ -111,6 +117,6 @@ export function startAccessibilityScheduler(): void {
 }
 
 // Cron entry point (web-pro-upgrade addendum M1) — see runTrendingRecomputeOnce.
-export async function runAccessibilityJobsOnce(): Promise<void> {
-  await processPendingAccessibilityJobs();
+export async function runAccessibilityJobsOnce(): Promise<BatchOutcome> {
+  return processPendingAccessibilityJobs();
 }

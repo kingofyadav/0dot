@@ -28,7 +28,30 @@ export function assertCronAuthorized(request: Request): Response | null {
   return null;
 }
 
-type JobResult = { ok: boolean; ms: number; error?: string };
+type JobResult = { ok: boolean; ms: number; error?: string; attempted?: number; failed?: number };
+
+// Some jobs (ai-moderation.ts, ai-accessibility.ts) sweep a batch of items
+// and deliberately swallow per-item failures internally so a single bad
+// item doesn't stop the batch and gets retried next sweep — see
+// classifyAndFlag's comment. That means a thrown exception alone can't
+// detect "every item failed" (e.g. an invalid API key): the batch function
+// itself resolves normally. Those jobs report their batch outcome instead
+// of void so this runner can still catch a systemic failure.
+export type BatchOutcome = { attempted: number; failed: number };
+
+function isBatchOutcome(x: unknown): x is BatchOutcome {
+  return (
+    typeof x === "object" &&
+    x !== null &&
+    typeof (x as BatchOutcome).attempted === "number" &&
+    typeof (x as BatchOutcome).failed === "number"
+  );
+}
+
+// Above this failure rate within a single batch, treat it as the job being
+// broken (bad credential, dead dependency) rather than routine per-item
+// noise (one flaky row) that's already self-healing via next sweep's retry.
+const SYSTEMIC_FAILURE_RATE = 0.5;
 
 // Runs every job in the map, isolating failures so one bad job never
 // prevents the rest — same posture as instrumentation.ts's runStartupTask.
@@ -40,8 +63,17 @@ export async function runCronBucket(
   for (const [name, job] of Object.entries(jobs)) {
     const startedAt = Date.now();
     try {
-      await job();
-      results[name] = { ok: true, ms: Date.now() - startedAt };
+      const outcome = await job();
+      const ms = Date.now() - startedAt;
+      if (isBatchOutcome(outcome) && outcome.attempted > 0 && outcome.failed / outcome.attempted > SYSTEMIC_FAILURE_RATE) {
+        const error = `${outcome.failed}/${outcome.attempted} items failed`;
+        results[name] = { ok: false, ms, error, attempted: outcome.attempted, failed: outcome.failed };
+        logger.error(`cron.${bucket}.${name}: ${error} — systemic failure, not routine per-item noise`);
+      } else if (isBatchOutcome(outcome)) {
+        results[name] = { ok: true, ms, attempted: outcome.attempted, failed: outcome.failed };
+      } else {
+        results[name] = { ok: true, ms };
+      }
     } catch (err) {
       results[name] = {
         ok: false,
