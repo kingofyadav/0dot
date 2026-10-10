@@ -4,8 +4,8 @@ import { cookies, headers } from "next/headers";
 import { randomBytes, createHash } from "crypto";
 import { db } from "@/lib/db";
 import { getClientIp } from "@/lib/rate-limit";
+import { SESSION_COOKIE } from "@/lib/session-cookie";
 
-const SESSION_COOKIE = "0dot_session";
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 // The raw token only ever lives in the httpOnly cookie — the DB stores

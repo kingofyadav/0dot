@@ -236,7 +236,7 @@ function PostBody({ body }: { body: string }) {
       {linkifyPostBody(shown)}
       {rest && (
         <details style={{ display: "inline" }}>
-          <summary style={{ display: "inline", cursor: "pointer", color: "var(--accent)", fontWeight: 600 }}>
+          <summary style={{ display: "inline", cursor: "pointer", color: "var(--link, var(--accent-strong))", fontWeight: 600 }}>
             {" "}
             Show more
           </summary>

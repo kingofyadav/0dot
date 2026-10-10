@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { buildCsp, isOwnHost, customDomainRewritePath } from "@/lib/proxy-routing";
+import { SESSION_COOKIE } from "@/lib/session-cookie";
 
 // custom-domains addendum §6.1: yourname.com/* mirrors 0dot.in/@handle/*
 // (or acme.com/* mirrors 0dot.in/b/business/*) in full — every public path
@@ -72,7 +73,28 @@ export default async function proxy(request: NextRequest): Promise<Response | un
   if (!hostHeader) return withCsp(NextResponse.next({ request: { headers: requestHeaders } }));
 
   const host = hostHeader.split(":")[0].toLowerCase();
-  if (isOwnHost(host)) return withCsp(NextResponse.next({ request: { headers: requestHeaders } }));
+  if (isOwnHost(host)) {
+    // /feed/page.tsx itself redirects logged-out visitors to /explore — correct,
+    // but it does so from inside a full SSR render (getCurrentUser() + whatever
+    // that page's own data fetching already started), so an anonymous hit pays
+    // for a render just to get told "no". A session cookie's mere *presence*
+    // (not validity — that's still /feed's own job once this falls through) is
+    // enough to short-circuit that for the common anonymous case: no cookie can
+    // never mean logged-in, so redirecting here is never wrong, only sometimes
+    // unnecessary (expired/invalid cookie present ⇒ falls through to /feed,
+    // which redirects itself exactly as before). getCurrentUser() already
+    // skips its DB lookup when there's no cookie (session.ts's
+    // loadCurrentUser), so the win here isn't a saved query — it's skipping
+    // the render invocation itself, and resolving the redirect before any
+    // response body starts instead of after one.
+    if (request.nextUrl.pathname === "/feed" && !request.cookies.has(SESSION_COOKIE)) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/explore";
+      url.search = "";
+      return withCsp(NextResponse.redirect(url));
+    }
+    return withCsp(NextResponse.next({ request: { headers: requestHeaders } }));
+  }
 
   let prefix: string | null = null;
   try {
