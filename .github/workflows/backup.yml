@@ -5,12 +5,17 @@ name: Database backup
 # native Vercel daily cron (vercel.json, 03:23 UTC) so the backup doesn't
 # race that job's DB writes.
 #
-# Requires repo secrets (Settings → Secrets and variables → Actions):
-#   DATABASE_URL          same value as the Vercel Production env var
-#   DATABASE_AUTH_TOKEN   same value as the Vercel Production env var
+# Requires repo secrets (Settings → Secrets and variables → Actions), not
+# created by this workflow:
+#   DATABASE_URL          Turso DB URL — `turso db show <db-name> --url`
+#   DATABASE_AUTH_TOKEN   a FULL-ACCESS Turso token for that DB — mint with
+#                          `turso db tokens create <db-name> --expiration
+#                          never` (NOT --read-only, see
+#                          scripts/backup-remote-db.mjs's header comment).
+#                          Vercel's own copy is a "Sensitive" env var and
+#                          can't be read back via the CLI/API even by the
+#                          owner, so it can't just be copied from there.
 #   BLOB_READ_WRITE_TOKEN same value as the Vercel Production env var
-# These are Vercel env vars already — copy them over, they are not created
-# by this workflow.
 
 on:
   schedule:

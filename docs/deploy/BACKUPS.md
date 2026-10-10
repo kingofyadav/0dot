@@ -30,7 +30,7 @@ Env vars:
 | Var | Required | Purpose |
 |---|---|---|
 | `DATABASE_URL` | yes | Remote libsql/Turso URL (refuses `file:` URLs) |
-| `DATABASE_AUTH_TOKEN` | yes | Turso database auth token for that URL |
+| `DATABASE_AUTH_TOKEN` | yes | Turso database auth token for that URL — **must be full-access** (`turso db tokens create <db-name> --expiration never`), not `--read-only`. A read-only token doesn't error, it silently makes `.dump` over this HTTP path return a handful of bytes with no `CREATE TABLE` instead of the real schema+data — caught an incident of exactly this on 2026-10-10 |
 | `BLOB_READ_WRITE_TOKEN` | yes | Same Vercel Blob token the app uses |
 | `BACKUP_DB_LABEL` | no (default `db`) | Label used in the object name |
 | `BACKUP_RETENTION_DAYS` | no (default `30`) | Prune Blob backups older than this |
@@ -40,12 +40,17 @@ Env vars:
 `.github/workflows/backup.yml` runs this daily at 03:30 UTC (after the
 native Vercel daily cron at 03:23) and on `workflow_dispatch`. It needs
 three **GitHub Actions repo secrets** (Settings → Secrets and variables →
-Actions) — copy the values straight from the Vercel Production environment,
-they are not created by the workflow:
+Actions), not created by the workflow:
 
-- `DATABASE_URL`
-- `DATABASE_AUTH_TOKEN`
-- `BLOB_READ_WRITE_TOKEN`
+- `DATABASE_URL` — the Turso DB's URL, e.g. `turso db show <db-name> --url`
+- `DATABASE_AUTH_TOKEN` — a **full-access** token for that DB, minted with
+  `turso db tokens create <db-name> --expiration never` (no `--read-only`
+  — see the table above). Vercel's own `DATABASE_AUTH_TOKEN` is a
+  "Sensitive"-type env var and cannot actually be read back via `vercel
+  env pull`/the API once set, not even by the project owner, so "copy it
+  from Vercel" isn't a workable instruction here — mint a dedicated token
+  for the backup job directly from Turso instead.
+- `BLOB_READ_WRITE_TOKEN` — same value as the Vercel Production env var
 
 Trigger a manual run any time from the Actions tab (`workflow_dispatch`) to
 sanity-check the pipeline or take an ad-hoc backup before a risky change.

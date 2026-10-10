@@ -14,7 +14,16 @@
 // Env:
 //   DATABASE_URL          remote libsql/Turso URL (file: URLs are refused —
 //                          use backup-db.mjs for local dev instead)
-//   DATABASE_AUTH_TOKEN   Turso database auth token for that URL
+//   DATABASE_AUTH_TOKEN   Turso database auth token for that URL — MUST be a
+//                          full-access token (`turso db tokens create <db>`),
+//                          not one created with --read-only. A read-only
+//                          token doesn't error — it silently turns `.dump`
+//                          over this HTTP path into a near-empty dump (a
+//                          few bytes, no CREATE TABLE) instead of the real
+//                          schema+data. The CREATE-TABLE check below is
+//                          what turns that into a loud failure instead of
+//                          a corrupt backup uploaded as if it succeeded —
+//                          it's what caught this exact mistake in prod.
 //   BLOB_READ_WRITE_TOKEN Vercel Blob token (same one the app uses)
 //   BACKUP_DB_LABEL        short label used in the object name (default "db")
 //   BACKUP_RETENTION_DAYS  prune Blob backups older than this (default 30)
