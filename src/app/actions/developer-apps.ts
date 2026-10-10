@@ -195,12 +195,31 @@ export async function createWebhookSubscription(_prevState: ActionState, formDat
 // DeviceToken has no FK relation (keyed by the clientId string, not
 // appId), so it needs an explicit cleanup call — see
 // clearAllDeviceTokensForApp's comment.
+//
+// Settling to "free" first is load-bearing, not cleanup: ApiUsageCounter
+// cascading away is exactly the evidence api-usage-billing.ts's settlement
+// sweep (daily cron, api-usage-billing.ts's SETTLEMENT_CHECK_INTERVAL_MS is
+// 6h) reads to bill pay_as_you_go overage. Deleting straight to the DB
+// first would let an app rack up unbounded, uncapped usage (pay_as_you_go
+// has no hard cap — api-rate-limit.ts) and then delete itself right before
+// the next sweep to erase the bill entirely. switchApiPlan's "leaving
+// pay_as_you_go" branch already does exactly the closeNow:true final
+// settlement this needs (same one PremiumBillingForm/BillingPlanForm
+// trigger when an owner switches plans themselves) and already no-ops for
+// free and loses nothing for committed (a prepaid, non-refundable flat
+// fee) — reused as-is rather than duplicated here. Its result is ignored
+// deliberately: on insufficient funds it already downgrades to free and
+// logs the unpaid amount (downgradeUnpaid) rather than blocking, the same
+// "log unpaid debt, don't block" posture this billing module uses
+// elsewhere — an app owner who can't cover what they owe still needs to be
+// able to delete the app.
 export async function deleteDeveloperApp(formData: FormData): Promise<void> {
   const user = await requireVerifiedUser();
   const appId = String(formData.get("appId") ?? "");
   const app = await requireOwnedDeveloperApp(appId, user.id);
   if (!app) return;
 
+  await switchApiPlan(appId, "free");
   await db.developerApp.delete({ where: { id: appId } });
 
   const { clearAllDeviceTokensForApp } = await import("@/lib/push");
