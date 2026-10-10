@@ -112,14 +112,19 @@ export const OAUTH_SCOPES = [
   { key: "account:write", description: "Change your password, email, phone, two-factor settings, or deactivate/delete your account", sensitivity: "high" },
   // ZERO ID trust layer (../ZERO-ID-TRUST-ARCHITECTURE.md, sibling to this
   // repo under 0dotindia/ — not part of this repo's own docs/specs):
-  // deliberately
-  // narrower than account:read above — a handful of booleans/scalars about
-  // verification and standing, no session list, no 2FA secret, no export.
-  // Meant to be grantable to an arm's-length third-party site asking "can I
-  // trust this person a little," not just the account owner's own client,
-  // so it sits at low sensitivity (auto-approved at request time) rather
-  // than high like account:read.
-  { key: "trust:read", description: "Read your verification status and account standing", sensitivity: "low" },
+  // deliberately narrower than account:read above — a handful of
+  // booleans/scalars about verification and standing, no session list, no
+  // 2FA secret, no export. Still "high" (requires admin review before a
+  // developer app may request it at all — requestDeveloperAppScope above),
+  // same tier as account:read/payments:read: accountStatus discloses
+  // whether the user is suspended/deactivated/deleted, a moderation-state
+  // signal, not merely a verification badge, and every other scope that
+  // discloses platform-moderation standing sits at high. The end user still
+  // separately approves (or denies) this scope per-grant on the normal
+  // /oauth/authorize consent screen regardless of this tier either way —
+  // sensitivity here only gates whether 0dot pre-approves which apps may
+  // ask for it at all.
+  { key: "trust:read", description: "Read your verification status and account standing", sensitivity: "high" },
   { key: "preferences:read", description: "Read your language, timezone, and accessibility preferences", sensitivity: "low" },
   { key: "preferences:write", description: "Change your language, timezone, and accessibility preferences", sensitivity: "low" },
   // Mobile livestream viewer (v1/live/*): watching a livestream (detail,
