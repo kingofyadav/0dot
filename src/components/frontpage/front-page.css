@@ -741,7 +741,17 @@
 
 .fpSocials a:hover,
 .fpSocials a:focus-visible {
-  background: var(--surface);
+  /* var(--surface) is only ~9/255 off var(--background) in dark mode —
+     imperceptible as hover feedback. color-mix against --foreground reads
+     at a consistent strength regardless of theme (same fix already used
+     for .skeletonBlock in globals.css). */
+  background: color-mix(in srgb, var(--foreground) 9%, transparent);
+}
+
+.fpSocials a:hover strong,
+.fpSocials a:focus-visible strong {
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .fpSocials span {
@@ -1002,8 +1012,11 @@
 
 .fpNavSocials a:hover,
 .fpNavSocials a:focus-visible,
-.fpNavMenuSocials a:hover {
-  background: var(--surface);
+.fpNavMenuSocials a:hover,
+.fpNavMenuSocials a:focus-visible {
+  /* Same contrast fix as .fpSocials above — var(--surface) alone barely
+     registers against var(--background) in dark mode. */
+  background: color-mix(in srgb, var(--foreground) 9%, transparent);
 }
 
 .fpNavMenu {
@@ -1119,6 +1132,14 @@
   .fpNavMenu {
     display: block;
   }
+  /* 30px (the desktop/mouse size) is under the 44px touch-target minimum
+     (WCAG 2.5.5 / Apple HIG) — .fpNavSocials is hidden at this width (see
+     above), so this panel's icons are the only ones a touch visitor
+     actually taps. Flex-wrap row has room to grow. */
+  .fpNavMenuSocials a {
+    width: 44px;
+    height: 44px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1138,7 +1159,9 @@
 .fpWireDeck {
   margin: calc(-1 * var(--space-2)) 0 var(--space-6);
   font-family: var(--fp-serif);
-  font-style: italic;
+  /* Not italic, unlike .fpEmpty below it — this is permanent section copy,
+     not an empty state, and the identical italic treatment made the two
+     read as the same kind of message on first glance. */
   color: var(--muted-foreground);
 }
 
