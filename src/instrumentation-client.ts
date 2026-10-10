@@ -6,19 +6,26 @@
 // MUST live at src/instrumentation-client.ts (this project uses a src/ dir) —
 // a root-level file is ignored, same as instrumentation.ts.
 //
-// The @sentry/nextjs browser SDK is ~150KB gzip / ~475KB parsed. Under this
-// project's Turbopack build it CANNOT be slimmed via withSentryConfig's
-// bundleSizeOptimizations — that only takes effect through Sentry's webpack
-// plugin, which Turbopack never runs (same reason instrumentation.ts and
-// api/monitoring/route.ts hand-roll their Sentry wiring). Importing it
-// statically here dropped the entire SDK into the hydration-critical chunk,
-// where it competed with first paint and interactivity on every page.
+// @sentry/browser, not @sentry/nextjs: this file only does plain error
+// capture (tracesSampleRate/replay*SampleRate are all 0 below, and the
+// Next.js router-transition hook this file used to export was pure dead
+// weight at a 0 trace rate). @sentry/nextjs's browser entry carries its
+// Next-specific router instrumentation regardless, and — same as
+// instrumentation.ts and api/monitoring/route.ts hand-rolling their own
+// Sentry wiring — none of it can be stripped via withSentryConfig's
+// bundleSizeOptimizations under Turbopack, since that only runs through
+// Sentry's webpack plugin. Swapping to @sentry/browser cut the lazy-loaded
+// chunk from ~250KB parsed to ~34KB (measured via a prod build + manual
+// chunk diff, 2026-10-10) for the exact same error-capture behavior.
 //
-// Instead the SDK is loaded lazily, after the first user interaction (see the
-// bottom of the `if (dsn)` block). A small
-// synchronous buffer captures errors thrown in the gap before it's ready and
-// replays them once it initializes, so deferring the import loses no reports.
-import type * as SentryNS from "@sentry/nextjs";
+// The SDK is still loaded lazily, after the first user interaction (see the
+// bottom of the `if (dsn)` block) rather than imported statically — even at
+// this smaller size, eager-parsing it would land inside the hydration-
+// critical chunk and compete with first paint/interactivity on every page.
+// A small synchronous buffer captures errors thrown in the gap before it's
+// ready and replays them once it initializes, so deferring the import loses
+// no reports.
+import type * as SentryNS from "@sentry/browser";
 
 const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
 
@@ -39,7 +46,7 @@ if (dsn) {
   window.addEventListener("unhandledrejection", bufferEarlyError);
 
   const loadSentry = () => {
-    import("@sentry/nextjs")
+    import("@sentry/browser")
       .then((Sentry) => {
         sentry = Sentry;
         Sentry.init({
@@ -115,11 +122,4 @@ if (dsn) {
   const INTERACTION_EVENTS = ["pointerdown", "keydown", "touchstart", "scroll"] as const;
   for (const evt of INTERACTION_EVENTS) window.addEventListener(evt, start, { once: true, passive: true });
   const fallbackTimer = setTimeout(start, 20_000);
-}
-
-// Required by Next.js for navigation instrumentation. Forwards to Sentry once
-// the SDK has loaded; a no-op before then — navigation tracing is disabled
-// anyway (tracesSampleRate: 0), so the early window costs nothing.
-export function onRouterTransitionStart(href: string, navigationType: string): void {
-  sentry?.captureRouterTransitionStart(href, navigationType);
 }
