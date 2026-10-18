@@ -10,6 +10,7 @@ import { leaveBusinessTeam, followBusiness, unfollowBusiness } from "@/app/actio
 import { getPrimaryLiveDomain } from "@/lib/custom-domains";
 import { SITE_DESCRIPTION } from "@/lib/site-metadata";
 import { Logo } from "@/components/Logo";
+import { ProfileCover } from "@/components/ProfileCover";
 import { BusinessViewerCount } from "@/components/BusinessViewerCount";
 import { BusinessContactForm } from "./BusinessContactForm";
 
@@ -118,14 +119,7 @@ export default async function BusinessPage({ params }: { params: Promise<{ slug:
         </p>
       )}
 
-      <div className="profileCover">
-        {business.coverUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element -- user-supplied URL, not a local/optimizable asset
-          <img src={business.coverUrl} alt="" className="profileCoverImg" />
-        ) : (
-          <div className="profileCoverPlaceholder" />
-        )}
-      </div>
+      <ProfileCover src={business.coverUrl} />
       <div className="profileHeaderRow">
         {business.logoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element -- user-supplied URL, not a local/optimizable asset

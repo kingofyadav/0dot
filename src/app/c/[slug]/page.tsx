@@ -12,6 +12,7 @@ import { getVotedPollOptionIds, getRepostedPostIds } from "@/lib/feed-query";
 import { parseCursor } from "@/lib/pagination";
 import { communityTagLabel } from "@/lib/community-tags";
 import { Logo } from "@/components/Logo";
+import { ProfileCover } from "@/components/ProfileCover";
 import { CommunityFeedList } from "./CommunityFeedList";
 
 const VISIBILITY_LABEL: Record<string, string> = {
@@ -93,14 +94,7 @@ export default async function CommunityPage({
   return (
     <>
       <div className="profileCard">
-        <div className="profileCover">
-          {community.coverUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element -- user-supplied URL, not a local/optimizable asset
-            <img src={community.coverUrl} alt="" className="profileCoverImg" />
-          ) : (
-            <div className="profileCoverPlaceholder" />
-          )}
-        </div>
+        <ProfileCover src={community.coverUrl} />
         <div className="profileHeaderRow">
           {community.avatarUrl ? (
             // eslint-disable-next-line @next/next/no-img-element -- user-supplied URL, not a local/optimizable asset
