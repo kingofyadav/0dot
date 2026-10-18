@@ -69,6 +69,20 @@ export default async function proxy(request: NextRequest): Promise<Response | un
     return response;
   }
 
+  // Advertises the Tor mirror to Tor Browser users on the clearnet site only
+  // (never set on a request that's already arriving over the .onion host
+  // itself — isOwnHost(host) below is false for an onion Host header, so
+  // this branch is naturally skipped there without extra checks). ONION_ADDRESS
+  // is the bare hostname (no scheme), e.g. "<sixty-chars>.onion" — unset in any
+  // environment that doesn't have a mirror yet, so no header is emitted.
+  const onionAddress = process.env.ONION_ADDRESS;
+  function withOnionLocation(response: NextResponse): NextResponse {
+    if (onionAddress) {
+      response.headers.set("Onion-Location", `http://${onionAddress}${request.nextUrl.pathname}${request.nextUrl.search}`);
+    }
+    return response;
+  }
+
   const hostHeader = request.headers.get("host");
   if (!hostHeader) return withCsp(NextResponse.next({ request: { headers: requestHeaders } }));
 
@@ -91,9 +105,9 @@ export default async function proxy(request: NextRequest): Promise<Response | un
       const url = request.nextUrl.clone();
       url.pathname = "/explore";
       url.search = "";
-      return withCsp(NextResponse.redirect(url));
+      return withOnionLocation(withCsp(NextResponse.redirect(url)));
     }
-    return withCsp(NextResponse.next({ request: { headers: requestHeaders } }));
+    return withOnionLocation(withCsp(NextResponse.next({ request: { headers: requestHeaders } })));
   }
 
   let prefix: string | null = null;
