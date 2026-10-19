@@ -33,7 +33,7 @@
     "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "file-type": "^22.0.2",
+    "file-type": "^22.2.0",
     "geist": "^1.7.2",
     "livekit-client": "^2.21.0",
     "livekit-server-sdk": "^2.17.0",
