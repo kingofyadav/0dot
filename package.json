@@ -27,7 +27,7 @@
     "@sentry/nextjs": "^11.4.0",
     "@upstash/redis": "^1.38.3",
     "@vercel/analytics": "^2.0.1",
-    "@vercel/blob": "^2.7.0",
+    "@vercel/blob": "^2.8.2",
     "@vercel/speed-insights": "^2.0.0",
     "ai": "^6.0.277",
     "bcryptjs": "^3.0.3",
