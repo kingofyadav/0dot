@@ -506,6 +506,16 @@
 }
 
 /* ── Generic sections ─────────────────────────────────────────── */
+/* .fpNav is sticky at 60px tall (61px with its border) — without this, the
+   #front/#watch/#inside/#developers/#follow/#wire anchor links in
+   FrontPageNav (masthead nav, condensed nav, and the mobile menu) land each
+   section's heading flush with the viewport top, clipping it behind the
+   nav instead of below it. */
+.fpFront,
+.fpSection {
+  scroll-margin-top: calc(60px + var(--space-4));
+}
+
 .fpSection {
   padding: var(--space-10) 0;
   border-bottom: var(--fp-rule);
@@ -667,9 +677,14 @@
    variables on the inner <pre>, picked by the same OS-preference-then-
    explicit-[data-theme]-override cascade globals.css uses everywhere else,
    so the sample now actually flips with the rest of the page instead of
-   staying a fixed dark panel. */
+   staying a fixed dark panel. Border + offset shadow, same "framed artifact"
+   pairing as .fpLeadFrame (see its own comment) — without the border, the
+   760px breakpoint's `box-shadow: none` left this panel with no edge at all,
+   so Shiki's github-light/dark background (not a site color token) just
+   floated with a hard, unexplained seam against the page on mobile. */
 .fpCode {
   overflow-x: auto;
+  border: var(--fp-rule);
   border-radius: var(--radius-md);
   box-shadow: 6px 6px 0 var(--foreground);
 }

@@ -2287,6 +2287,131 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
   text-decoration: underline;
 }
 
+/* Help (/help) — content/USER_GUIDE.md rendered by renderWikiMarkdown, same
+   as any wiki page, but previously dropped straight into a bare
+   .profileCard with no hero or way to jump to one of its 20+ sections —
+   every other marketing-adjacent page (About, now Trust & Safety) got a
+   real hero treatment and this one hadn't. Stays inside the normal
+   SiteHeader/Sidebar shell (NOT in route-context.ts's CHROMELESS_PATHS —
+   see help/page.tsx's own comment on why), so this is sized for that
+   narrower in-shell column, not .aboutPage's full marketing width. */
+.helpPage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  width: 100%;
+  max-width: 760px;
+  margin: var(--space-8) auto;
+  padding: 0 var(--space-4);
+}
+
+.helpHero {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.helpHero p {
+  max-width: 60ch;
+  font-size: var(--text-base-plus);
+  color: var(--muted-foreground);
+}
+
+.helpTocHeading {
+  margin-bottom: var(--space-3);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+.helpTocGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.helpTocGrid a {
+  display: block;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--foreground);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  text-decoration: none;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.helpTocGrid a:hover,
+.helpTocGrid a:focus-visible {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* .mobileHeader is position: sticky (globals.css) — without this, a tap on
+   a .helpTocGrid link scrolled its target heading flush under that header
+   instead of below it, same clipping bug front-page.css's .fpSection fix
+   addressed for the landing page's own sticky nav. */
+.helpGuideBody h2,
+.helpGuideBody h3 {
+  scroll-margin-top: calc(60px + var(--space-4));
+}
+
+/* The guide's own top-level sections (content/USER_GUIDE.md's "##" lines) —
+   help/page.tsx's promoteHeadings() shifts these to real <h2>s so the page's
+   heading tree stays sequential after its own hero <h1>, instead of jumping
+   straight to <h3> (the heading-order a11y violation that shift fixes). */
+.helpGuideBody h2 {
+  margin: var(--space-8) 0 var(--space-3);
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--border);
+  font-size: var(--text-lg);
+  font-weight: 700;
+}
+
+.helpGuideBody h2:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.helpGuideBody h3 {
+  margin: var(--space-4) 0 var(--space-2);
+  font-size: var(--text-base-plus);
+  font-weight: 600;
+}
+
+.helpGuideBody p,
+.helpGuideBody li {
+  line-height: var(--leading-body);
+}
+
+.helpGuideBody p {
+  margin: 0 0 var(--space-3);
+  color: var(--muted-foreground);
+}
+
+.helpGuideBody ul,
+.helpGuideBody ol {
+  margin: 0 0 var(--space-3);
+  padding-left: 1.25rem;
+  color: var(--muted-foreground);
+}
+
+.helpGuideBody li {
+  margin-bottom: var(--space-1);
+}
+
+.helpGuideBody strong {
+  color: var(--foreground);
+}
+
 /* Username field's live URL-preview hint (UsernameField.tsx) — same base
    look as .mutedText plus room for the checkmark icon that appears once
    the typed value passes the format check. */
@@ -4637,11 +4762,31 @@ body.hasBottomNav .appMain {
   transform: translateX(2px);
 }
 
+/* Text-safe darkened/lightened variant of --accent, computed the same way
+   --link already is (color-mix toward black in light mode, toward white in
+   dark) — plain --accent only clears 2.78:1 against --accent-soft (a
+   Lighthouse a11y audit finding, live 2026-10-20), short of WCAG AA's
+   4.5:1 for this weight/size. --link's own default 90% mix still
+   undershoots (4.17:1) against this particular saturated background; 85%
+   clears both themes (light 4.57:1, dark 4.86:1) without touching the
+   shared --link token used elsewhere against plainer backgrounds. */
 .navLinkActive,
 .navLinkActive:hover {
-  color: var(--accent);
+  color: color-mix(in srgb, var(--accent-strong) 85%, black);
   background: var(--accent-soft);
   transform: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .navLinkActive,
+  :root:not([data-theme="light"]) .navLinkActive:hover {
+    color: color-mix(in srgb, var(--accent-strong) 85%, white);
+  }
+}
+
+:root[data-theme="dark"] .navLinkActive,
+:root[data-theme="dark"] .navLinkActive:hover {
+  color: color-mix(in srgb, var(--accent-strong) 85%, white);
 }
 
 /* Left accent bar — ties the active state to the header's brand bar
