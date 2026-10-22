@@ -65,6 +65,8 @@ export async function fileAppealAction(formData: FormData): Promise<void> {
   if (existing) return;
 
   await db.appeal.create({ data: { originalCaseId: caseId, filedById: user.id, statement } });
-  revalidatePath("/trust-safety");
+  // The appeals list moved from the public /trust-safety (now the Trust &
+  // Safety policy page) to the owner-only settings route.
+  if (user.username) revalidatePath(`/s/${user.username.handle}/trust-safety`);
   revalidatePath("/admin/trust-safety/appeals");
 }

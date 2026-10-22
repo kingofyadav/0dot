@@ -91,6 +91,7 @@ export function settingsNavGroups(handle: string): SettingsNavGroup[] {
       items: [
         { href: `${base}/privacy`, label: "Privacy" },
         { href: `${base}/blocked`, label: "Blocked users" },
+        { href: `${base}/trust-safety`, label: "Trust & Safety" },
       ],
     },
     {

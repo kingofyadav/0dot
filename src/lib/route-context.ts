@@ -40,6 +40,15 @@ const CHROMELESS_PATHS = new Set([
   // Marketing pages (redesign Phase 3) — MarketingNav + MarketingFooter,
   // same posture as /download.
   "/about",
+  // Legal/policy pages (LegalDocument.tsx, and the public /trust-safety
+  // policy page) render their own MarketingNav + MarketingFooter too, but
+  // were missing from this set — found live (2026-10-20) rendering double
+  // chrome: the full SiteHeader/Sidebar shell wrapped around their own nav,
+  // squeezing a page anonymous visitors land on directly from the footer
+  // into a cramped center column instead of standing alone like /about.
+  "/terms",
+  "/privacy",
+  "/trust-safety",
 ]);
 
 export function isChromelessPath(pathname: string): boolean {
