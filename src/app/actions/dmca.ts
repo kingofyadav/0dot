@@ -33,7 +33,11 @@ export async function fileDmcaTakedownNoticeAction(_prevState: ActionState, form
   if (result.error) return { error: result.error };
 
   revalidatePath("/admin/trust-safety");
-  return undefined;
+  // { success: true }, not undefined — undefined is also useActionState's
+  // initial pre-submit state, so the form (no server record to re-check
+  // against, unlike DmcaCounterNoticeForm's counterNotice prop) couldn't
+  // otherwise tell "never submitted" from "just submitted successfully".
+  return { success: true };
 }
 
 // phase-13 spec §4.2/§4.5: filed by the alleged infringer against a notice
@@ -51,6 +55,10 @@ export async function fileDmcaCounterNoticeAction(_prevState: ActionState, formD
   });
   if (result.error) return { error: result.error };
 
-  revalidatePath("/dmca");
+  // "/dmca" (the previous target here) isn't a route that exists anywhere
+  // in the app — DmcaCounterNoticeForm actually lives on the owner-only
+  // trust-safety settings page, so that's what needs the fresh counter-
+  // notice status after this action runs.
+  if (user.username) revalidatePath(`/s/${user.username.handle}/trust-safety`);
   return undefined;
 }
