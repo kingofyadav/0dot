@@ -1,105 +1,135 @@
-import { db } from "@/lib/db";
-import { requireVerifiedUser } from "@/lib/auth-guards";
-import { fileAppealAction } from "@/app/actions/trust-safety";
-import { DmcaCounterNoticeForm } from "./DmcaCounterNoticeForm";
-import { EmptyState } from "@/components/EmptyState";
-import { RelativeTime } from "@/components/RelativeTime";
+import type { Metadata } from "next";
+import Link from "next/link";
+import { Flag, UserCog, Store, Bot, Users, Copyright } from "lucide-react";
+import { MarketingNav } from "@/components/marketing/MarketingNav";
+import { MarketingFooter } from "@/components/marketing/MarketingFooter";
+import { Icon } from "@/components/Icon";
+import { getCurrentUser } from "@/lib/session";
+import { DmcaTakedownNoticeForm } from "./DmcaTakedownNoticeForm";
 
-const CASE_TYPE_LABELS: Record<string, string> = {
-  content_report: "Content removed following a report",
-  account_report: "Account action following a report",
-  business_claim_review: "Business claim rejected",
-  marketplace_listing_review: "Marketplace listing rejected",
-  ai_moderation_flag: "Content removed by AI-assisted moderation",
-  dmca_takedown: "Content removed following a DMCA takedown notice",
+// The public Trust & Safety policy page — distinct from the owner-only
+// /s/[username]/trust-safety (your own enforcement actions and appeals).
+// Previously /trust-safety WAS that private page (requireVerifiedUser()),
+// so the public footer/legal-nav link to it sent every signed-out visitor
+// straight to /login instead of any policy content. This is the real page
+// that link was always supposed to reach.
+export const metadata: Metadata = {
+  title: "Trust & Safety",
+  description: "What we moderate on 0dot, how reports and appeals work, and how to file a DMCA notice.",
 };
 
-// phase-12 spec §5: platform-level enforcement actions taken against the
-// current user, each appealable exactly once (§5.4's fairness requirement
-// gets a real reviewer-differs check in reviewAppeal, trust-safety.ts).
-// Deliberately excludes community_escalation — routine community
-// moderation stays with each community's own governance (§5.3), not this
-// page.
+const WHAT_WE_MODERATE: { icon: typeof Flag; title: string; body: string }[] = [
+  {
+    icon: Flag,
+    title: "Posts, profiles & comments",
+    body: "Reported content is reviewed against the Terms of Service — illegal content, harassment, exploitation, spam and scams.",
+  },
+  {
+    icon: UserCog,
+    title: "Accounts",
+    body: "Impersonation, name-squatting, and accounts that put others at risk can be restricted, same as any other enforcement action.",
+  },
+  {
+    icon: Store,
+    title: "Businesses & marketplace",
+    body: "Business claims and marketplace listings are reviewed before and after they go live, not just on report.",
+  },
+  {
+    icon: Bot,
+    title: "AI-assisted moderation",
+    body: "Some content is flagged by automated moderation before any person sees it. Every AI-assisted action is appealable exactly like a human one.",
+  },
+  {
+    icon: Users,
+    title: "Community spaces",
+    body: "Day-to-day moderation inside a community — a post removed, a member banned — stays with that community's own moderators, not platform staff.",
+  },
+  {
+    icon: Copyright,
+    title: "Copyright (DMCA)",
+    body: "Takedown notices and counter-notices follow the DMCA process below, separate from a general content report.",
+  },
+];
+
 export default async function TrustSafetyPage() {
-  const user = await requireVerifiedUser();
-
-  const [postIds, articleIds, commentIds, businessIds, listingIds] = await Promise.all([
-    db.post.findMany({ where: { authorId: user.id }, select: { id: true } }).then((r) => r.map((x) => x.id)),
-    db.article.findMany({ where: { authorId: user.id }, select: { id: true } }).then((r) => r.map((x) => x.id)),
-    db.comment.findMany({ where: { authorId: user.id }, select: { id: true } }).then((r) => r.map((x) => x.id)),
-    db.business.findMany({ where: { createdBy: user.id }, select: { id: true } }).then((r) => r.map((x) => x.id)),
-    db.marketplaceListing.findMany({ where: { sellerUserId: user.id }, select: { id: true } }).then((r) => r.map((x) => x.id)),
-  ]);
-
-  const cases = await db.trustSafetyCase.findMany({
-    where: {
-      status: "resolved_upheld",
-      OR: [
-        { subjectType: "user", subjectId: user.id },
-        { subjectType: "post", subjectId: { in: postIds } },
-        { subjectType: "article", subjectId: { in: articleIds } },
-        { subjectType: "comment", subjectId: { in: commentIds } },
-        { subjectType: "business", subjectId: { in: businessIds } },
-        { subjectType: "marketplace_listing", subjectId: { in: listingIds } },
-      ],
-    },
-    include: {
-      appeals: { where: { filedById: user.id } },
-      dmcaTakedownNotice: { include: { counterNotice: true } },
-    },
-    orderBy: { resolvedAt: "desc" },
-  });
+  const user = await getCurrentUser();
+  const enforcementHref = user?.username ? `/s/${user.username.handle}/trust-safety` : null;
 
   return (
-    <div className="profileCard">
-      <h1 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "0.25rem" }}>Enforcement actions on your account</h1>
-      <p className="mutedText" style={{ marginBottom: "1.25rem" }}>
-        Platform-level actions you can appeal. Each appeal is reviewed by someone other than the original
-        reviewer wherever staffing allows (spec §5.2).
-      </p>
+    <>
+      <MarketingNav />
 
-      {cases.length === 0 ? (
-        <EmptyState message="No enforcement actions on file." />
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-          {cases.map((c) => {
-            const appeal = c.appeals[0];
-            return (
-              <div key={c.id} className="profileLinkItem" style={{ flexDirection: "column", alignItems: "flex-start", gap: "0.5rem" }}>
-                <div>
-                  <strong>{CASE_TYPE_LABELS[c.caseType] ?? c.caseType}</strong>{" "}
-                  <span className="mutedText" style={{ fontSize: "0.85rem" }}>
-                    {c.resolvedAt && <RelativeTime date={c.resolvedAt} />}
-                    {c.resolutionNotes ? ` · ${c.resolutionNotes}` : ""}
-                  </span>
-                </div>
-                {c.caseType === "dmca_takedown" && c.dmcaTakedownNotice ? (
-                  // phase-13 spec §4.2: DMCA's statutory remedy is a
-                  // counter-notice, not the general platform Appeal — a
-                  // deliberately different path for this one case type.
-                  <DmcaCounterNoticeForm
-                    noticeId={c.dmcaTakedownNotice.id}
-                    noticeStatus={c.dmcaTakedownNotice.status}
-                    counterNotice={c.dmcaTakedownNotice.counterNotice}
-                  />
-                ) : appeal ? (
-                  <p className="mutedText" style={{ fontSize: "0.85rem" }}>
-                    Appeal {appeal.status === "pending" ? "submitted, awaiting review" : `decided: ${appeal.status.replace("_", " ")}`}
-                  </p>
-                ) : (
-                  <form action={fileAppealAction} style={{ display: "flex", flexDirection: "column", gap: "0.4rem", width: "100%", maxWidth: "48ch" }}>
-                    <input type="hidden" name="caseId" value={c.id} />
-                    <textarea name="statement" className="textInput" rows={3} maxLength={2000} placeholder="Why do you think this decision was wrong?" required />
-                    <button type="submit" className="button buttonSecondary buttonSmall" style={{ alignSelf: "flex-start" }}>
-                      File appeal
-                    </button>
-                  </form>
-                )}
+      <main className="aboutPage">
+        <header className="aboutHero">
+          <span className="eyebrow">Trust &amp; Safety</span>
+          <h1 className="display-2">How we keep 0dot safe — and enforcement fair.</h1>
+          <p>
+            0dot is a place you put your real identity. That only works if reports get reviewed, enforcement is
+            explained, and every decision can be appealed — not a black box.
+          </p>
+        </header>
+
+        <section className="aboutSection">
+          <span className="eyebrow">What we moderate</span>
+          <div className="aboutGrid">
+            {WHAT_WE_MODERATE.map((item) => (
+              <div className="aboutCard" key={item.title}>
+                <span className="aboutCardIcon">
+                  <Icon as={item.icon} size="md" />
+                </span>
+                <h2>{item.title}</h2>
+                <p>{item.body}</p>
               </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="aboutSection">
+          <span className="eyebrow">How review works</span>
+          <ul className="aboutList">
+            <li>Report a post, profile, business or listing from its own report button — you don&rsquo;t need to contact us separately.</li>
+            <li>We review the report against the Terms of Service and either act on it or dismiss it.</li>
+            <li>Whoever filed the report and whoever it was filed against are both notified of the outcome.</li>
+            <li>A platform-level action can be appealed once, and — wherever staffing allows — the appeal is reviewed by someone other than the original reviewer.</li>
+          </ul>
+        </section>
+
+        <section className="aboutSection">
+          <span className="eyebrow">Appeals</span>
+          <p className="aboutSectionLede">
+            If a platform-level action was taken on your account, you can appeal it from{" "}
+            {enforcementHref ? (
+              <Link href={enforcementHref}>Settings → Trust &amp; Safety</Link>
+            ) : (
+              <>Settings → Trust &amp; Safety once you&rsquo;re signed in</>
+            )}
+            . Routine moderation inside a community you don&rsquo;t run stays with that community, not us.
+          </p>
+        </section>
+
+        <section className="aboutSection">
+          <span className="eyebrow">Copyright (DMCA)</span>
+          <p className="aboutSectionLede">
+            If you own a copyrighted work and believe it&rsquo;s been posted on 0dot without permission, file a
+            takedown notice below. Statutory attestations apply — only file if the statements are true.
+          </p>
+          <DmcaTakedownNoticeForm />
+          <p className="mutedText" style={{ maxWidth: "60ch" }}>
+            If your own content was taken down this way, you can file a counter-notice from Settings → Trust &amp;
+            Safety once you&rsquo;re signed in.
+          </p>
+        </section>
+
+        <section className="aboutSection">
+          <span className="eyebrow">Read more</span>
+          <p className="aboutSectionLede">
+            What you may not do is in the <Link href="/terms">Terms of Service</Link>. What we collect and why is
+            in the <Link href="/privacy">Privacy Policy</Link>.
+          </p>
+        </section>
+      </main>
+
+      <MarketingFooter />
+    </>
   );
 }
