@@ -1053,13 +1053,14 @@ export function getNotificationHref(
     case "api_plan_downgraded":
       return recipientHandle ? `/s/${recipientHandle}/developer/${n.subjectId}` : "/notifications";
     // phase-12 spec §5/§11 step 8: routes to the one page a recipient can
-    // actually act on either notification from — the appeals list
-    // (/trust-safety) — rather than the report_acknowledged default below
-    // (a reporter has nothing further to do, so that one keeps the
-    // /notifications fallback).
+    // actually act on either notification from — the appeals list, now at
+    // /s/{handle}/trust-safety (moved out of the public /trust-safety path,
+    // which is the Trust & Safety policy page) — rather than the
+    // report_acknowledged default below (a reporter has nothing further to
+    // do, so that one keeps the /notifications fallback).
     case "case_resolved":
     case "appeal_decided":
-      return "/trust-safety";
+      return recipientHandle ? `/s/${recipientHandle}/trust-safety` : "/notifications";
     // phase-14 spec §10 step 8: subjectId is the organizationId for all
     // three org producers — routes to the org's own overview/directory
     // page, same "subjectId is whatever routing needs" precedent as

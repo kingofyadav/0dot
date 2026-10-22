@@ -58,7 +58,7 @@ export default async function JobsBoardPage({
       <form style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "1.5rem" }}>
         <input name="q" placeholder="Keywords" defaultValue={params.q} className="textInput" style={{ flex: "2 1 160px" }} />
         <input name="location" placeholder="Location" defaultValue={params.location} className="textInput" style={{ flex: "1 1 140px" }} />
-        <select name="employmentType" defaultValue={params.employmentType ?? ""} className="textInput" style={{ flex: "1 1 140px" }}>
+        <select name="employmentType" aria-label="Employment type" defaultValue={params.employmentType ?? ""} className="textInput" style={{ flex: "1 1 140px" }}>
           <option value="">Any type</option>
           {Object.entries(EMPLOYMENT_TYPE_LABEL).map(([value, label]) => (
             <option key={value} value={value}>{label}</option>
@@ -72,7 +72,7 @@ export default async function JobsBoardPage({
       </form>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-        {jobs.length === 0 && <EmptyState message="No open jobs match your search." />}
+        {jobs.length === 0 && <EmptyState title="No open jobs match your search." />}
         {jobs.map((job) => (
           <Link
             key={job.id}
