@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useRef, useState } from "react";
 import { BadgeCheck, Heart, Loader2, MessageCircle } from "lucide-react";
 import { formatAgo } from "@/lib/landing-content";
 
@@ -24,11 +24,13 @@ type Batch = { key: string; items: WireCard[] };
 
 // The landing page's endless Wire. The first batch is server-rendered (so
 // it's in the HTML for crawlers and no-JS visitors); later batches load from
-// /api/front-page/wire as the sentinel nears the viewport. After each batch
-// comes one of the server-rendered feature blocks (`features`: video,
-// follow, developers, sign-up), in rotation, so the page keeps making its
-// case however far someone scrolls. A visible "Load more" button is the
-// keyboard/screen-reader path and the retry after an error.
+// /api/front-page/wire only on an explicit "Load more stories" click — no
+// scroll-triggered auto-loading, so scrolling past the first batch never
+// fires a burst of background requests on its own. After each batch comes
+// one of the server-rendered feature blocks (`features`: video, follow,
+// developers, sign-up), in rotation, so the page keeps making its case
+// however far someone scrolls. The button is also the retry path after an
+// error.
 export function WireStream({
   initialItems,
   initialNext,
@@ -42,7 +44,6 @@ export function WireStream({
   const [next, setNext] = useState(initialNext);
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [announcement, setAnnouncement] = useState("");
-  const sentinel = useRef<HTMLDivElement>(null);
   const inFlight = useRef(false);
   // Every cursor already fetched. The observer can fire again with the
   // previous cursor between a fetch finishing and the re-render that swaps
@@ -72,16 +73,6 @@ export function WireStream({
       inFlight.current = false;
     }
   }, [next]);
-
-  useEffect(() => {
-    const el = sentinel.current;
-    if (!el || !next || status === "error") return;
-    const observer = new IntersectionObserver(([entry]) => entry.isIntersecting && loadMore(), {
-      rootMargin: "900px 0px",
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [loadMore, next, status]);
 
   const now = new Date();
   const hasAny = batches.some((b) => b.items.length > 0);
@@ -144,7 +135,7 @@ export function WireStream({
         </Fragment>
       ))}
 
-      <div ref={sentinel} className="fpWireFooter">
+      <div className="fpWireFooter">
         {next ? (
           <button type="button" className="button buttonSecondary" onClick={loadMore} disabled={status === "loading"}>
             {status === "loading" ? (

@@ -5,12 +5,36 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    groups:
+      npm-minor-patch:
+        update-types: ["minor", "patch"]
+
   - package-ecosystem: "npm"
     directory: "/mobile"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    groups:
+      # expo-font, expo-haptics, expo-clipboard, react-native, etc. move in
+      # lockstep as one Expo SDK release train — bumping any single one alone
+      # breaks the others until the whole set lands together (see the SDK 58
+      # dependabot PRs from 2026-10-19). Group them so dependabot opens one PR
+      # for the whole train instead of N PRs that individually fail CI.
+      expo-sdk:
+        patterns:
+          - "expo*"
+          - "react-native*"
+      mobile-minor-patch:
+        update-types: ["minor", "patch"]
+        exclude-patterns:
+          - "expo*"
+          - "react-native*"
+
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
