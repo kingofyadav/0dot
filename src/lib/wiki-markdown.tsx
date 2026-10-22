@@ -59,6 +59,22 @@ function renderEmphasis(text: string, keyPrefix: string): ReactNode[] {
     });
 }
 
+// Plain-text slug for a heading, so a long document (the help guide, a wiki
+// page) can be deep-linked into by section instead of only by scrolling —
+// shared with help-content.ts, which slugifies the same raw "## heading"
+// lines to build a table of contents that has to land on exactly these ids.
+// Strips the inline-markdown delimiters renderInline would otherwise turn
+// into real emphasis/code (e.g. "Portfolio — `/p/`") before slugifying, so
+// a backtick or asterisk in a heading doesn't end up baked into the id.
+export function slugifyHeading(text: string): string {
+  return text
+    .replace(/[`*_]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 // Blank-line-separated blocks; each block is either a heading, a bullet
 // list (consecutive "- " lines), or a paragraph.
 export function renderWikiMarkdown(rawBody: string): ReactNode[] {
@@ -70,6 +86,17 @@ export function renderWikiMarkdown(rawBody: string): ReactNode[] {
   // and the whole body collapses into a single paragraph.
   const body = rawBody.replace(/\r\n/g, "\n");
   const blocks = body.split(/\n{2,}/).filter((b) => b.trim().length > 0);
+
+  // Resets per renderWikiMarkdown call (one call = one document), so two
+  // identically-titled headings in the same document still get distinct,
+  // stable ids instead of colliding on the same anchor.
+  const usedIds = new Map<string, number>();
+  function headingId(text: string): string {
+    const base = slugifyHeading(text) || "section";
+    const seen = usedIds.get(base) ?? 0;
+    usedIds.set(base, seen + 1);
+    return seen === 0 ? base : `${base}-${seen}`;
+  }
 
   return blocks.flatMap((block, blockIndex) => {
     const lines = block.split("\n").filter((l) => l.trim().length > 0);
@@ -83,9 +110,10 @@ export function renderWikiMarkdown(rawBody: string): ReactNode[] {
     if (headingMatch) {
       const level = headingMatch[1].length;
       const content = renderInline(headingMatch[2], key);
-      if (level === 1) return [<h2 key={key}>{content}</h2>];
-      if (level === 2) return [<h3 key={key}>{content}</h3>];
-      return [<h4 key={key}>{content}</h4>];
+      const id = headingId(headingMatch[2]);
+      if (level === 1) return [<h2 id={id} key={key}>{content}</h2>];
+      if (level === 2) return [<h3 id={id} key={key}>{content}</h3>];
+      return [<h4 id={id} key={key}>{content}</h4>];
     }
 
     // Group consecutive lines by whether they're a "- " list item, instead

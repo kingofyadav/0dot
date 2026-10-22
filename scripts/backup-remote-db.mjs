@@ -30,8 +30,11 @@
 //
 // The CLI is invoked as `turso db shell "<url>?authToken=..." ".dump"` —
 // a direct replica-URL connection, not `turso db shell <database-name>`,
-// so this never depends on an interactive `turso auth login` session
-// existing in CI; the database's own auth token is sufficient.
+// so this doesn't need an interactive `turso auth login` session in CI;
+// the database's own auth token is sufficient. It does, however, need the
+// retry below: on a cold machine with no prior local replica cache (every
+// CI runner), the first `.dump` can race the CLI's own embedded-replica
+// sync and return a near-empty snapshot with exit code 0 and no stderr.
 
 import { spawn } from "child_process";
 import { createWriteStream, createReadStream } from "fs";
@@ -80,6 +83,44 @@ async function dumpToFile(dumpTarget, destPath) {
   });
 }
 
+async function dumpAndValidate(dumpTarget, dumpPath) {
+  await dumpToFile(dumpTarget, dumpPath);
+
+  const { size } = await stat(dumpPath);
+  if (size === 0) throw new Error("Dump produced an empty file — refusing to upload/treat as a successful backup.");
+  // An empty database still dumps a few bytes of PRAGMA/BEGIN/COMMIT, so a
+  // size check alone would call it a success. Schema comes first in a
+  // .dump — require at least one CREATE TABLE in the head of the file.
+  const fh = await open(dumpPath, "r");
+  const head = Buffer.alloc(Math.min(size, 65536));
+  await fh.read(head, 0, head.length, 0);
+  await fh.close();
+  if (!/CREATE TABLE/i.test(head.toString("utf8"))) {
+    throw new Error(
+      `Dump (${size} bytes) contains no CREATE TABLE — the target database looks empty or wrong.`
+    );
+  }
+  return size;
+}
+
+// On a cold machine with no prior `turso` replica cache (every CI runner),
+// `turso db shell <url> ".dump"` can race its own embedded-replica sync and
+// return a near-empty snapshot — with exit code 0, no stderr — on the first
+// call. It self-heals once the replica is warm, so retry a few times before
+// treating it as a real failure instead of failing on the first try.
+async function dumpWithRetry(dumpTarget, dumpPath, attempts = 4) {
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      return await dumpAndValidate(dumpTarget, dumpPath);
+    } catch (err) {
+      if (attempt === attempts) throw err;
+      const delayMs = attempt * 3000;
+      console.log(`[backup-remote-db] attempt ${attempt}/${attempts} looked empty (${err.message}) — retrying in ${delayMs}ms...`);
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+}
+
 async function pruneOldBackups(prefix, retentionDays) {
   const cutoff = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
   let cursor;
@@ -106,22 +147,7 @@ async function main() {
 
   try {
     console.log("[backup-remote-db] dumping via turso db shell...");
-    await dumpToFile(dumpTarget, dumpPath);
-
-    const { size } = await stat(dumpPath);
-    if (size === 0) throw new Error("Dump produced an empty file — refusing to upload/treat as a successful backup.");
-    // An empty database still dumps a few bytes of PRAGMA/BEGIN/COMMIT, so a
-    // size check alone would call it a success. Schema comes first in a
-    // .dump — require at least one CREATE TABLE in the head of the file.
-    const fh = await open(dumpPath, "r");
-    const head = Buffer.alloc(Math.min(size, 65536));
-    await fh.read(head, 0, head.length, 0);
-    await fh.close();
-    if (!/CREATE TABLE/i.test(head.toString("utf8"))) {
-      throw new Error(
-        `Dump (${size} bytes) contains no CREATE TABLE — the target database looks empty or wrong. Refusing to upload/treat as a successful backup.`
-      );
-    }
+    const size = await dumpWithRetry(dumpTarget, dumpPath);
 
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
     const pathname = `backups/${label}-${timestamp}.sql`;
