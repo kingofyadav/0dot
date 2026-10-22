@@ -14,6 +14,23 @@
      uses — darken only for light mode, same color-mix(...,  black) move
      --link makes for --accent-strong. Overridden for dark mode below. */
   --fp-dateline: color-mix(in srgb, var(--danger) 85%, black);
+  /* Page-opens-to-sky, page-lands-on-earth: a decorative bookend only, not a
+     new brand hue — both ends are color-mix()'d from tokens already in the
+     palette (--accent for sky, --success for earth) over --background/
+     --foreground, so they auto-adapt with light/dark the same way
+     --fp-dateline above does and need no separate dark-mode values. Mix
+     percentages are kept low enough that body text sitting on them (muted-
+     foreground on .fpMastheadMeta, .marketingFooterGroup a) keeps the same
+     contrast margin it already has against --background/--surface. */
+  --fp-sky-top: color-mix(in srgb, var(--accent) 16%, var(--background));
+  --fp-sky-horizon: color-mix(in srgb, var(--accent) 5%, var(--background));
+  --fp-earth-top: color-mix(in srgb, var(--success) 10%, var(--background));
+  /* Darkens toward black rather than --foreground on purpose — --foreground
+     flips lightness between themes (near-black in light mode, near-white in
+     dark), which would make this *lighter* than --fp-earth-top in dark
+     mode instead of the deepest band on the page. Mixing toward black
+     darkens in both themes the same way --fp-dateline above does. */
+  --fp-earth-bottom: color-mix(in srgb, var(--success) 30%, black);
   /* width + min-width: the page sits in a flex column (the app shell), and
      without them the ticker's max-content track would size .frontPage to
      its full 1240px max on phones instead of the viewport. */
@@ -59,7 +76,11 @@
 /* ── Masthead ─────────────────────────────────────────────────── */
 .fpMasthead {
   text-align: center;
-  padding-top: var(--space-6);
+  /* Bleeds past .frontPage's own side padding so the sky wash reads as a
+     true top-of-page band rather than an inset card. */
+  margin: 0 calc(-1 * var(--space-6));
+  padding: var(--space-6) var(--space-6) var(--space-10);
+  background: linear-gradient(to bottom, var(--fp-sky-top), var(--fp-sky-horizon) 65%, transparent);
 }
 
 .fpMastheadMeta {
@@ -1434,7 +1455,8 @@
     .fpDevGrid,
     .fpSocials li,
     .fpVideoCard,
-    .fpWireFeature {
+    .fpWireFeature,
+    .fpEarthFooter {
       animation: fpReveal linear both;
       animation-timeline: view();
       animation-range: entry 0% entry 60%;
@@ -1451,4 +1473,31 @@
     opacity: 1;
     transform: none;
   }
+}
+
+/* ── Earth footer ────────────────────────────────────────────── */
+/* Wraps the shared <MarketingFooter/> (globals.css .marketingFooter*) so the
+   page that opened on --fp-sky-top lands on --fp-earth-bottom — the other
+   half of the bookend started in .fpMasthead above. The lead-in pad fades
+   from transparent (blending with whatever the Wire ended on) down to
+   --fp-earth-top, exactly where the footer's own background picks up. */
+.fpEarthFooter {
+  padding-top: var(--space-16);
+  background: linear-gradient(to bottom, transparent, var(--fp-earth-top));
+}
+
+.fpEarthFooter .marketingFooter {
+  background: var(--fp-earth-top);
+  border-top-color: color-mix(in srgb, var(--success) 25%, var(--border-strong));
+}
+
+.fpEarthFooter .marketingFooterBase {
+  background: var(--fp-earth-bottom);
+  border-top-color: color-mix(in srgb, var(--success) 25%, var(--border-strong));
+  /* --muted-foreground is a mid-gray tuned for light surfaces (--surface/
+     --fp-earth-top) — against this near-black mixed-with-black band it
+     drops to ~3.2:1, under WCAG AA's 4.5:1. Same "on-dark" exception as
+     --overlay-scrim (globals.css): a fixed light value, not a token, since
+     this band is dark in both themes by construction. */
+  color: rgba(255, 255, 255, 0.82);
 }
