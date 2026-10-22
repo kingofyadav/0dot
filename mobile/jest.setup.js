@@ -113,6 +113,22 @@ jest.mock("react-native-reanimated", () => {
 // version — no equivalent workaround needed.
 import "react-native-gesture-handler/jestSetup";
 
+// v3 added a dev-only guard (GestureDetector throws if it can't find a
+// GestureHandlerRootView ancestor) that the official jestSetup mock above
+// doesn't account for. The real app root (app/_layout.tsx) always wraps
+// the tree in GestureHandlerRootView — this only trips because unit tests
+// render leaf components (PurchaseSheet, BottomSheet-based sheets, etc.)
+// in isolation, without that ancestor. No-op it under test.
+//
+// Mocking the compiled lib/module path, not the src/ one: the package's
+// "main"/"module" fields point to lib/module/index.js, which is what
+// Jest's resolver actually loads here (confirmed empirically — a src/
+// path mock silently never fires). jestSetup.js above mocks both variants
+// of HostGestureDetector for the same reason.
+jest.mock("react-native-gesture-handler/lib/module/v3/detectors/useEnsureGestureHandlerRootView", () => ({
+  useEnsureGestureHandlerRootView: () => {},
+}));
+
 // M12: theme.ts now pulls in themePreferences.tsx (ThemePreferencesProvider),
 // which reads AsyncStorage — previously nothing reachable from any test's
 // import graph touched this package (onboarding.ts's own AsyncStorage usage
@@ -125,3 +141,24 @@ import "react-native-gesture-handler/jestSetup";
 import mockAsyncStorage from "@react-native-async-storage/async-storage/jest/async-storage-mock";
 
 jest.mock("@react-native-async-storage/async-storage", () => mockAsyncStorage);
+
+// jest-expo's own preset (as of 58.0.11) mocks the asset registry at the
+// now-dead "react-native/asset-registry" subpath. react-native 0.88 moved
+// it to "react-native/src/private/assets/AssetRegistry" and imports it from
+// there directly (see expo-asset's Asset.ts), so that stale mock is never
+// hit — any component that mounts an icon font (e.g. Ionicons, used all
+// over) throws `Module "1" is missing from the asset registry` instead.
+// Re-mocking at the real path, matching jest-expo's original shape.
+jest.mock("react-native/src/private/assets/AssetRegistry", () => ({
+  AssetRegistry: {
+    registerAsset: jest.fn(() => 1),
+    getAssetByID: jest.fn(() => ({
+      fileSystemLocation: "/full/path/to/directory",
+      httpServerLocation: "/assets/full/path/to/directory",
+      scales: [1],
+      fileHashes: ["md5"],
+      name: "name",
+      type: "type",
+    })),
+  },
+}));

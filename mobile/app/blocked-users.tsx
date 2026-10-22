@@ -119,7 +119,7 @@ export default function BlockedUsersScreen() {
           onEndReachedThreshold={0.4}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.accent} />}
           ListEmptyComponent={<EmptyState icon="ban-outline" title="You haven't blocked anyone." />}
-          ListFooterComponent={loadingMore ? <ActivityIndicator style={styles.footerSpinner} color={theme.colors.accent} /> : null}
+          ListFooterComponent={loadingMore ? <ActivityIndicator style={styles.footerSpinner} color={theme.colors.accent} /> : undefined}
           renderItem={({ item }) => (
             <View style={styles.row}>
               <Avatar uri={item.avatarUrl} name={item.displayName ?? item.username} size={44} />

@@ -67,7 +67,7 @@ describe("MarketplaceItemBody", () => {
     mockGetItem.mockResolvedValueOnce(PRODUCT).mockResolvedValueOnce({ ...PRODUCT, owned: true, downloadable: true });
     mockPurchase.mockResolvedValue({ ok: true, target: "digital_product", free: false });
     mockGetDownload.mockResolvedValue({ url: "/api/downloads/tok" });
-    const openURL = jest.spyOn(Linking, "openURL").mockResolvedValue(true);
+    const openURL = jest.spyOn(Linking, "openURL").mockResolvedValue(undefined);
 
     const { findByText, getByText, getByLabelText } = await render(<MarketplaceItemBody category="digital_product" id="p1" />);
 

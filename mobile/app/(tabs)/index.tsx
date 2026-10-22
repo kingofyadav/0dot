@@ -249,7 +249,7 @@ export default function HomeScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.accent} />}
           onEndReached={onEndReached}
           onEndReachedThreshold={0.4}
-          ListHeaderComponent={offlineCachedAt ? <OfflineBanner cachedAt={offlineCachedAt} /> : null}
+          ListHeaderComponent={offlineCachedAt ? <OfflineBanner cachedAt={offlineCachedAt} /> : undefined}
           ListEmptyComponent={
             error ? (
               <EmptyState icon="cloud-offline-outline" title={error} onRetry={loadFirstPage} />
@@ -261,7 +261,7 @@ export default function HomeScreen() {
               />
             )
           }
-          ListFooterComponent={loadingMore ? <ActivityIndicator style={styles.footerSpinner} color={theme.colors.accent} /> : null}
+          ListFooterComponent={loadingMore ? <ActivityIndicator style={styles.footerSpinner} color={theme.colors.accent} /> : undefined}
           renderItem={({ item }) => (
             <PostRow
               post={item}

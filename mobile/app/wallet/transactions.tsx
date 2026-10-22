@@ -99,7 +99,7 @@ export default function WalletTransactionsScreen() {
       ListEmptyComponent={
         <EmptyState icon="receipt-outline" title={error ?? "No activity yet."} onRetry={error ? loadFirstPage : undefined} />
       }
-      ListFooterComponent={loadingMore ? <ActivityIndicator style={styles.footerSpinner} color={theme.colors.accent} /> : null}
+      ListFooterComponent={loadingMore ? <ActivityIndicator style={styles.footerSpinner} color={theme.colors.accent} /> : undefined}
       renderItem={({ item }) => <WalletActivityRow entry={item} />}
     />
   );

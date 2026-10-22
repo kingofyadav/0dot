@@ -293,7 +293,7 @@ export default function CommunityScreen() {
                 ) : null}
               </View>
             }
-            ListEmptyComponent={community.canViewContent ? <Text style={styles.emptyPosts}>No posts yet.</Text> : null}
+            ListEmptyComponent={community.canViewContent ? <Text style={styles.emptyPosts}>No posts yet.</Text> : undefined}
             renderItem={({ item }) => (
               <PostRow
                 post={item}

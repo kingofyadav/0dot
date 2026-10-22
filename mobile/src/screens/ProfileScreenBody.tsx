@@ -362,7 +362,7 @@ export function ProfileScreenBody({
             onLongPress={() => setActionsTarget(item)}
           />
         )}
-        ListFooterComponent={postsLoadingMore ? <ActivityIndicator style={styles.footerSpinner} color={theme.colors.accent} /> : null}
+        ListFooterComponent={postsLoadingMore ? <ActivityIndicator style={styles.footerSpinner} color={theme.colors.accent} /> : undefined}
         ListEmptyComponent={
           // A compact inline placeholder — not the full centred EmptyState.
           // This screen's header is tall, and the tab bar is absolute

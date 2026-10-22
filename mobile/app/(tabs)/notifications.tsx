@@ -191,7 +191,7 @@ export default function NotificationsScreen() {
           onRetry={error ? loadFirstPage : undefined}
         />
       }
-      ListFooterComponent={loadingMore ? <ActivityIndicator style={styles.footerSpinner} color={theme.colors.accent} /> : null}
+      ListFooterComponent={loadingMore ? <ActivityIndicator style={styles.footerSpinner} color={theme.colors.accent} /> : undefined}
       renderItem={({ item }) => {
         const { icon, tint } = getNotificationIcon(item.type);
         const actorName = item.actor?.displayName ?? item.actor?.username ?? "Someone";

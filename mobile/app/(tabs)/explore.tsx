@@ -303,7 +303,7 @@ export default function ExploreScreen() {
           onEndReached={onPostsEndReached}
           onEndReachedThreshold={0.4}
           ListEmptyComponent={<EmptyState icon="document-text-outline" title={error ?? `No posts found for "${debouncedQuery}".`} />}
-          ListFooterComponent={loadingMore ? <ActivityIndicator style={styles.footerSpinner} color={theme.colors.accent} /> : null}
+          ListFooterComponent={loadingMore ? <ActivityIndicator style={styles.footerSpinner} color={theme.colors.accent} /> : undefined}
           renderItem={({ item }) => (
             <PostRow
               post={item}

@@ -1,6 +1,10 @@
 import { useMemo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { Swipeable } from "react-native-gesture-handler";
+// Legacy `Swipeable` was dropped from react-native-gesture-handler's main
+// export in v3 in favor of the Reanimated-backed implementation at this
+// subpath (same API shape, just typed with Reanimated's SharedValue).
+import Swipeable, { type SwipeableMethods } from "react-native-gesture-handler/ReanimatedSwipeable";
+import type { SharedValue } from "react-native-reanimated";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Avatar } from "./Avatar";
 import { ListRow } from "./ListRow";
@@ -57,7 +61,7 @@ export function ConversationRow({ conversation, onPress, onMarkRead }: Props) {
 
   return (
     <Swipeable
-      renderRightActions={(_progress, _dragX, swipeable) => (
+      renderRightActions={(_progress: SharedValue<number>, _translation: SharedValue<number>, swipeable: SwipeableMethods) => (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Mark as read"

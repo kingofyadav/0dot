@@ -116,7 +116,7 @@ export function FollowListScreen({ username, mode }: { username: string; mode: M
             title={mode === "followers" ? "No followers yet." : "Not following anyone yet."}
           />
         }
-        ListFooterComponent={loadingMore ? <ActivityIndicator style={styles.footerSpinner} color={theme.colors.accent} /> : null}
+        ListFooterComponent={loadingMore ? <ActivityIndicator style={styles.footerSpinner} color={theme.colors.accent} /> : undefined}
         renderItem={({ item }) => <UserRow user={item} onPress={() => router.push(`/${item.username}`)} />}
       />
     </View>

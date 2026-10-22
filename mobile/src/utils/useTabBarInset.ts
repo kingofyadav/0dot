@@ -1,4 +1,8 @@
-import { useBottomTabBarHeight } from "expo-router/build/react-navigation/bottom-tabs";
+// expo-router's package.json "exports" map only matches deep subpaths via
+// a `./build/*.js` wildcard, which requires the explicit `/index.js` suffix
+// to hit a directory's index file — the bare directory path (valid before
+// the SDK 58 exports-map tightening) no longer resolves.
+import { useBottomTabBarHeight } from "expo-router/build/react-navigation/bottom-tabs/index.js";
 
 // M15/D2: the tab bar is now `position: "absolute"` translucent glass, so
 // content on the 5 tab-root screens (index/explore/messages/notifications/

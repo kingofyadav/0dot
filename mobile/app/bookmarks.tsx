@@ -173,7 +173,7 @@ export default function BookmarksScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.accent} />}
         onEndReached={onEndReached}
         onEndReachedThreshold={0.4}
-        ListHeaderComponent={offlineCachedAt ? <OfflineBanner cachedAt={offlineCachedAt} /> : null}
+        ListHeaderComponent={offlineCachedAt ? <OfflineBanner cachedAt={offlineCachedAt} /> : undefined}
         ListEmptyComponent={
           <EmptyState
             icon={error ? "cloud-offline-outline" : "bookmark-outline"}
@@ -181,7 +181,7 @@ export default function BookmarksScreen() {
             onRetry={error ? loadFirstPage : undefined}
           />
         }
-        ListFooterComponent={loadingMore ? <ActivityIndicator style={styles.footerSpinner} color={theme.colors.accent} /> : null}
+        ListFooterComponent={loadingMore ? <ActivityIndicator style={styles.footerSpinner} color={theme.colors.accent} /> : undefined}
         renderItem={({ item }) => (
           <PostRow
             post={item}

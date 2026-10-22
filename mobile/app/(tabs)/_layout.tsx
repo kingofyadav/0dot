@@ -1,5 +1,5 @@
 import { Tabs } from "expo-router";
-import { Platform, StyleSheet, Text, View, type ColorValue } from "react-native";
+import { Platform, StyleSheet, Text, View } from "react-native";
 import { BlurView } from "expo-blur";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTheme, type Theme } from "../../src/theme";
@@ -19,7 +19,10 @@ function TabIcon({
   theme,
 }: {
   name: keyof typeof Ionicons.glyphMap;
-  color: ColorValue;
+  // react-navigation's tabBarIcon render prop always passes a string, never
+  // the full RN ColorValue union (which gained number/null variants and no
+  // longer matches Ionicons's narrower color prop).
+  color: string;
   size: number;
   count: number;
   theme: Theme;
@@ -86,7 +89,11 @@ export default function TabsLayout() {
         options={{
           title: "Home",
           tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? "home" : "home-outline"} size={size} color={color} />
+            // tabBarActiveTintColor/tabBarInactiveTintColor above are plain
+            // hex strings, so the ColorValue react-navigation hands back
+            // here is always a string at runtime — Ionicons's narrower
+            // color prop type just doesn't know that.
+            <Ionicons name={focused ? "home" : "home-outline"} size={size} color={color as string} />
           ),
         }}
       />
@@ -95,7 +102,7 @@ export default function TabsLayout() {
         options={{
           title: "Explore",
           tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? "search" : "search-outline"} size={size} color={color} />
+            <Ionicons name={focused ? "search" : "search-outline"} size={size} color={color as string} />
           ),
         }}
       />
@@ -104,7 +111,7 @@ export default function TabsLayout() {
         options={{
           title: "Messages",
           tabBarIcon: ({ color, size, focused }) => (
-            <TabIcon name={focused ? "chatbubbles" : "chatbubbles-outline"} color={color} size={size} count={messages} theme={theme} />
+            <TabIcon name={focused ? "chatbubbles" : "chatbubbles-outline"} color={color as string} size={size} count={messages} theme={theme} />
           ),
         }}
       />
@@ -115,7 +122,7 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, size, focused }) => (
             <TabIcon
               name={focused ? "notifications" : "notifications-outline"}
-              color={color}
+              color={color as string}
               size={size}
               count={notifications}
               theme={theme}
@@ -128,7 +135,7 @@ export default function TabsLayout() {
         options={{
           title: "Profile",
           tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? "person-circle" : "person-circle-outline"} size={size} color={color} />
+            <Ionicons name={focused ? "person-circle" : "person-circle-outline"} size={size} color={color as string} />
           ),
         }}
       />

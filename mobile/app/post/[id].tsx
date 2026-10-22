@@ -1,5 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import {
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  type TextInputInstance,
+} from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withSequence, withSpring } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, Stack, useLocalSearchParams } from "expo-router";
@@ -37,7 +48,7 @@ export default function PostScreen() {
   const [replyBody, setReplyBody] = useState("");
   const [sendingReply, setSendingReply] = useState(false);
   const [replyError, setReplyError] = useState<string | null>(null);
-  const replyInputRef = useRef<TextInput>(null);
+  const replyInputRef = useRef<TextInputInstance>(null);
   const [showActions, setShowActions] = useState(false);
 
   const load = useCallback(() => {
