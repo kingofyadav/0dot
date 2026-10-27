@@ -242,11 +242,13 @@
   --measure-feed: 600px;
   --measure-prose: 640px;
   --measure-wide: 960px;
-  /* Shell-level width, not a reading measure — used only by the site
-     footer so it matches the ~1240px the logged-out newspaper layout
-     ("/") renders at, instead of the narrower 960px reading-width column
-     every other marketing page's body text uses. */
-  --footer-max-w: 1240px;
+  /* Shell-level width, not a reading measure — matches .marketingNavInner's
+     1440px (the header directly above the footer on every marketing page)
+     so the footer's content lines up with the nav's edges instead of
+     sitting ~200px narrower than it, while still being wider than the
+     960px reading-width column every other marketing page's body text
+     uses. */
+  --footer-max-w: 1440px;
 
   /* Motion (§4.4 / D8). Durations + easings as tokens; the existing
      --transition-fast/base/slow shorthands above are kept and re-expressed
