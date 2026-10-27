@@ -7,6 +7,12 @@ closed` (`UND_ERR_SOCKET`) talking to Turso on its first attempt; earlier in
 the same session, `GET /signup` in `lhr1` (London) hit `write ETIMEDOUT`.
 Both retried via `db-resilience.ts`.
 
+After deploying the mitigation in §1, the operator reproduced it again and
+described the symptom precisely: "on click signup, reload on same page,
+look like [nothing happened]" — no error message, no navigation. That
+pointed at §2, a separate code defect that's the more direct explanation for
+what the operator actually saw.
+
 ---
 
 ## 1. Vercel Hobby silently ignores `vercel.json`'s function-region pin — writes from distant regions time out against the Turso primary
@@ -58,6 +64,35 @@ apply. Mitigated today:
 actually hold is Vercel Pro. The free-tier alternative is moving the
 write-path off Vercel Hobby's unpinnable routing entirely (e.g. self-hosting
 near the Turso primary) — bigger lift, not started.
+
+---
+
+## 2. `signup()` throws instead of returning an error — a DB failure looks like signup silently did nothing
+
+**File:** `src/app/actions/auth.ts` (`signup`)
+**Severity:** High — compounds #1: makes every transient DB blip during
+signup (not just cross-region ones) present as a dead click instead of a
+retryable message
+
+This Next.js version's own docs (`node_modules/next/dist/docs/01-app/01-getting-started/10-error-handling.md`,
+"Handling expected errors" → "Server Functions") are explicit: *"avoid using
+try/catch blocks and throw errors. Instead, model expected errors as return
+values."* `signup()` did the opposite in two places: the
+`existingHandle`/`existingEmail`/`existingPhone` availability-check
+`Promise.all` had no try/catch at all, and the `db.$transaction` catch block
+only handled the `P2002` (duplicate) case before falling through to
+`throw err;` for everything else — including the exact network errors #1
+documents. An uncaught throw from a Server Action bubbles to the nearest
+`error.tsx` (none scoped to `/signup`) and ultimately `global-error.tsx`,
+not through `useActionState`'s `state.error`, which is a materially worse
+UX than a transient-looking inline message — consistent with "page reloads,
+nothing visible happens."
+
+**Fix applied:** both sites now catch, log via `logger.error` (console +
+Sentry when configured), and return `{ error: "Something went wrong..." }`
+instead of throwing — same return shape the existing validation errors
+("That username is already taken.", etc.) already use, so
+`SignupForm.tsx`'s `useActionState` renders it identically.
 
 ---
 

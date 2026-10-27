@@ -5,6 +5,7 @@ import bcrypt from "bcryptjs";
 import { redirect } from "next/navigation";
 import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
+import { logger } from "@/lib/logger";
 import { createSession, destroySession, getCurrentUser, createTwoFactorChallenge } from "@/lib/session";
 import { revokeAllOtherSessions } from "@/app/actions/session-management";
 import { validateUsernameFormat } from "@/lib/reserved-usernames";
@@ -158,11 +159,26 @@ export async function signup(
     dateOfBirth = parsed;
   }
 
-  const [existingHandle, existingEmail, existingPhone] = await Promise.all([
-    db.username.findUnique({ where: { handle } }),
-    email ? db.user.findUnique({ where: { email } }) : null,
-    phone ? db.user.findUnique({ where: { phone } }) : null,
-  ]);
+  // Next.js's own guidance for Server Functions (see docs/BUGS.md "Production
+  // signup intermittently fails"): model expected errors as return values,
+  // not thrown exceptions — an uncaught throw here bubbles to the nearest
+  // error boundary (global-error.tsx, since there's no error.tsx scoped to
+  // /signup) instead of showing a friendly message via useActionState, which
+  // on a cross-region DB blip that exhausts db-resilience.ts's retries made
+  // signup look like it silently did nothing.
+  let existingHandle: { handle: string } | null;
+  let existingEmail: { id: string } | null;
+  let existingPhone: { id: string } | null;
+  try {
+    [existingHandle, existingEmail, existingPhone] = await Promise.all([
+      db.username.findUnique({ where: { handle } }),
+      email ? db.user.findUnique({ where: { email } }) : null,
+      phone ? db.user.findUnique({ where: { phone } }) : null,
+    ]);
+  } catch (err) {
+    logger.error("signup: availability check failed", err, { handle });
+    return { error: "Something went wrong. Please try again." };
+  }
   if (existingHandle) {
     return { error: "That username is already taken." };
   }
@@ -214,7 +230,11 @@ export async function signup(
       }
       return { error: "That username is already taken." };
     }
-    throw err;
+    // Same "return, don't throw" reasoning as the availability check above —
+    // most commonly a cross-region DB blip (db-resilience.ts's retries
+    // exhausted) surfacing here instead.
+    logger.error("signup: account creation failed", err, { handle });
+    return { error: "Something went wrong creating your account. Please try again." };
   }
 
   await createSession(created.user.id);
