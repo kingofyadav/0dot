@@ -1,3 +1,66 @@
+# Bug report: production signup intermittently fails (2026-10-27)
+
+Reported by the operator ("localhost signup works, live site fails, tried
+~10 times"). Confirmed live via `vercel logs 0dot.in`: caught a real
+`POST /signup` executing in `cdg1` (Paris) hit `SocketError: other side
+closed` (`UND_ERR_SOCKET`) talking to Turso on its first attempt; earlier in
+the same session, `GET /signup` in `lhr1` (London) hit `write ETIMEDOUT`.
+Both retried via `db-resilience.ts`.
+
+---
+
+## 1. Vercel Hobby silently ignores `vercel.json`'s function-region pin — writes from distant regions time out against the Turso primary
+
+**File:** `vercel.json:3` (`"regions": ["bom1"]`), `src/lib/db.ts:44-64`
+**Severity:** High (intermittent, user-facing — blocks account creation,
+the platform's core conversion action)
+
+`docs/deploy/MUMBAI-MIGRATION.md` (completed 2026-09-01 DB-side, region pin
+shipped in `28af9dd` and live since the 2026-10-24 deploy) moved the Turso
+primary to `aws-ap-south-1` and pinned Vercel functions to `bom1` on the
+stated assumption *"nothing here needs a paid plan — Vercel Hobby allows one
+function region."* That assumption is wrong in practice: pulling production
+logs on 2026-10-27 showed requests still executing all over the map despite
+the pin being live —
+
+```
+GET /            lhr1  (London)
+GET /            cdg1  (Paris)
+GET /            sfo1  (San Francisco)
+GET /            iad1  (Virginia)
+GET /            sin1  (Singapore)
+GET /signup/...  bom1  (Mumbai — the only region actually co-located with the DB)
+```
+
+— and the two transient-error classes `db-resilience.ts` already retries
+(`ETIMEDOUT`, `UND_ERR_SOCKET` "other side closed") fire specifically on the
+non-`bom1` requests. Turso's platform-level multi-region replicas are
+unavailable on this account's plan, and `db.ts`'s `useEmbeddedReplica` path
+only speeds up reads — writes (including the signup `$transaction`) always
+go straight to the `ap-south-1` primary regardless, so a signup landing on
+a far-region instance pays the full round trip (and under connectivity
+blips, sometimes several in a row) with no mitigation available below the
+network layer.
+
+**Status:** Not fixed — this is a platform constraint (Hobby plan), not a
+code defect, so there's no code path that makes the region pin actually
+apply. Mitigated today:
+
+- `db-resilience.ts`: `MAX_RETRIES` raised 3 → 5, giving a burst of blips on
+  one cross-region connection more chances to clear before the request
+  fails outright.
+- `src/app/signup/page.tsx`: `maxDuration` made explicit (30s) rather than
+  relying on the platform default, since retries on a cross-region instance
+  can run a few seconds longer than the common (same-region, attempt-0)
+  case.
+
+**Not fixed, needs an owner decision:** the only way to make the region pin
+actually hold is Vercel Pro. The free-tier alternative is moving the
+write-path off Vercel Hobby's unpinnable routing entirely (e.g. self-hosting
+near the Turso primary) — bigger lift, not started.
+
+---
+
 # Bug report: public file uploads broken in production (2026-10-06)
 
 Found manually while populating the official `@dot` account's content
