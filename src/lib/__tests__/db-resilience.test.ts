@@ -84,7 +84,7 @@ describe("runWithDbResilience", () => {
         throw serverError();
       }),
     ).rejects.toThrow(/HTTP status 503/);
-    expect(calls).toBe(4); // 1 initial attempt + 3 retries
+    expect(calls).toBe(6); // 1 initial attempt + 5 retries (MAX_RETRIES)
   });
 
   it("caps how many callbacks run concurrently", async () => {
