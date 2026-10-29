@@ -2,29 +2,30 @@
 # yarn lockfile v1
 
 
-"@ai-sdk/gateway@3.0.210":
-  version "3.0.210"
-  resolved "https://registry.npmjs.org/@ai-sdk/gateway/-/gateway-3.0.210.tgz"
-  integrity sha512-XUC2HGvDLhpfHKT7yXirZELHWIHzPJLtE3CE3FO6fjcQHcKR5nrsHxOp00THk1SivDo3IZB1yS6Un4+kAQ8eJg==
+"@ai-sdk/gateway@4.0.126":
+  version "4.0.126"
+  resolved "https://registry.yarnpkg.com/@ai-sdk/gateway/-/gateway-4.0.126.tgz#a41e9ad61d99b2b2e9cdc80d600839de0b73ec9a"
+  integrity sha512-gOrvnfrWxslTws5puMe+CvEDjZ0rxbpQYLZgdngQl1g/z3mRc5sllcflVAhy2xJSZacrWtsXwua+NJoc/IKZDw==
   dependencies:
-    "@ai-sdk/provider" "3.0.18"
-    "@ai-sdk/provider-utils" "4.0.57"
+    "@ai-sdk/provider" "4.0.34"
+    "@ai-sdk/provider-utils" "5.0.68"
     "@vercel/oidc" "3.2.0"
 
-"@ai-sdk/provider-utils@4.0.57":
-  version "4.0.57"
-  resolved "https://registry.npmjs.org/@ai-sdk/provider-utils/-/provider-utils-4.0.57.tgz"
-  integrity sha512-89a7sPvZqXsP3PigcAQLWntu/duIVEcN/RyChAB+j6p3C7NwW767sVttvL8r0+BetTg63uAXQoYHCZZueQKBSw==
+"@ai-sdk/provider-utils@5.0.68":
+  version "5.0.68"
+  resolved "https://registry.yarnpkg.com/@ai-sdk/provider-utils/-/provider-utils-5.0.68.tgz#60e0e634f904c16d6ebd4758eab1b0eb03478da8"
+  integrity sha512-SASuC1DqSdWoYyYfpxbgPKm9VCnMP1VTahWY7WEYzi2QDmFdbw4runqmH7NKC33iB/INo+XbaN2hH3dXHSNQZw==
   dependencies:
-    "@ai-sdk/provider" "3.0.18"
+    "@ai-sdk/provider" "4.0.34"
     "@standard-schema/spec" "^1.1.0"
+    "@workflow/serde" "4.1.0"
     eventsource-parser "^3.0.8"
-    undici "^6.28.0"
+    undici "^7.29.0"
 
-"@ai-sdk/provider@3.0.18":
-  version "3.0.18"
-  resolved "https://registry.npmjs.org/@ai-sdk/provider/-/provider-3.0.18.tgz"
-  integrity sha512-IpefF5ssZVOZCD4Wu7zxt6PwZoGT2HLVjxpJ10Bjx6EAmRfLYJPjyrfxb0RYDlwvXnDb9nkQ7Do/oJVDuRFzew==
+"@ai-sdk/provider@4.0.34":
+  version "4.0.34"
+  resolved "https://registry.yarnpkg.com/@ai-sdk/provider/-/provider-4.0.34.tgz#28b2212835b46f18416dfd2506b92a4dd7a5ee03"
+  integrity sha512-Ip7ZQBq/FiGpM1mmOVseTtX9PBjnzo0bLC41WTgBSBBRUBz6LhNFGbYaNUzI6hPm6ll1oNSPOAZc/q/z+3QZEQ==
   dependencies:
     json-schema "^0.4.0"
 
@@ -956,7 +957,7 @@
   resolved "https://registry.npmjs.org/@nolyfill/is-core-module/-/is-core-module-1.0.39.tgz"
   integrity sha512-nn5ozdjYQpUCZlWGuxcJY/KpxkWQs4DcbMCmKojjyrYDEAGy4Ce19NN4v5MduafTwJlbKc99UA8YhSVqq9yPZA==
 
-"@opentelemetry/api@^1.4.1", "@opentelemetry/api@^1.9.0", "@opentelemetry/api@^1.9.1":
+"@opentelemetry/api@^1.4.1", "@opentelemetry/api@^1.9.1":
   version "1.10.0"
   resolved "https://registry.npmjs.org/@opentelemetry/api/-/api-1.10.0.tgz"
   integrity sha512-lMkyes8iHrG+mk6WH7X70MdCLI2RS0FwNBY1PyQ8UemaijE2m5mv5A0Niy3HtbYTFrgkUEQjFMXmSAk2hQDuPQ==
@@ -3251,6 +3252,11 @@
     convert-source-map "^2.0.0"
     tinyrainbow "^3.1.0"
 
+"@workflow/serde@4.1.0":
+  version "4.1.0"
+  resolved "https://registry.yarnpkg.com/@workflow/serde/-/serde-4.1.0.tgz#82dbbaf2370f7b8ae46d9a9a4ab0917258f8db62"
+  integrity sha512-pav4F2BoirECWR7Nf1TKt+2eETcBj7jj4cBefQ8VXQCA6NPkaKeLfj/zMgi+3zYV5ZIBT4GuUiphsj0/b9hPQQ==
+
 accepts@^2.0.0:
   version "2.0.0"
   resolved "https://registry.npmjs.org/accepts/-/accepts-2.0.0.tgz"
@@ -3269,15 +3275,14 @@ acorn@^8.15.0:
   resolved "https://registry.npmjs.org/acorn/-/acorn-8.19.0.tgz"
   integrity sha512-oJlA3XiRm7Cyk6qFD2Jn8ak9B7jSy0qy00ADO3+8dpT0LSjFihQYv4C02LFCSYJV3Q37xYwwRy5m+IpIiUzqWw==
 
-ai@^6.0.277:
-  version "6.0.301"
-  resolved "https://registry.npmjs.org/ai/-/ai-6.0.301.tgz"
-  integrity sha512-pb7vIIBXKw4VGpbLmXvD+u5qbUe+2Mm7hEEkHs6Z2XBiifxAUEB38gl5JbaRi3BWsFqN13GP25/NHhf/DvPjgg==
+ai@^7.0.153:
+  version "7.0.153"
+  resolved "https://registry.yarnpkg.com/ai/-/ai-7.0.153.tgz#fa59a17be7dbb24c3eaee61529761bf189733622"
+  integrity sha512-Ib8v374jWn9FXsjADXodRaP7fsMutlmPsbTLT5gYBDyadFcF9XxfYX1CSSxgSvE1r06MmOeYVwvQjFb3CcBi1Q==
   dependencies:
-    "@ai-sdk/gateway" "3.0.210"
-    "@ai-sdk/provider" "3.0.18"
-    "@ai-sdk/provider-utils" "4.0.57"
-    "@opentelemetry/api" "^1.9.0"
+    "@ai-sdk/gateway" "4.0.126"
+    "@ai-sdk/provider" "4.0.34"
+    "@ai-sdk/provider-utils" "5.0.68"
 
 ajv-formats@^2.1.1:
   version "2.1.1"
@@ -8219,7 +8224,7 @@ undici-types@~8.9.0:
   resolved "https://registry.npmjs.org/undici-types/-/undici-types-8.9.0.tgz"
   integrity sha512-KTDyRTYX8sWmKXAikPHHSyc63CRPETMctyjKFupcC6OBLXT3xsN0e9aF7m+mIXutFWpUXuedtowG7iLOzp0kQg==
 
-undici@^6.23.0, undici@^6.28.0, undici@^7.11.0, undici@^7.29.1, undici@^7.30.1:
+undici@^6.23.0, undici@^7.11.0, undici@^7.29.0, undici@^7.29.1, undici@^7.30.1:
   version "7.30.1"
   resolved "https://registry.yarnpkg.com/undici/-/undici-7.30.1.tgz#360b3de104b94abc52729aa1a4a07e027aa71f73"
   integrity sha512-03KrMbjIFDWQR5RNPrSw3bd1r12JpyFQl9/yxjUbJtqkjmllqC5lFjZh6ujeuJCKr8EOQvRW872Oy/az+nLYxg==
