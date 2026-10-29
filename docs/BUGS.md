@@ -1,3 +1,61 @@
+# Correction: the 2026-10-27 report's region-pin diagnosis was wrong (2026-10-29)
+
+Live re-testing of signup on 0dot.in (real signups, duplicate/validation
+edge cases, account deletion) still reproduced the slowness and transient DB
+errors from the report below — but the root cause in its item #1 does not
+hold up. Live evidence, checked today:
+
+- `vercel inspect 0dot.in` shows every function in the current deployment
+  tagged `[bom1]` in the build manifest — the region pin is accepted and
+  applied at build time.
+- Vercel's own docs (`/docs/logs/runtime`, Log Details → **Region**) define
+  the `region` field in `vercel logs`/Runtime Logs as *"the edge region
+  where the request was processed"* — i.e. the CDN/routing point-of-presence
+  nearest the **client**, not where the function executed. That's the field
+  item #1 below read as "the function ran in cdg1/lhr1/etc." — wrong field.
+- The field that actually answers this is the `x-vercel-id` response
+  header, documented as *"a list of Vercel regions your request hit, as
+  well as the region the function was executed in."* Fired 23 requests at
+  `/signup` and a DB-backed profile page from edge POPs in Singapore,
+  Paris, San Francisco, Stockholm, and Hong Kong
+  (`sin1::bom1::…`, `cdg1::bom1::…`, `sfo1::bom1::…`, …) — **23/23 executed
+  the function in `bom1`.** The pin works. Vercel Hobby is documented as
+  "single region" (not "region pin ignored") per
+  `/docs/functions/configuring-functions/region`'s own limits table, which
+  is consistent with this.
+
+**So:** `src/lib/db.ts:44-53`'s and `src/lib/db-resilience.ts:26-34`'s
+comments (and item #1 below) are factually wrong about *why* the transient
+`SocketError`/`ETIMEDOUT` errors happen — it was never cross-region latency.
+Both comments corrected in this session to stop citing it as fact.
+
+**Still unexplained, not yet root-caused:** the function runs in `bom1`,
+right next to the Turso primary in `ap-south-1`, and still intermittently
+hits `UND_ERR_SOCKET "other side closed"` / `ETIMEDOUT` on `POST /signup`,
+`POST /signup/recovery-codes`, and various RSC/background fetches (seen
+live today via both `vercel logs` and the browser network panel — one
+request even surfaced as a raw `503`, not just a retried-then-succeeded
+warning). `db.ts` logs `"embeddedReplica":false` on every connection
+(the embedded-replica path is opt-in, off here) and caches one Prisma/libSQL
+client per warm instance (`globalForPrisma`) — so this isn't a per-request
+reconnect either. The leading candidate, not yet confirmed: Vercel Fluid
+Compute freezes a warm instance between requests, and a pooled/kept-alive
+HTTP connection to Turso can go stale during that freeze (closed by Turso's
+own idle timeout or an intermediate load balancer) — the first statement
+after a thaw then hits exactly this error signature on reuse. `db-
+resilience.ts`'s retry/backoff (raised 3→5 attempts on 2026-10-27) already
+mitigates this reasonably well regardless of the exact mechanism, which is
+likely why most attempts still succeed. Not yet instrumented to confirm the
+freeze/thaw theory specifically — next step if this keeps recurring.
+
+The client-side gap this surfaced — a raw platform failure on the action's
+POST (not an error `signup()`/`acknowledgeRecoveryCodes()` can catch and
+return) bubbling to the generic `global-error.tsx` crash instead of a
+friendly retry — is fixed separately: `src/app/signup/error.tsx`, a
+route-scoped error boundary with a "Try again" retry button.
+
+---
+
 # Bug report: production signup intermittently fails (2026-10-27)
 
 Reported by the operator ("localhost signup works, live site fails, tried

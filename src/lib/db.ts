@@ -41,16 +41,17 @@ if (url.startsWith("libsql:")) {
   }
 }
 
-// Opt-in (unset by default) — see docs/BUGS.md "DB cross-region latency
-// breaks Sign in with 0dot" for why this exists: this project's Vercel plan
-// is Hobby, which silently ignores vercel.json's `regions: ["bom1"]` and
-// auto-routes each function invocation to whatever region is nearest the
-// *request*, while Turso only has a primary in ap-south-1 — every query from
-// a non-bom1 instance pays a real network round trip, and under that
-// region's connectivity blips (db-resilience.ts's retry target) sometimes
-// several of them in a row. Turso's platform-level multi-region replicas
-// (`turso group locations add`) are deprecated and unavailable on this
-// account's plan — this is the remaining lever.
+// Opt-in (unset by default) — see docs/BUGS.md's 2026-10-29 correction.
+// The function itself *is* correctly pinned to bom1 (confirmed live via the
+// x-vercel-id response header's function-execution segment — the varying
+// cdg1/fra1/sin1/etc. seen in `vercel logs`' own `region` field is the edge
+// POP that received the request, not where the function ran), so this
+// isn't masking cross-region latency. It's kept because it still has a real
+// benefit independent of that: reads served from the local synced replica
+// skip a Turso round trip (and its connection-churn risk) entirely, whereas
+// writes still go straight to the ap-south-1 primary either way. Turso's
+// platform-level multi-region replicas (`turso group locations add`) are
+// deprecated and unavailable on this account's plan regardless.
 //
 // Turning this on changes every read in the app from "current as of this
 // statement" to "current as of the last sync, at most

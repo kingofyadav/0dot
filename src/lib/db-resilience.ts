@@ -24,14 +24,16 @@ import { logger } from "@/lib/logger";
 // inside an open transaction: there's nothing already applied to duplicate.
 const MAX_CONCURRENT_QUERIES = Number(process.env.DATABASE_MAX_CONCURRENT_QUERIES ?? 8);
 // Raised from 3 (2026-10-27, see docs/BUGS.md "Production signup
-// intermittently fails"): on Vercel Hobby a function instance can land
-// thousands of km from the ap-south-1 Turso primary (region pinning is
-// silently ignored — see db.ts), so a run of back-to-back ETIMEDOUT/
-// UND_ERR_SOCKET blips on one connection is more likely than from a
-// co-located instance. 3 attempts sometimes wasn't enough to clear a burst;
-// 5 gives real headroom under the platform's much larger maxDuration
-// ceiling without meaningfully changing latency on the common case (most
-// requests still resolve on attempt 0).
+// intermittently fails"). Despite the function running correctly pinned to
+// bom1 right next to the ap-south-1 Turso primary (confirmed live
+// 2026-10-29 — see BUGS.md's correction; region pinning was never the
+// cause), ETIMEDOUT/UND_ERR_SOCKET blips on one connection still happen
+// in bursts — leading theory is a Fluid Compute instance's pooled
+// connection going stale while frozen between requests, not yet confirmed.
+// 3 attempts sometimes wasn't enough to clear a burst; 5 gives real
+// headroom under the platform's much larger maxDuration ceiling without
+// meaningfully changing latency on the common case (most requests still
+// resolve on attempt 0).
 const MAX_RETRIES = 5;
 const BASE_RETRY_DELAY_MS = 120;
 
