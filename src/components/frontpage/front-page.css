@@ -1455,8 +1455,7 @@
     .fpDevGrid,
     .fpSocials li,
     .fpVideoCard,
-    .fpWireFeature,
-    .fpEarthFooter {
+    .fpWireFeature {
       animation: fpReveal linear both;
       animation-timeline: view();
       animation-range: entry 0% entry 60%;
@@ -1475,29 +1474,3 @@
   }
 }
 
-/* ── Earth footer ────────────────────────────────────────────── */
-/* Wraps the shared <MarketingFooter/> (globals.css .marketingFooter*) so the
-   page that opened on --fp-sky-top lands on --fp-earth-bottom — the other
-   half of the bookend started in .fpMasthead above. The lead-in pad fades
-   from transparent (blending with whatever the Wire ended on) down to
-   --fp-earth-top, exactly where the footer's own background picks up. */
-.fpEarthFooter {
-  padding-top: var(--space-16);
-  background: linear-gradient(to bottom, transparent, var(--fp-earth-top));
-}
-
-.fpEarthFooter .marketingFooter {
-  background: var(--fp-earth-top);
-  border-top-color: color-mix(in srgb, var(--success) 25%, var(--border-strong));
-}
-
-.fpEarthFooter .marketingFooterBase {
-  background: var(--fp-earth-bottom);
-  border-top-color: color-mix(in srgb, var(--success) 25%, var(--border-strong));
-  /* --muted-foreground is a mid-gray tuned for light surfaces (--surface/
-     --fp-earth-top) — against this near-black mixed-with-black band it
-     drops to ~3.2:1, under WCAG AA's 4.5:1. Same "on-dark" exception as
-     --overlay-scrim (globals.css): a fixed light value, not a token, since
-     this band is dark in both themes by construction. */
-  color: rgba(255, 255, 255, 0.82);
-}

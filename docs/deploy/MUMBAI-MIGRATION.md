@@ -37,7 +37,10 @@ turso db shell 0dot-app-in < ~/0dot-backups/0dot-prod-<ts>.sql
 turso db tokens create 0dot-app-in
 ```
 
-New DB: `libsql://0dot-app-in-kingofyadav.aws-ap-south-1.turso.io`
+New DB: `libsql://0dot-app-in-kingofyadav.aws-ap-south-1.turso.io` (created as
+`0dot-app-in`, later renamed to `0dot` once the old US DB was destroyed — see
+Aftercare. Current production DB name/URL: `0dot` /
+`libsql://0dot-kingofyadav.aws-ap-south-1.turso.io`.)
 
 **If more than a little time passes before the cutover**, re‑sync so writes
 that landed on prod in the meantime aren't lost:
@@ -73,15 +76,16 @@ turso db tokens create 0dot-app-in
    balance, check `curl -sI https://0dot.in/ | grep -i x-vercel-id`
    now shows `bom1` execution.
 
-## 6. Aftercare
+## 6. Aftercare — DONE
 
-- Leave `0dot-app-us-restore` **untouched** for ~1 week as the rollback
-  target. Rollback = revert the two env vars + `vercel.json`, redeploy.
-- After the week: `turso db destroy 0dot-app-us-restore` and update the
-  `prod-turso-db-name` note.
+- `0dot-app-us-restore` was kept ~1 week as the rollback target, then
+  destroyed. `0dot-app-in` was renamed to `0dot` — that's the current
+  production DB (`turso db list` shows only `0dot`, group `mumbai`). Any
+  script, doc, or `.env` still referencing `0dot-app-in` or
+  `0dot-app-us-restore` is stale.
 - `scripts/backup-db.mjs` only handles `file:` URLs — for the remote DB,
-  schedule `turso db shell 0dot-app-in ".dump"` somewhere instead (a daily
-  GitHub Action or the existing daily cron writing to Blob).
+  schedule `turso db shell 0dot ".dump"` somewhere instead (a daily GitHub
+  Action or the existing daily cron writing to Blob).
 
 ## Expected result
 

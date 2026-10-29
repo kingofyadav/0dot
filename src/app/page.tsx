@@ -73,9 +73,8 @@ export default async function Home({
   ]);
   const videos = mergeVideos(validVideos(), channelVideos);
 
-  // No MarketingNav here: FrontPage brings its own sticky masthead nav. It
-  // does end on the shared MarketingFooter now (sky-to-earth redesign),
-  // rendered past the end of the Wire stream.
+  // No MarketingNav here: FrontPage brings its own sticky masthead nav.
+  // No footer either — the landing page ends on the Wire stream itself.
   return (
     <FrontPage
       desk={desk}

@@ -16,7 +16,6 @@ import {
   Webhook,
 } from "lucide-react";
 import { Icon } from "@/components/Icon";
-import { MarketingFooter } from "@/components/marketing/MarketingFooter";
 import { TrackedLink } from "@/components/marketing/TrackedLink";
 import { DigitalHomeVisual } from "@/components/DigitalHomeVisual";
 import { LiteYouTube } from "@/components/frontpage/LiteYouTube";
@@ -482,10 +481,6 @@ export function FrontPage({
         />
       </section>
     </div>
-      {/* ── Earth footer: the page's other bookend (front-page.css) ── */}
-      <div className="fpEarthFooter">
-        <MarketingFooter />
-      </div>
     </div>
   );
 }
