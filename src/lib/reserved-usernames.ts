@@ -49,6 +49,15 @@ export const RESERVED_USERNAMES = new Set([
   "podcast",
   "aff",
   "assistant",
+  "dev",
+  "download",
+  "front-page",
+  "join",
+  "privacy",
+  "reset-password",
+  "terms",
+  "verify-email-change",
+  "wallet",
 ]);
 
 import { validateSlugFormat } from "./slug-validation";
