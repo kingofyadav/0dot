@@ -14,8 +14,8 @@ describe("RESERVED_USERNAMES", () => {
     "search", "bookmarks", "notifications", "r", "uploads", "qr", "dmca",
     "trust-safety", "org", "sso", "l", "m", "form", "fund", "live", "map",
     "messages", "newsletter", "oauth", "podcast", "aff", "assistant",
-    "dev", "download", "front-page", "join", "privacy", "reset-password",
-    "terms", "verify-email-change", "wallet",
+    "dev", "download", "forgot-password", "front-page", "join", "privacy",
+    "reset-password", "terms", "verify-email-change", "wallet",
   ];
 
   it.each(liveTopLevelRoutes)("reserves the live route segment %s", (segment) => {

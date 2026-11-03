@@ -51,6 +51,7 @@ export const RESERVED_USERNAMES = new Set([
   "assistant",
   "dev",
   "download",
+  "forgot-password",
   "front-page",
   "join",
   "privacy",
