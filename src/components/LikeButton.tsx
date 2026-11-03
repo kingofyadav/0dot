@@ -1,6 +1,6 @@
 "use client";
 
-import { useOptimistic } from "react";
+import { useOptimistic, useState } from "react";
 import { Heart } from "lucide-react";
 import { formatCount } from "@/lib/format";
 import { toggleLike } from "@/app/actions/posts";
@@ -26,12 +26,21 @@ export function LikeButton({
       count: state.count + (nextLiked ? 1 : -1),
     })
   );
+  // Without this, a rapid double-click reads the already-flipped optimistic
+  // state and fires toggleLike a second time before the first call has
+  // committed — two in-flight toggles racing the server instead of one.
+  const [pending, setPending] = useState(false);
 
   return (
     <form
       action={async (formData: FormData) => {
+        setPending(true);
         setOptimistic(!optimistic.liked);
-        await toggleLike(formData);
+        try {
+          await toggleLike(formData);
+        } finally {
+          setPending(false);
+        }
       }}
     >
       <input type="hidden" name="postId" value={postId} />
@@ -42,6 +51,7 @@ export function LikeButton({
           1" (what they see) wouldn't match a name of "Like". */}
       <button
         type="submit"
+        disabled={pending}
         className="postAction"
         data-nav-like
         data-like

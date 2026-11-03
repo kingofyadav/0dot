@@ -40,7 +40,12 @@ export function PodcastEpisodesList({
     startTransition(async () => {
       const result = await requestEpisodeAudioUrl(episode.id);
       if ("error" in result) setErrors((prev) => ({ ...prev, [episode.id]: result.error }));
-      else window.open(result.url, "_blank");
+      // Unlike the ungated path above, this runs after an `await`, so it's
+      // no longer a direct response to the click — window.open() here gets
+      // silently blocked by popup blockers in most browsers. Navigate the
+      // current tab instead (same fix DigitalProductCard/LessonFileButton/
+      // PublishedFileDownloadButton already use for this exact shape).
+      else window.location.href = result.url;
     });
   }
 

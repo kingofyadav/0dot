@@ -74,6 +74,7 @@ export default async function WalletPage({
         <TransferCoinsForm
           minCoins={WALLET_LIMITS.TRANSFER_MIN_COINS}
           maxCoins={WALLET_LIMITS.TRANSFER_MAX_COINS_PER_TX}
+          coinBalance={balance.total}
         />
       </div>
 

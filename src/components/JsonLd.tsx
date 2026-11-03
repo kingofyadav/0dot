@@ -9,5 +9,12 @@ import { headers } from "next/headers";
 // RootLayout does.
 export async function JsonLd({ data }: { data: object }) {
   const nonce = (await headers()).get("x-nonce") ?? undefined;
-  return <script type="application/ld+json" nonce={nonce} dangerouslySetInnerHTML={{ __html: JSON.stringify(data) }} />;
+  // JSON.stringify does not escape "<" — a field containing the literal text
+  // "</script>" (e.g. a user-authored job title or review) would otherwise
+  // close this script element early and let arbitrary markup/script that
+  // follows it in the JSON execute. <-escaping keeps the payload valid
+  // JSON (consumers JSON.parse it back to the same value) while making it
+  // impossible to break out of the <script> tag.
+  const json = JSON.stringify(data).replace(/</g, "\\u003c");
+  return <script type="application/ld+json" nonce={nonce} dangerouslySetInnerHTML={{ __html: json }} />;
 }

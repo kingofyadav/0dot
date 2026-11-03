@@ -52,6 +52,19 @@ export async function ExploreDiscovery({ viewerId }: { viewerId: string | null }
   ]);
 
   const followingSet = new Set(followingIds);
+  // Same gap FIX_PLAN P3 #3 (see UserListItem.tsx) called out for other
+  // lists: without this, a pending request against a private suggested
+  // account would show "Follow" forever and silently no-op on repeat click.
+  const pendingSet = new Set(
+    viewerId
+      ? (
+          await db.follow.findMany({
+            where: { followerId: viewerId, followeeId: { in: people.map((u) => u.id) }, status: "pending" },
+            select: { followeeId: true },
+          })
+        ).map((f) => f.followeeId)
+      : []
+  );
 
   return (
     <div className="exploreDiscovery">
@@ -69,6 +82,7 @@ export async function ExploreDiscovery({ viewerId }: { viewerId: string | null }
                 displayName={u.profile?.displayName ?? "Unknown"}
                 avatarUrl={u.profile?.avatarUrl ?? null}
                 isFollowing={followingSet.has(u.id)}
+                isFollowRequestPending={pendingSet.has(u.id)}
                 isSelf={u.id === viewerId}
                 showFollowButton
                 showHandle={false}

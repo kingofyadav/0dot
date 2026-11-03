@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { Bell, Bot, Flame, Globe, Link2, LogIn, PenLine, Sparkles, TrendingUp, Palette, Users, BadgeCheck } from "lucide-react";
 import { getCurrentUser } from "@/lib/session";
+import { db } from "@/lib/db";
 import { getRecentNotificationsPreview, getNotificationVerb, getNotificationHref } from "@/lib/notifications";
 import { getSuggestedUsers, getPublicSuggestedUsers } from "@/lib/suggested-users";
 import { getFolloweeIds } from "@/lib/follow-graph";
@@ -144,6 +145,17 @@ async function SuggestedForYouSection({ userId }: { userId: string }) {
   ]);
   if (suggestedUsers.length === 0) return null;
   const followingSet = new Set(followingIds);
+  // Same gap FIX_PLAN P3 #3 (see UserListItem.tsx) called out for other
+  // lists: without this, a pending request against a private suggested
+  // account would show "Follow" forever and silently no-op on repeat click.
+  const pendingSet = new Set(
+    (
+      await db.follow.findMany({
+        where: { followerId: userId, followeeId: { in: suggestedUsers.map((u) => u.id) }, status: "pending" },
+        select: { followeeId: true },
+      })
+    ).map((f) => f.followeeId)
+  );
 
   return (
     <section className="railSection">
@@ -162,6 +174,7 @@ async function SuggestedForYouSection({ userId }: { userId: string }) {
             displayName={u.profile?.displayName ?? "Unknown"}
             avatarUrl={u.profile?.avatarUrl ?? null}
             isFollowing={followingSet.has(u.id)}
+            isFollowRequestPending={pendingSet.has(u.id)}
             isSelf={false}
             showFollowButton
             showHandle={false}

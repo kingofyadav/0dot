@@ -10,9 +10,15 @@ export function CopyLinkButton({ url }: { url: string }) {
       type="button"
       className="button buttonSecondary"
       onClick={async () => {
-        await navigator.clipboard.writeText(url);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
+        try {
+          await navigator.clipboard.writeText(url);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
+        } catch {
+          // Clipboard access can be denied/unavailable (insecure context,
+          // permission policy, some embedded webviews) — same guard
+          // RecoveryCodeList/ReferralLinkCard already wrap this call in.
+        }
       }}
     >
       {copied ? "Copied!" : "Copy link"}

@@ -85,6 +85,14 @@ export function ImagePickerField({
   function addFiles(selected: FileList | null) {
     if (!selected || selected.length === 0) return;
     const picked = Array.from(selected);
+    // The <input accept="image/*"> below is only a UI hint — a user can
+    // switch the OS file dialog to "All Files" and pick anything, so the
+    // actual MIME type needs checking here too, not just the size.
+    const nonImage = picked.find((f) => !f.type.startsWith("image/"));
+    if (nonImage) {
+      setError("Please choose an image file.");
+      return;
+    }
     const oversize = picked.find((f) => f.size > maxBytes);
     if (oversize) {
       setError(`Images must be ${Math.round(maxBytes / (1024 * 1024))}MB or smaller.`);

@@ -54,6 +54,10 @@ export function PollBlock({ poll, votedOptionIds }: { poll: Poll; votedOptionIds
     }
   );
 
+  // Only `isClosed` disabled the vote buttons before — nothing stopped a
+  // rapid double-click from firing castVote twice for the same option
+  // while the first submission was still in flight.
+  const [pending, setPending] = useState(false);
   const isClosed = isPollClosed(poll.closesAt);
   const totalVotes = optimistic.options.reduce((sum, o) => sum + o._count.votes, 0);
 
@@ -87,14 +91,19 @@ export function PollBlock({ poll, votedOptionIds }: { poll: Poll; votedOptionIds
           <form
             key={option.id}
             action={async (formData: FormData) => {
+              setPending(true);
               setOptimistic(option.id);
-              await castVote(formData);
+              try {
+                await castVote(formData);
+              } finally {
+                setPending(false);
+              }
             }}
           >
             <input type="hidden" name="pollOptionId" value={option.id} />
             <button
               type="submit"
-              disabled={isClosed}
+              disabled={isClosed || pending}
               aria-pressed={voted}
               className="button buttonSecondary"
               style={{

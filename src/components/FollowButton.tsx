@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import { useState, type CSSProperties } from "react";
 import { followUser, unfollowUser } from "@/app/actions/follow";
 import { useToast } from "@/components/Toast";
 
@@ -28,28 +28,39 @@ export function FollowButton({
 }) {
   const showToast = useToast();
   const wasFollowing = isFollowing || isFollowRequestPending;
+  // Props only update after the server action's revalidatePath lands, so
+  // without tracking the in-flight request separately, a double-click (or
+  // slow network) fires a second followUser/unfollowUser before the first
+  // one's effect is visible — nothing here disabled the button for that gap.
+  const [pending, setPending] = useState(false);
 
   return (
     <form
       action={async (formData: FormData) => {
-        if (wasFollowing) {
-          await unfollowUser(formData);
-          showToast("Unfollowed.", {
-            label: "Undo",
-            onClick: () => {
-              const redo = new FormData();
-              redo.set("followeeId", userId);
-              void followUser(redo);
-            },
-          });
-        } else {
-          await followUser(formData);
+        setPending(true);
+        try {
+          if (wasFollowing) {
+            await unfollowUser(formData);
+            showToast("Unfollowed.", {
+              label: "Undo",
+              onClick: () => {
+                const redo = new FormData();
+                redo.set("followeeId", userId);
+                void followUser(redo);
+              },
+            });
+          } else {
+            await followUser(formData);
+          }
+        } finally {
+          setPending(false);
         }
       }}
     >
       <input type="hidden" name="followeeId" value={userId} />
       <button
         type="submit"
+        disabled={pending}
         className={`button${wasFollowing ? " buttonSecondary" : ""}${compact ? " buttonSmall" : ""}${className ? ` ${className}` : ""}`}
         aria-pressed={wasFollowing}
         title={isFollowRequestPending ? "Cancel follow request" : undefined}
