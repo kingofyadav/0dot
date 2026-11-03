@@ -146,6 +146,43 @@ describe("POST /api/v1/wallet/purchases — item targets", () => {
     expect((await buy(buyer.id, { target: "course", id: course.id })).status).toBe(409);
   });
 
+  // Regression: purchaseCourseForUser/purchaseProductForUser used to mint a
+  // fresh random idempotencyKey per call (`course:coin:${randomUUID()}`),
+  // which defeats settleCoinPurchase's dedup (ledger.ts's postTransaction
+  // keys on idempotencyKey, returning the existing row instead of posting
+  // again on a repeat key) — unlike purchaseListingForUser, whose key was
+  // already deterministic (userId + listingId). A race between two
+  // concurrent buys that both pass the pre-check's courseAccessGrant lookup
+  // before either charge commits would double-charge the buyer. Simulating
+  // that race directly (rather than relying on real thread interleaving,
+  // which SQLite's single-writer serialization makes unreliable to force in
+  // a test) by deleting the access grant between two sequential buys: the
+  // pre-check lets the second call through exactly as a true race would,
+  // and the fixed deterministic key must still stop it from charging twice.
+  it("never double-charges a course buy even if the access-grant pre-check is bypassed", async () => {
+    const buyer = await createUser();
+    const creator = await createUser();
+    await fundWallet(buyer.id, 50);
+    const course = await db.course.create({ data: { creatorId: creator.id, title: "Course", status: "active", price: 20, currency: "usd" } });
+
+    const first = await buy(buyer.id, { target: "course", id: course.id });
+    expect(first.status).toBe(200);
+    expect((await getWalletBalance(buyer.id)).spendableUnits).toBe(3000);
+
+    // Simulates the losing side of a real concurrent race: its pre-check
+    // ran before the winner's access-grant row existed.
+    await db.courseAccessGrant.deleteMany({ where: { courseId: course.id, userId: buyer.id } });
+
+    const second = await buy(buyer.id, { target: "course", id: course.id });
+    expect(second.status).toBe(200);
+
+    expect(await db.paymentTransaction.count({ where: { kind: "course_purchase", payeeId: creator.id } })).toBe(1);
+    expect((await getWalletBalance(buyer.id)).spendableUnits).toBe(3000);
+
+    const ledgerTxn = await db.ledgerTransaction.findFirst({ where: { relatedObjectType: "course", relatedObjectId: course.id } });
+    expect(ledgerTxn?.idempotencyKey).toBe(`course:coin:${buyer.id}:${course.id}`);
+  });
+
   it("buys a digital product, which the detail route then reports as owned and downloadable", async () => {
     const buyer = await createUser();
     const creator = await createUser();

@@ -1,5 +1,4 @@
 import "server-only";
-import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
@@ -119,7 +118,7 @@ export async function purchaseCourseForUser(userId: string, courseId: string): P
     currency: course.currency,
     relatedObjectType: "course",
     relatedObjectId: course.id,
-    idempotencyKey: `course:coin:${randomUUID()}`,
+    idempotencyKey: `course:coin:${userId}:${course.id}`,
     metadata: { courseId: course.id },
     createRows: createCoursePurchaseRow,
     affiliate,
@@ -175,7 +174,7 @@ export async function purchaseProductForUser(userId: string, productId: string):
     currency: product.currency,
     relatedObjectType: "digital_product",
     relatedObjectId: product.id,
-    idempotencyKey: `digital:coin:${randomUUID()}`,
+    idempotencyKey: `digital:coin:${userId}:${product.id}`,
     metadata: { productId: product.id },
     createRows: createDigitalPurchaseRow,
     affiliate,
