@@ -1,6 +1,14 @@
 # Addendum — Premium Profiles (Full Spec)
 
 Status: Built (2026-08-11) — all sections implemented per this spec.
+
+**Build status (2026-09-27 update):** §4.3's Stripe/webhook renewal
+mechanics are historical — Stripe was removed entirely
+([addendum-wallet-only-payments.md](addendum-wallet-only-payments.md)
+§5). `profile_premium` now settles and auto-renews exclusively through the
+coin wallet (that addendum's §3.3), at its real `PLAN_PRICES` value in
+coins. The perk bundle (§3), its two boundaries (§2), and non-destructive
+lapse handling (§5) are unchanged.
 Owner: TBD
 Related: [ROADMAP.md](../ROADMAP.md), [roadmap-audit.md](roadmap-audit.md),
 [addendum-platform-billing.md](addendum-platform-billing.md), [addendum-custom-domains.md](addendum-custom-domains.md),

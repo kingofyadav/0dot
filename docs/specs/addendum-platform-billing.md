@@ -12,6 +12,16 @@ vs. basic Stripe Billing Meters), not resolved by the §2 work. A
 coin-wallet/UPI top-up rail was added afterward as an alternate funding
 source for `profile_premium` — see
 [addendum-coin-wallet.md](addendum-coin-wallet.md).
+
+**Build status (2026-09-27 update):** Stripe was removed from the codebase
+entirely ([addendum-wallet-only-payments.md](addendum-wallet-only-payments.md)
+§5, commit `9920093`). `PlatformSubscription` (§2) and API usage billing
+(§4) now settle exclusively through the coin wallet (`chargeWallet`,
+[addendum-coin-wallet-v2.md](addendum-coin-wallet-v2.md)) — §2.2's "a
+different Stripe product" framing and §6's Stripe-processor resolution are
+historical record of how this was built, not the current state. The
+`PlatformSubscription` schema, the `payee_id = null` direct-to-platform
+topology (§2.1), and the verification boundary (§2.3) are unchanged.
 Owner: TBD
 Related: [ROADMAP.md](../ROADMAP.md), [roadmap-audit.md](roadmap-audit.md),
 [addendum-custom-domains.md](addendum-custom-domains.md), [addendum-premium-profiles.md](addendum-premium-profiles.md),

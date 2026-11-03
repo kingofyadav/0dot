@@ -1,6 +1,9 @@
 # Addendum — Custom Domains (Full Spec)
 
-Status: Built (2026-08-11) — all sections implemented per this spec.
+Status: Built (2026-08-11) — all sections implemented per this spec. §8.1's
+billing gate now checks a coin-funded `PlatformSubscription`, Stripe having
+been removed entirely since ([addendum-wallet-only-payments.md](addendum-wallet-only-payments.md));
+nothing else in this document changes as a result.
 Owner: TBD
 Related: [ROADMAP.md](../ROADMAP.md), [roadmap-audit.md](roadmap-audit.md),
 [addendum-platform-billing.md](addendum-platform-billing.md), [addendum-premium-profiles.md](addendum-premium-profiles.md),

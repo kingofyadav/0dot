@@ -15,6 +15,13 @@ these are business decisions, not missing code. Where a doc proposed a
 reasonable placeholder, it's noted so sign-off can be "confirm the
 placeholder" rather than starting from nothing.
 
+**2026-09-27 update:** Stripe was removed entirely
+([addendum-wallet-only-payments.md](addendum-wallet-only-payments.md)).
+Every dollar figure below (`profile_premium: 6/60`, etc.) is now read as a
+coin amount, not a card charge — the numbers didn't change, only what pays
+them. Pricing/perk sign-off is still outstanding and still applies exactly
+as written.
+
 ## Premium Profiles ([addendum-premium-profiles.md](addendum-premium-profiles.md) §7)
 
 - [ ] **Perk bundle confirmation** — confirm which perks actually ship,

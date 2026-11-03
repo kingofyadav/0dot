@@ -47,11 +47,11 @@ Last updated: 2026-10-24
 | `BACKUP_DB_LABEL` | ❌ | ❌ | has default | app config | n/a |  |
 | `PLATFORM_UPI_VPA` | ❌ | ❌ | optional, not yet wired | business info | n/a |  |
 | `PLATFORM_UPI_PAYEE_NAME` | ❌ | ❌ | optional, not yet wired | business info | n/a |  |
-| `UPSTASH_REDIS_REST_URL` | ❌ | ❌ | optional, not yet wired | Upstash | upstash.com console | distinct from KV_REST_API_URL — wallet feature, separate credential |
-| `UPSTASH_REDIS_REST_TOKEN` | ❌ | ❌ | optional, not yet wired | Upstash | upstash.com console | distinct from KV_REST_API_TOKEN |
-| `DRAIN_SECRET` | ✅ | ❌ | optional, not yet wired | generated locally | node -e crypto.randomBytes(32) | not yet in prod — fine for now since wallet code isn't wired |
-| `YOUTUBE_API_KEY` | ❌ | ❌ | optional, not yet wired | Google Cloud Console | console.cloud.google.com |  |
-| `WALLET_LAUNCH_PROMO_ENDS_AT` | ❌ | ❌ | optional, not yet wired | app config | n/a |  |
+| `UPSTASH_REDIS_REST_URL` | ❌ | ❌ | optional, hand-set fallback | Upstash | upstash.com console | `src/lib/realtime/redis-config.ts` — fallback for the SSE/presence bus and the Redis rate-limit tier when the `KV_REST_API_*` Marketplace integration isn't used; not wallet-specific |
+| `UPSTASH_REDIS_REST_TOKEN` | ❌ | ❌ | optional, hand-set fallback | Upstash | upstash.com console | same fallback pair as `UPSTASH_REDIS_REST_URL` above |
+| `DRAIN_SECRET` | ✅ | ❌ | optional, wired | generated locally | node -e crypto.randomBytes(32) | `src/app/api/webhooks/vercel-drain/route.ts` — Vercel log-drain webhook signature secret, unrelated to the wallet; route 503s without it but nothing else depends on it |
+| `YOUTUBE_API_KEY` | ❌ | ❌ | optional, wired | Google Cloud Console | console.cloud.google.com | `src/lib/youtube-channel.ts` |
+| `WALLET_LAUNCH_PROMO_ENDS_AT` | ❌ | ❌ | optional, wired | app config | n/a | `src/lib/wallet/limits.ts` |
 | `DATABASE_MAX_CONCURRENT_QUERIES` | ❌ | ❌ | optional tuning | app config | n/a |  |
 
 ## Real gaps (missing in BOTH local and production)
@@ -76,16 +76,16 @@ Last updated: 2026-10-24
 - `BACKUP_DB_LABEL` — app config — n/a
 - `PLATFORM_UPI_VPA` — business info — n/a
 - `PLATFORM_UPI_PAYEE_NAME` — business info — n/a
-- `UPSTASH_REDIS_REST_URL` — Upstash — upstash.com console (distinct from KV_REST_API_URL — wallet feature, separate credential)
-- `UPSTASH_REDIS_REST_TOKEN` — Upstash — upstash.com console (distinct from KV_REST_API_TOKEN)
+- `UPSTASH_REDIS_REST_URL` — Upstash — upstash.com console (hand-set fallback for the realtime Redis bus / rate-limit tier if `KV_REST_API_URL` isn't set)
+- `UPSTASH_REDIS_REST_TOKEN` — Upstash — upstash.com console (same fallback pair as above)
 - `YOUTUBE_API_KEY` — Google Cloud Console — console.cloud.google.com
-- `WALLET_LAUNCH_PROMO_ENDS_AT` — app config — n/a
+- `WALLET_LAUNCH_PROMO_ENDS_AT` — app config — n/a (code is wired; just unset, so the wallet's launch-promo window defaults off)
 - `DATABASE_MAX_CONCURRENT_QUERIES` — app config — n/a
 
 ## Notes
 
 - `MESSAGE_ENCRYPTION_KEY` is already set and in active use in prod — **do not rotate**; doing so makes any already-encrypted data unreadable.
 - `CRON_SECRET` and `DOWNLOAD_TOKEN_SECRET` already exist in Vercel Production (as marketplace-masked secrets) — fresh *local-only* values were generated 2026-10-24 for dev; this is correct, per `.env.example`'s own guidance never to reuse a dev value in prod.
-- `DRAIN_SECRET` is missing from prod — acceptable for now since the coin-wallet feature isn't wired into code yet, but generate and set it before that ships.
+- `DRAIN_SECRET` is missing from prod — it gates the Vercel log-drain webhook (`vercel-drain/route.ts`), not the coin wallet; without it in prod, that route just 503s on every delivery (no destination is wired up for the drained logs yet anyway, so low urgency).
 - `SENTRY_ORG` / `SENTRY_PROJECT` are now set **locally** (2026-10-24) but still missing in **Vercel Production** — add them there too (Project Settings → Environment Variables) so source-map upload works on real builds.
 - Everything else missing is either a stub-by-design (SMS, LiveKit, email, AI) or a not-yet-wired feature (UPI wallet, YouTube) — see the gaps list above for exact provider links.

@@ -5,7 +5,7 @@ architecture, how it relates to the web app, its feature-parity status, and the
 native-module gotchas that have bitten this project. The web PWA (`manifest.json`,
 service worker, install prompt, web push) is **not** this document — that's part
 of the web app and lives in `ENGINEERING_ARCHITECTURE.md` / `phase-15-mobile-apps.md`.
-Last synced against the codebase 2026-08-27.
+Last synced against the codebase 2026-11-03.
 
 ## What it is
 
@@ -18,11 +18,11 @@ path. The first-party app's OAuth scopes are auto-approved on boot by
 `ensureFirstPartyApps()` (`src/lib/first-party-apps.ts`), so adding a new API
 domain doesn't need a manual per-scope provisioning step.
 
-- **Expo** `~57.0` (SDK 57), **React Native** `0.86`, **React** `19.2`, **Expo Router** `~57.0`, TypeScript throughout.
-- **EAS project:** slug `zerodot`, owner `0dot` (the owner slug mismatch that broke EAS builds was fixed in a2fa08b — keep `mobile/app.json`'s `owner` as `0dot`).
+- **Expo** `~58.0` (SDK 58), **React Native** `0.88`, **React** `19.3`, **Expo Router** `~58.0`, TypeScript throughout.
+- **EAS project:** slug `dot`, owner `dotindia` (moved from the `kingofyadav`/`0dot` account in `55be191`, superseding the earlier owner-slug-mismatch fix in `a2fa08b` — keep `mobile/app.json`'s `slug`/`owner` as `dot`/`dotindia`).
 - **OTA + releases:** `runtimeVersion` policy `appVersion`; `expo-updates` pointed at the EAS update URL. Three GitHub workflows: `mobile-ci.yml` (any `mobile/**` push/PR), `mobile-ota-update.yml` (push to `main`), `mobile-release.yml` (`mobile-v*.*.*` tags). Current release tag: `mobile-v1.0.1`.
 - **Error tracking:** `@sentry/react-native` (`mobile/app.json` plugin, `disableAutoUpload: true`) — the web app has no equivalent, an asymmetry noted in `ENGINEERING_ARCHITECTURE.md`.
-- **Tests:** Jest (`mobile/` has its own config; ~10 test files under `src/**/__tests__/`). Root `npm run lint` also lints `mobile/` — see the Reanimated note below.
+- **Tests:** Jest (`mobile/` has its own config; 17 test files under `src/**/__tests__/`). Root `npm run lint` also lints `mobile/` — see the Reanimated note below.
 
 ## Architecture
 
@@ -40,7 +40,7 @@ Tab bar: **Home / Explore / Messages / Notifications / Profile** (restructured
 from the Phase 15 Home/Notifications/Settings). Profile is the signed-in user's
 own profile (X/Threads/Instagram pattern); Settings moved from a tab to a
 pushed screen (`app/settings.tsx`) reached via a gear on the Profile tab.
-~36 screens under `app/` (feed, post detail, profile, communities, businesses,
+~53 screens under `app/` (feed, post detail, profile, communities, businesses,
 events, marketplace, wallet, messages, compose, bookmarks, and the full
 settings tree — see Parity below).
 

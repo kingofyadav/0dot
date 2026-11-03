@@ -372,8 +372,8 @@ Status: **Shipped (triaged)** — see Phase 16 row in the status table and `docs
 Status note: the sitemap below is the original target. `INFORMATION_ARCHITECTURE.md`
 is the authoritative, code-synced map of what routes actually exist. Known
 deltas: `/store` shipped as `/m`; `/settings` and `/developers` are not
-standalone routes (both live under `/s/{username}`); `/blog`, `/help`, `/about`
-are still Future.
+standalone routes (both live under `/s/{username}`); `/help` and `/about` have
+since shipped as real routes; only `/blog` remains Future.
 
 ```
 0dot.in/@username

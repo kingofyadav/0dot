@@ -3,7 +3,12 @@
 Status: M1 built + verified live (2026-08-27 — cron chain proven in
 production: GH Actions → CRON_SECRET → /api/cron/frequent → all 5 jobs
 ok:true against the prod DB; in-process schedulers confirmed suppressed on
-Vercel). M2–M8 planned.
+Vercel). M2 is **also now built** — both its sub-parts (the Redis-backed
+rate limiter, confirmed live in `src/lib/rate-limit.ts`'s
+`realtimeRedisConfigured()` branch, and cross-instance SSE fan-out) landed
+via [addendum-realtime-community.md](addendum-realtime-community.md)'s
+Phase A (2026-08-29), independently of this addendum's own sequencing — see
+§3's description of M2 below for what that covers. M3–M8 remain planned.
 
 **M1 follow-up (2026-08-27):** `instrumentation.ts` was at the repo root, but
 this project uses a `src/` directory, so Next resolves the instrumentation
@@ -109,7 +114,7 @@ precondition for everything else.
   (verified live); `instrumentation.ts` no longer boots the 12 schedulers on
   Vercel.
 
-### M2 — Shared state (planned)
+### M2 — Shared state (built — see header note above)
 
 - **Rate limiter.** Provision a KV/Redis store via `vercel:marketplace`
   (Upstash Redis is the native pick). Reimplement `checkRateLimit` behind

@@ -796,3 +796,10 @@ This wasn't listed as a step in `docs/specs/phase-4-build-plan.md`'s actual
 execution plan, so it's a scope reduction made when the plan was written, not
 a defect introduced during implementation. Flagging here for visibility, not
 scheduled in the current fix plan.
+
+**Update (2026-11-03): built.** `Link` now has a nullable `businessId`
+(`prisma/schema.prisma:659-660`), with "exactly one of `profileId`/
+`businessId`" enforced at the app layer (same XOR posture as
+`ProjectCollaborator`'s `userId`/`displayName`, since this Prisma+SQLite setup
+has no partial/CHECK constraint support) via `src/app/actions/business-links.ts`
+and the `/b/[slug]/manage` UI (`BusinessLinksForm.tsx`). This gap is closed.

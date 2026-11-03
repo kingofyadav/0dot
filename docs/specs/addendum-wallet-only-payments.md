@@ -1,7 +1,12 @@
 # Addendum — Wallet-Only Payments (Remove Stripe)
 
-Status: **Phases 1–4 built** (2026-09-27) — §1.3 copy, §3.1–§3.6, §4
-(monthly allowance). Phase 5 (drain & delete Stripe) not started.
+Status: **All 5 phases built** (2026-09-27) — §1.3 copy, §3.1–§3.6, §4
+(monthly allowance), and Phase 5 (drain & delete Stripe, `9920093`) landed
+the same day. Verified live: no `stripe` package dependency, no
+`src/lib/stripe*.ts`, no Stripe webhook routes, no `User.stripeCustomerId`
+or `CreatorPayoutAccount` model — `PaymentTransaction.processor` keeps
+`stripe_connect` only as a historical default value for rows written before
+this addendum (see `prisma/schema.prisma`'s comment on that column).
 Owner: TBD
 Related: [addendum-coin-wallet-v2.md](addendum-coin-wallet-v2.md),
 [addendum-platform-billing.md](addendum-platform-billing.md),

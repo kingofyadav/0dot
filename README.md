@@ -31,7 +31,7 @@
 | **2 — Social** | Follow & messaging | Follow/unfollow, blocking, end-to-end-encrypted 1:1 and group DMs with live SSE delivery, message requests, a notification system with read-time aggregation, a time-decayed trending feed |
 | **3 — Communities** | Spaces | Public/restricted/private communities, moderation (ban/mute/promote/transfer ownership), rules, discovery tags, post flair, a collaborative wiki with revision history, live per-community chat, walkie-talkie-style voice rooms, community-scoped polls and Q&A, staff analytics |
 | **4 — Business** | Commerce presence | Business pages with a weak-signal claim/verification gate (auto-approve on domain match, otherwise a platform-admin review queue), team roles, business-authored posts, a products/services catalog with a storefront view, attributed reviews, a jobs board with applications, MVP appointment scheduling with transactional double-booking prevention, a document library, and search integration |
-| **5 — Creator** | Monetization | A processor-agnostic payments backbone (`CreatorPayoutAccount` + `PaymentTransaction` ledger, behind a `PaymentProcessor` interface now backed by **live Stripe Connect**, Accounts v2 — see [Integrations](#integrations)) underlying tips, paid membership tiers with gating, digital downloads, online courses, podcasts, a newsletter, affiliate links, and livestreams (real LiveKit video when `LIVEKIT_*` is configured, otherwise a scheduling/chat-only stub) |
+| **5 — Creator** | Monetization | An internal coin-ledger payments backbone (`LedgerAccount`/`LedgerTransaction`, one audit `PaymentTransaction` row per sale) underlying tips, paid membership tiers with gating, digital downloads, online courses, podcasts, a newsletter, affiliate links, and livestreams (real LiveKit video when `LIVEKIT_*` is configured, otherwise a scheduling/chat-only stub). Stripe has been removed platform-wide (`docs/specs/addendum-wallet-only-payments.md`) — coins are the only unit of payment, earned via signup/referral/admin grants rather than bought, see [Integrations](#integrations) |
 | **6 — Portfolio** | `/p/project` | Project portfolios, skills, resume, linked git repositories, credentials/certificates and awards |
 | **7 — Knowledge** | Publishing | Articles, multi-chapter books, a personal wiki, and downloadable published files, with reactions, comments, and search integration |
 | **8 — Events** | `/e/event` | Business- or community-hosted events (owner XOR), RSVP and ticketing |
@@ -48,24 +48,23 @@ Everything above is server-rendered, permission-checked server-side (never just 
 
 ### Known gaps
 
-This is an actively developed reference build, not a finished product. See [`docs/BUGS.md`](docs/BUGS.md) for the current open-findings list from an internal code review (mostly Phase 1–4 feed-visibility filtering edge cases, tracked as fixed/open per item) and [`docs/foundations/ENGINEERING_ARCHITECTURE.md`](docs/foundations/ENGINEERING_ARCHITECTURE.md) for architectural decisions and their tradeoffs (e.g. single-writer libSQL as a conscious pre-scale choice, uploaded media served at original size with no resize/format pipeline, no server-side error tracking on the web app). SMS (`src/lib/sms.ts`) is the one integration still fully stubbed — see [Integrations](#integrations).
+This is an actively developed reference build, not a finished product. See [`docs/BUGS.md`](docs/BUGS.md) for the current open-findings list from an internal code review (mostly Phase 1–4 feed-visibility filtering edge cases, tracked as fixed/open per item) and [`docs/foundations/ENGINEERING_ARCHITECTURE.md`](docs/foundations/ENGINEERING_ARCHITECTURE.md) for architectural decisions and their tradeoffs (e.g. single-writer libSQL as a conscious pre-scale choice, uploaded media served at original size with no resize/format pipeline). SMS (`src/lib/sms.ts`) is the one integration still fully stubbed — see [Integrations](#integrations).
 
 ## Tech stack
 
 - **[Next.js 16](https://nextjs.org)** (App Router, Turbopack, Server Actions) + **React 19**, TypeScript throughout
-- **[Prisma 7](https://www.prisma.io)** over the SQLite wire protocol via **`@prisma/adapter-libsql`** — local dev is a plain `file:./dev.db`, production points at a Turso-hosted libSQL database — 163 models spanning identity, social, community, business, creator monetization, portfolio, knowledge, events, marketplace, developer-platform, AI, trust & safety, copyright/IP, enterprise, mobile/PWA, and CRM/short-link/forms/calendar domains
+- **[Prisma 7](https://www.prisma.io)** over the SQLite wire protocol via **`@prisma/adapter-libsql`** — local dev is a plain `file:./dev.db`, production points at a Turso-hosted libSQL database — 169 models spanning identity, social, community, business, creator monetization, portfolio, knowledge, events, marketplace, developer-platform, AI, trust & safety, copyright/IP, enterprise, mobile/PWA, and CRM/short-link/forms/calendar domains
 - **Server Components by default**; client components only at real interactivity boundaries (`useActionState` forms, live SSE consumers)
 - **Media storage:** avatars, post images, business/community assets, and documents upload to **Vercel Blob** (`@vercel/blob`, private access) — see [Known gaps](#known-gaps) for the pipeline's current limits
 - No database or auth service to stand up locally — SQLite/libSQL defaults to a local file, auth/sessions/encryption are self-contained. File uploads are the one feature that needs a real external credential even in dev (see below)
-- **Mobile apps** (`mobile/`): Expo/React Native 0.86 + Expo Router, TypeScript, as real OAuth2/PKCE clients of the web app's own public API — see [Mobile apps](#mobile-apps)
+- **Mobile apps** (`mobile/`): Expo/React Native 0.88 + Expo Router, TypeScript, as real OAuth2/PKCE clients of the web app's own public API — see [Mobile apps](#mobile-apps)
 
 ## Integrations
 
-Every external service sits behind a swappable interface in `src/lib/` (`PaymentProcessor`, `AIProvider`, `EmailSender`, `SmsSender`, `LivestreamProvider`) — none of the app's call sites talk to a provider SDK directly. Each one degrades to a local, zero-network stub when its credentials are absent, so the app runs fully offline out of the box; only file uploads (Vercel Blob) require a real credential even in dev.
+Every external service sits behind a swappable interface in `src/lib/` (`AIProvider`, `EmailSender`, `SmsSender`, `LivestreamProvider`) — none of the app's call sites talk to a provider SDK directly. Each one degrades to a local, zero-network stub when its credentials are absent, so the app runs fully offline out of the box; only file uploads (Vercel Blob) require a real credential even in dev. Payments are the exception to the "external service" shape: there is no payment gateway at all — `src/lib/wallet/` is a self-contained coin ledger, and every paid feature settles against it directly.
 
 | Service | Used for | Real when... | Stub behavior when unset |
 |---|---|---|---|
-| **Stripe** (`src/lib/stripe.ts`, `payments.ts`) | Payouts (Connect Accounts v2), tips, memberships, digital products, courses, event tickets, affiliate payouts | `STRIPE_SECRET_KEY` + webhook secrets are set | N/A — payment flows require this in any environment that exercises them |
 | **Anthropic Claude** (`src/lib/ai-provider.ts`) | Content writer, moderation, translation, alt-text, search/recommendation re-ranking | `ANTHROPIC_API_KEY` is set | Deterministic local heuristic (keyword-based moderation, canned drafts, hash-based embeddings) — always active in tests/CI |
 | **Resend / SMTP** (`src/lib/email.ts`) | Optional email-change confirmation, newsletters (signup has no email step) | `RESEND_API_KEY` (preferred) or `SMTP_HOST` (+ user/pass) is set | Console-log stub — link is also surfaced directly on-screen in dev |
 | **Vercel Blob** (`@vercel/blob`) | Avatar/post/document/attachment uploads | `BLOB_READ_WRITE_TOKEN` is set | No fallback — uploads fail with an auth error; everything else still works |
@@ -105,7 +104,7 @@ MESSAGE_ENCRYPTION_KEY="<run: node -e \"console.log(require('crypto').randomByte
 BLOB_READ_WRITE_TOKEN="..."
 ```
 
-Everything else in `.env.example` (Stripe, Claude, email, LiveKit, ...) is optional for local dev — see [Integrations](#integrations) for what each one unlocks and how the app behaves without it.
+Everything else in `.env.example` (Claude, email, LiveKit, ...) is optional for local dev — see [Integrations](#integrations) for what each one unlocks and how the app behaves without it.
 
 Apply the schema and start the dev server:
 
@@ -130,7 +129,7 @@ CI (`.github/workflows/ci.yml`) runs all of the above on every push to `main` an
 
 ## Mobile apps
 
-`mobile/` is a separate Expo/React Native (0.86, Expo Router, TypeScript) app for iOS and Android — 0dot's first-party mobile clients, built as real OAuth2/PKCE clients of this repo's own public API (Phase 10, see [What's built](#whats-built)), not a privileged internal path. See [`mobile/AGENTS.md`](mobile/AGENTS.md) before writing mobile code — Expo 57 has breaking changes from older training data, same spirit as this repo's own [`AGENTS.md`](AGENTS.md).
+`mobile/` is a separate Expo/React Native (0.88, Expo Router, TypeScript) app for iOS and Android — 0dot's first-party mobile clients, built as real OAuth2/PKCE clients of this repo's own public API (Phase 10, see [What's built](#whats-built)), not a privileged internal path. See [`mobile/AGENTS.md`](mobile/AGENTS.md) before writing mobile code — Expo 58 has breaking changes from older training data, same spirit as this repo's own [`AGENTS.md`](AGENTS.md).
 
 ```bash
 cd mobile

@@ -27,6 +27,17 @@ discount (§14); (3) launch promo is a time-boxed restricted grant (§8.1);
 scope** (§6.5). Remaining open items (§18): refund policy, membership
 auto-renew from coins, and the future bank-rails addendum.
 
+**Build status (2026-09-27 update):** [addendum-wallet-only-payments.md](addendum-wallet-only-payments.md)
+superseded this document's "coins alongside Stripe" framing — Stripe was
+removed entirely, so every place below that describes Stripe and the coin
+ledger as two live, coexisting rails (§3's "creator payout still runs
+through Stripe Connect," §6.1's `stripe_connect` processor value, §14's
+"Stripe card rail stays off for now... turning it back on is separate")
+now describes a historical state. Membership/Premium auto-renew from coins
+(§18 #5) and the refund caller (§18 #4) were both resolved by that addendum
+too (§3.3, §3.6). The ledger core itself (§4–§13, §15–§17) is unchanged and
+remains the current design.
+
 ---
 
 ## 0. Why v2

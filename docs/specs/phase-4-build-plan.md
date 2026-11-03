@@ -1,9 +1,12 @@
-# Phase 4 — Business Platform: build plan (saved for later)
+# Phase 4 — Business Platform: build plan (historical)
 
-> Not started yet — saved so a future session can pick up Step 0 without
-> re-deriving the design. Companion to the actual spec at
-> [phase-4-business-platform.md](phase-4-business-platform.md); this is the
-> implementation plan, not the spec itself.
+> **Superseded.** Phase 4 has since shipped in full (`Business`,
+> `BusinessLocation`, `BusinessMember`, `BusinessDocument`, etc. all exist in
+> `prisma/schema.prisma`; `/b/[slug]` and `src/lib/businesses.ts` are live) —
+> see `../ROADMAP.md`'s build-status table and `../../README.md`. Kept as a
+> record of the section-by-section plan and the decisions made on the spec's
+> open questions below; no longer a to-do list. Companion to the actual spec
+> at [phase-4-business-platform.md](phase-4-business-platform.md).
 
 ## Context
 

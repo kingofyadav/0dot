@@ -1,12 +1,12 @@
-# Phase 7 — Knowledge: build plan (saved for later)
+# Phase 7 — Knowledge: build plan (historical)
 
-> Companion to the actual spec at
-> [phase-7-knowledge.md](phase-7-knowledge.md); this is the implementation
-> plan, not the spec itself. This session builds §1–§3 below (Articles +
-> the generalized Reaction/Comment primitive, scoped to articles); §4 onward
-> is saved for future sessions, same "one comprehensive plan, then
-> section-by-section execution" rhythm as
-> [phase-5-build-plan.md](phase-5-build-plan.md).
+> **Superseded.** §4 onward has since shipped too — `Book` and
+> `PublishedFile`/`PublishedFileDownload` both exist in
+> `prisma/schema.prisma` — see `../ROADMAP.md`'s build-status table and
+> `../../README.md`. Kept as a record of the original §1–§3 build (Articles +
+> the generalized Reaction/Comment primitive, scoped to articles) and the
+> suggested sequencing for the rest; no longer a to-do list. Companion to the
+> actual spec at [phase-7-knowledge.md](phase-7-knowledge.md).
 
 ## This session's scope
 
@@ -151,7 +151,7 @@ via the browser smoke test below.
 
 ---
 
-## Saved for a future session: §4 onward (not built this session)
+## §4 onward (not built in this session — since shipped, see banner above)
 
 Per spec §12's suggested build sequence, in order, each depending on what
 came before:

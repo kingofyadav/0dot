@@ -37,7 +37,7 @@ TABLE OF CONTENTS
      5.6  Newsletter
      5.7  Portfolio (Projects, Skills, Resume, Repositories, Credentials)
   6. MONETIZATION
-     6.1  Getting paid: payout accounts
+     6.1  Getting paid: how earnings work
      6.2  Memberships & paid subscriptions
      6.3  Tips
      6.4  Digital products
@@ -45,7 +45,7 @@ TABLE OF CONTENTS
      6.6  Affiliate program
      6.7  Courses & learning paths
      6.8  Livestreams
-     6.9  Coin wallet, UPI top-up & coin transfers
+     6.9  Coin wallet & coin transfers
      6.10 Premium profile
      6.11 Fundraisers & donations
   7. COMMUNITIES (0dot.in/c)
@@ -169,8 +169,8 @@ sidebar):
   Security       Change password, Two-factor authentication, Active
                  sessions, Email & phone
   Portfolio      Projects, Skills, Resume, Repositories, Credentials, Layout
-  Monetization   Payouts, Memberships, Digital products, Freelance
-                 services, Affiliate
+  Monetization   Memberships, Digital products, Freelance services,
+                 Affiliate
   Billing        Premium, Custom domain
   Content        Articles, Wiki & Docs, Books, Files, Courses, Learning
                  paths, Podcast, Newsletter, Livestreams
@@ -378,15 +378,17 @@ Your profile can double as a professional portfolio:
 6. MONETIZATION
 ================================================================================
 
-6.1  GETTING PAID: PAYOUT ACCOUNTS  —  Settings > Monetization > Payouts
+6.1  GETTING PAID: HOW EARNINGS WORK
 --------------------------------------------------------------------------
 Every money-earning feature below (memberships, tips, digital products,
 freelance bookings, affiliate commissions, course sales, event tickets you
-sell as a host) shares ONE payout account and one payment ledger. Set this
-up once here — identity verification (KYC) and tax reporting are handled
-entirely by the payment processor's own onboarding, not by 0dot directly.
-You cannot receive a payout-requiring transaction until this account is
-active.
+sell as a host, donations) shares ONE internal coin ledger. There's no
+separate payout account to set up and no card processor in the loop —
+0dot's payment rail runs entirely on its own coin system (§6.9): a sale
+credits the coins straight to your wallet balance, same-transaction, with
+no onboarding step required first. Coins are spendable on the platform
+(Premium, future platform purchases); there is currently no path to cash
+a coin balance out to real-world currency.
 
 6.2  MEMBERSHIPS & PAID SUBSCRIPTIONS  —  Monetization > Memberships
 --------------------------------------------------------------------------
@@ -400,9 +402,8 @@ billing period, never immediately.
 6.3  TIPS
 --------------------------------------------------------------------------
 A one-time payment with an optional public thank-you message, available
-from any creator's profile once they have an active payout account. The
-simplest monetization feature — no subscription state, just a single
-charge.
+from any creator's profile once they've claimed a username. The simplest
+monetization feature — no subscription state, just a single coin charge.
 
 6.4  DIGITAL PRODUCTS  —  Monetization > Digital products
 --------------------------------------------------------------------------
@@ -421,9 +422,9 @@ project/escrow system.
 6.6  AFFILIATE PROGRAM  —  Monetization > Affiliate
 --------------------------------------------------------------------------
 Run a commission program on your own membership tiers, digital products,
-or courses: set a commission %, and any 0dot user with their own payout
-account can generate a referral link and earn a cut on sales they drive
-(last-click attribution, 30-day window).
+or courses: set a commission %, and any 0dot user can generate a referral
+link and earn a cut, in coins, on sales they drive (last-click
+attribution, 30-day window).
 
 6.7  COURSES & LEARNING PATHS  —  Content > Courses / Learning paths
 --------------------------------------------------------------------------
@@ -441,31 +442,30 @@ membership tier, with optional recording (if you enable recording, every
 participant sees a clear, unmissable notice before/at the start — this is
 a legal requirement, not optional UI).
 
-6.9  COIN WALLET, UPI TOP-UP & COIN TRANSFERS  —  0dot.in/wallet
+6.9  COIN WALLET & COIN TRANSFERS  —  0dot.in/wallet
 --------------------------------------------------------------------------
-An alternate, cash-first way to fund a Premium subscription (§6.10) for
-users who'd rather not use a card:
+0dot runs on one internal coin economy — coins are the only unit every
+paid feature in §6 settles in (1 coin = $1 for accounting/display
+purposes only). Coins are platform credits, not a currency: there is
+currently no way to buy coins with real money and no way to cash a coin
+balance back out. You receive coins by:
 
-  1. Pick a coin amount (1 coin = $1, fixed peg) — you get a QR code /
-     UPI deep link to pay the platform directly.
-  2. Pay via any UPI app, then type in the UTR (transaction reference)
-     your UPI app gave you as proof.
-  3. An admin manually verifies it against the platform's bank statement
-     and approves — your coin balance is credited.
-  4. Spend coins on Premium at Settings > Billing > Premium — a
-     coin-funded Premium subscription grants identical perks to a
-     card-funded one.
+  - A one-time signup bonus on every new account
+  - Referring other users (both the inviter and the invitee are rewarded,
+    up to a per-inviter cap)
+  - Earning them from tips, memberships, digital-product/course sales,
+    freelance bookings, affiliate commissions, and donations others send
+    you (§6.1)
+  - An admin grant, on the rare occasion platform staff issues one
 
-You can also send coins directly to another account from the wallet
-("Send coins" — enter their username and an amount, rate-limited and
-capped per transfer), and request a payout of your coin balance back to a
-UPI VPA (minimum 50 coins) — also manually reviewed and paid by an admin.
-New accounts start with a small welcome bonus.
+Spend coins on a Premium subscription (§6.10) or send them directly to
+another account from the wallet ("Send coins" — enter their username and
+an amount; transfers are rate-limited and capped per transaction).
 
 6.10  PREMIUM PROFILE  —  Settings > Billing > Premium
 --------------------------------------------------------------------------
-A personal paid tier (monthly or yearly, payable by card via Stripe or by
-coins, §6.9). Perks:
+A personal paid tier (monthly or yearly, payable in coins only — §6.9).
+Perks:
   - One custom domain included (§3.3)
   - Full link-click analytics history (free tier: 30 days)
   - Higher link cap, and a larger curated theme-preset library
@@ -485,9 +485,9 @@ optional goal amount (leave it blank for an open-ended, ongoing
 fundraiser), and an optional end date. It lives at 0dot.in/fund/<id> with
 a running total and progress bar.
 
-  - Donations flow through the SAME payout account and payment ledger as
-    everything else in §6 — set up Payouts (§6.1) before you can receive
-    any. A single donation is between $1 and $5,000.
+  - Donations flow through the SAME coin wallet as everything else in §6
+    (§6.1) — there's no separate setup step to receive them. A single
+    donation is between 1 and 5,000 coins.
   - Donors can leave an optional public thank-you message, and can choose
     to donate anonymously — an anonymous donation hides the donor's name
     from the public campaign page, but the organizer still sees who gave.
@@ -875,11 +875,12 @@ TRUST & SAFETY QUEUE:  0dot.in/admin/trust-safety
                     (aggregate case-volume/resolution reporting, including
                     the appeal-overturn rate as an accountability signal)
 
-WALLET REVIEW:      0dot.in/admin/wallet/topups and .../payouts
-                  Manual UPI top-up/payout approval queue (§6.9) — an
-                  admin's own verification against the bank statement is
-                  the entire fraud control in this flow; there is no
-                  automated reconciliation.
+WALLET REVIEW:      0dot.in/admin/wallet
+                  Platform-wide coin-ledger overview (issued vs. spent,
+                  outstanding balances) plus tools to grant coins to an
+                  account or refund a coin-settled payment (§6.9) — there
+                  is no top-up or cash-out queue, since coins never
+                  convert to or from real money.
 
 PAYMENTS:           0dot.in/admin/payments/iap-batches
                   Reconciliation for mobile in-app-purchase revenue
@@ -902,19 +903,17 @@ PAYMENTS:           0dot.in/admin/payments/iap-batches
   Edit my bio, avatar, theme             Settings > Profile > Edit profile
   Add/reorder link-in-bio links          Settings > Profile > Links
   Set up a custom domain                 Settings > Billing > Custom domain
-  Get paid (set up payouts)              Settings > Monetization > Payouts
   Sell a digital download                Settings > Monetization > Digital products
   Offer a bookable service                Settings > Monetization > Freelance services
   Start a paid membership tier            Settings > Monetization > Memberships
   Run an affiliate program                Settings > Monetization > Affiliate
   Start a fundraiser / take donations      0dot.in/fund/new
-  Send coins to another user               0dot.in/wallet ("Send coins")
+  Send coins to another user              0dot.in/wallet ("Send coins")
   Publish an article / private note       Settings > Content > Articles
   Start a personal wiki                   Settings > Content > Wiki & Docs
   Publish a podcast                       Settings > Content > Podcast
   Send a newsletter                       Settings > Content > Newsletter
   Build a portfolio (projects/resume)     Settings > Portfolio
-  Top up coins via UPI                    0dot.in/wallet
   Upgrade to Premium                      Settings > Billing > Premium
   Create a Community                      0dot.in/c/new
   Create a Business page                  0dot.in/b/new

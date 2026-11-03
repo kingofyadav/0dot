@@ -1,11 +1,15 @@
-# Phase 5 — Creator Platform: build plan (saved for later)
+# Phase 5 — Creator Platform: build plan (historical)
 
+> **Superseded.** Everything in "Saved for a future session" below has since
+> shipped too — `MembershipTier`, `DigitalProduct`, `Course`, `Podcast`,
+> `NewsletterSubscription`, `AffiliateLink`, and `Livestream` all exist in
+> `prisma/schema.prisma`, and the payments backbone now runs on live Stripe
+> Connect (Accounts v2) rather than the `StubPaymentProcessor` this plan
+> describes — see `../ROADMAP.md`'s build-status table and `../../README.md`.
+> Kept as a record of the original §0–§1 build (payments backbone + tips) and
+> the decisions made on the spec's open questions; no longer a to-do list.
 > Companion to the actual spec at
-> [phase-5-creator-platform.md](phase-5-creator-platform.md); this is the
-> implementation plan, not the spec itself. This session builds §0–§1 below
-> (payments backbone + tips); §2 onward is saved for future sessions to pick
-> up, same "one comprehensive plan, then section-by-section execution"
-> rhythm as [phase-4-build-plan.md](phase-4-build-plan.md).
+> [phase-5-creator-platform.md](phase-5-creator-platform.md).
 
 ## Decisions on the spec's open questions (§14) and this session's scope
 
@@ -146,7 +150,7 @@ session (a simple "recent tips" list), not a dedicated tips feed/page.
 
 ---
 
-## Saved for a future session: §2 onward (not built this session)
+## §2 onward (not built in this session — since shipped, see banner above)
 
 Per spec §15's suggested build sequence, in order, each depending on what
 came before:
