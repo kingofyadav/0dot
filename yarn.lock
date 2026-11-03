@@ -7943,10 +7943,10 @@ supports-preserve-symlinks-flag@^1.0.0:
   resolved "https://registry.npmjs.org/supports-preserve-symlinks-flag/-/supports-preserve-symlinks-flag-1.0.0.tgz"
   integrity sha512-ot0WnXS9fgdkgIcePe6RHNk1WA8+muPa6cSjeR3V8K27q9BB1rTE3R1p7Hv0z1ZyAc8s6Vvv8DIyWf681MAt0w==
 
-systeminformation@^5.22.11:
-  version "5.33.15"
-  resolved "https://registry.npmjs.org/systeminformation/-/systeminformation-5.33.15.tgz"
-  integrity sha512-s5RloL0F7xhN0ZjfHtLGnbf7EW74EI0N8NFL+1xR7Oxz9QA33obNZsl7lyfnJOhN04E/kGFPoJPlvY7TZ5fzmw==
+systeminformation@^5.22.11, systeminformation@^5.33.16:
+  version "5.33.19"
+  resolved "https://registry.yarnpkg.com/systeminformation/-/systeminformation-5.33.19.tgz#b956e75ff6d7bdc6019ca4fc13c78b01f47cc415"
+  integrity sha512-Zm7wGeCG7PqfvzegMJIzrxICopWqYCeLATVmvxOOci1isLcNVKgY4Fr0hhYQzvc7cgtK3377jQVChTFAnznOiA==
 
 tailwind-merge@^3.6.0:
   version "3.7.0"
