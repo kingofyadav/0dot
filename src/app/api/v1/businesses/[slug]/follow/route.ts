@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { resolveApiRequest, requireScope, apiError } from "@/lib/api-auth";
+import { resolveApiRequest, requireScope, requireVerifiedApiUser, apiError } from "@/lib/api-auth";
 import { checkApiRateLimit } from "@/lib/api-rate-limit";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { notifyBusinessFollow } from "@/lib/notifications";
@@ -26,6 +26,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ slu
 
   const { allowed, limit, remaining } = await checkApiRateLimit(ctx.appId);
   if (!allowed) return apiError("Rate limit exceeded.", 429);
+
+  const verifiedError = await requireVerifiedApiUser(ctx);
+  if (verifiedError) return apiError(verifiedError.error, verifiedError.status);
 
   const { slug } = await params;
   const business = await resolveActiveBusiness(slug);

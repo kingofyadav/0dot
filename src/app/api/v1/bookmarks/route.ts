@@ -3,6 +3,7 @@ import { resolveApiRequest, requireScope, apiError } from "@/lib/api-auth";
 import { checkApiRateLimit } from "@/lib/api-rate-limit";
 import { parseCursor, encodeCursor, POST_PAGE_SIZE } from "@/lib/pagination";
 import { getRepostedPostIds } from "@/lib/feed-query";
+import { getTierGatingCondition } from "@/lib/post-visibility";
 
 // Bookmark's primary key is the composite (postId, userId) — no scalar `id`
 // field for pagination.ts's cursorWhere/paginate to key off, so cursoring
@@ -20,11 +21,12 @@ export async function GET(request: Request) {
   if (!allowed) return apiError("Rate limit exceeded.", 429);
 
   const cursor = parseCursor(new URL(request.url).searchParams.get("cursor") ?? undefined);
+  const tierGating = await getTierGatingCondition(ctx.userId);
 
   const rows = await db.bookmark.findMany({
     where: {
       userId: ctx.userId,
-      post: { deletedAt: null },
+      post: { AND: [{ deletedAt: null }, tierGating] },
       ...(cursor
         ? { OR: [{ createdAt: { lt: cursor.createdAt } }, { createdAt: cursor.createdAt, postId: { lt: cursor.id } }] }
         : {}),

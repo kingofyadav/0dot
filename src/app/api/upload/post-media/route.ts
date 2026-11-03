@@ -21,9 +21,8 @@ import { POST_MEDIA_IMAGE_TYPES, POST_MEDIA_MAX_BYTES } from "@/lib/uploads";
 const ALLOWED_PATHNAME = /^uploads\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(png|jpe?g|webp|gif)$/i;
 
 export async function POST(request: Request): Promise<NextResponse> {
-  const body = (await request.json()) as HandleUploadBody;
-
   try {
+    const body = (await request.json()) as HandleUploadBody;
     const result = await handleUpload({
       request,
       body,

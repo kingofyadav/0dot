@@ -25,7 +25,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
   if (!allowed) return apiError("Rate limit exceeded.", 429);
 
   const { slug: rawSlug } = await params;
-  const slug = decodeURIComponent(rawSlug);
+  const slug = decodeURIComponent(rawSlug).toLowerCase();
   const event = await getEventBySlug(slug);
   if (!event) return apiError("Not found.", 404);
 

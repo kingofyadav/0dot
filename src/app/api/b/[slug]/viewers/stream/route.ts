@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
-import { getBusinessMember } from "@/lib/businesses";
+import { isBusinessStaff } from "@/lib/businesses";
 import { subscribeToBusinessViewers, countViewers } from "@/lib/business-viewers";
 
 export const dynamic = "force-dynamic";
@@ -27,8 +27,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
   if (!business) return new Response("Not found", { status: 404 });
 
   const user = await getCurrentUser();
-  const membership = user ? await getBusinessMember(business.id, user.id) : null;
-  if (!membership || (membership.role !== "owner" && membership.role !== "admin")) {
+  if (!user || !(await isBusinessStaff(business.id, user.id))) {
     return new Response("Unauthorized", { status: 401 });
   }
 

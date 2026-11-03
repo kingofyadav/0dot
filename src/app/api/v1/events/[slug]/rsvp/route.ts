@@ -27,7 +27,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ slu
   if (!RSVP_STATUSES.has(status)) return apiError("Invalid RSVP status.", 400);
 
   const { slug: rawSlug } = await params;
-  const slug = decodeURIComponent(rawSlug);
+  const slug = decodeURIComponent(rawSlug).toLowerCase();
   const event = await db.event.findUnique({ where: { slug } });
   if (!event || event.status !== "published") return apiError("This event isn't accepting RSVPs.", 403);
 

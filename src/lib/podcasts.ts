@@ -17,16 +17,19 @@ export async function resolvePodcastFeedToken(
 }
 
 // spec §9.3: an episode is playable/downloadable by a given (possibly
-// anonymous) requester if it's ungated, or the requester holds a live
-// feedToken scoped to this exact podcast whose subscriber currently has
-// tier access — same hasTierAccess (src/lib/tier-access.ts) every other
-// gated surface in this phase reuses, computed live rather than cached on
-// the token.
+// anonymous) requester if it's published, and is ungated or the requester
+// holds a live feedToken scoped to this exact podcast whose subscriber
+// currently has tier access — same hasTierAccess (src/lib/tier-access.ts)
+// every other gated surface in this phase reuses, computed live rather than
+// cached on the token. The publishAt check matches buildPodcastRss's own
+// `publishAt: { lte: new Date() }` query filter, so a scheduled-but-not-yet-
+// public episode can't be streamed early just by knowing its id.
 export async function canAccessEpisode(
-  episode: { podcastId: string; requiredTierId: string | null },
+  episode: { podcastId: string; requiredTierId: string | null; publishAt: Date },
   podcastCreatorId: string,
   feedToken: { podcastId: string; subscriberId: string } | null
 ): Promise<boolean> {
+  if (episode.publishAt > new Date()) return false;
   if (!episode.requiredTierId) return true;
   if (!feedToken || feedToken.podcastId !== episode.podcastId) return false;
   return hasTierAccess(feedToken.subscriberId, podcastCreatorId, episode.requiredTierId);

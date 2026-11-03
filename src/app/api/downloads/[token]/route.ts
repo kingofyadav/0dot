@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { verifyDownloadToken, streamProtectedFile } from "@/lib/protected-storage";
 import { hasCourseAccess } from "@/lib/course-access";
-import { hasTierAccess } from "@/lib/tier-access";
+import { canAccessEpisode } from "@/lib/podcasts";
 
 // Same extraction shape as /r/[linkId] and /aff/[code] — no raw IP/UA
 // recorded anywhere in this system, referrer host only (phase-1 spec §4.3's
@@ -47,10 +47,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ toke
   if (payload.resourceType === "podcast_episode") {
     const episode = await db.podcastEpisode.findUnique({ where: { id: payload.resourceId }, include: { podcast: true } });
     if (!episode) return new Response("Not found", { status: 404 });
-    if (episode.requiredTierId) {
-      const access = await hasTierAccess(payload.userId, episode.podcast.creatorId, episode.requiredTierId);
-      if (!access) return new Response("Not found", { status: 404 });
-    }
+    const access = await canAccessEpisode(episode, episode.podcast.creatorId, {
+      podcastId: episode.podcastId,
+      subscriberId: payload.userId,
+    });
+    if (!access) return new Response("Not found", { status: 404 });
     return streamProtectedFile(episode.fileKey, episode.fileMimeType, episode.title, request, "inline");
   }
 

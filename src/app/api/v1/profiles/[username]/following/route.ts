@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { resolveApiRequest, requireScope, apiError } from "@/lib/api-auth";
 import { checkApiRateLimit } from "@/lib/api-rate-limit";
 import { parseCursor, paginate, POST_PAGE_SIZE } from "@/lib/pagination";
+import { isBlockedEitherWay } from "@/lib/blocks";
 
 // Mirror of ../followers/route.ts, filtered/tiebroken the other direction —
 // see that file's comment for the shared reasoning (mirrors
@@ -20,6 +21,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ user
   const handle = decodeURIComponent(rawUsername).toLowerCase();
   const username = await db.username.findUnique({ where: { handle }, include: { user: { include: { profile: true } } } });
   if (!username?.user.profile) return apiError("Not found.", 404);
+
+  if (await isBlockedEitherWay(ctx.userId, username.userId)) return apiError("Not found.", 404);
 
   const isOwner = ctx.userId === username.userId;
   if (username.user.profile.isPrivate && !isOwner) {
