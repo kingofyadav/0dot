@@ -1,3 +1,4 @@
+import { AppState, Platform } from "react-native";
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { signIn as pkceSignIn, signOut as pkceSignOut, getStoredTokens } from "./pkceAuth";
 import { isBiometricLockAvailable, unlockWithBiometrics } from "./biometricLock";
@@ -42,10 +43,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // every unlock exhausts that limit at even modest scale.
   const pushRegisteredRef = useRef(false);
 
-  const loadMe = useCallback(async () => {
+  // Returns false when this call signed the session out (an unrecoverable
+  // 401) so afterAuthEstablished below knows not to keep going as if the
+  // session were still live.
+  const loadMe = useCallback(async (): Promise<boolean> => {
     try {
       setMe(await getMe());
       setError(null);
+      return true;
     } catch (err) {
       // api/client.ts's authorizedRequest already tries one silent
       // refresh-and-retry on a 401 — reaching here as a 401 means that
@@ -56,24 +61,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setTokens(null);
         setError("Your session expired. Please sign in again.");
         pushRegisteredRef.current = false;
-        return;
+        return false;
       }
       setError(err instanceof Error ? err.message : "Could not load your account.");
+      return true;
     }
   }, []);
 
   const afterAuthEstablished = useCallback(async () => {
-    await loadMe();
-    if (!pushRegisteredRef.current) {
-      try {
-        await registerForPushNotificationsAsync();
-        pushRegisteredRef.current = true;
-      } catch {
-        // Best-effort, same posture as dispatchPushEvent server-side — a
-        // denied permission or missing hardware (simulator) shouldn't block
-        // the rest of the app. Leave the ref false so a future unlock can
-        // retry rather than giving up on push forever.
-      }
+    const stillSignedIn = await loadMe();
+    // loadMe() may have just signed the session out (an unrecoverable
+    // 401) — registering for push against a session that was just
+    // invalidated would only hit authorizedRequest with no token left to
+    // send, so skip it instead of firing (and silently swallowing) a call
+    // that's guaranteed to fail.
+    if (!stillSignedIn || pushRegisteredRef.current) return;
+    try {
+      await registerForPushNotificationsAsync();
+      pushRegisteredRef.current = true;
+    } catch {
+      // Best-effort, same posture as dispatchPushEvent server-side — a
+      // denied permission or missing hardware (simulator) shouldn't block
+      // the rest of the app. Leave the ref false so a future unlock can
+      // retry rather than giving up on push forever.
     }
   }, [loadMe]);
 
@@ -93,7 +103,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           try {
             biometricAvailable = await isBiometricLockAvailable();
           } catch {
-            biometricAvailable = false;
+            // LocalAuthentication isn't implemented at all on some
+            // platforms (e.g. `expo start --web`) — only treat the check
+            // itself throwing as "no lock" there. On a real device,
+            // failing open here would skip the biometric gate entirely on
+            // a transient hardware/driver error instead of correctly
+            // locking the session (the safe default when we can't tell).
+            biometricAvailable = Platform.OS !== "web";
           }
           if (biometricAvailable) {
             setLocked(true);
@@ -118,6 +134,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     })();
   }, [afterAuthEstablished]);
+
+  // §7's biometric gate is meant to cover "whenever the app isn't in the
+  // foreground," not just the one cold-start check above — without this,
+  // `locked` is only ever set once per process lifetime, so backgrounding
+  // and resuming an already-unlocked session skips the challenge entirely.
+  // Re-arm as soon as the app leaves "active" (not just on a true
+  // background transition) so it's already locked by the time it's
+  // foregrounded again.
+  useEffect(() => {
+    if (!tokens || locked) return;
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      if (nextState === "active") return;
+      isBiometricLockAvailable()
+        .then((available) => {
+          if (available) setLocked(true);
+        })
+        .catch(() => {});
+    });
+    return () => subscription.remove();
+  }, [tokens, locked]);
 
   async function signIn() {
     setError(null);
@@ -191,7 +227,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ status, tokens, me, error, signIn, signOut, unlock, clearError: () => setError(null), refreshMe: loadMe }}
+      value={{
+        status,
+        tokens,
+        me,
+        error,
+        signIn,
+        signOut,
+        unlock,
+        clearError: () => setError(null),
+        refreshMe: async () => {
+          await loadMe();
+        },
+      }}
     >
       {children}
     </AuthContext.Provider>

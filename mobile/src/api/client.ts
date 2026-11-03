@@ -587,7 +587,12 @@ export function getWallet(): Promise<WalletResponse> {
   return authorizedRequest<WalletResponse>("/api/v1/wallet");
 }
 
-export function transferCoins(args: { username: string; coinAmount: number }): Promise<{ ok: true }> {
+// The server honors a body `idempotencyKey` for this route (a retry with
+// the same key moves no additional coins and writes no second history
+// row) -- callers should generate one per transfer attempt and reuse it
+// across retries of that same attempt so a dropped/timed-out response
+// can't double-send coins on resubmission.
+export function transferCoins(args: { username: string; coinAmount: number; idempotencyKey?: string }): Promise<{ ok: true }> {
   return authorizedRequest("/api/v1/wallet/transfer", { method: "POST", body: JSON.stringify(args) });
 }
 

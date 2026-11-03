@@ -23,6 +23,15 @@ export function subscribeToIncomingLinks(): () => void {
     // has no post/profile screen for "oauth", so this would otherwise fall
     // through to its browser-fallback and pop a nonsense URL open.
     if (hostname === "oauth" || path?.startsWith("oauth")) return;
+    // Only the verified https universal link (0dot.in) is a trusted
+    // first-party source for in-app navigation. The custom schemes
+    // (zerodot-ios://, zerodot-android://) are registered solely for the
+    // OAuth redirect handled above and aren't domain-verified like
+    // associatedDomains/intentFilters are — any other scheme/hostname
+    // reaching here could be fired by another installed app, a webpage
+    // (`<a href="zerodot-ios://...">`), or a QR code, and shouldn't be
+    // trusted to drive in-app navigation.
+    if (hostname !== "0dot.in") return;
     if (path) resolvePath(`/${path}`);
   };
 

@@ -62,8 +62,11 @@ export function resolvePath(path: string): void {
   // notifications to exactly "/wallet" — without this case it fell through
   // to the bare-username catch-all below (misread as a profile for a user
   // named "wallet") rather than the in-app browser fallback either way, so
-  // this is a native-screen upgrade, not a behavior fix.
-  if (path === "/wallet" || path.startsWith("/wallet?") || path.startsWith("/wallet#")) {
+  // this is a native-screen upgrade, not a behavior fix. Also matches the
+  // trailing-slash form ("/wallet/"), which usernameMatch's own `\/?$`
+  // would otherwise happily accept as a one-segment path and misroute the
+  // same way this case exists to prevent.
+  if (path === "/wallet" || path === "/wallet/" || path.startsWith("/wallet?") || path.startsWith("/wallet#")) {
     router.push("/wallet");
     return;
   }
@@ -86,10 +89,25 @@ export function resolvePath(path: string): void {
   // Every other known top-level namespace this app doesn't have a native
   // screen for yet (marketplace items, businesses' sub-pages, ...) falls
   // through below — checked before the bare-username catch-all so e.g.
-  // "/feed" or "/notifications" don't get misread as a username.
-  const reservedFirstSegment = /^\/(c|b|e|m|messages|feed|notifications|login|signup|s|trust-safety)(\/|$)/;
-  const usernameMatch = !reservedFirstSegment.test(path) && path.match(/^\/([^/?#]+)\/?$/);
-  if (usernameMatch) {
+  // "/feed" or "/notifications" don't get misread as a username. Mirrors
+  // src/lib/reserved-usernames.ts's RESERVED_USERNAMES (that file can't be
+  // imported directly — it's bundled for the Next.js app, not this Expo
+  // app — but every word reserved there is a real top-level route the web
+  // app owns, so any of them as this path's first segment must never be
+  // misread as a profile username here either). Keep in sync by hand if
+  // that list changes.
+  const RESERVED_FIRST_SEGMENTS = new Set([
+    "admin", "api", "www", "help", "settings", "s", "about", "feed", "explore",
+    "trending", "c", "b", "p", "e", "jobs", "store", "blog", "developers",
+    "login", "signup", "logout", "verify", "claim-username", "search",
+    "bookmarks", "notifications", "r", "uploads", "qr", "dmca", "trust-safety",
+    "org", "sso", "0dot", "l", "m", "form", "fund", "live", "map", "messages",
+    "newsletter", "oauth", "podcast", "aff", "assistant", "dev", "download",
+    "forgot-password", "front-page", "join", "privacy", "reset-password",
+    "terms", "verify-email-change", "wallet",
+  ]);
+  const usernameMatch = path.match(/^\/([^/?#]+)\/?$/);
+  if (usernameMatch && !RESERVED_FIRST_SEGMENTS.has(usernameMatch[1])) {
     router.push({ pathname: "/[username]", params: { username: usernameMatch[1] } });
     return;
   }

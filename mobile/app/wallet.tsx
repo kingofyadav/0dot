@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import * as Crypto from "expo-crypto";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Link, useFocusEffect } from "expo-router";
 import { getWallet, getBusinesses, getBusinessWallet, getProfile, transferCoins, ApiError } from "../src/api/client";
@@ -37,7 +38,10 @@ type WalletScope = { kind: "personal" } | { kind: "business"; business: Business
 // "Review transfer" time so the confirm sheet can't drift if the (disabled,
 // backdrop-covered) form fields behind it were somehow touched again before
 // the user actually confirms.
-type PendingTransfer = { profile: Profile; coinAmount: number };
+// idempotencyKey is generated once when the transfer is prepared (not per
+// send attempt), so a retry after a dropped/timed-out response reuses the
+// same key instead of the server treating it as a second, separate send.
+type PendingTransfer = { profile: Profile; coinAmount: number; idempotencyKey: string };
 
 export default function WalletScreen() {
   const theme = useTheme();
@@ -139,7 +143,7 @@ export default function WalletScreen() {
         return;
       }
       setConfirmError(null);
-      setPending({ profile, coinAmount });
+      setPending({ profile, coinAmount, idempotencyKey: Crypto.randomUUID() });
     } catch (err) {
       haptics.warning();
       if (err instanceof ApiError) {
@@ -178,7 +182,11 @@ export default function WalletScreen() {
           return;
         }
       }
-      await transferCoins({ username: pending.profile.username, coinAmount: pending.coinAmount });
+      await transferCoins({
+        username: pending.profile.username,
+        coinAmount: pending.coinAmount,
+        idempotencyKey: pending.idempotencyKey,
+      });
       haptics.light();
       setPending(null);
       setUsername("");

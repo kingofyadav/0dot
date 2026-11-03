@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import * as Crypto from "expo-crypto";
 import { getWallet, purchaseWithCoins, ApiError } from "../api/client";
 import { isBiometricLockAvailable, unlockWithBiometrics } from "../auth/biometricLock";
 import { BottomSheet } from "./BottomSheet";
@@ -41,8 +42,20 @@ export function PurchaseSheet({
   const [buying, setBuying] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const isFree = item?.price === null;
+  // price === 0 is just as free as price === null -- a promo/free item the
+  // server represents as a concrete 0-coin price must not fall into the
+  // "needs balance + Buy now" path below.
+  const isFree = item?.price === null || item?.price === 0;
   const needsBalance = Boolean(item) && !isFree;
+
+  // One idempotency key per purchase attempt (regenerated whenever the
+  // sheet opens for a different item), so a retry after a dropped/timed-out
+  // response reuses the same key instead of the server seeing it as a
+  // brand-new purchase and double-charging the buyer. item?.id is a deps-
+  // only cache-buster, not read inside the memo — exhaustive-deps can't
+  // tell that apart from a missing dependency.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const idempotencyKey = useMemo(() => Crypto.randomUUID(), [item?.id]);
 
   useEffect(() => {
     if (!needsBalance) return;
@@ -78,7 +91,7 @@ export function PurchaseSheet({
           return;
         }
       }
-      await purchaseWithCoins({ target: item.target, id: item.id });
+      await purchaseWithCoins({ target: item.target, id: item.id, idempotencyKey });
       haptics.medium();
       onPurchased();
     } catch (err) {
