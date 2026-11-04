@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
+import { BrandText } from "@/components/BrandText";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { FollowButton } from "@/components/FollowButton";
@@ -393,7 +394,11 @@ export default async function ProfilePage({
         </div>
       </div>
 
-      {profile.bio && <p className="profileBio">{profile.bio}</p>}
+      {profile.bio && (
+        <p className="profileBio">
+          <BrandText text={profile.bio} />
+        </p>
+      )}
 
       {/* Share and Block are real but secondary (spec §3.4 calls Share
           "togglable via a share sheet", not a primary action) — grouped
@@ -741,8 +746,13 @@ async function ProfilePortfolioTab({
         <div className="disclosureBody">
           {visibleProjects.map((project) => (
             <Link key={project.id} href={`/p/${project.slug}`} style={{ fontSize: "0.9rem" }}>
-              {project.title}
-              {project.summary && <span className="mutedText"> — {project.summary}</span>}
+              <BrandText text={project.title} />
+              {project.summary && (
+                <span className="mutedText">
+                  {" "}
+                  — <BrandText text={project.summary} />
+                </span>
+              )}
             </Link>
           ))}
         </div>
